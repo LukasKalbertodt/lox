@@ -1,2 +1,4 @@
 // pub mod hem;
-pub mod fv;
+mod fv;
+
+pub use self::fv::FvTriMesh;

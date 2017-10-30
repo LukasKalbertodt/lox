@@ -4,4 +4,4 @@ version = "0.1.0"
 authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
 
 [dependencies]
-stable-vec = "0.1"
+stable-vec = "0.2"
