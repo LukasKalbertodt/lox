@@ -1,12 +1,16 @@
-use std::marker::PhantomData;
-use std::ops::{Index, IndexMut};
+use std::{
+    marker::PhantomData,
+    mem,
+    ops::{Index, IndexMut},
+};
 
 use stable_vec::{Keys, StableVec};
 
-use handle::{DefaultIndex, Handle, HandleIndex, FaceHandle, EdgeHandle, VertexHandle};
+use crate::{
+    handle::{Handle, HandleIndex},
+    map::AttrMap,
+};
 
-
-pub trait AttrMap<H: Handle>: Index<H> {}
 
 
 #[derive(Clone)]
@@ -14,10 +18,6 @@ pub struct VecMap<H: Handle, T> {
     vec: StableVec<T>,
     _dummy: PhantomData<H>,
 }
-
-pub type FaceVecMap<T, Idx = DefaultIndex> = VecMap<FaceHandle<Idx>, T>;
-pub type EdgeVecMap<T, Idx = DefaultIndex> = VecMap<EdgeHandle<Idx>, T>;
-pub type VertexVecMap<T, Idx = DefaultIndex> = VecMap<VertexHandle<Idx>, T>;
 
 impl<H: Handle, T> VecMap<H, T> {
     pub fn new() -> Self {
@@ -28,7 +28,26 @@ impl<H: Handle, T> VecMap<H, T> {
     }
 
     pub fn push(&mut self, elem: T) -> H {
-        self.vec.push(elem).into()
+        H::from_usize(self.vec.push(elem))
+    }
+
+    pub fn insert(&mut self, h: H, mut elem: T) -> Option<T> {
+        let idx = h.idx().to_usize();
+        if self.vec.has_element_at(idx) {
+            mem::swap(&mut self.vec[idx], &mut elem);
+            Some(elem)
+        } else {
+            // Make sure `idx` is not out of bounds
+            let next_index = self.vec.next_index();
+            if next_index <= idx {
+                self.vec.grow(1 + idx - next_index);
+            }
+
+            // We made sure that there is no element at `idx` and that `idx`
+            // is not out of bounds. So we can unwrap here.
+            self.vec.insert_into_hole(idx, elem).ok().unwrap();
+            None
+        }
     }
 
     pub fn num_elements(&self) -> H::Idx {
@@ -38,7 +57,7 @@ impl<H: Handle, T> VecMap<H, T> {
     pub fn handles(&self) -> Handles<H> {
         Handles {
             iter: self.vec.keys(),
-            dummy: PhantomData,
+            _dummy: PhantomData,
         }
     }
 }
@@ -83,7 +102,3 @@ impl<'map, H: Handle> Iterator for Handles<'map, H> {
         self.iter.next().map(H::from_usize)
     }
 }
-
-// pub struct MapList {
-//     maps: Ms,
-// }

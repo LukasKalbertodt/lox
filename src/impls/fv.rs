@@ -1,6 +1,8 @@
-use handle::{DefaultIndex, Handle, HandleIndex, FaceHandle, VertexHandle};
-use maps::{FaceVecMap, Handles};
-use TriMesh;
+use crate::{
+    handle::{DefaultIndex, Handle, HandleIndex, FaceHandle, VertexHandle},
+    map::FaceVecMap,
+    TriMesh,
+};
 
 
 /// A simple face-vertex mesh for triangular faces.
@@ -12,9 +14,7 @@ pub struct FvTriMesh<Idx: HandleIndex = DefaultIndex> {
 
 #[derive(Clone, Copy)]
 pub struct FvTriFace<Idx: HandleIndex = DefaultIndex> {
-    a: VertexHandle<Idx>,
-    b: VertexHandle<Idx>,
-    c: VertexHandle<Idx>,
+    vertices: [VertexHandle<Idx>; 3],
 }
 
 impl<Idx: HandleIndex> FvTriMesh<Idx> {
@@ -33,11 +33,7 @@ impl<Idx: HandleIndex> FvTriMesh<Idx> {
     }
 
     pub fn add_face(&mut self, vertices: [VertexHandle<Idx>; 3]) -> FaceHandle<Idx> {
-        self.faces.push(FvTriFace {
-            a: vertices[0],
-            b: vertices[1],
-            c: vertices[2],
-        })
+        self.faces.push(FvTriFace { vertices })
     }
 
     pub fn face(&self, fh: FaceHandle<Idx>) -> FvTriFace<Idx> {
@@ -47,7 +43,7 @@ impl<Idx: HandleIndex> FvTriMesh<Idx> {
 
 impl<Idx: HandleIndex> TriMesh for FvTriMesh<Idx> {
     type Idx = Idx;
-    type FaceIter = Handles<FaceHandle<Idx>>;
+    // type FaceIter = Handles<FaceHandle<Idx>>;
 
     fn num_faces(&self) -> Self::Idx {
         self.faces.num_elements()
@@ -56,15 +52,14 @@ impl<Idx: HandleIndex> TriMesh for FvTriMesh<Idx> {
         self.num_vertices
     }
 
-    fn faces(&self) -> Self::FaceIter {
-        self.faces.handles()
+    fn faces<'a>(&'a self) -> Box<Iterator<Item = FaceHandle<Self::Idx>> + 'a> {
+        Box::new(self.faces.handles())
     }
 
     fn vertices_of_face(
         &self,
         face: FaceHandle<Self::Idx>
     ) -> [VertexHandle<Self::Idx>; 3] {
-        let f = self.faces[face];
-        [f.a, f.b, f.c]
+        self.faces[face].vertices
     }
 }

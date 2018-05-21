@@ -36,8 +36,9 @@ impl_handle_index!(u64);
 impl_handle_index!(usize);
 
 
-pub trait Handle: Copy + From<usize> {
+pub trait Handle: Copy {
     type Idx: HandleIndex;
+
     fn from_idx(idx: Self::Idx) -> Self;
     fn idx(&self) -> Self::Idx;
 
@@ -53,7 +54,7 @@ pub trait Handle: Copy + From<usize> {
 macro_rules! make_handle_type {
     ($name:ident, $short:expr) => {
         #[derive(Clone, Copy, PartialEq, Eq)]
-        pub struct $name<Idx: HandleIndex>(Idx);
+        pub struct $name<Idx: HandleIndex = DefaultIndex>(Idx);
 
         impl<Idx: HandleIndex> From<usize> for $name<Idx> {
             fn from(raw: usize) -> Self {
