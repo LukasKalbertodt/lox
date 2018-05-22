@@ -8,7 +8,7 @@ extern crate stable_vec;
 pub mod handle;
 pub mod impls;
 pub mod map;
-// pub mod io;
+pub mod io;
 
 
 use handle::{HandleIndex, FaceHandle, VertexHandle};
@@ -27,6 +27,7 @@ pub trait TriMesh {
     // fn vertices(&self) -> Self::VertexIter;
     // fn faces(&self) -> Self::FaceIter;
     // TODO: change once GATs are available
+    fn vertices<'a>(&'a self) -> Box<Iterator<Item = VertexHandle<Self::Idx>> + 'a>;
     fn faces<'a>(&'a self) -> Box<Iterator<Item = FaceHandle<Self::Idx>> + 'a>;
 
     fn vertices_of_face(&self, face: FaceHandle<Self::Idx>)

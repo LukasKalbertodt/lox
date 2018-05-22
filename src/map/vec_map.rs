@@ -76,7 +76,9 @@ impl<H: Handle, T: Clone> VecMap<H, T> {
     }
 }
 
-impl<H: Handle, T> AttrMap<H> for VecMap<H, T> {}
+impl<H: Handle, T> AttrMap for VecMap<H, T> {
+    type Handle = H;
+}
 
 impl<H: Handle, T> Index<H> for VecMap<H, T> {
     type Output = T;
