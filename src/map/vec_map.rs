@@ -8,7 +8,7 @@ use stable_vec::{Keys, StableVec};
 
 use crate::{
     handle::{Handle, HandleIndex},
-    map::AttrMap,
+    map::{PropMap, PropMapMut},
 };
 
 
@@ -76,9 +76,18 @@ impl<H: Handle, T: Clone> VecMap<H, T> {
     }
 }
 
-impl<H: Handle, T> AttrMap for VecMap<H, T> {
-    type Handle = H;
+impl<H: Handle, T> PropMap<H> for VecMap<H, T> {
+    fn get(&self, handle: H) -> Option<&Self::Output> {
+        self.vec.get(handle.idx().to_usize())
+    }
 }
+
+impl<H: Handle, T> PropMapMut<H> for VecMap<H, T> {
+    fn get_mut(&mut self, handle: H) -> Option<&mut Self::Output> {
+        self.vec.get_mut(handle.idx().to_usize())
+    }
+}
+
 
 impl<H: Handle, T> Index<H> for VecMap<H, T> {
     type Output = T;

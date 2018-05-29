@@ -1,5 +1,5 @@
 use std::{
-    ops::Index,
+    ops
 };
 
 use crate::{
@@ -22,23 +22,44 @@ pub type VertexVecMap<T, Idx = DefaultIndex> = VecMap<VertexHandle<Idx>, T>;
 
 
 
-pub trait AttrMap where Self: Index<<Self as AttrMap>::Handle> {
-    // TODO: In the current design, each attribute map is fixed to one handle
-    // type. Meaning: a map with `Handle = FaceHandle<u32>` cannot be indexed
-    // with `FaceHandle<u16>` nor by `FaceHandle<u64>`. This restriction is
-    // not necessary (I think!). However, maps should still be restricted to
-    // one handle *kind*, i.e. FaceHandle. I think the only sane way to do that
-    // is by using GATs which are still not yet implemented.
-    type Handle: Handle;
+
+pub trait PropMap<H: Handle>: ops::Index<H> {
+    /// Returns a reference to property's value associated with the given
+    /// handle, or `None` if no value is associated with that handle.
+    fn get(&self, handle: H) -> Option<&Self::Output>;
+
+    /// Returns `true` if and only if this map contains a property associated
+    /// with the given handle.
+    fn contains_handle(&self, handle: H) -> bool {
+        self.get(handle).is_some()
+    }
+
+    // Additional maybe useful methods:
+    // - numValues
+    // - Iterator over
+    //      - handles
+    //      - values
+    //      - both
+}
+
+pub trait PropMapMut<H: Handle>: PropMap<H> + ops::IndexMut<H> {
+    /// Returns a mutable reference to property's value associated with the
+    /// given handle, or `None` if no value is associated with that handle.
+    fn get_mut(&mut self, handle: H) -> Option<&mut Self::Output>;
+
+    // Additional maybe useful methods:
+    // - clear
+    // - insert
+    // - erase
 }
 
 
 macro_rules! create_map_trait_alias {
     ($alias_name:ident, $handle_name:ident) => {
-        pub trait $alias_name<Idx: HandleIndex>: AttrMap<Handle = $handle_name<Idx>> {}
+        pub trait $alias_name<Idx: HandleIndex>: PropMap<$handle_name<Idx>> {}
         impl<T, Idx: HandleIndex> $alias_name<Idx> for T
         where
-            T: AttrMap<Handle = $handle_name<Idx>>
+            T: PropMap<$handle_name<Idx>>
         {}
     }
 }
@@ -46,3 +67,18 @@ macro_rules! create_map_trait_alias {
 create_map_trait_alias!(FaceMap, FaceHandle);
 create_map_trait_alias!(EdgeMap, EdgeHandle);
 create_map_trait_alias!(VertexMap, VertexHandle);
+
+// pub struct MapElem<'a, F, Map: 'a> {
+//     original: &'a Map,
+//     mapping: F,
+// }
+
+// impl<'a, F, Map: 'a, NewOutput> Index<Map::Handle> for MapElem<'a, F, Map>
+// where
+//     Map: AttrMap,
+//     F: FnMut(&Map::Output) -> NewOutput,
+// {
+//     type Output = NewOutput;
+
+//     fn index(&self, idx: Map::Handle) -> &Self::Output
+// }

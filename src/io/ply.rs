@@ -5,29 +5,30 @@ use std::{
 
 use crate::{
     TriMesh,
+    Pos3D,
     handle::{FaceHandle, Handle, HandleIndex, VertexHandle},
-    map::{AttrMap, FaceMap, VertexMap},
+    map::{PropMap, FaceMap, VertexMap},
     io::{PrimitiveSerialize},
 };
 
 
 pub struct Ply<'a, Idx: 'a + HandleIndex> {
     format: PlyFormat,
-    vertex_attrs: Vec<(String, &'a SerMap<VertexHandle<Idx>>)>,
-    face_attrs: Vec<(String, &'a SerMap<FaceHandle<Idx>>)>,
+    vertex_attrs: Vec<(String, &'a SerMap<'a, VertexHandle<Idx>>)>,
+    face_attrs: Vec<(String, &'a SerMap<'a, FaceHandle<Idx>>)>,
 }
 
-trait SerMap<H: Handle> {
-    fn get(&self, handle: H) -> &PrimitiveSerialize;
+trait SerMap<'a, H: Handle> {
+    fn get(&self, handle: H) -> Option<&(PrimitiveSerialize + 'a)>;
 }
 
-impl<M> SerMap<M::Handle> for M
+impl<'a, H: Handle, M> SerMap<'a, H> for M
 where
-    M: AttrMap,
-    M::Output: PrimitiveSerialize + Sized,
+    M: PropMap<H>,
+    M::Output: 'a + PrimitiveSerialize + Sized,
 {
-    fn get(&self, handle: M::Handle) -> &PrimitiveSerialize {
-        &self[handle]
+    fn get(&self, handle: H) -> Option<&(PrimitiveSerialize + 'a)> {
+        <M as PropMap<H>>::get(self, handle).map(|p| p as &PrimitiveSerialize)
     }
 }
 
@@ -48,11 +49,21 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
         }
     }
 
+    pub fn with_vertex_positions<M>(&mut self, map: &'a M) -> &mut Self
+    where
+        M: VertexMap<Idx> + ops::Index<VertexHandle<Idx>>,
+        <M as ops::Index<VertexHandle<Idx>>>::Output: Pos3D + Sized,
+        <<M as ops::Index<VertexHandle<Idx>>>::Output as Pos3D>::Scalar: PrimitiveSerialize,
+    {
+        // TODO
+        self
+    }
+
     pub fn add_vertex_attr<M, S>(&mut self, s: S, map: &'a M) -> &mut Self
     where
         S: Into<String>,
-        M: VertexMap<Idx> + ops::Index<VertexHandle<Idx>>,
-        <M as ops::Index<VertexHandle<Idx>>>::Output: PrimitiveSerialize + Sized,
+        M: VertexMap<Idx>,
+        M::Output: PrimitiveSerialize + Sized,
     {
         self.vertex_attrs.push((s.into(), map));
         self
@@ -61,8 +72,8 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
     pub fn add_face_attr<M, S>(&mut self, s: S, map: &'a M) -> &mut Self
     where
         S: Into<String>,
-        M: FaceMap<Idx> + ops::Index<FaceHandle<Idx>>,
-        <M as ops::Index<FaceHandle<Idx>>>::Output: PrimitiveSerialize + Sized,
+        M: FaceMap<Idx>,
+        M::Output: PrimitiveSerialize + Sized,
     {
         self.face_attrs.push((s.into(), map));
         self
@@ -122,7 +133,9 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
                             write!(w, " ")?;
                         }
 
-                        attr_map.get(vertex).write_ascii(w)?;
+                        attr_map.get(vertex)
+                            .expect("attempt to use a incomplete PropMap for PLY serialization")
+                            .write_ascii(w)?;
                     }
                     writeln!(w, "")?;
                 }
