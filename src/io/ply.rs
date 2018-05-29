@@ -8,14 +8,14 @@ use crate::{
     Pos3D,
     handle::{FaceHandle, Handle, HandleIndex, VertexHandle},
     map::{PropMap, FaceMap, VertexMap},
-    io::{PrimitiveSerialize},
+    io::{PrimitiveSerialize, PrimitiveType},
 };
 
 
 pub struct Ply<'a, Idx: 'a + HandleIndex> {
     format: PlyFormat,
-    vertex_attrs: Vec<(String, SerMapWrapper<'a, VertexHandle<Idx>>)>,
-    // face_attrs: Vec<(String, &'a SerMap<'a, FaceHandle<Idx>>)>,
+    vertex_attrs: Vec<(String, PrimitiveType, SerMapWrapper<'a, VertexHandle<Idx>>)>,
+    face_attrs: Vec<(String, PrimitiveType, SerMapWrapper<'a, FaceHandle<Idx>>)>,
 }
 
 // TODO: Maybe rework all this crap as `&Fn()` trait objects...
@@ -60,7 +60,7 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
         Self {
             format,
             vertex_attrs: Vec::new(),
-            // face_attrs: Vec::new(),
+            face_attrs: Vec::new(),
         }
     }
 
@@ -70,9 +70,22 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
         M::Output: 'a + Pos3D + Sized,
         <M::Output as Pos3D>::Scalar: PrimitiveSerialize,
     {
-        self.vertex_attrs.push(("x".into(), SerMapWrapper::Owned(Box::new(map.map(|p| p.x())))));
-        self.vertex_attrs.push(("y".into(), SerMapWrapper::Owned(Box::new(map.map(|p| p.y())))));
-        self.vertex_attrs.push(("z".into(), SerMapWrapper::Owned(Box::new(map.map(|p| p.z())))));
+        let ty = <M::Output as Pos3D>::Scalar::ty();
+        self.vertex_attrs.push((
+            "x".into(),
+            ty,
+            SerMapWrapper::Owned(Box::new(map.map(|p| p.x()))),
+        ));
+        self.vertex_attrs.push((
+            "y".into(),
+            ty,
+            SerMapWrapper::Owned(Box::new(map.map(|p| p.y())))
+        ));
+        self.vertex_attrs.push((
+            "z".into(),
+            ty,
+            SerMapWrapper::Owned(Box::new(map.map(|p| p.z())))
+        ));
         self
     }
 
@@ -82,19 +95,27 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
         M: VertexMap<Idx>,
         M::Output: PrimitiveSerialize + Sized,
     {
-        self.vertex_attrs.push((s.into(), SerMapWrapper::Borrowed(map)));
+        self.vertex_attrs.push((
+            s.into(),
+            M::Output::ty(),
+            SerMapWrapper::Borrowed(map)
+        ));
         self
     }
 
-    // pub fn add_face_attr<M, S>(&mut self, s: S, map: &'a M) -> &mut Self
-    // where
-    //     S: Into<String>,
-    //     M: FaceMap<Idx>,
-    //     M::Output: PrimitiveSerialize + Sized,
-    // {
-    //     self.face_attrs.push((s.into(), map));
-    //     self
-    // }
+    pub fn add_face_attr<M, S>(&mut self, s: S, map: &'a M) -> &mut Self
+    where
+        S: Into<String>,
+        M: FaceMap<Idx>,
+        M::Output: PrimitiveSerialize + Sized,
+    {
+        self.face_attrs.push((
+            s.into(),
+            M::Output::ty(),
+            SerMapWrapper::Borrowed(map),
+        ));
+        self
+    }
 
     pub fn write<M, W>(&self, w: &mut W, mesh: &M) -> Result<(), io::Error>
     where M: TriMesh<Idx = Idx>,
@@ -121,9 +142,21 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
 
         // List elements
         writeln!(w, "element vertex {}", mesh.num_vertices())?;
-        for (attr_name, _) in &self.vertex_attrs {
-            // TODO: It's not always `int`
-            writeln!(w, "property int {}", attr_name)?;
+        for (attr_name, attr_ty, _) in &self.vertex_attrs {
+            // TODO: those panics should certainly turn into a better error...
+            let ty_name = match attr_ty {
+                PrimitiveType::Uint8 => "uchar",
+                PrimitiveType::Uint16 => "ushort",
+                PrimitiveType::Uint32 => "uint",
+                PrimitiveType::Uint64 => panic!("PLY can't store 64 bit integers"),
+                PrimitiveType::Int8 => "char",
+                PrimitiveType::Int16 => "short",
+                PrimitiveType::Int32 => "int",
+                PrimitiveType::Int64 => panic!("PLY can't store 64 bit integers"),
+                PrimitiveType::Float32 => "float",
+                PrimitiveType::Float64 => "double",
+            };
+            writeln!(w, "property {} {}", ty_name, attr_name)?;
         }
 
 
@@ -143,14 +176,16 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
             PlyFormat::Ascii => {
                 for vertex in mesh.vertices() {
                     let mut first = true;
-                    for (_, attr_map) in &self.vertex_attrs {
+                    for (_, _, attr_map) in &self.vertex_attrs {
                         if first {
                             first = false;
                         } else {
                             write!(w, " ")?;
                         }
 
-                        attr_map.deref().get(vertex)
+                        attr_map
+                            .deref()
+                            .get(vertex)
                             .expect("attempt to use a incomplete PropMap for PLY serialization")
                             .write_ascii(w)?;
                     }

@@ -14,11 +14,11 @@ fn main() {
     let mut positions = VertexVecMap::new();
 
     let va = mesh.add_vertex();
-    positions.insert(va, (0, 3, 0));
+    positions.insert(va, (0.0, 0.0, 0.0));
     let vb = mesh.add_vertex();
-    positions.insert(vb, (1, 3, 0));
+    positions.insert(vb, (1.0, 3.0, 0.0));
     let vc = mesh.add_vertex();
-    positions.insert(vc, (5, 3, 0));
+    positions.insert(vc, (2.0, 0.0, 0.0));
 
     let _f = mesh.add_face([va, vb, vc]);
 
