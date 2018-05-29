@@ -40,6 +40,20 @@ pub trait PropMap<H: Handle>: ops::Index<H> {
     //      - handles
     //      - values
     //      - both
+
+    // Combinators
+    fn map<'a, F, NewOutput>(&'a self, mapping: F) -> PropMapping<'a, F, Self>
+    where
+        Self: Sized,
+        Self::Output: 'a,
+        F: Fn(&'a Self::Output) -> &'a NewOutput,
+        NewOutput: 'a,
+    {
+        PropMapping {
+            original: self,
+            mapping,
+        }
+    }
 }
 
 pub trait PropMapMut<H: Handle>: PropMap<H> + ops::IndexMut<H> {
@@ -68,17 +82,33 @@ create_map_trait_alias!(FaceMap, FaceHandle);
 create_map_trait_alias!(EdgeMap, EdgeHandle);
 create_map_trait_alias!(VertexMap, VertexHandle);
 
-// pub struct MapElem<'a, F, Map: 'a> {
-//     original: &'a Map,
-//     mapping: F,
-// }
+pub struct PropMapping<'a, F, Map: 'a> {
+    original: &'a Map,
+    mapping: F,
+}
 
-// impl<'a, F, Map: 'a, NewOutput> Index<Map::Handle> for MapElem<'a, F, Map>
-// where
-//     Map: AttrMap,
-//     F: FnMut(&Map::Output) -> NewOutput,
-// {
-//     type Output = NewOutput;
+impl<'a, F, H, Map, NewOutput> ops::Index<H> for PropMapping<'a, F, Map>
+where
+    H: 'a + Handle,
+    Map: 'a + PropMap<H>,
+    F: Fn(&'a Map::Output) -> &'a NewOutput,
+    NewOutput: 'a,
+{
+    type Output = NewOutput;
 
-//     fn index(&self, idx: Map::Handle) -> &Self::Output
-// }
+    fn index(&self, idx: H) -> &Self::Output {
+        self.get(idx).unwrap() // TODO: expect
+    }
+}
+
+impl<'a, F, H, Map, NewOutput> PropMap<H> for PropMapping<'a, F, Map>
+where
+    H: 'a + Handle,
+    Map: 'a + PropMap<H>,
+    F: Fn(&'a Map::Output) -> &'a NewOutput,
+    NewOutput: 'a,
+{
+    fn get(&self, handle: H) -> Option<&Self::Output> {
+        self.original.get(handle).map(|p| (self.mapping)(p))
+    }
+}

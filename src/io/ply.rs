@@ -1,6 +1,6 @@
 use std::{
     io::{self, Write},
-    ops,
+    ops::Deref,
 };
 
 use crate::{
@@ -14,12 +14,27 @@ use crate::{
 
 pub struct Ply<'a, Idx: 'a + HandleIndex> {
     format: PlyFormat,
-    vertex_attrs: Vec<(String, &'a SerMap<'a, VertexHandle<Idx>>)>,
-    face_attrs: Vec<(String, &'a SerMap<'a, FaceHandle<Idx>>)>,
+    vertex_attrs: Vec<(String, SerMapWrapper<'a, VertexHandle<Idx>>)>,
+    // face_attrs: Vec<(String, &'a SerMap<'a, FaceHandle<Idx>>)>,
 }
 
+// TODO: Maybe rework all this crap as `&Fn()` trait objects...
 trait SerMap<'a, H: Handle> {
     fn get(&self, handle: H) -> Option<&(PrimitiveSerialize + 'a)>;
+}
+
+enum SerMapWrapper<'a, H: Handle + 'a> {
+    Borrowed(&'a SerMap<'a, H>),
+    Owned(Box<SerMap<'a, H> + 'a>),
+}
+
+impl<'a, H: 'a + Handle> SerMapWrapper<'a, H> {
+    fn deref(&self) -> &SerMap<'a, H> {
+        match *self {
+            SerMapWrapper::Borrowed(r) => r,
+            SerMapWrapper::Owned(ref b) => b.deref(),
+        }
+    }
 }
 
 impl<'a, H: Handle, M> SerMap<'a, H> for M
@@ -45,17 +60,19 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
         Self {
             format,
             vertex_attrs: Vec::new(),
-            face_attrs: Vec::new(),
+            // face_attrs: Vec::new(),
         }
     }
 
     pub fn with_vertex_positions<M>(&mut self, map: &'a M) -> &mut Self
     where
-        M: VertexMap<Idx> + ops::Index<VertexHandle<Idx>>,
-        <M as ops::Index<VertexHandle<Idx>>>::Output: Pos3D + Sized,
-        <<M as ops::Index<VertexHandle<Idx>>>::Output as Pos3D>::Scalar: PrimitiveSerialize,
+        M: VertexMap<Idx>,
+        M::Output: 'a + Pos3D + Sized,
+        <M::Output as Pos3D>::Scalar: PrimitiveSerialize,
     {
-        // TODO
+        self.vertex_attrs.push(("x".into(), SerMapWrapper::Owned(Box::new(map.map(|p| p.x())))));
+        self.vertex_attrs.push(("y".into(), SerMapWrapper::Owned(Box::new(map.map(|p| p.y())))));
+        self.vertex_attrs.push(("z".into(), SerMapWrapper::Owned(Box::new(map.map(|p| p.z())))));
         self
     }
 
@@ -65,19 +82,19 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
         M: VertexMap<Idx>,
         M::Output: PrimitiveSerialize + Sized,
     {
-        self.vertex_attrs.push((s.into(), map));
+        self.vertex_attrs.push((s.into(), SerMapWrapper::Borrowed(map)));
         self
     }
 
-    pub fn add_face_attr<M, S>(&mut self, s: S, map: &'a M) -> &mut Self
-    where
-        S: Into<String>,
-        M: FaceMap<Idx>,
-        M::Output: PrimitiveSerialize + Sized,
-    {
-        self.face_attrs.push((s.into(), map));
-        self
-    }
+    // pub fn add_face_attr<M, S>(&mut self, s: S, map: &'a M) -> &mut Self
+    // where
+    //     S: Into<String>,
+    //     M: FaceMap<Idx>,
+    //     M::Output: PrimitiveSerialize + Sized,
+    // {
+    //     self.face_attrs.push((s.into(), map));
+    //     self
+    // }
 
     pub fn write<M, W>(&self, w: &mut W, mesh: &M) -> Result<(), io::Error>
     where M: TriMesh<Idx = Idx>,
@@ -133,7 +150,7 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
                             write!(w, " ")?;
                         }
 
-                        attr_map.get(vertex)
+                        attr_map.deref().get(vertex)
                             .expect("attempt to use a incomplete PropMap for PLY serialization")
                             .write_ascii(w)?;
                     }
