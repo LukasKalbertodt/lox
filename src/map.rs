@@ -56,10 +56,13 @@ pub trait PropMap<H: Handle>: ops::Index<H> {
     }
 }
 
+// We probably can just merge `PropMap` and `PropMapMut`
 pub trait PropMapMut<H: Handle>: PropMap<H> + ops::IndexMut<H> {
     /// Returns a mutable reference to property's value associated with the
     /// given handle, or `None` if no value is associated with that handle.
     fn get_mut(&mut self, handle: H) -> Option<&mut Self::Output>;
+
+    fn empty() -> Self where Self: Sized;
 
     fn insert(&mut self, h: H, elem: Self::Output) -> Option<Self::Output>
         where Self::Output: Sized;

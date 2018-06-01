@@ -4,6 +4,7 @@
 
 extern crate stable_vec;
 extern crate num_traits;
+extern crate tuple_utils;
 
 
 pub mod handle;

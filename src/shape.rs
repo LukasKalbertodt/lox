@@ -4,6 +4,7 @@ use std::{
 };
 
 use num_traits::{AsPrimitive, Float, FloatConst, Zero};
+use tuple_utils::{Append};
 
 use crate::{
     TriMesh,
@@ -25,7 +26,7 @@ where
     const STEPS: u64 = 6;
 
     let ring_pos = |step: u64| {
-        let around_circle = step.as_() * (PosT::Scalar::PI() / STEPS.as_());
+        let around_circle = (2 * step).as_() * (PosT::Scalar::PI() / STEPS.as_());
         let x = around_circle.sin();
         let y = around_circle.cos();
         let z = PosT::Scalar::zero();
@@ -49,8 +50,8 @@ where
     let top = add_vertex(&mut out, ring_pos(0));
     let mut last = top;
 
-    for step in 1..STEPS {
-        let curr = if step == STEPS - 1 {
+    for step in 1..=STEPS {
+        let curr = if step == STEPS {
             top
         } else {
             add_vertex(&mut out, ring_pos(step))
@@ -69,7 +70,7 @@ where
 //     // FaceNormal,
 // }
 
-// struct GenPosition<M>(M);
+pub struct GenPosition<M>(pub M);
 
 pub trait GenResult {
     type Mesh: TriMesh;
@@ -100,6 +101,29 @@ where
     }
 }
 
+impl<MeshT, MapT> GenResult for (MeshT, GenPosition<MapT>)
+where
+    MeshT: TriMesh,
+    MapT: VertexMapMut,
+{
+    type Mesh = MeshT;
+    type PosMap = MapT;
+
+    fn empty() -> Self {
+        (MeshT::empty(), GenPosition(MapT::empty()))
+    }
+
+    fn mesh(&mut self) -> &mut Self::Mesh {
+        &mut self.0
+    }
+    fn positions(&mut self) -> Option<&mut Self::PosMap> {
+        let (_, GenPosition(map)) = self;
+        Some(map)
+    }
+}
+
+
+
 
 
 
@@ -125,6 +149,10 @@ impl<T, H: Handle> PropMap<H> for NullMap<T> {
 
 impl<T, H: Handle> PropMapMut<H> for NullMap<T> {
     fn get_mut(&mut self, _: H) -> Option<&mut Self::Output> {
+        panic!("called method on a NullMap");
+    }
+
+    fn empty() -> Self where Self: Sized {
         panic!("called method on a NullMap");
     }
 

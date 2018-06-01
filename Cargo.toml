@@ -6,3 +6,4 @@ authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
 [dependencies]
 stable-vec = { git = "https://github.com/LukasKalbertodt/stable-vec" }
 num-traits = "0.2.4"
+tuple_utils = "0.2"

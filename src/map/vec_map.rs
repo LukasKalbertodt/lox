@@ -68,6 +68,10 @@ impl<H: Handle, T> PropMapMut<H> for VecMap<H, T> {
         self.vec.get_mut(handle.idx().to_usize())
     }
 
+    fn empty() -> Self where Self: Sized {
+        Self::new()
+    }
+
     fn insert(&mut self, h: H, mut elem: Self::Output) -> Option<Self::Output> {
         let idx = h.idx().to_usize();
         if self.vec.has_element_at(idx) {

@@ -6,6 +6,7 @@ use fev::{
     impls::FvTriMesh,
     io::{Ply},
     map::VertexVecMap,
+    shape::{gen, GenPosition},
 };
 
 
@@ -22,12 +23,12 @@ fn main() {
 
     // let _f = mesh.add_face([va, vb, vc]);
 
-    let mesh: FvTriMesh = fev::shape::gen();
+    let (mesh, GenPosition(positions)): (FvTriMesh, GenPosition<VertexVecMap<(f64, f64, f64)>>) = gen();
 
 
     let mut file = File::create("foo.ply").unwrap();
     Ply::ascii()
-        // .with_vertex_positions(&positions)
+        .with_vertex_positions(&positions)
         .write(&mut file, &mesh)
         .unwrap();
 }
