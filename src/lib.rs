@@ -1,15 +1,16 @@
 #![feature(crate_in_paths)]
 #![feature(non_modrs_mods)]
-
+#![feature(never_type)]
 
 extern crate stable_vec;
+extern crate num_traits;
 
 
 pub mod handle;
 pub mod impls;
 pub mod map;
 pub mod io;
-// pub mod shape;
+pub mod shape;
 
 
 use handle::{DefaultIndex, FaceHandle, VertexHandle};
@@ -25,6 +26,9 @@ pub trait TriMesh {
 
     fn num_faces(&self) -> DefaultIndex;
     fn num_vertices(&self) -> DefaultIndex;
+
+    fn add_vertex(&mut self) -> VertexHandle;
+    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
 
     // fn vertices(&self) -> Self::VertexIter;
     // fn faces(&self) -> Self::FaceIter;
@@ -77,6 +81,8 @@ impl<T> Pos2D for [T; 2] {
 pub trait Pos3D {
     type Scalar;
 
+    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self;
+
     fn x(&self) -> &Self::Scalar;
     fn y(&self) -> &Self::Scalar;
     fn z(&self) -> &Self::Scalar;
@@ -84,6 +90,10 @@ pub trait Pos3D {
 
 impl<T> Pos3D for (T, T, T) {
     type Scalar = T;
+
+    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
+        (x, y, z)
+    }
 
     fn x(&self) -> &Self::Scalar {
         &self.0
@@ -100,6 +110,10 @@ impl<T> Pos3D for (T, T, T) {
 
 impl<T> Pos3D for [T; 3] {
     type Scalar = T;
+
+    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
+        [x, y, z]
+    }
 
     fn x(&self) -> &Self::Scalar {
         &self[0]

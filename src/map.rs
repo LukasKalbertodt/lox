@@ -61,6 +61,9 @@ pub trait PropMapMut<H: Handle>: PropMap<H> + ops::IndexMut<H> {
     /// given handle, or `None` if no value is associated with that handle.
     fn get_mut(&mut self, handle: H) -> Option<&mut Self::Output>;
 
+    fn insert(&mut self, h: H, elem: Self::Output) -> Option<Self::Output>
+        where Self::Output: Sized;
+
     // Additional maybe useful methods:
     // - clear
     // - insert
@@ -69,18 +72,22 @@ pub trait PropMapMut<H: Handle>: PropMap<H> + ops::IndexMut<H> {
 
 
 macro_rules! create_map_trait_alias {
-    ($alias_name:ident, $handle_name:ident) => {
-        pub trait $alias_name: PropMap<$handle_name> {}
+    ($alias_name:ident, $handle_name:ident, $base_trait:ident) => {
+        pub trait $alias_name: $base_trait<$handle_name> {}
         impl<T> $alias_name for T
         where
-            T: PropMap<$handle_name>
+            T: $base_trait<$handle_name>
         {}
     }
 }
 
-create_map_trait_alias!(FaceMap, FaceHandle);
-create_map_trait_alias!(EdgeMap, EdgeHandle);
-create_map_trait_alias!(VertexMap, VertexHandle);
+create_map_trait_alias!(FaceMap, FaceHandle, PropMap);
+create_map_trait_alias!(EdgeMap, EdgeHandle, PropMap);
+create_map_trait_alias!(VertexMap, VertexHandle, PropMap);
+
+create_map_trait_alias!(FaceMapMut, FaceHandle, PropMapMut);
+create_map_trait_alias!(EdgeMapMut, EdgeHandle, PropMapMut);
+create_map_trait_alias!(VertexMapMut, VertexHandle, PropMapMut);
 
 pub struct PropMapping<'a, F, Map: 'a> {
     original: &'a Map,

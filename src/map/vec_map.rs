@@ -31,25 +31,6 @@ impl<H: Handle, T> VecMap<H, T> {
         H::from_usize(self.vec.push(elem))
     }
 
-    pub fn insert(&mut self, h: H, mut elem: T) -> Option<T> {
-        let idx = h.idx().to_usize();
-        if self.vec.has_element_at(idx) {
-            mem::swap(&mut self.vec[idx], &mut elem);
-            Some(elem)
-        } else {
-            // Make sure `idx` is not out of bounds
-            let next_index = self.vec.next_index();
-            if next_index <= idx {
-                self.vec.grow(1 + idx - next_index);
-            }
-
-            // We made sure that there is no element at `idx` and that `idx`
-            // is not out of bounds. So we can unwrap here.
-            self.vec.insert_into_hole(idx, elem).ok().unwrap();
-            None
-        }
-    }
-
     pub fn num_elements(&self) -> DefaultIndex {
         self.vec.num_elements() as DefaultIndex
     }
@@ -85,6 +66,25 @@ impl<H: Handle, T> PropMap<H> for VecMap<H, T> {
 impl<H: Handle, T> PropMapMut<H> for VecMap<H, T> {
     fn get_mut(&mut self, handle: H) -> Option<&mut Self::Output> {
         self.vec.get_mut(handle.idx().to_usize())
+    }
+
+    fn insert(&mut self, h: H, mut elem: Self::Output) -> Option<Self::Output> {
+        let idx = h.idx().to_usize();
+        if self.vec.has_element_at(idx) {
+            mem::swap(&mut self.vec[idx], &mut elem);
+            Some(elem)
+        } else {
+            // Make sure `idx` is not out of bounds
+            let next_index = self.vec.next_index();
+            if next_index <= idx {
+                self.vec.grow(1 + idx - next_index);
+            }
+
+            // We made sure that there is no element at `idx` and that `idx`
+            // is not out of bounds. So we can unwrap here.
+            self.vec.insert_into_hole(idx, elem).ok().unwrap();
+            None
+        }
     }
 }
 

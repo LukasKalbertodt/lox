@@ -25,14 +25,6 @@ impl FvTriMesh {
         }
     }
 
-    pub fn add_vertex(&mut self) -> VertexHandle {
-        self.vertices.push(())
-    }
-
-    pub fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
-        self.faces.push(FvTriFace { vertices })
-    }
-
     pub fn face(&self, fh: FaceHandle) -> FvTriFace {
         self.faces[fh]
     }
@@ -48,6 +40,14 @@ impl TriMesh for FvTriMesh {
     }
     fn num_vertices(&self) -> DefaultIndex {
         self.vertices.num_elements()
+    }
+
+    fn add_vertex(&mut self) -> VertexHandle {
+        self.vertices.push(())
+    }
+
+    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
+        self.faces.push(FvTriFace { vertices })
     }
 
     fn vertices<'a>(&'a self) -> Box<Iterator<Item = VertexHandle> + 'a> {

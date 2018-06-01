@@ -198,6 +198,7 @@ impl<'a> Ply<'a> {
                         w.write_all(b" ")?;
                         v.idx().write_ascii(w)?;
                     }
+                    w.write_all(b"\n")?;
                 }
                 // let vertices = mesh.vertice_of_face
             }

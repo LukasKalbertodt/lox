@@ -10,22 +10,24 @@ use fev::{
 
 
 fn main() {
-    let mut mesh: FvTriMesh = FvTriMesh::new();
-    let mut positions = VertexVecMap::new();
+    // let mut mesh: FvTriMesh = FvTriMesh::new();
+    // let mut positions = VertexVecMap::new();
 
-    let va = mesh.add_vertex();
-    positions.insert(va, (0.0, 0.0, 0.0));
-    let vb = mesh.add_vertex();
-    positions.insert(vb, (1.0, 3.0, 0.0));
-    let vc = mesh.add_vertex();
-    positions.insert(vc, (2.0, 0.0, 0.0));
+    // let va = mesh.add_vertex();
+    // positions.insert(va, (0.0, 0.0, 0.0));
+    // let vb = mesh.add_vertex();
+    // positions.insert(vb, (1.0, 3.0, 0.0));
+    // let vc = mesh.add_vertex();
+    // positions.insert(vc, (2.0, 0.0, 0.0));
 
-    let _f = mesh.add_face([va, vb, vc]);
+    // let _f = mesh.add_face([va, vb, vc]);
+
+    let mesh: FvTriMesh = fev::shape::gen();
 
 
     let mut file = File::create("foo.ply").unwrap();
     Ply::ascii()
-        .with_vertex_positions(&positions)
+        // .with_vertex_positions(&positions)
         .write(&mut file, &mesh)
         .unwrap();
 }
