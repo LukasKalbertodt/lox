@@ -3,7 +3,7 @@ use std::{
 };
 
 use crate::{
-    handle::{DefaultIndex, Handle, HandleIndex, FaceHandle, EdgeHandle, VertexHandle},
+    handle::{Handle, FaceHandle, EdgeHandle, VertexHandle},
 };
 
 
@@ -12,13 +12,13 @@ mod vec_map;
 pub use self::vec_map::VecMap;
 
 /// A `VecMap` with `FaceHandle` keys.
-pub type FaceVecMap<T, Idx = DefaultIndex> = VecMap<FaceHandle<Idx>, T>;
+pub type FaceVecMap<T> = VecMap<FaceHandle, T>;
 
 /// A `VecMap` with `EdgeHandle` keys.
-pub type EdgeVecMap<T, Idx = DefaultIndex> = VecMap<EdgeHandle<Idx>, T>;
+pub type EdgeVecMap<T> = VecMap<EdgeHandle, T>;
 
 /// A `VecMap` with `EdgeHandle` keys.
-pub type VertexVecMap<T, Idx = DefaultIndex> = VecMap<VertexHandle<Idx>, T>;
+pub type VertexVecMap<T> = VecMap<VertexHandle, T>;
 
 
 
@@ -70,10 +70,10 @@ pub trait PropMapMut<H: Handle>: PropMap<H> + ops::IndexMut<H> {
 
 macro_rules! create_map_trait_alias {
     ($alias_name:ident, $handle_name:ident) => {
-        pub trait $alias_name<Idx: HandleIndex>: PropMap<$handle_name<Idx>> {}
-        impl<T, Idx: HandleIndex> $alias_name<Idx> for T
+        pub trait $alias_name: PropMap<$handle_name> {}
+        impl<T> $alias_name for T
         where
-            T: PropMap<$handle_name<Idx>>
+            T: PropMap<$handle_name>
         {}
     }
 }

@@ -1,8 +1,12 @@
-
+use std::fmt;
 
 pub type DefaultIndex = u32;
 
-pub trait HandleIndex: Copy {
+// TODO: It would be really nice to let the user choose the index to use.
+// However this complicates the API at several places, making some things even
+// impossible without future Rust features (like GATs). So for now we will
+// simply use `u32` as index everywhere.
+pub trait DefaultIndexExt: Copy {
     fn num_bytes() -> u8;
     fn from_usize(raw: usize) -> Self;
     fn to_usize(&self) -> usize;
@@ -11,7 +15,7 @@ pub trait HandleIndex: Copy {
 
 macro_rules! impl_handle_index {
     ($name:ident) => {
-        impl HandleIndex for $name {
+        impl DefaultIndexExt for $name {
             fn num_bytes() -> u8 {
                 ::std::mem::size_of::<$name>() as u8
             }
@@ -29,51 +33,41 @@ macro_rules! impl_handle_index {
     }
 }
 
-impl_handle_index!(u8);
-impl_handle_index!(u16);
+// impl_handle_index!(u8);
+// impl_handle_index!(u16);
 impl_handle_index!(u32);
-impl_handle_index!(u64);
-impl_handle_index!(usize);
+// impl_handle_index!(u64);
+// impl_handle_index!(usize);
 
 
 pub trait Handle: Copy {
-    type Idx: HandleIndex;
-
-    fn from_idx(idx: Self::Idx) -> Self;
-    fn idx(&self) -> Self::Idx;
+    fn from_idx(idx: u32) -> Self;
+    fn idx(&self) -> u32;
 
     fn from_usize(raw: usize) -> Self {
-        let idx = Self::Idx::from_usize(raw);
-        Self::from_idx(idx)
+        Self::from_idx(raw as u32)
     }
     fn to_usize(&self) -> usize {
-        self.idx().to_usize()
+        self.idx() as usize
     }
 }
 
 macro_rules! make_handle_type {
     ($name:ident, $short:expr) => {
         #[derive(Clone, Copy, PartialEq, Eq)]
-        pub struct $name<Idx: HandleIndex = DefaultIndex>(Idx);
+        pub struct $name(DefaultIndex);
 
-        impl<Idx: HandleIndex> From<usize> for $name<Idx> {
-            fn from(raw: usize) -> Self {
-                $name(Idx::from_usize(raw))
-            }
-        }
-
-        impl<Idx: HandleIndex> Handle for $name<Idx> {
-            type Idx = Idx;
-            fn from_idx(idx: Self::Idx) -> Self {
+        impl Handle for $name {
+            fn from_idx(idx: u32) -> Self {
                 $name(idx)
             }
-            fn idx(&self) -> Self::Idx {
+            fn idx(&self) -> u32 {
                 self.0
             }
         }
 
-        impl<Idx: HandleIndex + ::std::fmt::Debug> ::std::fmt::Debug for $name<Idx> {
-            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        impl fmt::Debug for $name {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 $short.fmt(f)?;
                 self.idx().fmt(f)
             }

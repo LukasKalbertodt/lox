@@ -6,16 +6,16 @@ use std::{
 use crate::{
     TriMesh,
     Pos3D,
-    handle::{FaceHandle, Handle, HandleIndex, VertexHandle},
+    handle::{DefaultIndex, DefaultIndexExt, FaceHandle, Handle, VertexHandle},
     map::{PropMap, FaceMap, VertexMap},
     io::{PrimitiveSerialize, PrimitiveType},
 };
 
 
-pub struct Ply<'a, Idx: 'a + HandleIndex> {
+pub struct Ply<'a> {
     format: PlyFormat,
-    vertex_attrs: Vec<(String, PrimitiveType, SerMapWrapper<'a, VertexHandle<Idx>>)>,
-    face_attrs: Vec<(String, PrimitiveType, SerMapWrapper<'a, FaceHandle<Idx>>)>,
+    vertex_attrs: Vec<(String, PrimitiveType, SerMapWrapper<'a, VertexHandle>)>,
+    face_attrs: Vec<(String, PrimitiveType, SerMapWrapper<'a, FaceHandle>)>,
 }
 
 // TODO: Maybe rework all this crap as `&Fn()` trait objects...
@@ -47,7 +47,7 @@ where
     }
 }
 
-impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
+impl<'a> Ply<'a> {
     pub fn ascii() -> Self {
         Self::new(PlyFormat::Ascii)
     }
@@ -66,7 +66,7 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
 
     pub fn with_vertex_positions<M>(&mut self, map: &'a M) -> &mut Self
     where
-        M: VertexMap<Idx>,
+        M: VertexMap,
         M::Output: 'a + Pos3D + Sized,
         <M::Output as Pos3D>::Scalar: PrimitiveSerialize,
     {
@@ -92,7 +92,7 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
     pub fn add_vertex_attr<M, S>(&mut self, s: S, map: &'a M) -> &mut Self
     where
         S: Into<String>,
-        M: VertexMap<Idx>,
+        M: VertexMap,
         M::Output: PrimitiveSerialize + Sized,
     {
         self.vertex_attrs.push((
@@ -106,7 +106,7 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
     pub fn add_face_attr<M, S>(&mut self, s: S, map: &'a M) -> &mut Self
     where
         S: Into<String>,
-        M: FaceMap<Idx>,
+        M: FaceMap,
         M::Output: PrimitiveSerialize + Sized,
     {
         self.face_attrs.push((
@@ -118,8 +118,7 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
     }
 
     pub fn write<M, W>(&self, w: &mut W, mesh: &M) -> Result<(), io::Error>
-    where M: TriMesh<Idx = Idx>,
-          M::Idx: PrimitiveSerialize,
+    where M: TriMesh,
           W: Write,
     {
         // ===================================================================
@@ -133,7 +132,7 @@ impl<'a, Idx: 'a + HandleIndex> Ply<'a, Idx> {
             PlyFormat::BinaryLittleEndian => w.write_all(b"format binary_little_endian 1.0\n")?,
         }
 
-        let idx_type = match M::Idx::num_bytes() {
+        let idx_type = match DefaultIndex::num_bytes() {
             1 => "uchar",
             2 => "ushort",
             4 => "uint",

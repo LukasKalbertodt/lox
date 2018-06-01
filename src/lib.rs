@@ -9,29 +9,30 @@ pub mod handle;
 pub mod impls;
 pub mod map;
 pub mod io;
+// pub mod shape;
 
 
-use handle::{HandleIndex, FaceHandle, VertexHandle};
+use handle::{DefaultIndex, FaceHandle, VertexHandle};
 
 
 pub trait TriMesh {
-    type Idx: HandleIndex;
     // type VertexIter: Iterator<Item = VertexHandle<Self::Idx>>;
 
     // TODO: use once GATs are available
     // type FaceIter: Iterator<Item = FaceHandle<Self::Idx>>;
 
-    fn num_faces(&self) -> Self::Idx;
-    fn num_vertices(&self) -> Self::Idx;
+    fn empty() -> Self where Self: Sized;
+
+    fn num_faces(&self) -> DefaultIndex;
+    fn num_vertices(&self) -> DefaultIndex;
 
     // fn vertices(&self) -> Self::VertexIter;
     // fn faces(&self) -> Self::FaceIter;
     // TODO: change once GATs are available
-    fn vertices<'a>(&'a self) -> Box<Iterator<Item = VertexHandle<Self::Idx>> + 'a>;
-    fn faces<'a>(&'a self) -> Box<Iterator<Item = FaceHandle<Self::Idx>> + 'a>;
+    fn vertices<'a>(&'a self) -> Box<Iterator<Item = VertexHandle> + 'a>;
+    fn faces<'a>(&'a self) -> Box<Iterator<Item = FaceHandle> + 'a>;
 
-    fn vertices_of_face(&self, face: FaceHandle<Self::Idx>)
-        -> [VertexHandle<Self::Idx>; 3];
+    fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3];
 }
 
 

@@ -7,7 +7,7 @@ use std::{
 use stable_vec::{Keys, StableVec};
 
 use crate::{
-    handle::{Handle, HandleIndex},
+    handle::{DefaultIndex, DefaultIndexExt, Handle},
     map::{PropMap, PropMapMut},
 };
 
@@ -50,8 +50,8 @@ impl<H: Handle, T> VecMap<H, T> {
         }
     }
 
-    pub fn num_elements(&self) -> H::Idx {
-        H::Idx::from_usize(self.vec.num_elements())
+    pub fn num_elements(&self) -> DefaultIndex {
+        self.vec.num_elements() as DefaultIndex
     }
 
     pub fn handles(&self) -> Handles<H> {
