@@ -15,7 +15,7 @@ use crate::{
 
 
 
-pub fn gen<R, PosT>() -> R
+pub fn disk<R, PosT>(steps: u64) -> R
 where
     R: GenResult,
     R::PosMap: Index<VertexHandle, Output = PosT>,
@@ -23,10 +23,8 @@ where
     PosT::Scalar: Float + FloatConst + AsPrimitive<u64> + 'static,
     u64: AsPrimitive<PosT::Scalar>,
 {
-    const STEPS: u64 = 6;
-
     let ring_pos = |step: u64| {
-        let around_circle = (2 * step).as_() * (PosT::Scalar::PI() / STEPS.as_());
+        let around_circle = (2 * step).as_() * (PosT::Scalar::PI() / steps.as_());
         let x = around_circle.sin();
         let y = around_circle.cos();
         let z = PosT::Scalar::zero();
@@ -50,8 +48,8 @@ where
     let top = add_vertex(&mut out, ring_pos(0));
     let mut last = top;
 
-    for step in 1..=STEPS {
-        let curr = if step == STEPS {
+    for step in 1..=steps {
+        let curr = if step == steps {
             top
         } else {
             add_vertex(&mut out, ring_pos(step))
