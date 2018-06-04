@@ -7,17 +7,18 @@ use crate::{
 
 /// A simple face-vertex mesh for triangular faces.
 #[derive(Clone)]
-pub struct FvTriMesh {
-    vertices: VertexVecMap<()>,
-    faces: FaceVecMap<FvTriFace>,
+pub struct FvTriMesh<VertexT = (), FaceT = ()> {
+    vertices: VertexVecMap<VertexT>,
+    faces: FaceVecMap<FvTriFace<FaceT>>,
 }
 
 #[derive(Clone, Copy)]
-pub struct FvTriFace {
+pub struct FvTriFace<FaceT> {
     vertices: [VertexHandle; 3],
+    prop: FaceT,
 }
 
-impl FvTriMesh {
+impl<VertexT, FaceT> FvTriMesh<VertexT, FaceT> {
     pub fn new() -> Self {
         Self {
             vertices: VertexVecMap::new(),
@@ -25,12 +26,15 @@ impl FvTriMesh {
         }
     }
 
-    pub fn face(&self, fh: FaceHandle) -> FvTriFace {
-        self.faces[fh]
-    }
+    // fn face(&self, fh: FaceHandle) -> FvTriFace<FaceT> {
+    //     self.faces[fh]
+    // }
 }
 
-impl TriMesh for FvTriMesh {
+impl<VertexT, FaceT> TriMesh for FvTriMesh<VertexT, FaceT> {
+    type VertexProp = VertexT;
+    type FaceProp = FaceT;
+
     fn empty() -> Self where Self: Sized {
         Self::new()
     }
@@ -42,12 +46,12 @@ impl TriMesh for FvTriMesh {
         self.vertices.num_elements()
     }
 
-    fn add_vertex(&mut self) -> VertexHandle {
-        self.vertices.push(())
+    fn add_vertex(&mut self, prop: Self::VertexProp) -> VertexHandle {
+        self.vertices.push(prop)
     }
 
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
-        self.faces.push(FvTriFace { vertices })
+    fn add_face(&mut self, vertices: [VertexHandle; 3], prop: Self::FaceProp) -> FaceHandle {
+        self.faces.push(FvTriFace { vertices, prop })
     }
 
     fn vertices<'a>(&'a self) -> Box<Iterator<Item = VertexHandle> + 'a> {

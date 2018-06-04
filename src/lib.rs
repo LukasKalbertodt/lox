@@ -1,6 +1,7 @@
 #![feature(crate_in_paths)]
 #![feature(non_modrs_mods)]
 #![feature(never_type)]
+#![feature(specialization)]
 
 extern crate stable_vec;
 extern crate num_traits;
@@ -12,12 +13,16 @@ pub mod impls;
 pub mod map;
 pub mod io;
 pub mod shape;
+pub mod shape2;
 
 
 use handle::{DefaultIndex, FaceHandle, VertexHandle};
 
 
 pub trait TriMesh {
+    type VertexProp;
+    type FaceProp;
+
     // type VertexIter: Iterator<Item = VertexHandle<Self::Idx>>;
 
     // TODO: use once GATs are available
@@ -28,8 +33,8 @@ pub trait TriMesh {
     fn num_faces(&self) -> DefaultIndex;
     fn num_vertices(&self) -> DefaultIndex;
 
-    fn add_vertex(&mut self) -> VertexHandle;
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
+    fn add_vertex(&mut self, prop: Self::VertexProp) -> VertexHandle;
+    fn add_face(&mut self, vertices: [VertexHandle; 3], prop: Self::FaceProp) -> FaceHandle;
 
     // fn vertices(&self) -> Self::VertexIter;
     // fn faces(&self) -> Self::FaceIter;

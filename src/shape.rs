@@ -4,7 +4,6 @@ use std::{
 };
 
 use num_traits::{AsPrimitive, Float, FloatConst, Zero};
-use tuple_utils::{Append};
 
 use crate::{
     TriMesh,
@@ -33,7 +32,7 @@ where
     };
 
     let add_vertex = |out: &mut R, [x, y, z]: [PosT::Scalar; 3]| {
-        let v = out.mesh().add_vertex();
+        let v = out.mesh().add_vertex(());
         out.positions().map(|m| {
             let pos = PosT::from_coords(x, y, z);
             m.insert(v, pos);
@@ -55,7 +54,7 @@ where
             add_vertex(&mut out, ring_pos(step))
         };
 
-        out.mesh().add_face([center, last, curr]);
+        out.mesh().add_face([center, last, curr], ());
         last = curr;
     }
 
@@ -71,7 +70,7 @@ where
 pub struct GenPosition<M>(pub M);
 
 pub trait GenResult {
-    type Mesh: TriMesh;
+    type Mesh: TriMesh<VertexProp = (), FaceProp = ()>;
     type PosMap: VertexMapMut;
 
     fn empty() -> Self;
@@ -82,7 +81,7 @@ pub trait GenResult {
 
 impl<T> GenResult for T
 where
-    T: TriMesh,
+    T: TriMesh<VertexProp = (), FaceProp = ()>,
 {
     type Mesh = Self;
     type PosMap = NullMap<(f32, f32, f32)>;
@@ -101,7 +100,7 @@ where
 
 impl<MeshT, MapT> GenResult for (MeshT, GenPosition<MapT>)
 where
-    MeshT: TriMesh,
+    MeshT: TriMesh<VertexProp = (), FaceProp = ()>,
     MapT: VertexMapMut,
 {
     type Mesh = MeshT;
