@@ -7,7 +7,7 @@ use num_traits::{AsPrimitive, Float, FloatConst, Zero};
 
 use crate::{
     TriMesh,
-    Pos3D,
+    Pos3Like,
     handle::{Handle, VertexHandle},
     map::{PropMap, PropMapMut, VertexMapMut},
 };
@@ -18,7 +18,7 @@ pub fn disk<R, PosT>(steps: u64) -> R
 where
     R: GenResult,
     R::PosMap: Index<VertexHandle, Output = PosT>,
-    PosT: Pos3D + Sized,
+    PosT: Pos3Like + Sized,
     PosT::Scalar: Float + FloatConst + AsPrimitive<u64> + 'static,
     u64: AsPrimitive<PosT::Scalar>,
 {

@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     TriMesh,
-    Pos3D,
+    Pos3Like,
     handle::{DefaultIndex, DefaultIndexExt, FaceHandle, Handle, VertexHandle},
     map::{PropMap, FaceMap, VertexMap},
     io::{PrimitiveSerialize, PrimitiveType},
@@ -67,10 +67,10 @@ impl<'a> Ply<'a> {
     pub fn with_vertex_positions<M>(&mut self, map: &'a M) -> &mut Self
     where
         M: VertexMap,
-        M::Output: 'a + Pos3D + Sized,
-        <M::Output as Pos3D>::Scalar: PrimitiveSerialize,
+        M::Output: 'a + Pos3Like + Sized,
+        <M::Output as Pos3Like>::Scalar: PrimitiveSerialize,
     {
-        let ty = <M::Output as Pos3D>::Scalar::ty();
+        let ty = <M::Output as Pos3Like>::Scalar::ty();
         self.vertex_attrs.push((
             "x".into(),
             ty,

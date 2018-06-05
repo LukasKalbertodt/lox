@@ -12,7 +12,7 @@ pub mod handle;
 pub mod impls;
 pub mod map;
 pub mod io;
-pub mod shape;
+// pub mod shape;
 pub mod shape2;
 
 
@@ -52,14 +52,14 @@ pub trait TriMesh {
 /// `cgmath::Point2`, as well as for generic "weaker" types such as tuples
 /// `(T, T)` and arrays `[T; 2]`. You should use strong types to represent
 /// points in space instead of simple tuples to avoid logic errors.
-pub trait Pos2D {
+pub trait Pos2Like {
     type Scalar;
 
     fn x(&self) -> &Self::Scalar;
     fn y(&self) -> &Self::Scalar;
 }
 
-impl<T> Pos2D for (T, T) {
+impl<T> Pos2Like for (T, T) {
     type Scalar = T;
 
     fn x(&self) -> &Self::Scalar {
@@ -71,7 +71,7 @@ impl<T> Pos2D for (T, T) {
     }
 }
 
-impl<T> Pos2D for [T; 2] {
+impl<T> Pos2Like for [T; 2] {
     type Scalar = T;
 
     fn x(&self) -> &Self::Scalar {
@@ -84,7 +84,7 @@ impl<T> Pos2D for [T; 2] {
 }
 
 /// Types that can be interpreted to represent some kind of 3D position.
-pub trait Pos3D {
+pub trait Pos3Like {
     type Scalar;
 
     fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self;
@@ -94,7 +94,7 @@ pub trait Pos3D {
     fn z(&self) -> &Self::Scalar;
 }
 
-impl<T> Pos3D for (T, T, T) {
+impl<T> Pos3Like for (T, T, T) {
     type Scalar = T;
 
     fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
@@ -114,7 +114,58 @@ impl<T> Pos3D for (T, T, T) {
     }
 }
 
-impl<T> Pos3D for [T; 3] {
+impl<T> Pos3Like for [T; 3] {
+    type Scalar = T;
+
+    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
+        [x, y, z]
+    }
+
+    fn x(&self) -> &Self::Scalar {
+        &self[0]
+    }
+
+    fn y(&self) -> &Self::Scalar {
+        &self[1]
+    }
+
+    fn z(&self) -> &Self::Scalar {
+        &self[2]
+    }
+}
+
+
+pub trait Vec3Like {
+    type Scalar;
+
+    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self;
+
+    fn x(&self) -> &Self::Scalar;
+    fn y(&self) -> &Self::Scalar;
+    fn z(&self) -> &Self::Scalar;
+}
+
+impl<T> Vec3Like for (T, T, T) {
+    type Scalar = T;
+
+    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
+        (x, y, z)
+    }
+
+    fn x(&self) -> &Self::Scalar {
+        &self.0
+    }
+
+    fn y(&self) -> &Self::Scalar {
+        &self.1
+    }
+
+    fn z(&self) -> &Self::Scalar {
+        &self.2
+    }
+}
+
+impl<T> Vec3Like for [T; 3] {
     type Scalar = T;
 
     fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {

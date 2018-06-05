@@ -1,13 +1,17 @@
 use std::{
-    fmt::Display,
-    io::{self, Write},
+    io::Write,
 };
 
+use crate::{
+    Pos3Like,
+    Vec3Like,
+    TriMesh,
+};
 
+// mod ply;
+mod ply2;
 
-mod ply;
-
-pub use self::ply::Ply;
+pub use self::ply2::Ply;
 
 
 // pub trait MeshSerializer {
@@ -35,50 +39,115 @@ pub enum PrimitiveType {
     Float64,
 }
 
-pub trait PrimitiveSerialize: Display {
-    fn ty() -> PrimitiveType where Self: Sized;
-    fn write_binary_be(&self, w: &mut Write) -> io::Result<()>;
-    fn write_binary_le(&self, w: &mut Write) -> io::Result<()>;
+pub trait PrimitiveSerialize {
+    fn ty() -> PrimitiveType;
 
-    fn write_ascii(&self, w: &mut Write) -> io::Result<()> {
-        write!(w, "{}", self)
-    }
+    fn serialize<S: PrimitiveSerializer>(&self, serializer: S) -> Result<S::Ok, S::Error>;
 }
 
 macro_rules! impl_primitive_serialize {
-    ($name:ident, $variant:ident) => {
+    ($name:ident, $func:ident, $ty:ident) => {
         impl PrimitiveSerialize for $name {
             fn ty() -> PrimitiveType {
-                PrimitiveType::$variant
+                PrimitiveType::$ty
             }
-            fn write_binary_be(&self, _w: &mut Write) -> io::Result<()> {
-                // TODO: Use `byteorder` crate
-                unimplemented!()
-            }
-            fn write_binary_le(&self, _w: &mut Write) -> io::Result<()> {
-                // TODO: Use `byteorder` crate
-                unimplemented!()
+
+            fn serialize<S: PrimitiveSerializer>(
+                &self,
+                serializer: S,
+            ) -> Result<S::Ok, S::Error> {
+                serializer.$func(*self)
             }
         }
     }
 }
 
-impl_primitive_serialize!(u8, Uint8);
-impl_primitive_serialize!(i8, Int8);
-impl_primitive_serialize!(u16, Uint16);
-impl_primitive_serialize!(i16, Int16);
-impl_primitive_serialize!(u32, Uint32);
-impl_primitive_serialize!(i32, Int32);
-impl_primitive_serialize!(u64, Uint64);
-impl_primitive_serialize!(i64, Int64);
-impl_primitive_serialize!(f32, Float32);
-impl_primitive_serialize!(f64, Float64);
+impl_primitive_serialize!(u8,  serialize_u8,  Uint8);
+impl_primitive_serialize!(u16, serialize_u16, Uint16);
+impl_primitive_serialize!(u32, serialize_u32, Uint32);
+impl_primitive_serialize!(u64, serialize_u64, Uint64);
+impl_primitive_serialize!(i8,  serialize_i8,  Int8);
+impl_primitive_serialize!(i16, serialize_i16, Int16);
+impl_primitive_serialize!(i32, serialize_i32, Int32);
+impl_primitive_serialize!(i64, serialize_i64, Int64);
+impl_primitive_serialize!(f32, serialize_f32, Float32);
+impl_primitive_serialize!(f64, serialize_f64, Float64);
 
 
-// fn write_ply<Idx: HandleIndex>(mesh: FvTriMesh<Idx>) {
-//     for (vH, v) in mesh.vertices() {
-//         for attr in attributes[vH] {
-//             write!(file, "{} ", attr);
-//         }
-//     }
-// }
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PropKind {
+    Position {
+        scalar_ty: PrimitiveType,
+    },
+    Normal {
+        scalar_ty: PrimitiveType,
+    },
+    Primitive {
+        name: String,
+        ty: PrimitiveType,
+    },
+}
+
+
+pub trait PropSerialize {
+    fn kind() -> PropKind;
+
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: PropSerializer;
+}
+
+pub trait PrimitiveSerializer {
+    type Ok;
+    type Error;
+
+    fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error>;
+    fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error>;
+    fn serialize_i16(self, v: i16) -> Result<Self::Ok, Self::Error>;
+    fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error>;
+    fn serialize_i64(self, v: i64) -> Result<Self::Ok, Self::Error>;
+    fn serialize_u8(self, v: u8) -> Result<Self::Ok, Self::Error>;
+    fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error>;
+    fn serialize_u32(self, v: u32) -> Result<Self::Ok, Self::Error>;
+    fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error>;
+    fn serialize_f32(self, v: f32) -> Result<Self::Ok, Self::Error>;
+    fn serialize_f64(self, v: f64) -> Result<Self::Ok, Self::Error>;
+
+    // TODO: more primitives?
+}
+
+pub trait PropSerializer {
+    type Ok;
+    type Error;
+
+    fn serialize_position<PosT>(&mut self, v: &PosT) -> Result<Self::Ok, Self::Error>
+    where
+        PosT: Pos3Like,
+        PosT::Scalar: PrimitiveSerialize;
+
+    fn serialize_normal<NormalT>(&mut self, v: &NormalT) -> Result<Self::Ok, Self::Error>
+    where
+        NormalT: Vec3Like,
+        NormalT::Scalar: PrimitiveSerialize;
+
+    fn serialize_primitive(
+        &mut self,
+        name: &str,
+        v: &impl PrimitiveSerialize,
+    ) -> Result<Self::Ok, Self::Error>;
+}
+
+
+pub trait MeshSerializer:  {
+    type Error;
+
+    fn add_vertex_prop<PropT: PropSerialize>(
+        &mut self,
+        prop: &PropT,
+    ) -> Result<&mut Self, Self::Error>;
+
+    fn write<MeshT>(&mut self, mesh: &MeshT, writer: impl Write) -> Result<(), Self::Error>
+    where
+        MeshT: TriMesh,
+        MeshT::VertexProp: PropSerialize;
+}

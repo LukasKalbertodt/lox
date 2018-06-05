@@ -5,9 +5,9 @@ use std::fs::File;
 use fev::{
     TriMesh,
     impls::FvTriMesh,
-    io::{Ply},
+    io::{Ply, MeshSerializer, PropKind, PrimitiveType, PropSerialize, PropSerializer},
     map::{VertexVecMap, PropMapMut},
-    shape::{disk, GenPosition},
+    // shape::{disk, GenPosition},
     shape2::{append_sphere, AdhocBuilder, SpheroidVertexInfo, HasPosition},
 };
 
@@ -25,6 +25,19 @@ where
         Self {
             position: (x, y, z),
         }
+    }
+}
+
+impl PropSerialize for MyVertexInfo {
+    fn kind() -> PropKind {
+        PropKind::Position { scalar_ty: PrimitiveType::Float64 }
+    }
+
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: PropSerializer
+    {
+        unimplemented!()
     }
 }
 
@@ -57,6 +70,6 @@ fn main() {
     let mut file = File::create("foo.ply").unwrap();
     Ply::ascii()
         // .with_vertex_positions(&positions)
-        .write(&mut file, &mesh)
+        .write(&mesh, &mut file)
         .unwrap();
 }
