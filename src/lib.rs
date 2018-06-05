@@ -36,6 +36,8 @@ pub trait TriMesh {
     fn add_vertex(&mut self, prop: Self::VertexProp) -> VertexHandle;
     fn add_face(&mut self, vertices: [VertexHandle; 3], prop: Self::FaceProp) -> FaceHandle;
 
+    fn vertex_prop(&self, handle: VertexHandle) -> Option<&Self::VertexProp>;
+
     // fn vertices(&self) -> Self::VertexIter;
     // fn faces(&self) -> Self::FaceIter;
     // TODO: change once GATs are available

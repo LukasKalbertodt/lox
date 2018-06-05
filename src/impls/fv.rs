@@ -1,6 +1,6 @@
 use crate::{
     handle::{DefaultIndex, FaceHandle, VertexHandle},
-    map::{FaceVecMap, VertexVecMap},
+    map::{FaceVecMap, VertexVecMap, PropMap},
     TriMesh,
 };
 
@@ -53,6 +53,11 @@ impl<VertexT, FaceT> TriMesh for FvTriMesh<VertexT, FaceT> {
     fn add_face(&mut self, vertices: [VertexHandle; 3], prop: Self::FaceProp) -> FaceHandle {
         self.faces.push(FvTriFace { vertices, prop })
     }
+
+    fn vertex_prop(&self, handle: VertexHandle) -> Option<&Self::VertexProp> {
+        self.vertices.get(handle)
+    }
+
 
     fn vertices<'a>(&'a self) -> Box<Iterator<Item = VertexHandle> + 'a> {
         Box::new(self.vertices.handles())

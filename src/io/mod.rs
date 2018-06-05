@@ -138,7 +138,7 @@ pub trait PropSerializer {
 }
 
 
-pub trait MeshSerializer:  {
+pub trait MeshSerializer<'a> {
     type Error;
 
     fn add_vertex_prop<PropT: PropSerialize>(
@@ -146,7 +146,7 @@ pub trait MeshSerializer:  {
         prop: &PropT,
     ) -> Result<&mut Self, Self::Error>;
 
-    fn write<MeshT>(&mut self, mesh: &MeshT, writer: impl Write) -> Result<(), Self::Error>
+    fn write<MeshT>(&mut self, mesh: &'a MeshT, writer: impl Write) -> Result<(), Self::Error>
     where
         MeshT: TriMesh,
         MeshT::VertexProp: PropSerialize;

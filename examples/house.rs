@@ -33,11 +33,11 @@ impl PropSerialize for MyVertexInfo {
         PropKind::Position { scalar_ty: PrimitiveType::Float64 }
     }
 
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, mut serializer: S) -> Result<S::Ok, S::Error>
     where
         S: PropSerializer
     {
-        unimplemented!()
+        serializer.serialize_position(&self.position)
     }
 }
 
