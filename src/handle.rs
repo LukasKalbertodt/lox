@@ -1,5 +1,9 @@
 use std::fmt;
 
+use crate::{
+    io::{PropType, PrimitiveType, PropSerialize, PropSerializer, PrimitiveProp},
+};
+
 pub type DefaultIndex = u32;
 
 // TODO: It would be really nice to let the user choose the index to use.
@@ -70,6 +74,21 @@ macro_rules! make_handle_type {
                 $short.fmt(f)?;
                 self.idx().fmt(f)
             }
+        }
+
+        // TODO: this should be derived
+        impl PropSerialize for $name {
+            fn ty() -> PropType {
+                PropType::Single(PrimitiveType::Uint32)
+            }
+
+            fn serialize<S: PropSerializer>(&self, serializer: S) -> Result<(), S::Error> {
+                serializer.serialize_u32(self.0)
+            }
+        }
+
+        impl PrimitiveProp for $name {
+            const PRIMITIVE_TY: PrimitiveType = PrimitiveType::Uint32;
         }
     }
 }

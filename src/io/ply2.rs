@@ -9,8 +9,9 @@ use crate::{
     handle::{DefaultIndex, DefaultIndexExt, FaceHandle, Handle, VertexHandle},
     map::{PropMap, FaceMap, VertexMap},
     io::{
-        IntoMeshWriter, LabeledPropSet, MeshWriter, PropSerialize, PropSerializer,
-        PrimitiveType, PropLabel, PropSetSerializer, PropType,
+        IntoMeshWriter, PropSetSerialize, MeshWriter, PropSerialize, PropSerializer,
+        PrimitiveType, PropLabel, PropSetSerializer, PropType, LabeledPropSet,
+        NamedLabel, PropLabeler,
     },
 };
 
@@ -46,7 +47,7 @@ impl Ply {
 impl<'a, MeshT> IntoMeshWriter<'a, MeshT> for Ply
 where
     MeshT: TriMesh + 'a,
-    MeshT::VertexProp: LabeledPropSet,
+    MeshT::VertexProp: LabeledPropSet + PropSetSerialize,
 {
     type Error = PlyError;
     type Writer = PlyWriter<'a, MeshT>;
@@ -61,7 +62,7 @@ where
                     labels: MeshT::VertexProp::LABELS,
                     serialize: Box::new(move |w, handle| {
                         mesh.vertex_prop(handle)
-                            .unwrap()
+                            .unwrap() // TODO
                             .serialize($serializer::new(w))
                     }),
                 }
@@ -69,16 +70,17 @@ where
         }
 
         let prop_set = match self.format {
-            PlyFormat::Ascii => prop_set_with!(PlyAsciiLabeledPropSetSerializer),
-            PlyFormat::BinaryBigEndian => prop_set_with!(PlyBinaryBeLabeledPropSetSerializer),
-            PlyFormat::BinaryLittleEndian => prop_set_with!(PlyBinaryLeLabeledPropSetSerializer),
+            PlyFormat::Ascii => prop_set_with!(PlyAsciiPropSetSerializer),
+            PlyFormat::BinaryBigEndian => prop_set_with!(PlyBinaryBePropSetSerializer),
+            PlyFormat::BinaryLittleEndian => prop_set_with!(PlyBinaryLePropSetSerializer),
         };
 
 
         Ok(PlyWriter {
             format: self.format,
             mesh,
-            vertex_props: vec![prop_set],
+            vertex_prop_sets: vec![prop_set],
+            face_prop_sets: vec![], // TODO
         })
     }
 }
@@ -86,12 +88,13 @@ where
 pub struct PlyWriter<'a, MeshT: 'a> {
     format: PlyFormat,
     mesh: &'a MeshT,
-    vertex_props: Vec<PropertySet<'a>>,
+    vertex_prop_sets: Vec<PropertySet<'a, VertexHandle>>,
+    face_prop_sets: Vec<PropertySet<'a, FaceHandle>>,
 }
 
-struct PropertySet<'a> {
+struct PropertySet<'a, HandleT> {
     labels: &'a [PropLabel],
-    serialize: Box<'a + Fn(&mut io::Write, VertexHandle) -> Result<(), PlyError>>,
+    serialize: Box<'a + Fn(&mut io::Write, HandleT) -> Result<(), PlyError>>,
 }
 
 
@@ -130,11 +133,11 @@ impl From<io::Error> for PlyError {
 impl<'a, MeshT> MeshWriter<'a> for PlyWriter<'a, MeshT>
 where
     MeshT: TriMesh + 'a,
-    MeshT::VertexProp: LabeledPropSet,
+    MeshT::VertexProp: PropSetSerialize,
 {
     type Error = PlyError;
 
-    // fn add_vertex_prop<PropT: LabeledPropSet>(
+    // fn add_vertex_prop<PropT: PropSet>(
     //     &mut self,
     //     prop: &PropT,
     // ) -> Result<&mut Self, Self::Error> {
@@ -150,6 +153,50 @@ where
     // }
 
     fn write(&mut self, mut w: impl Write) -> Result<(), Self::Error> {
+        use std::iter;
+
+        // Determine the correct integer type used to store vertex indices.
+        // (Currently, `DefaultIndex` is a fixed type, `u32`, but the idea it to
+        // make this library generic over this type. Eventually...)
+        let index_ty = match DefaultIndex::NUM_BYTES {
+            1 => PrimitiveType::Uint8,
+            2 => PrimitiveType::Uint16,
+            4 => PrimitiveType::Uint32,
+            num_bytes => return Err(PlyError::IndexTypeNotSupported { num_bytes }),
+        };
+
+        let vertex_indices_labels = [PropLabel::Named {
+            name: "vertex_indices".into(),
+            ty: PropType::FixedLen {
+                ty: index_ty,
+                len: 3,
+            },
+        }];
+
+        let vertex_indices_prop_set = {
+            macro_rules! prop_set_with {
+                ($serializer:ident) => {
+                    PropertySet {
+                        labels: &vertex_indices_labels,
+                        serialize: Box::new(|w, handle| {
+                            let vertices = self.mesh.vertices_of_face(handle);
+                            NamedLabel("vertex_indices")
+                                .wrap(vertices)
+                                .serialize($serializer::new(w))
+                        }),
+                    }
+                }
+            }
+
+            match self.format {
+                PlyFormat::Ascii => prop_set_with!(PlyAsciiPropSetSerializer),
+                PlyFormat::BinaryBigEndian => prop_set_with!(PlyBinaryBePropSetSerializer),
+                PlyFormat::BinaryLittleEndian => prop_set_with!(PlyBinaryLePropSetSerializer),
+            }
+        };
+
+
+
         // ===================================================================
         // Write header (this part is always ASCII)
         // ===================================================================
@@ -173,83 +220,26 @@ where
         // they want to.
 
 
-        // Determine the correct PLY integer for the integer type used to store
-        // vertex indices. (Currently, `DefaultIndex` is a fixed type, `u32`,
-        // but the idea it to make this library generic over this type.
-        // Eventually...)
-        let idx_type = match DefaultIndex::NUM_BYTES {
-            1 => "uchar",
-            2 => "ushort",
-            4 => "uint",
-            num_bytes => return Err(PlyError::IndexTypeNotSupported { num_bytes }),
-        };
+
 
         // Define `vertex` element with all properties
         writeln!(w, "element vertex {}", self.mesh.num_vertices())?;
-        for prop_set in &self.vertex_props {
+        for prop_set in &self.vertex_prop_sets {
             for label in prop_set.labels {
-                match label {
-                    // Positions are stored as properties 'x', 'y' and 'z' by
-                    // convention.
-                    PropLabel::Position { scalar_ty } => {
-                        let ty_name = primitive_ply_type_name(scalar_ty)?;
-
-                        writeln!(w, "property {} x", ty_name)?;
-                        writeln!(w, "property {} y", ty_name)?;
-                        writeln!(w, "property {} z", ty_name)?;
-                    }
-
-                    // Normals are stored as properties 'nx', 'ny' and 'nz' by
-                    // convention.
-                    PropLabel::Normal { scalar_ty } => {
-                        let ty_name = primitive_ply_type_name(scalar_ty)?;
-
-                        writeln!(w, "property {} nx", ty_name)?;
-                        writeln!(w, "property {} ny", ty_name)?;
-                        writeln!(w, "property {} nz", ty_name)?;
-                    }
-
-                    PropLabel::Named { name, ty: PropType::Single(ty) } => {
-                        let ty_name = primitive_ply_type_name(ty)?;
-                        writeln!(w, "property {} {}", ty_name, name)?;
-                    }
-
-                    PropLabel::Named { name, ty: PropType::VariableLen(ty) } => {
-                        // Since we don't know the length before, we
-                        // have to use `uint` to specify the length.
-                        let ty_name = primitive_ply_type_name(ty)?;
-                        writeln!(w, "property list uint {} {}", ty_name, name)?;
-                    }
-
-                    PropLabel::Named { name, ty: PropType::FixedLen { len, ty } } => {
-                        let len = *len;
-
-                        // We know the length of all properties
-                        // beforehand, so we can optimize and chose a
-                        // small type to specify the length.
-                        let len_type = if len <= u8::max_value() as u64 {
-                            "uchar"
-                        } else if len <= u16::max_value() as u64 {
-                            "ushort"
-                        } else if len <= u32::max_value() as u64 {
-                            "uint"
-                        } else {
-                            return Err(PlyError::FixedLenListTooLong(len));
-                        };
-
-                        let ty_name = primitive_ply_type_name(ty)?;
-                        writeln!(w, "property list {} {} {}", len_type, ty_name, name)?;
-                    }
-                }
+                write_header_property(&mut w, label)?;
             }
         }
 
 
         // Define `face` element with all properties
         writeln!(w, "element face {}", self.mesh.num_faces())?;
-        writeln!(w, "property list uchar {} vertex_indices", idx_type)?;
+        // writeln!(w, "property list uchar {} vertex_indices", idx_type)?;
 
-        // TODO: user defined properties
+        for prop_set in iter::once(&vertex_indices_prop_set).chain(&self.face_prop_sets) {
+            for label in prop_set.labels {
+                write_header_property(&mut w, label)?;
+            }
+        }
 
 
         w.write_all(b"end_header\n")?;
@@ -261,37 +251,42 @@ where
         match self.format {
             PlyFormat::Ascii => {
                 for vertex_handle in self.mesh.vertices() {
-                    for prop in &self.vertex_props {
+                    for prop in &self.vertex_prop_sets {
                         (prop.serialize)(&mut w, vertex_handle)?;
-                    }
-                    writeln!(w, "")?;
-                }
-
-                for face in self.mesh.faces() {
-                    // TODO: other face attributes
-                    w.write_all(b"3")?;
-                    for &v in &self.mesh.vertices_of_face(face) {
-                        w.write_all(b" ")?;
-                        v.idx().serialize(PlyAsciiPropSerializer::new(&mut w))?;
                     }
                     w.write_all(b"\n")?;
                 }
-            }
-            PlyFormat::BinaryBigEndian => {
-                for vertex_handle in self.mesh.vertices() {
-                    for prop in &self.vertex_props {
-                        (prop.serialize)(&mut w, vertex_handle)?;
-                    }
-                }
 
-                for face in self.mesh.faces() {
+                for face_handle in self.mesh.faces() {
                     // TODO: other face attributes
-                    PlyBinaryBePropSerializer::new(&mut w).serialize_u8(3)?;
-                    for &v in &self.mesh.vertices_of_face(face) {
-                        v.idx().serialize(PlyBinaryBePropSerializer::new(&mut w))?;
+                    // w.write_all(b"3")?;
+                    // for &v in &self.mesh.vertices_of_face(face_handle) {
+                    //     w.write_all(b" ")?;
+                    //     v.idx().serialize(PlyAsciiPropSerializer::new(&mut w))?;
+                    // }
+
+                    for prop in iter::once(&vertex_indices_prop_set).chain(&self.face_prop_sets) {
+                        (prop.serialize)(&mut w, face_handle)?;
                     }
+
+                    w.write_all(b"\n")?;
                 }
             }
+            // PlyFormat::BinaryBigEndian => {
+            //     for vertex_handle in self.mesh.vertices() {
+            //         for prop in &self.vertex_prop_sets {
+            //             (prop.serialize)(&mut w, vertex_handle)?;
+            //         }
+            //     }
+
+            //     for face in self.mesh.faces() {
+            //         // TODO: other face attributes
+            //         PlyBinaryBePropSerializer::new(&mut w).serialize_u8(3)?;
+            //         for &v in &self.mesh.vertices_of_face(face) {
+            //             v.idx().serialize(PlyBinaryBePropSerializer::new(&mut w))?;
+            //         }
+            //     }
+            // }
             _ => unimplemented!(),
         }
 
@@ -299,6 +294,64 @@ where
     }
 }
 
+
+fn write_header_property(w: &mut impl Write, label: &PropLabel) -> Result<(), PlyError> {
+    match label {
+        // Positions are stored as properties 'x', 'y' and 'z' by
+        // convention.
+        PropLabel::Position { scalar_ty } => {
+            let ty_name = primitive_ply_type_name(scalar_ty)?;
+
+            writeln!(w, "property {} x", ty_name)?;
+            writeln!(w, "property {} y", ty_name)?;
+            writeln!(w, "property {} z", ty_name)?;
+        }
+
+        // Normals are stored as properties 'nx', 'ny' and 'nz' by
+        // convention.
+        PropLabel::Normal { scalar_ty } => {
+            let ty_name = primitive_ply_type_name(scalar_ty)?;
+
+            writeln!(w, "property {} nx", ty_name)?;
+            writeln!(w, "property {} ny", ty_name)?;
+            writeln!(w, "property {} nz", ty_name)?;
+        }
+
+        PropLabel::Named { name, ty: PropType::Single(ty) } => {
+            let ty_name = primitive_ply_type_name(ty)?;
+            writeln!(w, "property {} {}", ty_name, name)?;
+        }
+
+        PropLabel::Named { name, ty: PropType::VariableLen(ty) } => {
+            // Since we don't know the length before, we
+            // have to use `uint` to specify the length.
+            let ty_name = primitive_ply_type_name(ty)?;
+            writeln!(w, "property list uint {} {}", ty_name, name)?;
+        }
+
+        PropLabel::Named { name, ty: PropType::FixedLen { len, ty } } => {
+            let len = *len;
+
+            // We know the length of all properties
+            // beforehand, so we can optimize and chose a
+            // small type to specify the length.
+            let len_type = if len <= u8::max_value() as u64 {
+                "uchar"
+            } else if len <= u16::max_value() as u64 {
+                "ushort"
+            } else if len <= u32::max_value() as u64 {
+                "uint"
+            } else {
+                return Err(PlyError::FixedLenListTooLong(len));
+            };
+
+            let ty_name = primitive_ply_type_name(ty)?;
+            writeln!(w, "property list {} {} {}", len_type, ty_name, name)?;
+        }
+    }
+
+    Ok(())
+}
 
 /// Returns the name of the PLY type corresponding to the given type.
 fn primitive_ply_type_name(ty: &PrimitiveType) -> Result<&'static str, PlyError> {
@@ -371,6 +424,17 @@ impl<'a, W: Write + 'a + ?Sized> PropSerializer for PlyAsciiPropSerializer<'a, W
     fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
         write!(self.writer, "{}", v).map_err(|e| e.into())
     }
+
+    fn serialize_fixed_len_seq<T: PropSerialize>(self, seq: &[T]) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", seq.len())?;
+
+        for v in seq {
+            write!(self.writer, " ")?;
+            v.serialize(Self::new(self.writer))?;
+        }
+
+        Ok(())
+    }
 }
 
 
@@ -428,6 +492,25 @@ macro_rules! gen_binary_primitive_serializer {
             fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
                 self.writer.write_f64::<$endianess>(v).map_err(|e| e.into())
             }
+
+            fn serialize_fixed_len_seq<T: PropSerialize>(self, seq: &[T]) -> Result<(), Self::Error> {
+                let len = seq.len() as u64;
+                let len_type = if len <= u8::max_value() as u64 {
+                    self.writer.write_u8(len as u8)?;
+                } else if len <= u16::max_value() as u64 {
+                    self.writer.write_u16::<$endianess>(len as u16)?;
+                } else if len <= u32::max_value() as u64 {
+                    self.writer.write_u32::<$endianess>(len as u32)?;
+                } else {
+                    return Err(PlyError::FixedLenListTooLong(len));
+                };
+
+                for v in seq {
+                    v.serialize(Self::new(self.writer))?;
+                }
+
+                Ok(())
+            }
         }
     }
 }
@@ -442,14 +525,14 @@ gen_binary_primitive_serializer!(PlyBinaryLePropSerializer, LittleEndian);
 // ===== PropSetSerializer for PLY
 // ===========================================================================
 
-/// LabeledPropSetSerializer for the ASCII version of PLY. Stores a writer and a flag
+/// PropSetSerializer for the ASCII version of PLY. Stores a writer and a flag
 /// to know where to put ' ' seperators.
-struct PlyAsciiLabeledPropSetSerializer<'a, W: Write + 'a + ?Sized> {
+struct PlyAsciiPropSetSerializer<'a, W: Write + 'a + ?Sized> {
     writer: &'a mut W,
     first: bool,
 }
 
-impl<'a, W: Write + 'a + ?Sized> PlyAsciiLabeledPropSetSerializer<'a, W> {
+impl<'a, W: Write + 'a + ?Sized> PlyAsciiPropSetSerializer<'a, W> {
     fn new(w: &'a mut W) -> Self {
         Self {
             writer: w,
@@ -491,7 +574,7 @@ impl<'a, W: Write + 'a + ?Sized> PlyAsciiLabeledPropSetSerializer<'a, W> {
     }
 }
 
-impl<'a, W: Write + 'a + ?Sized> PropSetSerializer for PlyAsciiLabeledPropSetSerializer<'a, W> {
+impl<'a, W: Write + 'a + ?Sized> PropSetSerializer for PlyAsciiPropSetSerializer<'a, W> {
     type Error = PlyError;
 
     fn serialize_position<PosT>(&mut self, v: &PosT) -> Result<(), Self::Error>
@@ -525,7 +608,7 @@ impl<'a, W: Write + 'a + ?Sized> PropSetSerializer for PlyAsciiLabeledPropSetSer
 // The little endian and big endian binary serializer are very similar. This
 // macro avoids some duplicate code.
 //
-// The binary LabeledPropSetSerializer differ from the ASCII one merely by the
+// The binary PropSetSerializer differ from the ASCII one merely by the
 // PropSerializer used and in that fact that they don't output ' '
 // seperators.
 macro_rules! gen_binary_prop_serializer {
@@ -590,5 +673,5 @@ macro_rules! gen_binary_prop_serializer {
     }
 }
 
-gen_binary_prop_serializer!(PlyBinaryBeLabeledPropSetSerializer, PlyBinaryBePropSerializer);
-gen_binary_prop_serializer!(PlyBinaryLeLabeledPropSetSerializer, PlyBinaryLePropSerializer);
+gen_binary_prop_serializer!(PlyBinaryBePropSetSerializer, PlyBinaryBePropSerializer);
+gen_binary_prop_serializer!(PlyBinaryLePropSetSerializer, PlyBinaryLePropSerializer);

@@ -8,7 +8,10 @@ use std::fs::File;
 use fev::{
     TriMesh,
     impls::FvTriMesh,
-    io::{Ply, IntoMeshWriter, MeshWriter, PropLabel, PrimitiveType, LabeledPropSet, PropSetSerializer},
+    io::{
+        Ply, IntoMeshWriter, MeshWriter, PropLabel, PrimitiveType,
+        LabeledPropSet, PropSetSerializer, PropSetSerialize,
+    },
     map::{VertexVecMap, PropMapMut},
     // shape::{disk, GenPosition},
     shape2::{append_sphere, AdhocBuilder, SpheroidVertexInfo, HasPosition, HasNormal},
@@ -39,7 +42,9 @@ impl LabeledPropSet for MyVertexInfo {
         PropLabel::Position { scalar_ty: PrimitiveType::Float32 },
         PropLabel::Normal { scalar_ty: PrimitiveType::Float32 },
     ];
+}
 
+impl PropSetSerialize for MyVertexInfo {
     fn serialize<S>(&self, mut serializer: S) -> Result<(), S::Error>
     where
         S: PropSetSerializer
