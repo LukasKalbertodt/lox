@@ -18,6 +18,7 @@ pub use self::ply2::Ply;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrimitiveType {
+    Bool,
     Uint8,
     Uint16,
     Uint32,
@@ -33,6 +34,7 @@ pub enum PrimitiveType {
 impl fmt::Display for PrimitiveType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            PrimitiveType::Bool => "bool",
             PrimitiveType::Uint8 => "u8",
             PrimitiveType::Uint16 => "u16",
             PrimitiveType::Uint32 => "u32",
@@ -47,20 +49,59 @@ impl fmt::Display for PrimitiveType {
     }
 }
 
-pub trait PrimitiveSerialize {
-    fn ty() -> PrimitiveType;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PropType {
+    // A single value of a primitive type.
+    Single(PrimitiveType),
 
-    fn serialize<S: PrimitiveSerializer>(&self, serializer: S) -> Result<(), S::Error>;
+    /// Multiple values of a primitive type.
+    ///
+    /// The number of values can vary between different property values, even
+    /// if the two values belong to the same mesh. If the length of all values
+    /// is the same for one mesh, use `FixedLen` instead.
+    VariableLen(PrimitiveType),
+
+    /// Multiple values of a primitive type with a fixed number of values,
+    /// specified by `len`.
+    FixedLen {
+        ty: PrimitiveType,
+        len: u64,
+    },
+}
+
+impl PropType {
+    pub fn primitive_type(&self) -> PrimitiveType {
+        match *self {
+            PropType::Single(ty) => ty,
+            PropType::VariableLen(ty) => ty,
+            PropType::FixedLen { ty, .. } => ty,
+        }
+    }
+}
+
+impl fmt::Display for PropType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            PropType::Single(ty) => ty.fmt(f),
+            PropType::VariableLen(ty) => write!(f, "[{}]", ty),
+            PropType::FixedLen { ty, len } => write!(f, "[{}; {}]", ty, len),
+        }
+    }
+}
+
+pub trait PropSerialize {
+    fn ty() -> PropType;
+    fn serialize<S: PropSerializer>(&self, serializer: S) -> Result<(), S::Error>;
 }
 
 macro_rules! impl_primitive_serialize {
     ($name:ident, $func:ident, $ty:ident) => {
-        impl PrimitiveSerialize for $name {
-            fn ty() -> PrimitiveType {
-                PrimitiveType::$ty
+        impl PropSerialize for $name {
+            fn ty() -> PropType {
+                PropType::Single(PrimitiveType::$ty)
             }
 
-            fn serialize<S: PrimitiveSerializer>(
+            fn serialize<S: PropSerializer>(
                 &self,
                 serializer: S,
             ) -> Result<(), S::Error> {
@@ -97,7 +138,7 @@ pub enum PropLabel {
     },
     Named {
         name: String,
-        ty: PrimitiveType,
+        ty: PropType,
     },
 }
 
@@ -112,10 +153,10 @@ pub trait LabeledPropSet {
     /// Serializes all properties in this set with the given serializer.
     fn serialize<S>(&self, serializer: S) -> Result<(), S::Error>
     where
-        S: PropSerializer;
+        S: PropSetSerializer;
 }
 
-pub trait PrimitiveSerializer {
+pub trait PropSerializer {
     type Error;
 
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error>;
@@ -133,23 +174,23 @@ pub trait PrimitiveSerializer {
     // TODO: more primitives?
 }
 
-pub trait PropSerializer {
+pub trait PropSetSerializer {
     type Error;
 
     fn serialize_position<PosT>(&mut self, v: &PosT) -> Result<(), Self::Error>
     where
         PosT: Pos3Like,
-        PosT::Scalar: PrimitiveSerialize;
+        PosT::Scalar: PropSerialize;
 
     fn serialize_normal<NormalT>(&mut self, v: &NormalT) -> Result<(), Self::Error>
     where
         NormalT: Vec3Like,
-        NormalT::Scalar: PrimitiveSerialize;
+        NormalT::Scalar: PropSerialize;
 
     fn serialize_named(
         &mut self,
         name: &str,
-        v: &impl PrimitiveSerialize,
+        v: &impl PropSerialize,
     ) -> Result<(), Self::Error>;
 }
 

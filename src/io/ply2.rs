@@ -9,8 +9,8 @@ use crate::{
     handle::{DefaultIndex, DefaultIndexExt, FaceHandle, Handle, VertexHandle},
     map::{PropMap, FaceMap, VertexMap},
     io::{
-        IntoMeshWriter, LabeledPropSet, MeshWriter, PrimitiveSerialize, PrimitiveSerializer,
-        PrimitiveType, PropLabel, PropSerializer,
+        IntoMeshWriter, LabeledPropSet, MeshWriter, PropSerialize, PropSerializer,
+        PrimitiveType, PropLabel, PropSetSerializer, PropType,
     },
 };
 
@@ -69,9 +69,9 @@ where
         }
 
         let prop_set = match self.format {
-            PlyFormat::Ascii => prop_set_with!(PlyAsciiPropSerializer),
-            PlyFormat::BinaryBigEndian => prop_set_with!(PlyBinaryBePropSerializer),
-            PlyFormat::BinaryLittleEndian => prop_set_with!(PlyBinaryLePropSerializer),
+            PlyFormat::Ascii => prop_set_with!(PlyAsciiLabeledPropSetSerializer),
+            PlyFormat::BinaryBigEndian => prop_set_with!(PlyBinaryBeLabeledPropSetSerializer),
+            PlyFormat::BinaryLittleEndian => prop_set_with!(PlyBinaryLeLabeledPropSetSerializer),
         };
 
 
@@ -110,6 +110,12 @@ pub enum PlyError {
 
     #[fail(display = "type '{}' is not supported by PLY", _0)]
     PrimitiveTypeNotSupported(PrimitiveType),
+
+    #[fail(display =
+        "attempt to serialize a list-like property with a fixed length of {} (maximum is 2^32)",
+        _0,
+    )]
+    FixedLenListTooLong(u64),
 
     #[fail(display = "something :(")]
     Something,
@@ -203,9 +209,36 @@ where
                         writeln!(w, "property {} nz", ty_name)?;
                     }
 
-                    PropLabel::Named { name, ty } => {
+                    PropLabel::Named { name, ty: PropType::Single(ty) } => {
                         let ty_name = primitive_ply_type_name(ty)?;
                         writeln!(w, "property {} {}", ty_name, name)?;
+                    }
+
+                    PropLabel::Named { name, ty: PropType::VariableLen(ty) } => {
+                        // Since we don't know the length before, we
+                        // have to use `uint` to specify the length.
+                        let ty_name = primitive_ply_type_name(ty)?;
+                        writeln!(w, "property list uint {} {}", ty_name, name)?;
+                    }
+
+                    PropLabel::Named { name, ty: PropType::FixedLen { len, ty } } => {
+                        let len = *len;
+
+                        // We know the length of all properties
+                        // beforehand, so we can optimize and chose a
+                        // small type to specify the length.
+                        let len_type = if len <= u8::max_value() as u64 {
+                            "uchar"
+                        } else if len <= u16::max_value() as u64 {
+                            "ushort"
+                        } else if len <= u32::max_value() as u64 {
+                            "uint"
+                        } else {
+                            return Err(PlyError::FixedLenListTooLong(len));
+                        };
+
+                        let ty_name = primitive_ply_type_name(ty)?;
+                        writeln!(w, "property list {} {} {}", len_type, ty_name, name)?;
                     }
                 }
             }
@@ -239,7 +272,7 @@ where
                     w.write_all(b"3")?;
                     for &v in &self.mesh.vertices_of_face(face) {
                         w.write_all(b" ")?;
-                        v.idx().serialize(PlyAsciiPrimitiveSerializer::new(&mut w))?;
+                        v.idx().serialize(PlyAsciiPropSerializer::new(&mut w))?;
                     }
                     w.write_all(b"\n")?;
                 }
@@ -253,9 +286,9 @@ where
 
                 for face in self.mesh.faces() {
                     // TODO: other face attributes
-                    PlyBinaryBePrimitiveSerializer::new(&mut w).serialize_u8(3)?;
+                    PlyBinaryBePropSerializer::new(&mut w).serialize_u8(3)?;
                     for &v in &self.mesh.vertices_of_face(face) {
-                        v.idx().serialize(PlyBinaryBePrimitiveSerializer::new(&mut w))?;
+                        v.idx().serialize(PlyBinaryBePropSerializer::new(&mut w))?;
                     }
                 }
             }
@@ -270,6 +303,7 @@ where
 /// Returns the name of the PLY type corresponding to the given type.
 fn primitive_ply_type_name(ty: &PrimitiveType) -> Result<&'static str, PlyError> {
     match ty {
+        PrimitiveType::Bool    => Ok("uchar"),  // we store booleans as `u8`
         PrimitiveType::Uint8   => Ok("uchar"),
         PrimitiveType::Uint16  => Ok("ushort"),
         PrimitiveType::Uint32  => Ok("uint"),
@@ -285,15 +319,15 @@ fn primitive_ply_type_name(ty: &PrimitiveType) -> Result<&'static str, PlyError>
 
 
 // ===========================================================================
-// ===== PrimitiveSerializer for PLY
+// ===== PropSerializer for PLY
 // ===========================================================================
 
 /// Serializes primitives as PLY ASCII (simply using the `Display` impl).
-struct PlyAsciiPrimitiveSerializer<'a, W: Write + 'a + ?Sized> {
+struct PlyAsciiPropSerializer<'a, W: Write + 'a + ?Sized> {
     writer: &'a mut W,
 }
 
-impl<'a, W: Write + 'a + ?Sized> PlyAsciiPrimitiveSerializer<'a, W> {
+impl<'a, W: Write + 'a + ?Sized> PlyAsciiPropSerializer<'a, W> {
     fn new(w: &'a mut W) -> Self {
         Self {
             writer: w,
@@ -301,7 +335,7 @@ impl<'a, W: Write + 'a + ?Sized> PlyAsciiPrimitiveSerializer<'a, W> {
     }
 }
 
-impl<'a, W: Write + 'a + ?Sized> PrimitiveSerializer for PlyAsciiPrimitiveSerializer<'a, W> {
+impl<'a, W: Write + 'a + ?Sized> PropSerializer for PlyAsciiPropSerializer<'a, W> {
     type Error = PlyError;
 
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
@@ -356,7 +390,7 @@ macro_rules! gen_binary_primitive_serializer {
             }
         }
 
-        impl<'a, W: Write + 'a + ?Sized> PrimitiveSerializer for $name<'a, W> {
+        impl<'a, W: Write + 'a + ?Sized> PropSerializer for $name<'a, W> {
             type Error = PlyError;
 
             fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
@@ -398,24 +432,24 @@ macro_rules! gen_binary_primitive_serializer {
     }
 }
 
-gen_binary_primitive_serializer!(PlyBinaryBePrimitiveSerializer, BigEndian);
-gen_binary_primitive_serializer!(PlyBinaryLePrimitiveSerializer, LittleEndian);
+gen_binary_primitive_serializer!(PlyBinaryBePropSerializer, BigEndian);
+gen_binary_primitive_serializer!(PlyBinaryLePropSerializer, LittleEndian);
 
 
 
 
 // ===========================================================================
-// ===== PropSerializer for PLY
+// ===== PropSetSerializer for PLY
 // ===========================================================================
 
-/// PropSerializer for the ASCII version of PLY. Stores a writer and a flag
+/// LabeledPropSetSerializer for the ASCII version of PLY. Stores a writer and a flag
 /// to know where to put ' ' seperators.
-struct PlyAsciiPropSerializer<'a, W: Write + 'a + ?Sized> {
+struct PlyAsciiLabeledPropSetSerializer<'a, W: Write + 'a + ?Sized> {
     writer: &'a mut W,
     first: bool,
 }
 
-impl<'a, W: Write + 'a + ?Sized> PlyAsciiPropSerializer<'a, W> {
+impl<'a, W: Write + 'a + ?Sized> PlyAsciiLabeledPropSetSerializer<'a, W> {
     fn new(w: &'a mut W) -> Self {
         Self {
             writer: w,
@@ -424,8 +458,8 @@ impl<'a, W: Write + 'a + ?Sized> PlyAsciiPropSerializer<'a, W> {
     }
 
     /// Returns the associated primitive serializer.
-    fn primitive(&mut self) -> PlyAsciiPrimitiveSerializer<W> {
-        PlyAsciiPrimitiveSerializer {
+    fn primitive(&mut self) -> PlyAsciiPropSerializer<W> {
+        PlyAsciiPropSerializer {
             writer: &mut *self.writer,
         }
     }
@@ -445,7 +479,7 @@ impl<'a, W: Write + 'a + ?Sized> PlyAsciiPropSerializer<'a, W> {
 
     /// Helper function to serialize three values of the same type. Used for
     /// `position`, `normal`, ...
-    fn serialize_triple(&mut self, v: [&impl PrimitiveSerialize; 3]) -> Result<(), PlyError> {
+    fn serialize_triple(&mut self, v: [&impl PropSerialize; 3]) -> Result<(), PlyError> {
         self.insert_sep()?;
         v[0].serialize(self.primitive())?;
         self.writer.write_all(b" ")?;
@@ -457,13 +491,13 @@ impl<'a, W: Write + 'a + ?Sized> PlyAsciiPropSerializer<'a, W> {
     }
 }
 
-impl<'a, W: Write + 'a + ?Sized> PropSerializer for PlyAsciiPropSerializer<'a, W> {
+impl<'a, W: Write + 'a + ?Sized> PropSetSerializer for PlyAsciiLabeledPropSetSerializer<'a, W> {
     type Error = PlyError;
 
     fn serialize_position<PosT>(&mut self, v: &PosT) -> Result<(), Self::Error>
     where
         PosT: Pos3Like,
-        PosT::Scalar: PrimitiveSerialize
+        PosT::Scalar: PropSerialize
     {
         self.serialize_triple([v.x(), v.y(), v.z()])
     }
@@ -471,7 +505,7 @@ impl<'a, W: Write + 'a + ?Sized> PropSerializer for PlyAsciiPropSerializer<'a, W
     fn serialize_normal<NormalT>(&mut self, v: &NormalT) -> Result<(), Self::Error>
     where
         NormalT: Vec3Like,
-        NormalT::Scalar: PrimitiveSerialize
+        NormalT::Scalar: PropSerialize
     {
         self.serialize_triple([v.x(), v.y(), v.z()])
     }
@@ -479,7 +513,7 @@ impl<'a, W: Write + 'a + ?Sized> PropSerializer for PlyAsciiPropSerializer<'a, W
     fn serialize_named(
         &mut self,
         _name: &str,
-        v: &impl PrimitiveSerialize,
+        v: &impl PropSerialize,
     ) -> Result<(), Self::Error>
     {
         self.insert_sep()?;
@@ -491,8 +525,8 @@ impl<'a, W: Write + 'a + ?Sized> PropSerializer for PlyAsciiPropSerializer<'a, W
 // The little endian and big endian binary serializer are very similar. This
 // macro avoids some duplicate code.
 //
-// The binary PropSerializer differ from the ASCII one merely by the
-// PrimitiveSerializer used and in that fact that they don't output ' '
+// The binary LabeledPropSetSerializer differ from the ASCII one merely by the
+// PropSerializer used and in that fact that they don't output ' '
 // seperators.
 macro_rules! gen_binary_prop_serializer {
     ($name:ident, $primitive_serializer:ident) => {
@@ -515,7 +549,7 @@ macro_rules! gen_binary_prop_serializer {
 
             /// Helper function to serialize three values of the same type. Used
             /// for `position`, `normal`, ...
-            fn serialize_triple(&mut self, v: [&impl PrimitiveSerialize; 3]) -> Result<(), PlyError> {
+            fn serialize_triple(&mut self, v: [&impl PropSerialize; 3]) -> Result<(), PlyError> {
                 v[0].serialize(self.primitive())?;
                 v[1].serialize(self.primitive())?;
                 v[2].serialize(self.primitive())?;
@@ -524,13 +558,13 @@ macro_rules! gen_binary_prop_serializer {
             }
         }
 
-        impl<'a, W: Write + 'a + ?Sized> PropSerializer for $name<'a, W> {
+        impl<'a, W: Write + 'a + ?Sized> PropSetSerializer for $name<'a, W> {
             type Error = PlyError;
 
             fn serialize_position<PosT>(&mut self, v: &PosT) -> Result<(), Self::Error>
             where
                 PosT: Pos3Like,
-                PosT::Scalar: PrimitiveSerialize,
+                PosT::Scalar: PropSerialize,
             {
                 self.serialize_triple([v.x(), v.y(), v.z()])
             }
@@ -538,7 +572,7 @@ macro_rules! gen_binary_prop_serializer {
             fn serialize_normal<NormalT>(&mut self, v: &NormalT) -> Result<(), Self::Error>
             where
                 NormalT: Vec3Like,
-                NormalT::Scalar: PrimitiveSerialize,
+                NormalT::Scalar: PropSerialize,
             {
                 self.serialize_triple([v.x(), v.y(), v.z()])
             }
@@ -546,7 +580,7 @@ macro_rules! gen_binary_prop_serializer {
             fn serialize_named(
                 &mut self,
                 _name: &str,
-                v: &impl PrimitiveSerialize,
+                v: &impl PropSerialize,
             ) -> Result<(), Self::Error>
             {
                 // We don't need the name here. We just need to dump the value.
@@ -556,5 +590,5 @@ macro_rules! gen_binary_prop_serializer {
     }
 }
 
-gen_binary_prop_serializer!(PlyBinaryBePropSerializer, PlyBinaryBePrimitiveSerializer);
-gen_binary_prop_serializer!(PlyBinaryLePropSerializer, PlyBinaryLePrimitiveSerializer);
+gen_binary_prop_serializer!(PlyBinaryBeLabeledPropSetSerializer, PlyBinaryBePropSerializer);
+gen_binary_prop_serializer!(PlyBinaryLeLabeledPropSetSerializer, PlyBinaryLePropSerializer);
