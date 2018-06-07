@@ -1,4 +1,5 @@
 use std::{
+    fmt,
     io::Write,
 };
 
@@ -27,6 +28,23 @@ pub enum PrimitiveType {
     Int64,
     Float32,
     Float64,
+}
+
+impl fmt::Display for PrimitiveType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            PrimitiveType::Uint8 => "u8",
+            PrimitiveType::Uint16 => "u16",
+            PrimitiveType::Uint32 => "u32",
+            PrimitiveType::Uint64 => "u64",
+            PrimitiveType::Int8 => "i8",
+            PrimitiveType::Int16 => "i16",
+            PrimitiveType::Int32 => "i32",
+            PrimitiveType::Int64 => "i64",
+            PrimitiveType::Float32 => "f32",
+            PrimitiveType::Float64 => "f64",
+        }.fmt(f)
+    }
 }
 
 pub trait PrimitiveSerialize {

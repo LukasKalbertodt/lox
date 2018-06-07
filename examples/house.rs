@@ -78,8 +78,8 @@ fn main() -> Result<(), failure::Error> {
 
     // let mut vec = std::io::Cursor::new(Vec::new());
     let mut file = File::create("foo.ply").unwrap();
-    // Ply::ascii()
-    Ply::binary()
+    Ply::ascii()
+    // Ply::binary()
         // .with_vertex_positions(&positions)
         .serialize(&mesh)?
         // .write(&mut vec)?;
