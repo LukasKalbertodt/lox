@@ -7,7 +7,7 @@ pub type DefaultIndex = u32;
 // impossible without future Rust features (like GATs). So for now we will
 // simply use `u32` as index everywhere.
 pub trait DefaultIndexExt: Copy {
-    fn num_bytes() -> u8;
+    const NUM_BYTES: u8;
     fn from_usize(raw: usize) -> Self;
     fn to_usize(&self) -> usize;
     fn next(&self) -> Self;
@@ -16,9 +16,8 @@ pub trait DefaultIndexExt: Copy {
 macro_rules! impl_handle_index {
     ($name:ident) => {
         impl DefaultIndexExt for $name {
-            fn num_bytes() -> u8 {
-                ::std::mem::size_of::<$name>() as u8
-            }
+            const NUM_BYTES: u8 = ::std::mem::size_of::<$name>() as u8;
+
             fn from_usize(raw: usize) -> Self {
                 assert!(raw <= Self::max_value() as usize);
                 raw as Self

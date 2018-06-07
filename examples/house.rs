@@ -1,11 +1,14 @@
+#![feature(termination_trait_lib)]
+
 extern crate fev;
+extern crate failure;
 
 use std::fs::File;
 
 use fev::{
     TriMesh,
     impls::FvTriMesh,
-    io::{Ply, MeshSerializer, PropKind, PrimitiveType, PropSerialize, PropSerializer},
+    io::{Ply, IntoMeshWriter, MeshWriter, PropLabel, PrimitiveType, LabeledPropSet, PropSerializer},
     map::{VertexVecMap, PropMapMut},
     // shape::{disk, GenPosition},
     shape2::{append_sphere, AdhocBuilder, SpheroidVertexInfo, HasPosition},
@@ -28,10 +31,10 @@ where
     }
 }
 
-impl PropSerialize for MyVertexInfo {
-    fn kind() -> PropKind {
-        PropKind::Position { scalar_ty: PrimitiveType::Float64 }
-    }
+impl LabeledPropSet for MyVertexInfo {
+    const LABELS: &'static [PropLabel] = &[
+        PropLabel::Position { scalar_ty: PrimitiveType::Float64 },
+    ];
 
     fn serialize<S>(&self, mut serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -41,7 +44,7 @@ impl PropSerialize for MyVertexInfo {
     }
 }
 
-fn main() {
+fn main() -> Result<(), failure::Error> {
     let mut mesh: FvTriMesh<MyVertexInfo> = FvTriMesh::new();
     // let mut positions = VertexVecMap::new();
 
@@ -70,6 +73,8 @@ fn main() {
     let mut file = File::create("foo.ply").unwrap();
     Ply::ascii()
         // .with_vertex_positions(&positions)
-        .write(&mesh, &mut file)
-        .unwrap();
+        .serialize(&mesh)?
+        .write(&mut file)?;
+
+    Ok(())
 }

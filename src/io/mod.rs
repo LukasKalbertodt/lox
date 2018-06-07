@@ -14,16 +14,6 @@ mod ply2;
 pub use self::ply2::Ply;
 
 
-// pub trait MeshSerializer {
-//     type Err: Error;
-
-
-//     // TODO: is `Display` really appropriate here?
-//     fn serialize<M, W>(&self, w: &mut W, mesh: &M) -> Result<(), Self::Err>
-//         where M: TriMesh,
-//               M::Idx: PrimitiveSerialize,
-//               W: Write;
-// }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrimitiveType {
@@ -74,24 +64,34 @@ impl_primitive_serialize!(f32, serialize_f32, Float32);
 impl_primitive_serialize!(f64, serialize_f64, Float64);
 
 
+/// Defines *what* a property represents semantically as well as the type of
+/// the property data.
+///
+/// This is closely related to the trait `LabeledPropSet` and is mainly used
+/// for serialization.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum PropKind {
+pub enum PropLabel {
     Position {
         scalar_ty: PrimitiveType,
     },
     Normal {
         scalar_ty: PrimitiveType,
     },
-    Primitive {
+    Named {
         name: String,
         ty: PrimitiveType,
     },
 }
 
+/// A set of labeled properties.
+pub trait LabeledPropSet {
+    /// The labels for all properties in this set.
+    ///
+    /// The order of these labels has to match the order in which the
+    /// properties are serialized in `serialize()`!
+    const LABELS: &'static [PropLabel];
 
-pub trait PropSerialize {
-    fn kind() -> PropKind;
-
+    /// Serializes all properties in this set with the given serializer.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: PropSerializer;
@@ -130,7 +130,7 @@ pub trait PropSerializer {
         NormalT: Vec3Like,
         NormalT::Scalar: PrimitiveSerialize;
 
-    fn serialize_primitive(
+    fn serialize_named(
         &mut self,
         name: &str,
         v: &impl PrimitiveSerialize,
@@ -138,16 +138,25 @@ pub trait PropSerializer {
 }
 
 
-pub trait MeshSerializer<'a> {
+// TODO: Make better with GATs
+pub trait IntoMeshWriter<'a, MeshT>
+where
+    MeshT: TriMesh + 'a,
+    MeshT::VertexProp: LabeledPropSet,
+{
+    type Error;
+    type Writer: MeshWriter<'a, Error = Self::Error>;
+
+    fn serialize(self, mesh: &'a MeshT) -> Result<Self::Writer, Self::Error>;
+}
+
+pub trait MeshWriter<'a> {
     type Error;
 
-    fn add_vertex_prop<PropT: PropSerialize>(
-        &mut self,
-        prop: &PropT,
-    ) -> Result<&mut Self, Self::Error>;
+    // fn add_vertex_prop<PropT: PropSerialize>(
+    //     &mut self,
+    //     prop: &PropT,
+    // ) -> Result<&mut Self, Self::Error>;
 
-    fn write<MeshT>(&mut self, mesh: &'a MeshT, writer: impl Write) -> Result<(), Self::Error>
-    where
-        MeshT: TriMesh,
-        MeshT::VertexProp: PropSerialize;
+    fn write(&mut self, writer: impl Write) -> Result<(), Self::Error>;
 }
