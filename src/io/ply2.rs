@@ -58,7 +58,7 @@ where
             serialize: Box::new(move |w, handle| {
                 mesh.vertex_prop(handle)
                     .unwrap()
-                    .serialize(PlySerializer { writer: w })
+                    .serialize(PlyPropSerializer::new(w))
             }),
         });
 
@@ -150,7 +150,11 @@ where
                         writeln!(w, "property {} z", ty_name)?;
                     }
                     PropLabel::Normal { scalar_ty } => {
-                        unimplemented!()
+                        let ty_name = primitive_ply_type_name(scalar_ty)?;
+
+                        writeln!(w, "property {} nx", ty_name)?;
+                        writeln!(w, "property {} ny", ty_name)?;
+                        writeln!(w, "property {} nz", ty_name)?;
                     }
                     PropLabel::Named { name, ty } => {
                         let ty_name = primitive_ply_type_name(ty)?;
@@ -185,11 +189,6 @@ where
                         }
 
                         (prop.serialize)(&mut w, vertex_handle);
-                        // attr_map
-                        //     .deref()
-                        //     .get(vertex)
-                        //     .expect("attempt to use a incomplete PropMap for PLY serialization")
-                        //     .write_ascii(w)?;
                     }
                     writeln!(w, "")?;
                 }
@@ -199,7 +198,7 @@ where
                     w.write_all(b"3")?;
                     for &v in &self.mesh.vertices_of_face(face) {
                         w.write_all(b" ")?;
-                        v.idx().serialize(PlySerializer { writer: &mut w })?;
+                        v.idx().serialize(PlyPrimitiveSerializer::new(&mut w))?;
                     }
                     w.write_all(b"\n")?;
                 }
@@ -227,81 +226,121 @@ fn primitive_ply_type_name(ty: &PrimitiveType) -> Result<&'static str, PlyError>
     }
 }
 
-
-impl<'a, W: Write + 'a + ?Sized> PrimitiveSerializer for PlySerializer<'a, W> {
-    type Ok = ();
-    type Error = PlyError;
-
-    fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
-    }
-    fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
-    }
-    fn serialize_i16(self, v: i16) -> Result<Self::Ok, Self::Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
-    }
-    fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
-    }
-    fn serialize_i64(self, v: i64) -> Result<Self::Ok, Self::Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
-    }
-    fn serialize_u8(self, v: u8) -> Result<Self::Ok, Self::Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
-    }
-    fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
-    }
-    fn serialize_u32(self, v: u32) -> Result<Self::Ok, Self::Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
-    }
-    fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
-    }
-    fn serialize_f32(self, v: f32) -> Result<Self::Ok, Self::Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
-    }
-    fn serialize_f64(self, v: f64) -> Result<Self::Ok, Self::Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
-    }
-}
-
-struct PlySerializer<'a, W: Write + 'a + ?Sized> {
+struct PlyPrimitiveSerializer<'a, W: Write + 'a + ?Sized> {
     writer: &'a mut W,
 }
 
-impl<'a, W: Write + 'a + ?Sized> PropSerializer for PlySerializer<'a, W> {
-    type Ok = ();
+impl<'a, W: Write + 'a + ?Sized> PlyPrimitiveSerializer<'a, W> {
+    fn new(w: &'a mut W) -> Self {
+        Self {
+            writer: w,
+        }
+    }
+}
+
+impl<'a, W: Write + 'a + ?Sized> PrimitiveSerializer for PlyPrimitiveSerializer<'a, W> {
     type Error = PlyError;
 
-    fn serialize_position<PosT>(&mut self, v: &PosT) -> Result<Self::Ok, Self::Error>
-    where
-        PosT: Pos3Like,
-        PosT::Scalar: PrimitiveSerialize
-    {
-        v.x().serialize(PlySerializer { writer: self.writer })?;
-        write!(self.writer, " ")?;
-        v.y().serialize(PlySerializer { writer: self.writer })?;
-        write!(self.writer, " ")?;
-        v.z().serialize(PlySerializer { writer: self.writer })?;
+    fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_i8(self, v: i8) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_i16(self, v: i16) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_i32(self, v: i32) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_i64(self, v: i64) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_u8(self, v: u8) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_u16(self, v: u16) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_u32(self, v: u32) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_u64(self, v: u64) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+}
+
+struct PlyPropSerializer<'a, W: Write + 'a + ?Sized> {
+    writer: &'a mut W,
+    first: bool,
+}
+
+impl<'a, W: Write + 'a + ?Sized> PlyPropSerializer<'a, W> {
+    fn new(w: &'a mut W) -> Self {
+        Self {
+            writer: w,
+            first: true,
+        }
+    }
+
+    fn primitive(&mut self) -> PlyPrimitiveSerializer<W> {
+        PlyPrimitiveSerializer {
+            writer: &mut *self.writer,
+        }
+    }
+
+    fn insert_sep(&mut self) -> Result<(), PlyError> {
+        if self.first {
+            self.first = false;
+        } else {
+            write!(self.writer, " ")?;
+        }
 
         Ok(())
     }
 
-    fn serialize_normal<NormalT>(&mut self, v: &NormalT) -> Result<Self::Ok, Self::Error>
+    fn serialize_triple(&mut self, v: [&impl PrimitiveSerialize; 3]) -> Result<(), PlyError> {
+        self.insert_sep()?;
+        v[0].serialize(self.primitive())?;
+        write!(self.writer, " ")?;
+        v[1].serialize(self.primitive())?;
+        write!(self.writer, " ")?;
+        v[2].serialize(self.primitive())?;
+
+        Ok(())
+    }
+}
+
+impl<'a, W: Write + 'a + ?Sized> PropSerializer for PlyPropSerializer<'a, W> {
+    type Error = PlyError;
+
+    fn serialize_position<PosT>(&mut self, v: &PosT) -> Result<(), Self::Error>
+    where
+        PosT: Pos3Like,
+        PosT::Scalar: PrimitiveSerialize
+    {
+        self.serialize_triple([v.x(), v.y(), v.z()])
+    }
+
+    fn serialize_normal<NormalT>(&mut self, v: &NormalT) -> Result<(), Self::Error>
     where
         NormalT: Vec3Like,
         NormalT::Scalar: PrimitiveSerialize
     {
-        unimplemented!()
+        self.serialize_triple([v.x(), v.y(), v.z()])
     }
 
     fn serialize_named(
         &mut self,
-        name: &str,
-        v: &impl PrimitiveSerialize,
-    ) -> Result<Self::Ok, Self::Error>
+        _name: &str,
+        _v: &impl PrimitiveSerialize,
+    ) -> Result<(), Self::Error>
     {
         unimplemented!()
     }

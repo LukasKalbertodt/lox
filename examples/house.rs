@@ -11,22 +11,25 @@ use fev::{
     io::{Ply, IntoMeshWriter, MeshWriter, PropLabel, PrimitiveType, LabeledPropSet, PropSerializer},
     map::{VertexVecMap, PropMapMut},
     // shape::{disk, GenPosition},
-    shape2::{append_sphere, AdhocBuilder, SpheroidVertexInfo, HasPosition},
+    shape2::{append_sphere, AdhocBuilder, SpheroidVertexInfo, HasPosition, HasNormal},
 };
 
 
 struct MyVertexInfo {
     position: (f64, f64, f64),
+    normal: (f32, f32, f32),
 }
 
 impl<'a, T> From<&'a T> for MyVertexInfo
 where
-    T: HasPosition,
+    T: HasPosition + HasNormal,
 {
     fn from(src: &'a T) -> Self {
-        let [x, y, z] = *src.position();
+        let [px, py, pz] = *src.position();
+        let [nx, ny, nz] = *src.normal();
         Self {
-            position: (x, y, z),
+            position: (px, py, pz),
+            normal: (nx as f32, ny as f32, nz as f32),
         }
     }
 }
@@ -34,13 +37,16 @@ where
 impl LabeledPropSet for MyVertexInfo {
     const LABELS: &'static [PropLabel] = &[
         PropLabel::Position { scalar_ty: PrimitiveType::Float64 },
+        PropLabel::Normal { scalar_ty: PrimitiveType::Float32 },
     ];
 
-    fn serialize<S>(&self, mut serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, mut serializer: S) -> Result<(), S::Error>
     where
         S: PropSerializer
     {
-        serializer.serialize_position(&self.position)
+        serializer.serialize_position(&self.position)?;
+        serializer.serialize_normal(&self.normal)?;
+        Ok(())
     }
 }
 

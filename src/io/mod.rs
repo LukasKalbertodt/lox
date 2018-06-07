@@ -32,7 +32,7 @@ pub enum PrimitiveType {
 pub trait PrimitiveSerialize {
     fn ty() -> PrimitiveType;
 
-    fn serialize<S: PrimitiveSerializer>(&self, serializer: S) -> Result<S::Ok, S::Error>;
+    fn serialize<S: PrimitiveSerializer>(&self, serializer: S) -> Result<(), S::Error>;
 }
 
 macro_rules! impl_primitive_serialize {
@@ -45,7 +45,7 @@ macro_rules! impl_primitive_serialize {
             fn serialize<S: PrimitiveSerializer>(
                 &self,
                 serializer: S,
-            ) -> Result<S::Ok, S::Error> {
+            ) -> Result<(), S::Error> {
                 serializer.$func(*self)
             }
         }
@@ -92,40 +92,38 @@ pub trait LabeledPropSet {
     const LABELS: &'static [PropLabel];
 
     /// Serializes all properties in this set with the given serializer.
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> Result<(), S::Error>
     where
         S: PropSerializer;
 }
 
 pub trait PrimitiveSerializer {
-    type Ok;
     type Error;
 
-    fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error>;
-    fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error>;
-    fn serialize_i16(self, v: i16) -> Result<Self::Ok, Self::Error>;
-    fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error>;
-    fn serialize_i64(self, v: i64) -> Result<Self::Ok, Self::Error>;
-    fn serialize_u8(self, v: u8) -> Result<Self::Ok, Self::Error>;
-    fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error>;
-    fn serialize_u32(self, v: u32) -> Result<Self::Ok, Self::Error>;
-    fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error>;
-    fn serialize_f32(self, v: f32) -> Result<Self::Ok, Self::Error>;
-    fn serialize_f64(self, v: f64) -> Result<Self::Ok, Self::Error>;
+    fn serialize_bool(self, v: bool) -> Result<(), Self::Error>;
+    fn serialize_i8(self, v: i8) -> Result<(), Self::Error>;
+    fn serialize_i16(self, v: i16) -> Result<(), Self::Error>;
+    fn serialize_i32(self, v: i32) -> Result<(), Self::Error>;
+    fn serialize_i64(self, v: i64) -> Result<(), Self::Error>;
+    fn serialize_u8(self, v: u8) -> Result<(), Self::Error>;
+    fn serialize_u16(self, v: u16) -> Result<(), Self::Error>;
+    fn serialize_u32(self, v: u32) -> Result<(), Self::Error>;
+    fn serialize_u64(self, v: u64) -> Result<(), Self::Error>;
+    fn serialize_f32(self, v: f32) -> Result<(), Self::Error>;
+    fn serialize_f64(self, v: f64) -> Result<(), Self::Error>;
 
     // TODO: more primitives?
 }
 
 pub trait PropSerializer {
-    type Ok;
     type Error;
 
-    fn serialize_position<PosT>(&mut self, v: &PosT) -> Result<Self::Ok, Self::Error>
+    fn serialize_position<PosT>(&mut self, v: &PosT) -> Result<(), Self::Error>
     where
         PosT: Pos3Like,
         PosT::Scalar: PrimitiveSerialize;
 
-    fn serialize_normal<NormalT>(&mut self, v: &NormalT) -> Result<Self::Ok, Self::Error>
+    fn serialize_normal<NormalT>(&mut self, v: &NormalT) -> Result<(), Self::Error>
     where
         NormalT: Vec3Like,
         NormalT::Scalar: PrimitiveSerialize;
@@ -134,7 +132,7 @@ pub trait PropSerializer {
         &mut self,
         name: &str,
         v: &impl PrimitiveSerialize,
-    ) -> Result<Self::Ok, Self::Error>;
+    ) -> Result<(), Self::Error>;
 }
 
 
