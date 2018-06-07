@@ -3,6 +3,8 @@ use std::{
     ops::Deref,
 };
 
+use byteorder::{WriteBytesExt, BigEndian};
+
 use crate::{
     TriMesh, Pos3Like, Vec3Like,
     handle::{DefaultIndex, DefaultIndexExt, FaceHandle, Handle, VertexHandle},
@@ -52,20 +54,33 @@ where
 
     fn serialize(self, mesh: &'a MeshT) -> Result<Self::Writer, Self::Error> {
         // Add the properties stored inside the mesh to our property list
-        let mut vertex_props = Vec::new();
-        vertex_props.push(PropertySet {
-            labels: MeshT::VertexProp::LABELS,
-            serialize: Box::new(move |w, handle| {
-                mesh.vertex_prop(handle)
-                    .unwrap()
-                    .serialize(PlyPropSerializer::new(w))
-            }),
-        });
+        macro_rules! property_set_with_serializer {
+            ($serializer:ident) => {
+                PropertySet {
+                    labels: MeshT::VertexProp::LABELS,
+                    serialize: Box::new(move |w, handle| {
+                        mesh.vertex_prop(handle)
+                            .unwrap()
+                            .serialize($serializer::new(w))
+                    }),
+                }
+            }
+        }
+
+        let prop_set = match self.format {
+            PlyFormat::Ascii => property_set_with_serializer!(PlyAsciiPropSerializer),
+            PlyFormat::BinaryBigEndian => {
+                println!("yo I passed binrary be");
+                property_set_with_serializer!(PlyBinaryBePropSerializer)
+            },
+            PlyFormat::BinaryLittleEndian => unimplemented!(),
+        };
+
 
         Ok(PlyWriter {
             format: self.format,
             mesh,
-            vertex_props,
+            vertex_props: vec![prop_set],
         })
     }
 }
@@ -180,14 +195,7 @@ where
         match self.format {
             PlyFormat::Ascii => {
                 for vertex_handle in self.mesh.vertices() {
-                    let mut first = true;
                     for prop in &self.vertex_props {
-                        if first {
-                            first = false;
-                        } else {
-                            write!(w, " ")?;
-                        }
-
                         (prop.serialize)(&mut w, vertex_handle);
                     }
                     writeln!(w, "")?;
@@ -198,9 +206,24 @@ where
                     w.write_all(b"3")?;
                     for &v in &self.mesh.vertices_of_face(face) {
                         w.write_all(b" ")?;
-                        v.idx().serialize(PlyPrimitiveSerializer::new(&mut w))?;
+                        v.idx().serialize(PlyAsciiPrimitiveSerializer::new(&mut w))?;
                     }
                     w.write_all(b"\n")?;
+                }
+            }
+            PlyFormat::BinaryBigEndian => {
+                for vertex_handle in self.mesh.vertices() {
+                    for prop in &self.vertex_props {
+                        (prop.serialize)(&mut w, vertex_handle);
+                    }
+                }
+
+                for face in self.mesh.faces() {
+                    // TODO: other face attributes
+                    PlyBinaryBePrimitiveSerializer::new(&mut w).serialize_u8(3);
+                    for &v in &self.mesh.vertices_of_face(face) {
+                        v.idx().serialize(PlyBinaryBePrimitiveSerializer::new(&mut w))?;
+                    }
                 }
             }
             _ => unimplemented!(),
@@ -226,11 +249,11 @@ fn primitive_ply_type_name(ty: &PrimitiveType) -> Result<&'static str, PlyError>
     }
 }
 
-struct PlyPrimitiveSerializer<'a, W: Write + 'a + ?Sized> {
+struct PlyAsciiPrimitiveSerializer<'a, W: Write + 'a + ?Sized> {
     writer: &'a mut W,
 }
 
-impl<'a, W: Write + 'a + ?Sized> PlyPrimitiveSerializer<'a, W> {
+impl<'a, W: Write + 'a + ?Sized> PlyAsciiPrimitiveSerializer<'a, W> {
     fn new(w: &'a mut W) -> Self {
         Self {
             writer: w,
@@ -238,7 +261,7 @@ impl<'a, W: Write + 'a + ?Sized> PlyPrimitiveSerializer<'a, W> {
     }
 }
 
-impl<'a, W: Write + 'a + ?Sized> PrimitiveSerializer for PlyPrimitiveSerializer<'a, W> {
+impl<'a, W: Write + 'a + ?Sized> PrimitiveSerializer for PlyAsciiPrimitiveSerializer<'a, W> {
     type Error = PlyError;
 
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
@@ -276,12 +299,158 @@ impl<'a, W: Write + 'a + ?Sized> PrimitiveSerializer for PlyPrimitiveSerializer<
     }
 }
 
-struct PlyPropSerializer<'a, W: Write + 'a + ?Sized> {
+
+struct PlyBinaryBePrimitiveSerializer<'a, W: Write + 'a + ?Sized> {
+    writer: &'a mut W,
+}
+
+impl<'a, W: Write + 'a + ?Sized> PlyBinaryBePrimitiveSerializer<'a, W> {
+    fn new(w: &'a mut W) -> Self {
+        Self {
+            writer: w,
+        }
+    }
+}
+
+impl<'a, W: Write + 'a + ?Sized> PrimitiveSerializer for PlyBinaryBePrimitiveSerializer<'a, W> {
+    type Error = PlyError;
+
+    fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
+        self.serialize_u8(if v { 1 } else { 0 })
+    }
+    fn serialize_i8(self, v: i8) -> Result<(), Self::Error> {
+        println!("writing i8: {:x}", v);
+        self.writer.write_i8(v)?;
+        Ok(())
+    }
+    fn serialize_i16(self, v: i16) -> Result<(), Self::Error> {
+        println!("writing i16: {:x}", v);
+        self.writer.write_i16::<BigEndian>(v)?;
+        Ok(())
+    }
+    fn serialize_i32(self, v: i32) -> Result<(), Self::Error> {
+        println!("writing i32: {:x}", v);
+        self.writer.write_i32::<BigEndian>(v)?;
+        Ok(())
+    }
+    fn serialize_i64(self, v: i64) -> Result<(), Self::Error> {
+        println!("writing i64: {:x}", v);
+        self.writer.write_i64::<BigEndian>(v)?;
+        Ok(())
+    }
+    fn serialize_u8(self, v: u8) -> Result<(), Self::Error> {
+        println!("writing u8: {:x}", v);
+        self.writer.write_u8(v)?;
+        Ok(())
+    }
+    fn serialize_u16(self, v: u16) -> Result<(), Self::Error> {
+        println!("writing u16: {:x}", v);
+        self.writer.write_u16::<BigEndian>(v)?;
+        Ok(())
+    }
+    fn serialize_u32(self, v: u32) -> Result<(), Self::Error> {
+        println!("writing u32: {:x}", v);
+        self.writer.write_u32::<BigEndian>(v)?;
+        Ok(())
+    }
+    fn serialize_u64(self, v: u64) -> Result<(), Self::Error> {
+        println!("writing u64: {:x}", v);
+        self.writer.write_u64::<BigEndian>(v)?;
+        Ok(())
+    }
+    fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
+        use std::io::Cursor;
+
+        let mut dummy = Cursor::new(Vec::new());
+        dummy.write_f32::<BigEndian>(v)?;
+        println!("writing f32: {} => {:02x?}", v, dummy.get_ref());
+
+        self.writer.write_f32::<BigEndian>(v)?;
+        Ok(())
+    }
+    fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
+        use std::io::Cursor;
+
+        let mut dummy = Cursor::new(Vec::new());
+        dummy.write_f64::<BigEndian>(v)?;
+        println!("writing f64: {} => {:02x?}", v, dummy.get_ref());
+
+        self.writer.write_f64::<BigEndian>(v)?;
+        Ok(())
+    }
+}
+
+
+
+macro_rules! gen_binary_prop_serializer {
+    ($ty_name:ident, $primitive_serializer:ident) => {
+        struct $ty_name<'a, W: Write + 'a + ?Sized> {
+            writer: &'a mut W,
+        }
+
+        impl<'a, W: Write + 'a + ?Sized> $ty_name<'a, W> {
+            fn new(w: &'a mut W) -> Self {
+                Self { writer: w }
+            }
+
+            fn primitive(&mut self) -> $primitive_serializer<W> {
+                $primitive_serializer {
+                    writer: &mut *self.writer,
+                }
+            }
+
+            fn serialize_triple(&mut self, v: [&impl PrimitiveSerialize; 3]) -> Result<(), PlyError> {
+                v[0].serialize(self.primitive())?;
+                v[1].serialize(self.primitive())?;
+                v[2].serialize(self.primitive())?;
+
+                Ok(())
+            }
+        }
+
+        impl<'a, W: Write + 'a + ?Sized> PropSerializer for $ty_name<'a, W> {
+            type Error = PlyError;
+
+            fn serialize_position<PosT>(&mut self, v: &PosT) -> Result<(), Self::Error>
+            where
+                PosT: Pos3Like,
+                PosT::Scalar: PrimitiveSerialize
+            {
+                println!("yooo binary");
+                self.serialize_triple([v.x(), v.y(), v.z()])
+            }
+
+            fn serialize_normal<NormalT>(&mut self, v: &NormalT) -> Result<(), Self::Error>
+            where
+                NormalT: Vec3Like,
+                NormalT::Scalar: PrimitiveSerialize
+            {
+                self.serialize_triple([v.x(), v.y(), v.z()])
+            }
+
+            fn serialize_named(
+                &mut self,
+                _name: &str,
+                _v: &impl PrimitiveSerialize,
+            ) -> Result<(), Self::Error>
+            {
+                unimplemented!()
+            }
+        }
+    }
+}
+
+gen_binary_prop_serializer!(PlyBinaryBePropSerializer, PlyBinaryBePrimitiveSerializer);
+
+
+
+
+struct PlyAsciiPropSerializer<'a, W: Write + 'a + ?Sized> {
     writer: &'a mut W,
     first: bool,
 }
 
-impl<'a, W: Write + 'a + ?Sized> PlyPropSerializer<'a, W> {
+impl<'a, W: Write + 'a + ?Sized> PlyAsciiPropSerializer<'a, W> {
     fn new(w: &'a mut W) -> Self {
         Self {
             writer: w,
@@ -289,8 +458,8 @@ impl<'a, W: Write + 'a + ?Sized> PlyPropSerializer<'a, W> {
         }
     }
 
-    fn primitive(&mut self) -> PlyPrimitiveSerializer<W> {
-        PlyPrimitiveSerializer {
+    fn primitive(&mut self) -> PlyAsciiPrimitiveSerializer<W> {
+        PlyAsciiPrimitiveSerializer {
             writer: &mut *self.writer,
         }
     }
@@ -308,16 +477,16 @@ impl<'a, W: Write + 'a + ?Sized> PlyPropSerializer<'a, W> {
     fn serialize_triple(&mut self, v: [&impl PrimitiveSerialize; 3]) -> Result<(), PlyError> {
         self.insert_sep()?;
         v[0].serialize(self.primitive())?;
-        write!(self.writer, " ")?;
+        self.writer.write_all(b" ")?;
         v[1].serialize(self.primitive())?;
-        write!(self.writer, " ")?;
+        self.writer.write_all(b" ")?;
         v[2].serialize(self.primitive())?;
 
         Ok(())
     }
 }
 
-impl<'a, W: Write + 'a + ?Sized> PropSerializer for PlyPropSerializer<'a, W> {
+impl<'a, W: Write + 'a + ?Sized> PropSerializer for PlyAsciiPropSerializer<'a, W> {
     type Error = PlyError;
 
     fn serialize_position<PosT>(&mut self, v: &PosT) -> Result<(), Self::Error>

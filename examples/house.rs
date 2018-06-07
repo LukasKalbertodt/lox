@@ -16,7 +16,7 @@ use fev::{
 
 
 struct MyVertexInfo {
-    position: (f64, f64, f64),
+    position: (f32, f32, f32),
     normal: (f32, f32, f32),
 }
 
@@ -28,7 +28,7 @@ where
         let [px, py, pz] = *src.position();
         let [nx, ny, nz] = *src.normal();
         Self {
-            position: (px, py, pz),
+            position: (px as f32, py as f32, pz as f32),
             normal: (nx as f32, ny as f32, nz as f32),
         }
     }
@@ -36,7 +36,7 @@ where
 
 impl LabeledPropSet for MyVertexInfo {
     const LABELS: &'static [PropLabel] = &[
-        PropLabel::Position { scalar_ty: PrimitiveType::Float64 },
+        PropLabel::Position { scalar_ty: PrimitiveType::Float32 },
         PropLabel::Normal { scalar_ty: PrimitiveType::Float32 },
     ];
 
@@ -76,11 +76,16 @@ fn main() -> Result<(), failure::Error> {
 
     // let (mesh, GenPosition(positions)): (FvTriMesh, GenPosition<VertexVecMap<(f64, f64, f64)>>) = disk(300);
 
+    // let mut vec = std::io::Cursor::new(Vec::new());
     let mut file = File::create("foo.ply").unwrap();
-    Ply::ascii()
+    // Ply::ascii()
+    Ply::binary()
         // .with_vertex_positions(&positions)
         .serialize(&mesh)?
+        // .write(&mut vec)?;
         .write(&mut file)?;
+
+    // println!("{:02x?}", vec.get_ref());
 
     Ok(())
 }
