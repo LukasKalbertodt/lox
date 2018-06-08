@@ -101,6 +101,17 @@ pub trait PropSerialize {
     fn serialize<S: PropSerializer>(&self, serializer: S) -> Result<(), S::Error>;
 }
 
+impl<'a, T: 'a + PropSerialize> PropSerialize for &'a T {
+    fn ty() -> PropType {
+        T::ty()
+    }
+
+    fn serialize<S: PropSerializer>(&self, serializer: S) -> Result<(), S::Error> {
+        (*self).serialize(serializer)
+    }
+}
+
+
 macro_rules! impl_for_primitives {
     ($name:ident, $func:ident, $ty:ident) => {
         impl PropSerialize for $name {
@@ -277,7 +288,7 @@ pub trait PropLabeler<T> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct NameLabel<S: AsRef<str>>(S);
+pub struct NameLabel<S: AsRef<str>>(pub S);
 
 
 impl<T, S> PropLabeler<T> for NameLabel<S>

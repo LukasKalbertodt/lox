@@ -57,8 +57,8 @@ macro_rules! pack_prop_set {
             ($serializer:ident) => {
                 PropertySet {
                     labels: $labels,
-                    serialize: Box::new(move |w, $handle| {
-                        $val.serialize($serializer::new(w))
+                    serialize: Box::new(move |w, is_first, $handle| {
+                        $val.serialize($serializer::new(w, is_first))
                     }),
                 }
             }
@@ -122,9 +122,8 @@ pub struct PlyWriter<'a, MeshT: 'a> {
 
 struct PropertySet<'a, HandleT> {
     labels: Vec<PropLabel>,
-    serialize: Box<'a + Fn(&mut io::Write, HandleT) -> Result<(), PlyError>>,
+    serialize: Box<'a + Fn(&mut io::Write, bool, HandleT) -> Result<(), PlyError>>,
 }
-
 
 
 #[derive(Debug, Fail)]
@@ -199,44 +198,10 @@ where
         Ok(self)
     }
 
-
-
-    // fn add_vertex_prop<PropT: PropSet>(
-    //     &mut self,
-    //     prop: &PropT,
-    // ) -> Result<&mut Self, Self::Error> {
-    //     // self.vertex_props.push(Property {
-    //     //     kind: PropT::kind(),
-    //     //     serialize: Box::new(|w, handle| {
-
-    //     //     }),
-    //     // });
-
-    //     // Ok(self)
-    //     unimplemented!()
-    // }
-
     fn write(&mut self, mut w: impl Write) -> Result<(), Self::Error> {
-        // let vertex_indices = {
-        //     // Prepare stuff to move into the `PropertySet`
-        //     let labeler = NameLabel("vertex_indices");
-        //     let mesh = self.mesh;
-
-        //     pack_prop_set!(
-        //         self.format,
-        //         vec![PropLabeler::<[DefaultIndex; 3]>::label(&labeler)],
-        //         |handle| labeler.wrap(mesh.vertices_of_face(handle))
-        //     )
-        // };
-        // self.face_prop_sets.push(vertex_indices);
-
-        // let face_prop_sets = iter::once(&vertex_indices).chain(&self.face_prop_sets);
-
-
         // ===================================================================
         // Write header (this part is always ASCII)
         // ===================================================================
-
         // Magic signature
         w.write_all(b"ply\n")?;
 
@@ -256,8 +221,6 @@ where
         // they want to.
 
 
-
-
         // Define `vertex` element with all properties
         writeln!(w, "element vertex {}", self.mesh.num_vertices())?;
         for prop_set in &self.vertex_prop_sets {
@@ -265,7 +228,6 @@ where
                 write_header_property(&mut w, label)?;
             }
         }
-
 
         // Define `face` element with all properties
         writeln!(w, "element face {}", self.mesh.num_faces())?;
@@ -276,38 +238,39 @@ where
             }
         }
 
-
         w.write_all(b"end_header\n")?;
 
 
         // ===================================================================
         // Write body
         // ===================================================================
+        let finish_block = match self.format {
+            PlyFormat::Ascii => PlyAsciiPropSetSerializer::finish_block,
+            PlyFormat::BinaryBigEndian => PlyBinaryBePropSetSerializer::finish_block,
+            PlyFormat::BinaryLittleEndian => PlyBinaryLePropSetSerializer::finish_block,
+        };
+
         for vertex_handle in self.mesh.vertices() {
-            for prop in &self.vertex_prop_sets {
-                (prop.serialize)(&mut w, vertex_handle)?;
+            for (i, prop) in self.vertex_prop_sets.iter().enumerate() {
+                (prop.serialize)(&mut w, i == 0, vertex_handle)?;
             }
 
-            if self.format == PlyFormat::Ascii {
-                w.write_all(b"\n")?;
-            }
+            finish_block(&mut w)?;
         }
 
         for face_handle in self.mesh.faces() {
-            for prop in &self.face_prop_sets {
-                (prop.serialize)(&mut w, face_handle)?;
+            for (i, prop) in self.face_prop_sets.iter().enumerate() {
+                (prop.serialize)(&mut w, i == 0, face_handle)?;
             }
 
-            if self.format == PlyFormat::Ascii {
-                w.write_all(b"\n")?;
-            }
+            finish_block(&mut w)?;
         }
 
         Ok(())
     }
 }
 
-
+/// Writes the header entry for one property to the given writer.
 fn write_header_property(w: &mut impl Write, label: &PropLabel) -> Result<(), PlyError> {
     match label {
         // Positions are stored as properties 'x', 'y' and 'z' by
@@ -344,6 +307,10 @@ fn write_header_property(w: &mut impl Write, label: &PropLabel) -> Result<(), Pl
 
         PropLabel::Named { name, ty: PropType::FixedLen { len, ty } } => {
             let len = *len;
+
+            // TODO: Instead of using a PLY list here, we might want to split
+            // this into multiple properties with the names {}_1, {}_2 and so
+            // on. This avoids storing the (fixed) length every time again.
 
             // We know the length of all properties
             // beforehand, so we can optimize and chose a
@@ -546,12 +513,17 @@ struct PlyAsciiPropSetSerializer<'a, W: Write + 'a + ?Sized> {
 }
 
 impl<'a, W: Write + 'a + ?Sized> PlyAsciiPropSetSerializer<'a, W> {
-    fn new(w: &'a mut W) -> Self {
+    fn new(w: &'a mut W, first: bool) -> Self {
         Self {
             writer: w,
-            first: true,
+            first,
         }
     }
+
+    fn finish_block(w: &mut W) -> Result<(), PlyError> {
+        w.write_all(b"\n").map_err(|e| e.into())
+    }
+
 
     /// Returns the associated primitive serializer.
     fn primitive(&mut self) -> PlyAsciiPropSerializer<W> {
@@ -632,8 +604,14 @@ macro_rules! gen_binary_prop_serializer {
         }
 
         impl<'a, W: Write + 'a + ?Sized> $name<'a, W> {
-            fn new(w: &'a mut W) -> Self {
+            fn new(w: &'a mut W, _: bool) -> Self {
                 Self { writer: w }
+            }
+
+            fn finish_block(_: &mut W) -> Result<(), PlyError> {
+                // In binary format, the block end implictly after the correct
+                // number of bytes
+                Ok(())
             }
 
             /// Returns the associated primitive serializer.

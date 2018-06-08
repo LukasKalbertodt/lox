@@ -11,6 +11,7 @@ use fev::{
     io::{
         Ply, IntoMeshWriter, MeshWriter, PropLabel, PrimitiveType,
         LabeledPropSet, PropSetSerializer, PropSetSerialize, PropType,
+        NameLabel,
     },
     map::{VertexVecMap, PropMapMut, FaceConstMap},
     // shape::{disk, GenPosition},
@@ -113,6 +114,8 @@ fn main() -> Result<(), failure::Error> {
         color: [255, 0, 0],
     });
 
+    let twenty_seven = FaceConstMap::new(27.0f32);
+
     // let (mesh, GenPosition(positions)): (FvTriMesh, GenPosition<VertexVecMap<(f64, f64, f64)>>) = disk(300);
 
     // let mut vec = std::io::Cursor::new(Vec::new());
@@ -122,6 +125,7 @@ fn main() -> Result<(), failure::Error> {
         // .with_vertex_positions(&positions)
         .serialize(&mesh)?
         .add_face_prop(&red)?
+        .add_face_prop_with(&twenty_seven, NameLabel("peter"))?
         // .write(&mut vec)?;
         .write(&mut file)?;
 
