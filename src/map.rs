@@ -7,6 +7,7 @@ use crate::{
 };
 
 
+mod const_map;
 mod vec_map;
 
 pub use self::vec_map::VecMap;
@@ -20,6 +21,18 @@ pub type EdgeVecMap<T> = VecMap<EdgeHandle, T>;
 /// A `VecMap` with `EdgeHandle` keys.
 pub type VertexVecMap<T> = VecMap<VertexHandle, T>;
 
+
+
+pub use self::const_map::ConstMap;
+
+/// A `ConstMap` with `FaceHandle` keys.
+pub type FaceConstMap<T> = ConstMap<FaceHandle, T>;
+
+/// A `ConstMap` with `EdgeHandle` keys.
+pub type EdgeConstMap<T> = ConstMap<EdgeHandle, T>;
+
+/// A `ConstMap` with `EdgeHandle` keys.
+pub type VertexConstMap<T> = ConstMap<VertexHandle, T>;
 
 
 

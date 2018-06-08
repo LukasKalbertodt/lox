@@ -40,6 +40,7 @@ pub trait TriMesh {
     fn add_face(&mut self, vertices: [VertexHandle; 3], prop: Self::FaceProp) -> FaceHandle;
 
     fn vertex_prop(&self, handle: VertexHandle) -> Option<&Self::VertexProp>;
+    fn face_prop(&self, handle: FaceHandle) -> Option<&Self::FaceProp>;
 
     // fn vertices(&self) -> Self::VertexIter;
     // fn faces(&self) -> Self::FaceIter;

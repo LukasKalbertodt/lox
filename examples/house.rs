@@ -10,9 +10,9 @@ use fev::{
     impls::FvTriMesh,
     io::{
         Ply, IntoMeshWriter, MeshWriter, PropLabel, PrimitiveType,
-        LabeledPropSet, PropSetSerializer, PropSetSerialize,
+        LabeledPropSet, PropSetSerializer, PropSetSerialize, PropType,
     },
-    map::{VertexVecMap, PropMapMut},
+    map::{VertexVecMap, PropMapMut, FaceConstMap},
     // shape::{disk, GenPosition},
     shape2::{append_sphere, AdhocBuilder, SpheroidVertexInfo, HasPosition, HasNormal},
 };
@@ -38,10 +38,12 @@ where
 }
 
 impl LabeledPropSet for MyVertexInfo {
-    const LABELS: &'static [PropLabel] = &[
-        PropLabel::Position { scalar_ty: PrimitiveType::Float32 },
-        PropLabel::Normal { scalar_ty: PrimitiveType::Float32 },
-    ];
+    fn labels() -> Vec<PropLabel> {
+        vec![
+            PropLabel::Position { scalar_ty: PrimitiveType::Float32 },
+            PropLabel::Normal { scalar_ty: PrimitiveType::Float32 },
+        ]
+    }
 }
 
 impl PropSetSerialize for MyVertexInfo {
@@ -54,6 +56,34 @@ impl PropSetSerialize for MyVertexInfo {
         Ok(())
     }
 }
+
+struct MyFaceProp {
+    color: [u8; 3],
+}
+
+impl LabeledPropSet for MyFaceProp {
+    fn labels() -> Vec<PropLabel> {
+        vec![
+            PropLabel::Named {
+                name: "color".into(),
+                ty: PropType::FixedLen {
+                    ty: PrimitiveType::Uint8,
+                    len: 3,
+                }
+            },
+        ]
+    }
+}
+
+impl PropSetSerialize for MyFaceProp {
+    fn serialize<S>(&self, mut serializer: S) -> Result<(), S::Error>
+    where
+        S: PropSetSerializer
+    {
+        serializer.serialize_named("color", &self.color)
+    }
+}
+
 
 fn main() -> Result<(), failure::Error> {
     let mut mesh: FvTriMesh<MyVertexInfo> = FvTriMesh::new();
@@ -79,6 +109,10 @@ fn main() -> Result<(), failure::Error> {
     // });
     append_sphere(&mut mesh);
 
+    let red = FaceConstMap::new(MyFaceProp {
+        color: [255, 0, 0],
+    });
+
     // let (mesh, GenPosition(positions)): (FvTriMesh, GenPosition<VertexVecMap<(f64, f64, f64)>>) = disk(300);
 
     // let mut vec = std::io::Cursor::new(Vec::new());
@@ -87,6 +121,7 @@ fn main() -> Result<(), failure::Error> {
     // Ply::binary()
         // .with_vertex_positions(&positions)
         .serialize(&mesh)?
+        .add_face_prop(&red)?
         // .write(&mut vec)?;
         .write(&mut file)?;
 

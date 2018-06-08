@@ -7,6 +7,8 @@ use crate::{
     Pos3Like,
     Vec3Like,
     TriMesh,
+    handle::{FaceHandle},
+    map::{PropMap},
 };
 
 // mod ply;
@@ -178,7 +180,7 @@ pub trait LabeledPropSet {
     ///
     /// The order of these labels has to match the order in which the
     /// properties are serialized in `serialize()`!
-    const LABELS: &'static [PropLabel];
+    fn labels() -> Vec<PropLabel>;
 }
 
 pub trait PropSetSerialize {
@@ -249,46 +251,62 @@ pub trait MeshWriter<'a> {
     //     prop: &PropT,
     // ) -> Result<&mut Self, Self::Error>;
 
+    fn add_face_prop<MapT>(&mut self, map: &'a MapT) -> Result<&mut Self, Self::Error>
+    where
+        MapT: PropMap<FaceHandle>,
+        MapT::Output: PropSetSerialize + LabeledPropSet;
+
+    fn add_face_prop_with<MapT, LabelerT>(
+        &mut self,
+        map: &'a MapT,
+        labeler: LabelerT,
+    ) -> Result<&mut Self, Self::Error>
+    where
+        MapT: PropMap<FaceHandle>,
+        MapT::Output: Sized,
+        LabelerT: PropLabeler<&'a MapT::Output> + 'a;
+
     fn write(&mut self, writer: impl Write) -> Result<(), Self::Error>;
 }
 
 pub trait PropLabeler<T> {
     type Serialize: PropSetSerialize;
 
-    fn labels(&self) -> PropLabel;
+    fn label(&self) -> PropLabel;
     fn wrap(&self, v: T) -> Self::Serialize;
 }
 
-pub struct NamedLabel<S: Into<String> + Clone>(S);
+#[derive(Debug, Clone, Copy)]
+pub struct NameLabel<S: AsRef<str>>(S);
 
 
-impl<T, S> PropLabeler<T> for NamedLabel<S>
+impl<T, S> PropLabeler<T> for NameLabel<S>
 where
-    S: Into<String> + Clone,
+    S: AsRef<str>,
     T: PropSerialize,
 {
-    type Serialize = WithNamedLabel<T>;
+    type Serialize = WithNameLabel<T>;
 
-    fn labels(&self) -> PropLabel {
+    fn label(&self) -> PropLabel {
         PropLabel::Named {
-            name: self.0.clone().into(),
+            name: self.0.as_ref().to_owned(),
             ty: T::ty(),
         }
     }
     fn wrap(&self, v: T) -> Self::Serialize {
-        WithNamedLabel {
+        WithNameLabel {
             wrapped: v,
-            name: self.0.clone().into(),
+            name: self.0.as_ref().to_owned(),
         }
     }
 }
 
-pub struct WithNamedLabel<T> {
+pub struct WithNameLabel<T> {
     wrapped: T,
     name: String,
 }
 
-impl<T: PropSerialize> PropSetSerialize for WithNamedLabel<T> {
+impl<T: PropSerialize> PropSetSerialize for WithNameLabel<T> {
     fn serialize<S>(&self, mut serializer: S) -> Result<(), S::Error>
     where
         S: PropSetSerializer,

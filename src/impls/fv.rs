@@ -58,6 +58,10 @@ impl<VertexT, FaceT> TriMesh for FvTriMesh<VertexT, FaceT> {
         self.vertices.get(handle)
     }
 
+    fn face_prop(&self, handle: FaceHandle) -> Option<&Self::FaceProp> {
+        self.faces.get(handle).map(|f| &f.prop)
+    }
+
 
     fn vertices<'a>(&'a self) -> Box<Iterator<Item = VertexHandle> + 'a> {
         Box::new(self.vertices.handles())
