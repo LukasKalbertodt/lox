@@ -1,5 +1,6 @@
 use std::{
     fmt,
+    marker::PhantomData,
     io::Write,
 };
 
@@ -194,11 +195,26 @@ pub trait LabeledPropSet {
     fn labels() -> Vec<PropLabel>;
 }
 
+impl<'a, T: 'a + LabeledPropSet> LabeledPropSet for &'a T {
+    fn labels() -> Vec<PropLabel> {
+        T::labels()
+    }
+}
+
 pub trait PropSetSerialize {
     /// Serializes all properties in this set with the given serializer.
     fn serialize<S>(&self, serializer: S) -> Result<(), S::Error>
     where
         S: PropSetSerializer;
+}
+
+impl<'a, T: 'a + PropSetSerialize> PropSetSerialize for &'a T {
+    fn serialize<S>(&self, serializer: S) -> Result<(), S::Error>
+    where
+        S: PropSetSerializer
+    {
+        (*self).serialize(serializer)
+    }
 }
 
 pub trait PropSerializer {
@@ -307,5 +323,25 @@ impl<T: PropSerialize> PropSetSerialize for WithNameLabel<T> {
         S: PropSetSerializer,
     {
         serializer.serialize_named(&self.name, &self.wrapped)
+    }
+}
+
+
+pub struct StandardLabeler<T: LabeledPropSet + PropSetSerialize>(PhantomData<T>);
+
+impl<T: LabeledPropSet + PropSetSerialize> StandardLabeler<T> {
+    pub fn new() -> Self {
+        StandardLabeler(PhantomData)
+    }
+}
+
+impl<T: LabeledPropSet + PropSetSerialize> PropLabeler<T> for StandardLabeler<T> {
+    type Serialize = T;
+
+    fn labels(&self) -> Vec<PropLabel> {
+        T::labels()
+    }
+    fn wrap(&self, v: T) -> Self::Serialize {
+        v
     }
 }

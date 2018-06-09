@@ -13,7 +13,7 @@ use crate::{
     io::{
         IntoMeshWriter, PropSetSerialize, MeshWriter, PropSerialize, PropSerializer,
         PrimitiveType, PropLabel, PropSetSerializer, PropType, LabeledPropSet,
-        NameLabel, PropLabeler,
+        NameLabel, PropLabeler, StandardLabeler,
     },
 };
 
@@ -192,25 +192,9 @@ impl<'a, MeshT> PlyWriter<'a, MeshT> {
     pub fn add_face_prop<MapT>(&mut self, map: &'a MapT) -> Result<&mut Self, PlyError>
     where
         MapT: FaceMap,
-        MapT::Output: PropSetSerialize + LabeledPropSet,
+        MapT::Output: PropSetSerialize + LabeledPropSet + Sized,
     {
-        let labels = MapT::Output::labels();
-        self.check_new_prop_set(ElementKind::Face, &labels)?;
-
-        {
-            let new_names = labels.iter()
-                .flat_map(label_names)
-                .map(|s| s.to_owned());
-            self.face_prop_names.extend(new_names);
-        }
-
-        self.face_prop_sets.push(pack_prop_set!(
-            self.format,
-            labels,
-            |handle| map.get(handle).unwrap() // TODO
-        ));
-
-        Ok(self)
+        self.add_face_prop_with(map, StandardLabeler::new())
     }
 
     pub fn add_face_prop_with<MapT>(
