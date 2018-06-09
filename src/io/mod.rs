@@ -7,8 +7,6 @@ use crate::{
     Pos3Like,
     Vec3Like,
     TriMesh,
-    handle::{FaceHandle},
-    map::{PropMap},
 };
 
 // mod ply;
@@ -92,19 +90,17 @@ impl fmt::Display for PropType {
 }
 
 pub trait PrimitiveProp: PropSerialize {
-    const PRIMITIVE_TY: PrimitiveType;
+    const PRIMITIVE_TYPE: PrimitiveType;
 }
 
 pub trait PropSerialize {
     // TODO: make assoc const?
-    fn ty() -> PropType;
+    const PROP_TYPE: PropType;
     fn serialize<S: PropSerializer>(&self, serializer: S) -> Result<(), S::Error>;
 }
 
 impl<'a, T: 'a + PropSerialize> PropSerialize for &'a T {
-    fn ty() -> PropType {
-        T::ty()
-    }
+    const PROP_TYPE: PropType = T::PROP_TYPE;
 
     fn serialize<S: PropSerializer>(&self, serializer: S) -> Result<(), S::Error> {
         (*self).serialize(serializer)
@@ -115,9 +111,7 @@ impl<'a, T: 'a + PropSerialize> PropSerialize for &'a T {
 macro_rules! impl_for_primitives {
     ($name:ident, $func:ident, $ty:ident) => {
         impl PropSerialize for $name {
-            fn ty() -> PropType {
-                PropType::Single(PrimitiveType::$ty)
-            }
+            const PROP_TYPE: PropType = PropType::Single(PrimitiveType::$ty);
 
             fn serialize<S: PropSerializer>(&self, serializer: S) -> Result<(), S::Error> {
                 serializer.$func(*self)
@@ -125,7 +119,7 @@ macro_rules! impl_for_primitives {
         }
 
         impl PrimitiveProp for $name {
-            const PRIMITIVE_TY: PrimitiveType = PrimitiveType::$ty;
+            const PRIMITIVE_TYPE: PrimitiveType = PrimitiveType::$ty;
         }
     }
 }
@@ -144,12 +138,10 @@ impl_for_primitives!(f64, serialize_f64, Float64);
 macro_rules! impl_prop_serialize_for_arrays {
     ($n:expr) => {
         impl<T: PrimitiveProp> PropSerialize for [T; $n] {
-            fn ty() -> PropType {
-                PropType::FixedLen {
-                    ty: T::PRIMITIVE_TY,
-                    len: $n,
-                }
-            }
+            const PROP_TYPE: PropType = PropType::FixedLen {
+                ty: T::PRIMITIVE_TYPE,
+                len: $n,
+            };
 
             fn serialize<S: PropSerializer>(&self, serializer: S) -> Result<(), S::Error> {
                 serializer.serialize_fixed_len_seq(self)
@@ -164,6 +156,14 @@ impl_prop_serialize_for_arrays!(3);
 impl_prop_serialize_for_arrays!(4);
 impl_prop_serialize_for_arrays!(5);
 impl_prop_serialize_for_arrays!(6);
+
+impl<'a, T: 'a + PrimitiveProp> PropSerialize for &'a [T] {
+    const PROP_TYPE: PropType = PropType::VariableLen(T::PRIMITIVE_TYPE);
+
+    fn serialize<S: PropSerializer>(&self, serializer: S) -> Result<(), S::Error> {
+        serializer.serialize_variable_len_seq(self)
+    }
+}
 
 
 /// Defines *what* a property represents semantically as well as the type of
@@ -205,20 +205,22 @@ pub trait PropSerializer {
     type Error;
 
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error>;
+
     fn serialize_i8(self, v: i8) -> Result<(), Self::Error>;
     fn serialize_i16(self, v: i16) -> Result<(), Self::Error>;
     fn serialize_i32(self, v: i32) -> Result<(), Self::Error>;
     fn serialize_i64(self, v: i64) -> Result<(), Self::Error>;
+
     fn serialize_u8(self, v: u8) -> Result<(), Self::Error>;
     fn serialize_u16(self, v: u16) -> Result<(), Self::Error>;
     fn serialize_u32(self, v: u32) -> Result<(), Self::Error>;
     fn serialize_u64(self, v: u64) -> Result<(), Self::Error>;
+
     fn serialize_f32(self, v: f32) -> Result<(), Self::Error>;
     fn serialize_f64(self, v: f64) -> Result<(), Self::Error>;
 
     fn serialize_fixed_len_seq<T: PropSerialize>(self, v: &[T]) -> Result<(), Self::Error>;
-
-    // TODO: more primitives?
+    fn serialize_variable_len_seq<T: PropSerialize>(self, v: &[T]) -> Result<(), Self::Error>;
 }
 
 pub trait PropSetSerializer {
@@ -257,33 +259,13 @@ where
 pub trait MeshWriter<'a> {
     type Error;
 
-    // fn add_vertex_prop<PropT: PropSerialize>(
-    //     &mut self,
-    //     prop: &PropT,
-    // ) -> Result<&mut Self, Self::Error>;
-
-    fn add_face_prop<MapT>(&mut self, map: &'a MapT) -> Result<&mut Self, Self::Error>
-    where
-        MapT: PropMap<FaceHandle>,
-        MapT::Output: PropSetSerialize + LabeledPropSet;
-
-    fn add_face_prop_with<MapT, LabelerT>(
-        &mut self,
-        map: &'a MapT,
-        labeler: LabelerT,
-    ) -> Result<&mut Self, Self::Error>
-    where
-        MapT: PropMap<FaceHandle>,
-        MapT::Output: Sized,
-        LabelerT: PropLabeler<&'a MapT::Output> + 'a;
-
     fn write(&mut self, writer: impl Write) -> Result<(), Self::Error>;
 }
 
 pub trait PropLabeler<T> {
     type Serialize: PropSetSerialize;
 
-    fn label(&self) -> PropLabel;
+    fn labels(&self) -> Vec<PropLabel>;
     fn wrap(&self, v: T) -> Self::Serialize;
 }
 
@@ -298,11 +280,13 @@ where
 {
     type Serialize = WithNameLabel<T>;
 
-    fn label(&self) -> PropLabel {
-        PropLabel::Named {
-            name: self.0.as_ref().to_owned(),
-            ty: T::ty(),
-        }
+    fn labels(&self) -> Vec<PropLabel> {
+        vec![
+            PropLabel::Named {
+                name: self.0.as_ref().to_owned(),
+                ty: T::PROP_TYPE,
+            }
+        ]
     }
     fn wrap(&self, v: T) -> Self::Serialize {
         WithNameLabel {

@@ -78,9 +78,7 @@ macro_rules! make_handle_type {
 
         // TODO: this should be derived
         impl PropSerialize for $name {
-            fn ty() -> PropType {
-                PropType::Single(PrimitiveType::Uint32)
-            }
+            const PROP_TYPE: PropType = PropType::Single(PrimitiveType::Uint32);
 
             fn serialize<S: PropSerializer>(&self, serializer: S) -> Result<(), S::Error> {
                 serializer.serialize_u32(self.0)
@@ -88,7 +86,7 @@ macro_rules! make_handle_type {
         }
 
         impl PrimitiveProp for $name {
-            const PRIMITIVE_TY: PrimitiveType = PrimitiveType::Uint32;
+            const PRIMITIVE_TYPE: PrimitiveType = PrimitiveType::Uint32;
         }
     }
 }

@@ -1,4 +1,6 @@
 use std::{
+    collections::HashSet,
+    fmt,
     io::{self, Write},
 };
 
@@ -6,8 +8,8 @@ use byteorder::{WriteBytesExt, BigEndian, LittleEndian};
 
 use crate::{
     TriMesh, Pos3Like, Vec3Like,
-    handle::{DefaultIndex, DefaultIndexExt, FaceHandle, Handle, VertexHandle},
-    map::{PropMap, FaceMap, VertexMap},
+    handle::{DefaultIndex, FaceHandle, VertexHandle},
+    map::{FaceMap, VertexMap},
     io::{
         IntoMeshWriter, PropSetSerialize, MeshWriter, PropSerialize, PropSerializer,
         PrimitiveType, PropLabel, PropSetSerializer, PropType, LabeledPropSet,
@@ -99,7 +101,7 @@ where
 
             pack_prop_set!(
                 self.format,
-                vec![PropLabeler::<[DefaultIndex; 3]>::label(&labeler)],
+                PropLabeler::<[DefaultIndex; 3]>::labels(&labeler),
                 |handle| labeler.wrap(mesh.vertices_of_face(handle))
             )
         };
@@ -109,6 +111,8 @@ where
             mesh,
             vertex_prop_sets: vec![vertex_prop_set],
             face_prop_sets: vec![vertex_indices], // TODO
+            vertex_prop_names: HashSet::new(),
+            face_prop_names: HashSet::new(),
         })
     }
 }
@@ -118,6 +122,8 @@ pub struct PlyWriter<'a, MeshT: 'a> {
     mesh: &'a MeshT,
     vertex_prop_sets: Vec<PropertySet<'a, VertexHandle>>,
     face_prop_sets: Vec<PropertySet<'a, FaceHandle>>,
+    vertex_prop_names: HashSet<String>,
+    face_prop_names: HashSet<String>,
 }
 
 struct PropertySet<'a, HandleT> {
@@ -146,13 +152,125 @@ pub enum PlyError {
     )]
     FixedLenListTooLong(u64),
 
+    #[fail(display =
+        "attempt to add {} property '{}' to PLY file, but a property with that name has already been \
+        added",
+        element,
+        label,
+    )]
+    LabelAlreadyInUse {
+        label: String,
+        element: ElementKind,
+    },
+
     #[fail(display = "something :(")]
     Something,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum ElementKind {
+    Vertex,
+    Face,
+}
+
+impl fmt::Display for ElementKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ElementKind::Vertex => "vertex",
+            ElementKind::Face => "face"
+        }.fmt(f)
+    }
 }
 
 impl From<io::Error> for PlyError {
     fn from(_src: io::Error) -> Self {
         PlyError::Something
+    }
+}
+
+impl<'a, MeshT> PlyWriter<'a, MeshT> {
+    pub fn add_face_prop<MapT>(&mut self, map: &'a MapT) -> Result<&mut Self, PlyError>
+    where
+        MapT: FaceMap,
+        MapT::Output: PropSetSerialize + LabeledPropSet,
+    {
+        let labels = MapT::Output::labels();
+        self.check_new_prop_set(ElementKind::Face, &labels)?;
+
+        {
+            let new_names = labels.iter()
+                .flat_map(label_names)
+                .map(|s| s.to_owned());
+            self.face_prop_names.extend(new_names);
+        }
+
+        self.face_prop_sets.push(pack_prop_set!(
+            self.format,
+            labels,
+            |handle| map.get(handle).unwrap() // TODO
+        ));
+
+        Ok(self)
+    }
+
+    pub fn add_face_prop_with<MapT>(
+        &mut self,
+        map: &'a MapT,
+        labeler: impl PropLabeler<&'a MapT::Output> + 'a,
+    ) -> Result<&mut Self, PlyError>
+    where
+        MapT: FaceMap,
+        MapT::Output: Sized,
+    {
+        let labels = labeler.labels();
+        self.check_new_prop_set(ElementKind::Face, &labels)?;
+
+        {
+            let new_names = labels.iter()
+                .flat_map(label_names)
+                .map(|s| s.to_owned());
+            self.face_prop_names.extend(new_names);
+        }
+
+        self.face_prop_sets.push(pack_prop_set!(
+            self.format,
+            labels,
+            |handle| labeler.wrap(map.get(handle).unwrap()) // TODO
+        ));
+
+        Ok(self)
+    }
+
+    fn check_new_prop_set(
+        &self,
+        element: ElementKind,
+        new_labels: &[PropLabel],
+    ) -> Result<(), PlyError> {
+        let names = match element {
+            ElementKind::Vertex => &self.vertex_prop_names,
+            ElementKind::Face => &self.face_prop_names,
+        };
+
+        for new_label in new_labels {
+            for name in label_names(new_label) {
+                if names.contains(name) {
+                    return Err(PlyError::LabelAlreadyInUse {
+                        label: name.into(),
+                        element,
+                    });
+                }
+            };
+        }
+
+        Ok(())
+    }
+}
+
+fn label_names(label: &PropLabel) -> Vec<&str> {
+    match label {
+        PropLabel::Position { .. } => vec!["x", "y", "z"],
+        PropLabel::Normal { .. } => vec!["nx", "ny", "nz"],
+        PropLabel::Named { name, .. } => vec![name.as_str()],
     }
 }
 
@@ -162,41 +280,6 @@ where
     MeshT::VertexProp: PropSetSerialize,
 {
     type Error = PlyError;
-
-    fn add_face_prop<MapT>(&mut self, map: &'a MapT) -> Result<&mut Self, Self::Error>
-    where
-        MapT: PropMap<FaceHandle>,
-        MapT::Output: PropSetSerialize + LabeledPropSet,
-    {
-        let prop_set = pack_prop_set!(
-            self.format,
-            MapT::Output::labels(),
-            |handle| map.get(handle).unwrap() // TODO
-        );
-        self.face_prop_sets.push(prop_set);
-
-        Ok(self)
-    }
-
-    fn add_face_prop_with<'sef, MapT, LabelerT>(
-        &'sef mut self,
-        map: &'a MapT,
-        labeler: LabelerT,
-    ) -> Result<&mut Self, Self::Error>
-    where
-        MapT: PropMap<FaceHandle>,
-        MapT::Output: Sized,
-        LabelerT: PropLabeler<&'a MapT::Output> + 'a,
-    {
-        let prop_set = pack_prop_set!(
-            self.format,
-            vec![labeler.label()],
-            |handle| labeler.wrap(map.get(handle).unwrap()) // TODO
-        );
-        self.face_prop_sets.push(prop_set);
-
-        Ok(self)
-    }
 
     fn write(&mut self, mut w: impl Write) -> Result<(), Self::Error> {
         // ===================================================================
@@ -299,18 +382,14 @@ fn write_header_property(w: &mut impl Write, label: &PropLabel) -> Result<(), Pl
         }
 
         PropLabel::Named { name, ty: PropType::VariableLen(ty) } => {
-            // Since we don't know the length before, we
-            // have to use `uint` to specify the length.
+            // Since we don't know the length, we have to use the largest
+            // integer type, `uint`, to specify the length.
             let ty_name = primitive_ply_type_name(ty)?;
             writeln!(w, "property list uint {} {}", ty_name, name)?;
         }
 
         PropLabel::Named { name, ty: PropType::FixedLen { len, ty } } => {
             let len = *len;
-
-            // TODO: Instead of using a PLY list here, we might want to split
-            // this into multiple properties with the names {}_1, {}_2 and so
-            // on. This avoids storing the (fixed) length every time again.
 
             // We know the length of all properties
             // beforehand, so we can optimize and chose a
@@ -415,6 +494,11 @@ impl<'a, W: Write + 'a + ?Sized> PropSerializer for PlyAsciiPropSerializer<'a, W
 
         Ok(())
     }
+
+    fn serialize_variable_len_seq<T: PropSerialize>(self, v: &[T]) -> Result<(), Self::Error> {
+        self.serialize_fixed_len_seq(v)
+    }
+
 }
 
 
@@ -484,6 +568,16 @@ macro_rules! gen_binary_primitive_serializer {
                 } else {
                     return Err(PlyError::FixedLenListTooLong(len));
                 };
+
+                for v in seq {
+                    v.serialize(Self::new(self.writer))?;
+                }
+
+                Ok(())
+            }
+
+            fn serialize_variable_len_seq<T: PropSerialize>(self, seq: &[T]) -> Result<(), Self::Error> {
+                self.writer.write_u32::<$endianess>(seq.len() as u32)?;
 
                 for v in seq {
                     v.serialize(Self::new(self.writer))?;
