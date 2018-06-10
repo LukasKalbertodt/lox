@@ -1,0 +1,11 @@
+language: rust
+rust:
+  - nightly
+
+script:
+  - ci/check-basic-style.sh
+  - ci/compile-all.sh
+  - ci/test-all.sh
+
+# Speeds up travis build
+cache: cargo
