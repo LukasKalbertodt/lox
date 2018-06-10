@@ -1,0 +1,8 @@
+[package]
+name = "fev"
+version = "0.1.0"
+authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
+
+[dependencies]
+fev-core = { path = "../fev-core" }
+fev-io = { path = "../fev-io" }
