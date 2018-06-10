@@ -327,15 +327,15 @@ impl<T: PropSerialize> PropSetSerialize for WithNameLabel<T> {
 }
 
 
-pub struct StandardLabeler<T: LabeledPropSet + PropSetSerialize>(PhantomData<T>);
+pub struct StandardLabel<T: LabeledPropSet + PropSetSerialize>(PhantomData<T>);
 
-impl<T: LabeledPropSet + PropSetSerialize> StandardLabeler<T> {
+impl<T: LabeledPropSet + PropSetSerialize> StandardLabel<T> {
     pub fn new() -> Self {
-        StandardLabeler(PhantomData)
+        StandardLabel(PhantomData)
     }
 }
 
-impl<T: LabeledPropSet + PropSetSerialize> PropLabeler<T> for StandardLabeler<T> {
+impl<T: LabeledPropSet + PropSetSerialize> PropLabeler<T> for StandardLabel<T> {
     type Serialize = T;
 
     fn labels(&self) -> Vec<PropLabel> {

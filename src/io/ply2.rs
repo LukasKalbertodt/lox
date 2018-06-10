@@ -13,7 +13,7 @@ use crate::{
     io::{
         IntoMeshWriter, PropSetSerialize, MeshWriter, PropSerialize, PropSerializer,
         PrimitiveType, PropLabel, PropSetSerializer, PropType, LabeledPropSet,
-        NameLabel, PropLabeler, StandardLabeler,
+        NameLabel, PropLabeler, StandardLabel,
     },
 };
 
@@ -194,7 +194,7 @@ impl<'a, MeshT> PlyWriter<'a, MeshT> {
         MapT: FaceMap,
         MapT::Output: PropSetSerialize + LabeledPropSet + Sized,
     {
-        self.add_face_prop_with(map, StandardLabeler::new())
+        self.add_face_prop_with(map, StandardLabel::new())
     }
 
     pub fn add_face_prop_with<MapT>(
