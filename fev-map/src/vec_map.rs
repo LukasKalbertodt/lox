@@ -8,7 +8,10 @@ use stable_vec::{Keys, StableVec};
 
 use fev_core::{
     handle::{DefaultId, Handle},
-    map::{PropMap, PropStore, PropStoreMut},
+};
+
+use crate::{
+    PropMap, PropStore, PropStoreMut,
 };
 
 
@@ -17,7 +20,7 @@ use fev_core::{
 /// # TODO
 ///
 /// - Explain memory requirements of this data structure
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VecMap<H: Handle, T> {
     vec: StableVec<T>,
     _dummy: PhantomData<H>,

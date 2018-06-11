@@ -5,4 +5,5 @@ authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
 
 [dependencies]
 fev-core = { path = "../fev-core" }
+fev-map = { path = "../fev-map" }
 fev-io = { path = "../fev-io" }
