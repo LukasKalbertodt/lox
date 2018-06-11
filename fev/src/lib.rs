@@ -11,6 +11,7 @@ extern crate fev_core;
 //
 // See: https://github.com/rust-lang/rust/issues/34537
 mod inner {
+    pub extern crate fev_impls;
     pub extern crate fev_io;
     pub extern crate fev_map;
 }
