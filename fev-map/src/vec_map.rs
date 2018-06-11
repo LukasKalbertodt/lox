@@ -15,7 +15,7 @@ use crate::{
 };
 
 
-/// A map like data structure that uses a simple vector to store the elements.
+/// A property map that uses a simple vector to store the properties.
 ///
 /// # TODO
 ///
@@ -70,9 +70,9 @@ impl<'s, H: Handle, T: 's> PropMap<'s, H> for VecMap<H, T> {
 
 impl<H: Handle, T> Index<H> for VecMap<H, T> {
     type Output = T;
-    fn index(&self, h: H) -> &Self::Output {
-        match self.get_ref(h) {
-            None => panic!("no property found for handle '{:?}'", h),
+    fn index(&self, handle: H) -> &Self::Output {
+        match self.get_ref(handle) {
+            None => panic!("no property found for handle '{:?}'", handle),
             Some(r) => r,
         }
     }
@@ -85,9 +85,9 @@ impl<H: Handle, T> PropStore<H> for VecMap<H, T> {
 }
 
 impl<H: Handle, T> IndexMut<H> for VecMap<H, T> {
-    fn index_mut(&mut self, h: H) -> &mut Self::Output {
-        match self.get_mut(h) {
-            None => panic!("no property found for handle '{:?}'", h),
+    fn index_mut(&mut self, handle: H) -> &mut Self::Output {
+        match self.get_mut(handle) {
+            None => panic!("no property found for handle '{:?}'", handle),
             Some(r) => r,
         }
     }
@@ -98,8 +98,8 @@ impl<H: Handle, T> PropStoreMut<H> for VecMap<H, T> {
         self.vec.get_mut(handle.to_usize())
     }
 
-    fn insert(&mut self, h: H, mut elem: Self::Output) -> Option<Self::Output> {
-        let idx = h.to_usize();
+    fn insert(&mut self, handle: H, mut elem: Self::Output) -> Option<Self::Output> {
+        let idx = handle.to_usize();
         if self.vec.has_element_at(idx) {
             mem::swap(&mut self.vec[idx], &mut elem);
             Some(elem)
@@ -122,7 +122,6 @@ impl<H: Handle, T> PropStoreMut<H> for VecMap<H, T> {
         self.vec.remove(handle.to_usize())
     }
 
-
     fn empty() -> Self where Self: Sized {
         Self::new()
     }
@@ -131,8 +130,6 @@ impl<H: Handle, T> PropStoreMut<H> for VecMap<H, T> {
         self.vec.clear()
     }
 }
-
-
 
 
 

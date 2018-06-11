@@ -18,9 +18,11 @@ use fev_core::{
 mod foreign_impls;
 
 pub mod aliases;
+pub mod hash_map;
 pub mod vec_map;
 
 pub use self::aliases::*;
+pub use hash_map::HashMap;
 pub use vec_map::VecMap;
 
 
