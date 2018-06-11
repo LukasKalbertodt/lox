@@ -4,8 +4,13 @@ use std::{
 };
 
 use crate::{
-    handle::{Handle, FaceHandle, EdgeHandle, VertexHandle},
+    handle::Handle,
 };
+
+
+mod aliases;
+
+pub use self::aliases::*;
 
 
 /// A mapping from a handle to some optional data (property).
@@ -49,6 +54,18 @@ pub trait PropMap<'s, H: Handle> {
     /// otherwise.
     fn contains_handle(&'s self, handle: H) -> bool {
         self.get(handle).is_some()
+    }
+}
+
+impl<'s, H, F, OutT> PropMap<'s, H> for F
+where
+    H: Handle,
+    F: Fn(H) -> Option<OutT>,
+{
+    type Target = OutT;
+
+    fn get(&'s self, handle: H) -> Option<Self::Target> {
+        self(handle)
     }
 }
 
@@ -148,23 +165,6 @@ pub trait PropStoreMut<H: Handle>: PropStore<H> + ops::IndexMut<H> {
 }
 
 
-macro_rules! create_map_trait_alias {
-    ($(#[$attr:meta])* $alias_name:ident = $base_trait:ident<$handle_name:ident>) => {
-        pub trait $alias_name: $base_trait<$handle_name> {}
-        impl<T> $alias_name for T
-        where
-            T: $base_trait<$handle_name>
-        {}
-    }
-}
-
-create_map_trait_alias!(FacePropStore = PropStore<FaceHandle>);
-create_map_trait_alias!(EdgePropStore = PropStore<EdgeHandle>);
-create_map_trait_alias!(VertexPropStore = PropStore<VertexHandle>);
-
-create_map_trait_alias!(FacePropStoreMut = PropStoreMut<FaceHandle>);
-create_map_trait_alias!(EdgePropStoreMut = PropStoreMut<EdgeHandle>);
-create_map_trait_alias!(VertexPropStoreMut = PropStoreMut<VertexHandle>);
 
 // pub struct MappedPropMap<'a, F, MapT: 'a> {
 //     original: &'a MapT,

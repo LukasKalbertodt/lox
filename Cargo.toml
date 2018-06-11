@@ -3,5 +3,6 @@
 members = [
     "fev",
     "fev-core",
+    "fev-maps",
     "fev-io",
 ]
