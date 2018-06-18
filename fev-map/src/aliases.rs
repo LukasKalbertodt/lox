@@ -3,7 +3,7 @@ use fev_core::{
 };
 
 use crate::{
-    PropStore, PropStoreMut,
+    PropStore, PropStoreMut, VecMap,
 };
 
 macro_rules! create_map_trait_alias {
@@ -23,3 +23,13 @@ create_map_trait_alias!(VertexPropStore = PropStore<VertexHandle>);
 create_map_trait_alias!(FacePropStoreMut = PropStoreMut<FaceHandle>);
 create_map_trait_alias!(EdgePropStoreMut = PropStoreMut<EdgeHandle>);
 create_map_trait_alias!(VertexPropStoreMut = PropStoreMut<VertexHandle>);
+
+
+/// A `VecMap` with `FaceHandle` keys.
+pub type FaceVecMap<T> = VecMap<FaceHandle, T>;
+
+/// A `VecMap` with `EdgeHandle` keys.
+pub type EdgeVecMap<T> = VecMap<EdgeHandle, T>;
+
+/// A `VecMap` with `EdgeHandle` keys.
+pub type VertexVecMap<T> = VecMap<VertexHandle, T>;
