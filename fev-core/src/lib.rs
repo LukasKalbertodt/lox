@@ -2,6 +2,7 @@
 
 
 pub mod handle;
+pub mod prop;
 pub mod refs;
 
 use crate::{
