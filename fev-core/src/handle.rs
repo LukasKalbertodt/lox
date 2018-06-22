@@ -169,7 +169,7 @@ macro_rules! make_handle_type {
 
         impl fmt::Debug for $name {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                $short.fmt(f)?;
+                write!(f, "{}", $short)?;
                 self.id().fmt(f)
             }
         }
