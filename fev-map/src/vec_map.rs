@@ -35,6 +35,10 @@ impl<H: Handle, T> VecMap<H, T> {
         }
     }
 
+    pub fn push(&mut self, elem: T) -> H {
+        H::from_usize(self.vec.push(elem))
+    }
+
     pub fn num_elements(&self) -> DefaultId {
         self.vec.num_elements() as DefaultId
     }

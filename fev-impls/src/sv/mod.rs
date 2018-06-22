@@ -39,13 +39,13 @@ impl<VertexT, FaceT> SharedVertexMesh<VertexT, FaceT> {
         self.faces[face].vertices
     }
 
-    // fn add_vertex(&mut self, prop: Self::VertexProp) -> VertexHandle {
-    //     self.vertices.push(prop)
-    // }
+    pub fn add_vertex(&mut self, prop: VertexT) -> VertexHandle {
+        self.vertices.push(prop)
+    }
 
-    // fn add_face(&mut self, vertices: [VertexHandle; 3], prop: Self::FaceProp) -> FaceHandle {
-    //     self.faces.push(SharedVertexFace { vertices, prop })
-    // }
+    pub fn add_face(&mut self, vertices: [VertexHandle; 3], prop: FaceT) -> FaceHandle {
+        self.faces.push(SharedVertexFace { vertices, prop })
+    }
 
     pub fn empty() -> Self where Self: Sized {
         Self::new()
