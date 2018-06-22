@@ -20,4 +20,5 @@ mod inner {
 pub use fev_core::{handle};
 
 pub use inner::fev_map as map;
+pub use inner::fev_impls as impls;
 pub use inner::fev_io as io;
