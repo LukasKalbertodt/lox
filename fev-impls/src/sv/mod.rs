@@ -11,13 +11,14 @@ use fev_map::{FaceVecMap, VertexVecMap, PropStore, PropStoreMut};
 
 
 
-#[derive(Clone)]
+// TODO: Manual debug impl
+#[derive(Clone, Debug)]
 pub struct SharedVertexMesh<VertexT = (), FaceT = ()> {
     vertices: VertexVecMap<VertexT>,
     faces: FaceVecMap<SharedVertexFace<FaceT>>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct SharedVertexFace<FaceT> {
     vertices: [VertexHandle; 3],
     prop: FaceT,
