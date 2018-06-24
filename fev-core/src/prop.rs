@@ -245,3 +245,61 @@ impl_primitive_num!(i32,   SignedInt, Bits32);
 impl_primitive_num!(i64,   SignedInt, Bits64);
 impl_primitive_num!(f32,       Float, Bits32);
 impl_primitive_num!(f64,       Float, Bits64);
+
+
+/// Describes what a property can semantically represent.
+///
+/// This categorization is useful for several purposes, but it's particularly
+/// important for serialization. This can be seen as the counter-part to the
+/// `HasPosition`, `HasNormal`, ... traits. The traits allow us to assert that
+/// specific semantic properties are available at compile time. On the other
+/// hand, this type can be used to describe a property at runtime.
+///
+/// These labels are returned by [`LabeledPropList::labels`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PropLabel {
+    Position,
+    Normal,
+    Named(String),
+}
+
+/// A list of labeled properties.
+///
+/// Each property list should contain at most one property for each label (so,
+/// a prop list cannot contain to properties with the label `Position`).
+/// Implementations of this trait should be consistent with implementations of
+/// the `HasPosition`, `HasNormal`, ... traits. That means that if `label()` of
+/// a specific property list returns a `Position` label for an index, this
+/// property list also has to implement `HasPosition`.
+///
+/// This trait can and should also be implemented for single properties that
+/// are labeled. In other words: it's fine when the list contains only one
+/// property.
+pub trait LabeledPropList {
+    /// The number of properties in this list.
+    fn num_props() -> usize;
+
+    /// The label of the property with the given index.
+    ///
+    /// The ordering of the properties within the list has to be stable, i.e.
+    /// non changing between calls. This method has to return a correct
+    /// `PropLabel` for all indices in `0..Self::num_props()` and panic otherwise.
+    fn label_of(prop_index: usize) -> PropLabel;
+
+    /// Returns the labels of all properties in this list as vector.
+    fn labels() -> Vec<PropLabel> {
+        (0..Self::num_props())
+            .map(|i| Self::label_of(i))
+            .collect()
+    }
+}
+
+impl<'a, T: 'a + LabeledPropList> LabeledPropList for &'a T {
+    fn num_props() -> usize {
+        T::num_props()
+    }
+
+    fn label_of(prop_index: usize) -> PropLabel {
+        T::label_of(prop_index)
+    }
+}
