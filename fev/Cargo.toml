@@ -8,3 +8,7 @@ fev-core = { path = "../fev-core" }
 fev-impls = { path = "../fev-impls" }
 fev-io = { path = "../fev-io" }
 fev-map = { path = "../fev-map" }
+
+
+[dev-dependencies]
+failure = "0.1.1"
