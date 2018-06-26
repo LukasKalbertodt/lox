@@ -72,7 +72,9 @@ impl<VertexT, FaceT> ExplicitVertex for SharedVertexMesh<VertexT, FaceT> {
     where
         Self: Sized
     {
-        unimplemented!()
+        Box::new(self.vertices.handles().map(move |handle| {
+            VertexRef::new(self, handle)
+        }))
     }
 }
 

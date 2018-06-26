@@ -1,10 +1,15 @@
 #![feature(crate_in_paths)]
+#![feature(rust_2018_preview)]
+#![feature(specialization)]
 
 extern crate byteorder;
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;
 extern crate fev_core;
+extern crate fev_map;
+#[macro_use]
+extern crate frunk;
 
 
 use std::{
@@ -44,26 +49,43 @@ pub trait IntoMeshWriter<'a, MeshT>
 pub trait MeshWriter {
     type Error: From<io::Error>;
 
-    fn write(&mut self, writer: impl Write) -> Result<(), Self::Error>;
+    fn write(&self, writer: impl Write) -> Result<(), Self::Error>;
 
     /// Writes the mesh to the file given by the filename. Overwrites the file
     /// if it already exists.
-    fn write_to_file(&mut self, path: impl AsRef<Path>) -> Result<(), Self::Error> {
+    fn write_to_file(&self, path: impl AsRef<Path>) -> Result<(), Self::Error> {
         self.write(File::create(path)?)
     }
 
     /// Writes the mesh to stdout. Locks stdout for the time the mesh is being
     /// written.
-    fn write_to_stdout(&mut self) -> Result<(), Self::Error> {
+    fn write_to_stdout(&self) -> Result<(), Self::Error> {
         let stdout = io::stdout();
         let lock = stdout.lock();
         self.write(lock)
     }
 
     /// Writes the mesh into a `Vec<u8>` which is returned on success.
-    fn write_to_memory(&mut self) -> Result<Vec<u8>, Self::Error> {
+    fn write_to_memory(&self) -> Result<Vec<u8>, Self::Error> {
         let mut w = Cursor::new(Vec::new());
         self.write(&mut w)?;
         Ok(w.into_inner())
     }
 }
+
+
+// TODO: find place for this
+
+// struct Wat {
+//     first: bool,
+// }
+
+// impl Wat {
+//     fn wut(&mut self, f: impl FnOnce()) {
+//         if self.first {
+//             self.first = true;
+//         } else {
+//             f();
+//         }
+//     }
+// }

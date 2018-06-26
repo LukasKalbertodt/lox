@@ -5,6 +5,8 @@ authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
 
 [dependencies]
 fev-core = { path = "../fev-core" }
+fev-map = { path = "../fev-map" }
 byteorder = "1.2"
 failure = "0.1.1"
 failure_derive = "0.1.1"
+frunk = "0.2"

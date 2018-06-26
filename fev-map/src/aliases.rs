@@ -16,6 +16,8 @@ macro_rules! create_map_trait_alias {
     }
 }
 
+// TODO: Create alias for PropMap
+
 create_map_trait_alias!(FacePropStore = PropStore<FaceHandle>);
 create_map_trait_alias!(EdgePropStore = PropStore<EdgeHandle>);
 create_map_trait_alias!(VertexPropStore = PropStore<VertexHandle>);

@@ -1,40 +1,196 @@
 use std::{
     // collections::HashSet,
+    ops::Add,
     io::Write,
+};
+use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
+use frunk::{
+    prelude::*,
+    HCons, HNil,
 };
 
 use fev_core::{
     ExplicitVertex, ExplicitFace,
+    handle::{Handle, VertexHandle},
     prop::{LabeledPropList, PropLabel},
+};
+use fev_map::{
+    PropMap,
 };
 
 use crate::{
     MeshWriter,
-    ser::{DataType, PrimitiveType, PropListSerialize},
+    ser::{DataType, PrimitiveType, Serialize, Serializer, PropListSerialize, TypedLabel},
 };
 use super::{PlyError, PlyFormat};
 
 
+pub struct PropListDesc<'a, M: 'a> {
+    typed_labels: Vec<TypedLabel>,
+    data: &'a M,
+}
 
-pub struct PlyWriter<'a, MeshT: 'a> {
-    pub format: PlyFormat,
-    pub mesh: &'a MeshT,
+impl<'a, M> Clone for PropListDesc<'a, M> {
+    fn clone(&self) -> Self {
+        Self {
+            typed_labels: self.typed_labels.clone(),
+            data: self.data,
+        }
+    }
+}
+
+pub trait PropLists<H: Handle> {
+    fn write_header(&self, w: &mut impl Write) -> Result<(), PlyError>;
+
+    fn serialize_block(&self, block: impl PlyBlock, handle: H) -> Result<(), PlyError>;
+}
+
+impl<H: Handle> PropLists<H> for HNil {
+    fn write_header(&self, _: &mut impl Write) -> Result<(), PlyError> {
+        Ok(())
+    }
+
+    fn serialize_block(&self, block: impl PlyBlock, _: H) -> Result<(), PlyError> {
+        block.finish()
+    }
+}
+
+impl<'a, H: Handle, Head, Tail> PropLists<H> for HCons<PropListDesc<'a, Head>, Tail>
+where
+    Head: PropMap<'a, H>,
+    Head::Target: PropListSerialize,
+    Tail: PropLists<H>,
+{
+    fn write_header(&self, w: &mut impl Write) -> Result<(), PlyError> {
+        for tl in &self.head.typed_labels {
+            write_header_property({w}, &tl.label, tl.data_type)?;
+        }
+        self.tail.write_header(w)
+    }
+
+    fn serialize_block(&self, mut block: impl PlyBlock, handle: H) -> Result<(), PlyError> {
+        for (i, tl) in self.head.typed_labels.iter().enumerate() {
+            match self.head.data.get(handle) {
+                Some(props) => block.add(props, i)?,
+                None => {
+                    panic!(
+                        "PropMap incomplete for property {:?} ({:?})",
+                        tl.label,
+                        tl.data_type,
+                    );
+                }
+            }
+        }
+        self.tail.serialize_block(block, handle)
+    }
+}
+
+pub trait PlyBlock {
+    // This function could return a `Serialize` instead with GATs
+    fn add(
+        &mut self,
+        props: impl PropListSerialize,
+        index: usize,
+    ) -> Result<(), PlyError>;
+
+    fn finish(self) -> Result<(), PlyError>;
+}
+
+
+pub struct PlyWriter<'a, MeshT: 'a, VertexL: PropLists<VertexHandle>> {
+    format: PlyFormat,
+    mesh: &'a MeshT,
+    vertex_props: VertexL,
     // vertex_prop_sets: Vec<PropertySet<'a, VertexHandle>>,
     // face_prop_sets: Vec<PropertySet<'a, FaceHandle>>,
     // vertex_prop_names: HashSet<String>,
     // face_prop_names: HashSet<String>,
 }
 
+impl<'a, MeshT> PlyWriter<'a, MeshT, HNil> {
+    pub fn tmp_new(format: PlyFormat, mesh: &'a MeshT) -> Self {
+        Self {
+            format,
+            mesh,
+            vertex_props: HNil,
+        }
+    }
+}
+
+impl<'a, MeshT, VertexL: PropLists<VertexHandle>> PlyWriter<'a, MeshT, VertexL> {
+    pub fn add_vertex_prop<MapT>(self, map: &'a MapT) -> PlyWriter<'a, MeshT, VertexL::Output>
+    where
+        MapT: PropMap<'a, VertexHandle>,
+        MapT::Target: PropListSerialize + LabeledPropList,
+        VertexL: Add<Hlist!(PropListDesc<'a, MapT>)>,
+        VertexL::Output: PropLists<VertexHandle>,
+    {
+        let typed_labels = (0..MapT::Target::num_props())
+            .map(|i| {
+                TypedLabel {
+                    label: MapT::Target::label_of(i),
+                    data_type: MapT::Target::data_type_of(i)
+                }
+            })
+            .collect();
+
+        let desc = PropListDesc {
+            typed_labels,
+            data: map,
+        };
+
+        PlyWriter {
+            format: self.format,
+            mesh: self.mesh,
+            vertex_props: self.vertex_props + hlist![desc],
+        }
+    }
+
+    pub fn add_vertex_prop_as<MapT>(
+        self,
+        map: &'a MapT,
+        labels: &[PropLabel],
+    ) -> PlyWriter<'a, MeshT, VertexL::Output>
+    where
+        MapT: PropMap<'a, VertexHandle>,
+        MapT::Target: PropListSerialize,
+        VertexL: Add<Hlist!(PropListDesc<'a, MapT>)>,
+        VertexL::Output: PropLists<VertexHandle>,
+    {
+        let typed_labels = labels.iter()
+            .cloned()
+            .enumerate()
+            .map(|(i, label)| {
+                TypedLabel {
+                    label: label,
+                    data_type: MapT::Target::data_type_of(i),
+                }
+            })
+            .collect();
+
+        let desc = PropListDesc {
+            typed_labels,
+            data: map,
+        };
+
+        PlyWriter {
+            format: self.format,
+            mesh: self.mesh,
+            vertex_props: self.vertex_props + hlist![desc],
+        }
+    }
+}
 
 
-impl<'a, MeshT> MeshWriter for PlyWriter<'a, MeshT>
+impl<'a, MeshT, VertexL> MeshWriter for PlyWriter<'a, MeshT, VertexL>
 where
+    VertexL: PropLists<VertexHandle> + HList + Clone,
     MeshT: ExplicitVertex + ExplicitFace,
     MeshT::VertexProp: LabeledPropList + PropListSerialize,
 {
     type Error = PlyError;
 
-    fn write(&mut self, mut w: impl Write) -> Result<(), Self::Error> {
+    fn write(&self, mut w: impl Write) -> Result<(), Self::Error> {
         // ===================================================================
         // Write header (this part is always ASCII)
         // ===================================================================
@@ -64,6 +220,8 @@ where
             let ty = MeshT::VertexProp::data_type_of(i);
             write_header_property(&mut w, &label, ty)?;
         }
+
+        self.vertex_props.write_header(&mut w)?;
         // for prop_set in &self.vertex_prop_sets {
         //     for label in &prop_set.labels {
         //         write_header_property(&mut w, label)?;
@@ -91,13 +249,40 @@ where
         //     PlyFormat::BinaryLittleEndian => PlyBinaryLePropSetSerializer::finish_block,
         // };
 
-        // for vertex_handle in self.mesh.vertices() {
-        //     for (i, prop) in self.vertex_prop_sets.iter().enumerate() {
-        //         (prop.serialize)(&mut w, i == 0, vertex_handle)?;
-        //     }
+        let mesh_vertex_props = {
+            let typed_labels = (0..MeshT::VertexProp::num_props())
+                .map(|i| {
+                    TypedLabel {
+                        label: MeshT::VertexProp::label_of(i),
+                        data_type: MeshT::VertexProp::data_type_of(i)
+                    }
+                })
+                .collect();
 
-        //     finish_block(&mut w)?;
-        // }
+            PropListDesc {
+                typed_labels,
+                data: &|handle| self.mesh.vertex_prop(handle),
+            }
+        };
+
+        let full_list = hlist!(mesh_vertex_props) + self.vertex_props.clone();
+        for v in self.mesh.vertices() {
+            let block = AsciiBlock {
+                writer: &mut w,
+                at_start: true,
+            };
+            // (hlist!(mesh_vertex_props.clone()) + self.vertex_props)
+            // hlist!(mesh_vertex_props.clone())
+            full_list
+                .serialize_block(block, v.handle())?;
+
+
+            // for (i, prop) in self.vertex_prop_sets.iter().enumerate() {
+            //     (prop.serialize)(&mut w, i == 0, vertex_handle)?;
+            // }
+
+            // finish_block(&mut w)?;
+        }
 
         // for face_handle in self.mesh.faces() {
         //     for (i, prop) in self.face_prop_sets.iter().enumerate() {
@@ -152,7 +337,7 @@ fn write_header_property(
             writeln!(w, "property list uint {} {}", ty_name, name)?;
         }
 
-        (PropLabel::Named(_name), DataType::FixedLen { .. }) => {
+        (PropLabel::Named(name), DataType::FixedLen { len, ty }) => {
             // // We know the length of all properties
             // // beforehand, so we can optimize and chose a
             // // small type to specify the length.
@@ -165,10 +350,14 @@ fn write_header_property(
             // } else {
             //     return Err(PlyError::FixedLenListTooLong(len));
             // };
+            let ty_name = primitive_ply_type_name(ty)?;
+            for i in 0..len {
+                writeln!(w, "property {} {}[{}]", ty_name, name, i)?;
+            }
 
             // let ty_name = primitive_ply_type_name(ty)?;
             // writeln!(w, "property list {} {} {}", len_type, ty_name, name)?;
-            unimplemented!()
+            // unimplemented!()
         }
     }
 
@@ -188,6 +377,33 @@ fn primitive_ply_type_name(ty: PrimitiveType) -> Result<&'static str, PlyError> 
         PrimitiveType::Float32 => Ok("float"),
         PrimitiveType::Float64 => Ok("double"),
         t => Err(PlyError::PrimitiveTypeNotSupported(t)),
+    }
+}
+
+struct AsciiBlock<'a, W: 'a + Write> {
+    writer: &'a mut W,
+    at_start: bool,
+}
+
+impl<'a, W: 'a + Write> PlyBlock for AsciiBlock<'a, W> {
+    fn add(
+        &mut self,
+        props: impl PropListSerialize,
+        index: usize,
+    ) -> Result<(), PlyError> {
+        if self.at_start {
+            self.at_start = false;
+        } else {
+            self.writer.write_all(b" ")?;
+        }
+
+        let ser = AsciiSerializer::new(self.writer);
+        props.serialize_at(index, ser)
+    }
+
+    fn finish(self) -> Result<(), PlyError> {
+        self.writer.write_all(b"\n")?;
+        Ok(())
     }
 }
 
@@ -257,167 +473,185 @@ fn primitive_ply_type_name(ty: PrimitiveType) -> Result<&'static str, PlyError> 
 
 
 
-// // ===========================================================================
-// // ===== PropSerializer for PLY
-// // ===========================================================================
+// ===========================================================================
+// ===== Serializer for PLY
+// ===========================================================================
 
-// /// Serializes primitives as PLY ASCII (simply using the `Display` impl).
-// struct PlyAsciiPropSerializer<'a, W: Write + 'a + ?Sized> {
-//     writer: &'a mut W,
-// }
+/// Serializes primitives as PLY ASCII (simply using the `Display` impl).
+struct AsciiSerializer<'a, W: Write + 'a + ?Sized> {
+    writer: &'a mut W,
+}
 
-// impl<'a, W: Write + 'a + ?Sized> PlyAsciiPropSerializer<'a, W> {
-//     fn new(w: &'a mut W) -> Self {
-//         Self {
-//             writer: w,
-//         }
-//     }
-// }
+impl<'a, W: Write + 'a + ?Sized> AsciiSerializer<'a, W> {
+    fn new(w: &'a mut W) -> Self {
+        Self {
+            writer: w,
+        }
+    }
+}
 
-// impl<'a, W: Write + 'a + ?Sized> PropSerializer for PlyAsciiPropSerializer<'a, W> {
-//     type Error = PlyError;
+impl<'a, W: Write + 'a + ?Sized> Serializer for AsciiSerializer<'a, W> {
+    type Error = PlyError;
 
-//     fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
-//         write!(self.writer, "{}", v).map_err(|e| e.into())
-//     }
-//     fn serialize_i8(self, v: i8) -> Result<(), Self::Error> {
-//         write!(self.writer, "{}", v).map_err(|e| e.into())
-//     }
-//     fn serialize_i16(self, v: i16) -> Result<(), Self::Error> {
-//         write!(self.writer, "{}", v).map_err(|e| e.into())
-//     }
-//     fn serialize_i32(self, v: i32) -> Result<(), Self::Error> {
-//         write!(self.writer, "{}", v).map_err(|e| e.into())
-//     }
-//     fn serialize_i64(self, v: i64) -> Result<(), Self::Error> {
-//         write!(self.writer, "{}", v).map_err(|e| e.into())
-//     }
-//     fn serialize_u8(self, v: u8) -> Result<(), Self::Error> {
-//         write!(self.writer, "{}", v).map_err(|e| e.into())
-//     }
-//     fn serialize_u16(self, v: u16) -> Result<(), Self::Error> {
-//         write!(self.writer, "{}", v).map_err(|e| e.into())
-//     }
-//     fn serialize_u32(self, v: u32) -> Result<(), Self::Error> {
-//         write!(self.writer, "{}", v).map_err(|e| e.into())
-//     }
-//     fn serialize_u64(self, v: u64) -> Result<(), Self::Error> {
-//         write!(self.writer, "{}", v).map_err(|e| e.into())
-//     }
-//     fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
-//         write!(self.writer, "{}", v).map_err(|e| e.into())
-//     }
-//     fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
-//         write!(self.writer, "{}", v).map_err(|e| e.into())
-//     }
+    fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_i8(self, v: i8) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_i16(self, v: i16) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_i32(self, v: i32) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_i64(self, v: i64) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_u8(self, v: u8) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_u16(self, v: u16) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_u32(self, v: u32) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_u64(self, v: u64) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+    fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
 
-//     fn serialize_fixed_len_seq<T: PropSerialize>(self, seq: &[T]) -> Result<(), Self::Error> {
-//         write!(self.writer, "{}", seq.len())?;
+    fn serialize_fixed_len_seq<T: Serialize>(self, seq: &[T]) -> Result<(), Self::Error> {
+        let mut first = true;
+        for v in seq {
+            if first {
+                first = false;
+            } else {
+                write!(self.writer, " ")?;
+            }
+            v.serialize(Self::new(self.writer))?;
+        }
 
-//         for v in seq {
-//             write!(self.writer, " ")?;
-//             v.serialize(Self::new(self.writer))?;
-//         }
+        Ok(())
+    }
 
-//         Ok(())
-//     }
+    fn serialize_variable_len_seq<T: Serialize>(self, seq: &[T]) -> Result<(), Self::Error> {
+        write!(self.writer, "{}", seq.len())?;
 
-//     fn serialize_variable_len_seq<T: PropSerialize>(self, v: &[T]) -> Result<(), Self::Error> {
-//         self.serialize_fixed_len_seq(v)
-//     }
+        for v in seq {
+            write!(self.writer, " ")?;
+            v.serialize(Self::new(self.writer))?;
+        }
 
-// }
+        Ok(())
+    }
+
+}
 
 
-// // The two binary primitive serializer are very similar. The macro avoids some
-// // duplicate code.
-// macro_rules! gen_binary_primitive_serializer {
-//     ($name:ident, $endianess:ident) => {
-//         struct $name<'a, W: Write + 'a + ?Sized> {
-//             writer: &'a mut W,
-//         }
+// The two binary primitive serializer are very similar. The macro avoids some
+// duplicate code.
+macro_rules! gen_binary_primitive_serializer {
+    ($name:ident, $endianess:ident) => {
+        struct $name<'a, W: Write + 'a + ?Sized> {
+            writer: &'a mut W,
+        }
 
-//         impl<'a, W: Write + 'a + ?Sized> $name<'a, W> {
-//             fn new(w: &'a mut W) -> Self {
-//                 Self {
-//                     writer: w,
-//                 }
-//             }
-//         }
+        impl<'a, W: Write + 'a + ?Sized> $name<'a, W> {
+            fn new(w: &'a mut W) -> Self {
+                Self {
+                    writer: w,
+                }
+            }
+        }
 
-//         impl<'a, W: Write + 'a + ?Sized> PropSerializer for $name<'a, W> {
-//             type Error = PlyError;
+        impl<'a, W: Write + 'a + ?Sized> Serializer for $name<'a, W> {
+            type Error = PlyError;
 
-//             fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
-//                 // We convert the bool to `u8` to serialize it, because PLY
-//                 // doesn't support booleans.
-//                 self.serialize_u8(if v { 1 } else { 0 })
-//             }
-//             fn serialize_i8(self, v: i8) -> Result<(), Self::Error> {
-//                 self.writer.write_i8(v).map_err(|e| e.into())
-//             }
-//             fn serialize_i16(self, v: i16) -> Result<(), Self::Error> {
-//                 self.writer.write_i16::<$endianess>(v).map_err(|e| e.into())
-//             }
-//             fn serialize_i32(self, v: i32) -> Result<(), Self::Error> {
-//                 self.writer.write_i32::<$endianess>(v).map_err(|e| e.into())
-//             }
-//             fn serialize_i64(self, v: i64) -> Result<(), Self::Error> {
-//                 self.writer.write_i64::<$endianess>(v).map_err(|e| e.into())
-//             }
-//             fn serialize_u8(self, v: u8) -> Result<(), Self::Error> {
-//                 self.writer.write_u8(v).map_err(|e| e.into())
-//             }
-//             fn serialize_u16(self, v: u16) -> Result<(), Self::Error> {
-//                 self.writer.write_u16::<$endianess>(v).map_err(|e| e.into())
-//             }
-//             fn serialize_u32(self, v: u32) -> Result<(), Self::Error> {
-//                 self.writer.write_u32::<$endianess>(v).map_err(|e| e.into())
-//             }
-//             fn serialize_u64(self, v: u64) -> Result<(), Self::Error> {
-//                 self.writer.write_u64::<$endianess>(v).map_err(|e| e.into())
-//             }
-//             fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
-//                 self.writer.write_f32::<$endianess>(v).map_err(|e| e.into())
-//             }
-//             fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
-//                 self.writer.write_f64::<$endianess>(v).map_err(|e| e.into())
-//             }
+            fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
+                // We convert the bool to `u8` to serialize it, because PLY
+                // doesn't support booleans.
+                self.serialize_u8(if v { 1 } else { 0 })
+            }
+            fn serialize_i8(self, v: i8) -> Result<(), Self::Error> {
+                self.writer.write_i8(v).map_err(|e| e.into())
+            }
+            fn serialize_i16(self, v: i16) -> Result<(), Self::Error> {
+                self.writer.write_i16::<$endianess>(v).map_err(|e| e.into())
+            }
+            fn serialize_i32(self, v: i32) -> Result<(), Self::Error> {
+                self.writer.write_i32::<$endianess>(v).map_err(|e| e.into())
+            }
+            fn serialize_i64(self, v: i64) -> Result<(), Self::Error> {
+                self.writer.write_i64::<$endianess>(v).map_err(|e| e.into())
+            }
+            fn serialize_u8(self, v: u8) -> Result<(), Self::Error> {
+                self.writer.write_u8(v).map_err(|e| e.into())
+            }
+            fn serialize_u16(self, v: u16) -> Result<(), Self::Error> {
+                self.writer.write_u16::<$endianess>(v).map_err(|e| e.into())
+            }
+            fn serialize_u32(self, v: u32) -> Result<(), Self::Error> {
+                self.writer.write_u32::<$endianess>(v).map_err(|e| e.into())
+            }
+            fn serialize_u64(self, v: u64) -> Result<(), Self::Error> {
+                self.writer.write_u64::<$endianess>(v).map_err(|e| e.into())
+            }
+            fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
+                self.writer.write_f32::<$endianess>(v).map_err(|e| e.into())
+            }
+            fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
+                self.writer.write_f64::<$endianess>(v).map_err(|e| e.into())
+            }
 
-//             fn serialize_fixed_len_seq<T: PropSerialize>(self, seq: &[T]) -> Result<(), Self::Error> {
-//                 let len = seq.len() as u64;
-//                 if len <= u8::max_value() as u64 {
-//                     self.writer.write_u8(len as u8)?;
-//                 } else if len <= u16::max_value() as u64 {
-//                     self.writer.write_u16::<$endianess>(len as u16)?;
-//                 } else if len <= u32::max_value() as u64 {
-//                     self.writer.write_u32::<$endianess>(len as u32)?;
-//                 } else {
-//                     return Err(PlyError::FixedLenListTooLong(len));
-//                 };
+            fn serialize_fixed_len_seq<T: Serialize>(self, seq: &[T]) -> Result<(), Self::Error> {
+                // let len = seq.len() as u64;
+                // if len <= u8::max_value() as u64 {
+                //     self.writer.write_u8(len as u8)?;
+                // } else if len <= u16::max_value() as u64 {
+                //     self.writer.write_u16::<$endianess>(len as u16)?;
+                // } else if len <= u32::max_value() as u64 {
+                //     self.writer.write_u32::<$endianess>(len as u32)?;
+                // } else {
+                //     return Err(PlyError::FixedLenListTooLong(len));
+                // };
 
-//                 for v in seq {
-//                     v.serialize(Self::new(self.writer))?;
-//                 }
+                // for v in seq {
+                //     v.serialize(Self::new(self.writer))?;
+                // }
 
-//                 Ok(())
-//             }
+                // Ok(())
 
-//             fn serialize_variable_len_seq<T: PropSerialize>(self, seq: &[T]) -> Result<(), Self::Error> {
-//                 self.writer.write_u32::<$endianess>(seq.len() as u32)?;
+                for v in seq {
+                    v.serialize(Self::new(self.writer))?;
+                }
 
-//                 for v in seq {
-//                     v.serialize(Self::new(self.writer))?;
-//                 }
+                Ok(())
 
-//                 Ok(())
-//             }
-//         }
-//     }
-// }
+                // unimplemented!()
+            }
 
-// gen_binary_primitive_serializer!(PlyBinaryBePropSerializer, BigEndian);
-// gen_binary_primitive_serializer!(PlyBinaryLePropSerializer, LittleEndian);
+            fn serialize_variable_len_seq<T: Serialize>(self, seq: &[T]) -> Result<(), Self::Error> {
+                self.writer.write_u32::<$endianess>(seq.len() as u32)?;
+
+                for v in seq {
+                    v.serialize(Self::new(self.writer))?;
+                }
+
+                Ok(())
+            }
+        }
+    }
+}
+
+gen_binary_primitive_serializer!(BinaryBeSerializer, BigEndian);
+gen_binary_primitive_serializer!(BinaryLeSerializer, LittleEndian);
 
 
 

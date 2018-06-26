@@ -276,6 +276,7 @@ pub enum PropLabel {
 /// are labeled. In other words: it's fine when the list contains only one
 /// property.
 pub trait LabeledPropList {
+    // TODO: Maybe this belongs into an own trait
     /// The number of properties in this list.
     fn num_props() -> usize;
 

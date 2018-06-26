@@ -10,6 +10,14 @@ use crate::{
     refs::{FaceRef, VertexRef},
 };
 
+
+/// The three basic elements in a polygon mesh.
+pub enum MeshElement {
+    Edge,
+    Face,
+    Vertex,
+}
+
 // Alternative names:
 // - HasVertices
 // - ExplicitVertex

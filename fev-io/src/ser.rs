@@ -2,6 +2,10 @@ use std::{
     fmt,
 };
 
+use fev_core::{
+    prop::PropLabel,
+};
+
 
 /// The primitive types of the `fev-io` data model.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -247,7 +251,7 @@ pub trait PropListSerialize {
     fn data_type_of(prop_index: usize) -> DataType;
 
     /// Serializes the property with the given index with the given serializer.
-    fn serialize<S: Serializer>(
+    fn serialize_at<S: Serializer>(
         &self,
         prop_index: usize,
         serializer: S,
@@ -259,11 +263,61 @@ impl<'a, T: 'a + PropListSerialize> PropListSerialize for &'a T {
         T::data_type_of(prop_index)
     }
 
-    fn serialize<S: Serializer>(
+    fn serialize_at<S: Serializer>(
         &self,
         prop_index: usize,
         serializer: S,
     ) -> Result<(), S::Error> {
-        (*self).serialize(prop_index, serializer)
+        (*self).serialize_at(prop_index, serializer)
+    }
+}
+
+// impl<T: Serialize> PropListSerialize for T {
+//     fn data_type_of(prop_index: usize) -> DataType {
+//         match prop_index {
+//             0 => T::DATA_TYPE,
+//             _ => unreachable!(),
+//         }
+//     }
+
+//     fn serialize_at<S: Serializer>(
+//         &self,
+//         prop_index: usize,
+//         serializer: S,
+//     ) -> Result<(), S::Error> {
+//         match prop_index {
+//             0 => self.serialize(serializer),
+//             _ => unreachable!(),
+//         }
+//     }
+// }
+
+
+#[derive(Clone, Debug)]
+pub struct TypedLabel {
+    pub label: PropLabel,
+    pub data_type: DataType,
+}
+
+
+pub struct SingleProp<T: Serialize>(pub T);
+
+impl<T: Serialize> PropListSerialize for SingleProp<T> {
+    fn data_type_of(prop_index: usize) -> DataType {
+        match prop_index {
+            0 => T::DATA_TYPE,
+            _ => unreachable!(),
+        }
+    }
+
+    fn serialize_at<S: Serializer>(
+        &self,
+        prop_index: usize,
+        serializer: S,
+    ) -> Result<(), S::Error> {
+        match prop_index {
+            0 => self.0.serialize(serializer),
+            _ => unreachable!(),
+        }
     }
 }
