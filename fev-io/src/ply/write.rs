@@ -5,6 +5,7 @@ use std::{
 };
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 use frunk::{
+    ToRef,
     prelude::*,
     HCons, HNil,
 };
@@ -16,6 +17,7 @@ use fev_core::{
 };
 use fev_map::{
     PropMap,
+    fn_map::FnMap,
 };
 
 use crate::{
@@ -39,13 +41,56 @@ impl<'a, M> Clone for PropListDesc<'a, M> {
     }
 }
 
-pub trait PropLists<H: Handle> {
+pub trait PlyPropListStoreAdd<H: Handle, N> {
+    type Out: PlyPropListStore<H>;
+    fn add(self, item: N) -> Self::Out;
+}
+
+impl<'a, H, MapT> PlyPropListStoreAdd<H, PropListDesc<'a, MapT>> for HNil
+where
+    H: Handle,
+    MapT: PropMap<'a, H>,
+{
+    type Out = Hlist!(PropListDesc<'a, MapT>);
+    fn add(self, item: PropListDesc<'a, MapT>) -> Self::Out {
+        hlist!(item)
+    }
+}
+
+impl<H, T, Head, Tail> PlyPropListStoreAdd<H, T> for HCons<Head, Tail>
+where
+    H: Handle,
+    Tail: PlyPropListStoreAdd<H, T>,
+{
+    type Out = HCons<Head, Tail::Out>;
+    fn add(self, item: T) -> Self::Out {
+        hlist!(self.head, ...self.tail.add(item))
+    }
+}
+
+pub trait PlyPropListStore<H: Handle>: HList {
+    // type Out;
+    // fn prepend_list<P: HList>(&self, p: P) -> Self::Out;
+}
+
+impl<L, H> PlyPropListStore<H> for L
+where
+    H: Handle,
+    L: HList,
+{
+    // type Out = <<Self as Add<P>>::Output;
+    // fn prepend_list<P: HList>(&self, p: P) -> Self::Out {
+
+    // }
+}
+
+pub trait WritePropList<H: Handle> {
     fn write_header(&self, w: &mut impl Write) -> Result<(), PlyError>;
 
     fn serialize_block(&self, block: impl PlyBlock, handle: H) -> Result<(), PlyError>;
 }
 
-impl<H: Handle> PropLists<H> for HNil {
+impl<H: Handle> WritePropList<H> for HNil {
     fn write_header(&self, _: &mut impl Write) -> Result<(), PlyError> {
         Ok(())
     }
@@ -55,11 +100,44 @@ impl<H: Handle> PropLists<H> for HNil {
     }
 }
 
-impl<'a, H: Handle, Head, Tail> PropLists<H> for HCons<PropListDesc<'a, Head>, Tail>
+impl<'a, H: Handle, L: WritePropList<H>> WritePropList<H> for &'a L {
+    fn write_header(&self, w: &mut impl Write) -> Result<(), PlyError> {
+        (*self).write_header(w)
+    }
+
+    fn serialize_block(&self, block: impl PlyBlock, handle: H) -> Result<(), PlyError> {
+        (*self).serialize_block(block, handle)
+    }
+}
+
+// impl<'a, H: Handle, MapT, Tail> WritePropList<H> for HCons<PropListDesc<'a, MapT>, Tail>
+// where
+//     MapT: PropMap<'a, H>,
+//     MapT::Target: WritePropListerialize,
+//     Tail: WritePropList<H>,
+// {
+//     fn write_header(&self, w: &mut impl Write) -> Result<(), PlyError> {
+//         hlist!(&self.head, ... self.tail).write_header(w)
+//     }
+
+//     fn serialize_block(&self, mut block: impl PlyBlock, handle: H) -> Result<(), PlyError> {
+
+//     }
+// }
+
+// impl<'a, H: Handle, L> WritePropList<H> for &'a L
+// where
+//     L: WritePropList<H>,
+// {
+
+// }
+
+
+impl<'a, H: Handle, MapT, Tail> WritePropList<H> for HCons<PropListDesc<'a, MapT>, Tail>
 where
-    Head: PropMap<'a, H>,
-    Head::Target: PropListSerialize,
-    Tail: PropLists<H>,
+    MapT: PropMap<'a, H>,
+    MapT::Target: PropListSerialize,
+    Tail: WritePropList<H>,
 {
     fn write_header(&self, w: &mut impl Write) -> Result<(), PlyError> {
         for tl in &self.head.typed_labels {
@@ -97,7 +175,7 @@ pub trait PlyBlock {
 }
 
 
-pub struct PlyWriter<'a, MeshT: 'a, VertexL: PropLists<VertexHandle>> {
+pub struct PlyWriter<'a, MeshT: 'a, VertexL: PlyPropListStore<VertexHandle>> {
     format: PlyFormat,
     mesh: &'a MeshT,
     vertex_props: VertexL,
@@ -117,13 +195,12 @@ impl<'a, MeshT> PlyWriter<'a, MeshT, HNil> {
     }
 }
 
-impl<'a, MeshT, VertexL: PropLists<VertexHandle>> PlyWriter<'a, MeshT, VertexL> {
-    pub fn add_vertex_prop<MapT>(self, map: &'a MapT) -> PlyWriter<'a, MeshT, VertexL::Output>
+impl<'a, MeshT, VertexL: PlyPropListStore<VertexHandle>> PlyWriter<'a, MeshT, VertexL> {
+    pub fn add_vertex_prop<MapT>(self, map: &'a MapT) -> PlyWriter<'a, MeshT, VertexL::Out>
     where
         MapT: PropMap<'a, VertexHandle>,
         MapT::Target: PropListSerialize + LabeledPropList,
-        VertexL: Add<Hlist!(PropListDesc<'a, MapT>)>,
-        VertexL::Output: PropLists<VertexHandle>,
+        VertexL: PlyPropListStoreAdd<VertexHandle, PropListDesc<'a, MapT>>,
     {
         let typed_labels = (0..MapT::Target::num_props())
             .map(|i| {
@@ -142,7 +219,7 @@ impl<'a, MeshT, VertexL: PropLists<VertexHandle>> PlyWriter<'a, MeshT, VertexL> 
         PlyWriter {
             format: self.format,
             mesh: self.mesh,
-            vertex_props: self.vertex_props + hlist![desc],
+            vertex_props: self.vertex_props.add(desc),
         }
     }
 
@@ -150,12 +227,11 @@ impl<'a, MeshT, VertexL: PropLists<VertexHandle>> PlyWriter<'a, MeshT, VertexL> 
         self,
         map: &'a MapT,
         labels: &[PropLabel],
-    ) -> PlyWriter<'a, MeshT, VertexL::Output>
+    ) -> PlyWriter<'a, MeshT, VertexL::Out>
     where
         MapT: PropMap<'a, VertexHandle>,
         MapT::Target: PropListSerialize,
-        VertexL: Add<Hlist!(PropListDesc<'a, MapT>)>,
-        VertexL::Output: PropLists<VertexHandle>,
+        VertexL: PlyPropListStoreAdd<VertexHandle, PropListDesc<'a, MapT>>,
     {
         let typed_labels = labels.iter()
             .cloned()
@@ -176,7 +252,7 @@ impl<'a, MeshT, VertexL: PropLists<VertexHandle>> PlyWriter<'a, MeshT, VertexL> 
         PlyWriter {
             format: self.format,
             mesh: self.mesh,
-            vertex_props: self.vertex_props + hlist![desc],
+            vertex_props: self.vertex_props.add(desc),
         }
     }
 }
@@ -184,13 +260,45 @@ impl<'a, MeshT, VertexL: PropLists<VertexHandle>> PlyWriter<'a, MeshT, VertexL> 
 
 impl<'a, MeshT, VertexL> MeshWriter for PlyWriter<'a, MeshT, VertexL>
 where
-    VertexL: PropLists<VertexHandle> + HList + Clone,
+    VertexL: WritePropList<VertexHandle> + PlyPropListStore<VertexHandle>,// + HList + for<'x> ToRef<'x>,
+    //for<'x> <VertexL as ToRef<'x>>::Output: HList + WritePropList<VertexHandle>,
+    // <Hlist!(&PropListDesc<'a, impl PropMap<'_, VertexHandle>>) as Add<VertexL::Output>>::Output: PropLists<VertexHandle>,
+    // for<'x> &'x VertexL: PropLists<VertexHandle> + HList,
     MeshT: ExplicitVertex + ExplicitFace,
     MeshT::VertexProp: LabeledPropList + PropListSerialize,
 {
     type Error = PlyError;
 
     fn write(&self, mut w: impl Write) -> Result<(), Self::Error> {
+        let mesh_vertex_props = {
+            let typed_labels = (0..MeshT::VertexProp::num_props())
+                .map(|i| {
+                    TypedLabel {
+                        label: MeshT::VertexProp::label_of(i),
+                        data_type: MeshT::VertexProp::data_type_of(i)
+                    }
+                })
+                .collect();
+
+            PropListDesc {
+                typed_labels,
+                data: &FnMap(|handle| self.mesh.vertex_prop(handle)),
+            }
+        };
+
+        // let test = &FnMap(|handle| self.mesh.vertex_prop(handle));
+        // PropMap::get(&test, VertexHandle::from_usize(0));
+
+        // let vertex_props = hlist!(&mesh_vertex_props) + self.vertex_props.to_ref();
+        let vertex_props = HCons {
+            head: mesh_vertex_props,
+            tail: &self.vertex_props,
+            // tail: HNil,
+        };
+
+
+
+
         // ===================================================================
         // Write header (this part is always ASCII)
         // ===================================================================
@@ -215,13 +323,13 @@ where
 
         // Define `vertex` element with all properties
         writeln!(w, "element vertex {}", self.mesh.num_vertices())?;
-        for i in 0..MeshT::VertexProp::num_props() {
-            let label = MeshT::VertexProp::label_of(i);
-            let ty = MeshT::VertexProp::data_type_of(i);
-            write_header_property(&mut w, &label, ty)?;
-        }
+        // for i in 0..MeshT::VertexProp::num_props() {
+        //     let label = MeshT::VertexProp::label_of(i);
+        //     let ty = MeshT::VertexProp::data_type_of(i);
+        //     write_header_property(&mut w, &label, ty)?;
+        // }
 
-        self.vertex_props.write_header(&mut w)?;
+        vertex_props.write_header(&mut w)?;
         // for prop_set in &self.vertex_prop_sets {
         //     for label in &prop_set.labels {
         //         write_header_property(&mut w, label)?;
@@ -249,23 +357,8 @@ where
         //     PlyFormat::BinaryLittleEndian => PlyBinaryLePropSetSerializer::finish_block,
         // };
 
-        let mesh_vertex_props = {
-            let typed_labels = (0..MeshT::VertexProp::num_props())
-                .map(|i| {
-                    TypedLabel {
-                        label: MeshT::VertexProp::label_of(i),
-                        data_type: MeshT::VertexProp::data_type_of(i)
-                    }
-                })
-                .collect();
 
-            PropListDesc {
-                typed_labels,
-                data: &|handle| self.mesh.vertex_prop(handle),
-            }
-        };
 
-        let full_list = hlist!(mesh_vertex_props) + self.vertex_props.clone();
         for v in self.mesh.vertices() {
             let block = AsciiBlock {
                 writer: &mut w,
@@ -273,7 +366,7 @@ where
             };
             // (hlist!(mesh_vertex_props.clone()) + self.vertex_props)
             // hlist!(mesh_vertex_props.clone())
-            full_list
+            vertex_props
                 .serialize_block(block, v.handle())?;
 
 

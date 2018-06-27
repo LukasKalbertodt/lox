@@ -7,7 +7,7 @@ use failure::Error;
 use fev::{
     impls::sv::SharedVertexMesh,
     prop::{LabeledPropList, PropLabel},
-    map::{VertexVecMap, PropStoreMut},
+    map::{VertexVecMap, PropStoreMut, fn_map::FnMap},
     io::{
         MeshWriter,
         ser::{DataType, PropListSerialize, Serializer, Serialize, SingleProp},
@@ -107,7 +107,7 @@ fn main() -> Result<(), Error> {
 
     PlyWriter::tmp_new(PlyFormat::Ascii, &mesh)
         .add_vertex_prop(&vm)
-        .add_vertex_prop_as(&|_| Some(SingleProp(7)), &[PropLabel::Named("peter".into())])
+        .add_vertex_prop_as(&FnMap(|_| Some(SingleProp(7))), &[PropLabel::Named("peter".into())])
         .write_to_stdout()?;
 
     // println!("{:#?}", mesh);
