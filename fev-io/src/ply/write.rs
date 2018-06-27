@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     io::Write,
 };
 use frunk::{
@@ -6,7 +7,7 @@ use frunk::{
 };
 
 use fev_core::{
-    ExplicitVertex, ExplicitFace,
+    ExplicitVertex, ExplicitFace, MeshElement,
     handle::{VertexHandle},
     prop::{LabeledPropList, PropLabel},
 };
@@ -28,60 +29,65 @@ pub struct PlyWriter<'a, MeshT: 'a, VertexL: PlyPropTopList<VertexHandle>> {
     format: PlyFormat,
     mesh: &'a MeshT,
     vertex_props: VertexL,
-    // vertex_prop_sets: Vec<PropertySet<'a, VertexHandle>>,
-    // face_prop_sets: Vec<PropertySet<'a, FaceHandle>>,
-    // vertex_prop_names: HashSet<String>,
-    // face_prop_names: HashSet<String>,
+    vertex_prop_names: HashMap<String, TypedLabel>,
 }
 
-impl<'a, MeshT> PlyWriter<'a, MeshT, HNil> {
-    pub fn tmp_new(format: PlyFormat, mesh: &'a MeshT) -> Self {
-        Self {
+impl<'a, MeshT> PlyWriter<'a, MeshT, HNil>
+where
+    MeshT: ExplicitVertex + ExplicitFace,
+    MeshT::VertexProp: LabeledPropList + PropListSerialize,
+{
+    pub fn tmp_new(format: PlyFormat, mesh: &'a MeshT) -> Result<Self, PlyError> {
+        let mut vertex_prop_names = HashMap::new();
+        let typed_labels = MeshT::VertexProp::typed_labels();
+        Self::add_names(&mut vertex_prop_names, &typed_labels)?;
+
+        Ok(Self {
             format,
             mesh,
             vertex_props: HNil,
-        }
+            vertex_prop_names,
+        })
     }
 }
 
 impl<'a, MeshT, VertexL: PlyPropTopList<VertexHandle>> PlyWriter<'a, MeshT, VertexL> {
-    pub fn add_vertex_prop<MapT>(self, map: &'a MapT) -> PlyWriter<'a, MeshT, VertexL::Out>
+    pub fn add_vertex_prop<MapT>(
+        mut self,
+        map: &'a MapT,
+    ) -> Result<PlyWriter<'a, MeshT, VertexL::Out>, PlyError>
     where
         MapT: PropMap<'a, VertexHandle>,
         MapT::Target: PropListSerialize + LabeledPropList,
         VertexL: PlyPropTopListAdd<VertexHandle, PropListDesc<'a, MapT>>,
     {
-        let typed_labels = (0..MapT::Target::num_props())
-            .map(|i| {
-                TypedLabel {
-                    label: MapT::Target::label_of(i),
-                    data_type: MapT::Target::data_type_of(i)
-                }
-            })
-            .collect();
-
         let desc = PropListDesc {
-            typed_labels,
+            typed_labels: MapT::Target::typed_labels(),
             data: map,
         };
 
-        PlyWriter {
+        Self::add_names(&mut self.vertex_prop_names, &desc.typed_labels)?;
+
+        Ok(PlyWriter {
             format: self.format,
             mesh: self.mesh,
             vertex_props: self.vertex_props.add(desc),
-        }
+            vertex_prop_names: self.vertex_prop_names,
+        })
     }
 
     pub fn add_vertex_prop_as<MapT>(
-        self,
+        mut self,
         map: &'a MapT,
         labels: &[PropLabel],
-    ) -> PlyWriter<'a, MeshT, VertexL::Out>
+    ) -> Result<PlyWriter<'a, MeshT, VertexL::Out>, PlyError>
     where
         MapT: PropMap<'a, VertexHandle>,
         MapT::Target: PropListSerialize,
         VertexL: PlyPropTopListAdd<VertexHandle, PropListDesc<'a, MapT>>,
     {
+        // Obtain typed labels from `labels` array and from the `MapT::Target`
+        // type information.
         let typed_labels = labels.iter()
             .cloned()
             .enumerate()
@@ -93,16 +99,49 @@ impl<'a, MeshT, VertexL: PlyPropTopList<VertexHandle>> PlyWriter<'a, MeshT, Vert
             })
             .collect();
 
+
         let desc = PropListDesc {
             typed_labels,
             data: map,
         };
 
-        PlyWriter {
+        Self::add_names(&mut self.vertex_prop_names, &desc.typed_labels)?;
+
+        Ok(PlyWriter {
             format: self.format,
             mesh: self.mesh,
             vertex_props: self.vertex_props.add(desc),
+            vertex_prop_names: self.vertex_prop_names,
+        })
+    }
+
+    /// Adds the PLY property names of all typed labels to the given hash map
+    /// and checks for duplicate names. If a duplicate name is found,
+    /// `PlyError::NameAlreadyInUse` is returned.
+    fn add_names(
+        names: &mut HashMap<String, TypedLabel>,
+        typed_labels: &[TypedLabel],
+    ) -> Result<(), PlyError> {
+        for tl in typed_labels {
+            let new_names = names_of_prop(&tl);
+
+            // Check for duplicates
+            if let Some(name) = new_names.iter().find(|s| names.contains_key(*s)) {
+                return Err(
+                    PlyError::NameAlreadyInUse {
+                        name: name.clone(),
+                        element: MeshElement::Vertex, // TODO
+                        old_label: names.get(name).unwrap().clone(),
+                        new_label: tl.clone(),
+                    }
+                );
+            }
+
+            // Add new names to map
+            names.extend(new_names.into_iter().map(|s| (s, tl.clone())));
         }
+
+        Ok(())
     }
 }
 
@@ -388,6 +427,7 @@ mod internal {
     /// Writes the header entry for one property to the given writer.
     fn write_header_property(
         w: &mut impl Write,
+        // TODO: Replace with TypedLabel
         label: &PropLabel,
         data_type: DataType,
     ) -> Result<(), PlyError> {
@@ -450,6 +490,20 @@ mod internal {
             PrimitiveType::Float32 => Ok("float"),
             PrimitiveType::Float64 => Ok("double"),
             t => Err(PlyError::PrimitiveTypeNotSupported(t)),
+        }
+    }
+
+    pub (in ply) fn names_of_prop(tl: &TypedLabel) -> Vec<String> {
+        match (&tl.label, tl.data_type) {
+            (PropLabel::Position, _) => vec!["x".into(), "y".into(), "z".into()],
+            (PropLabel::Normal, _) => vec!["nx".into(), "ny".into(), "nz".into()],
+
+            (PropLabel::Named(name), DataType::Single(_)) |
+            (PropLabel::Named(name), DataType::VariableLen(_)) => vec![name.clone()],
+
+            (PropLabel::Named(name), DataType::FixedLen { len, .. }) => {
+                (0..len).map(|i| format!("{}[{}]", name, i)).collect()
+            }
         }
     }
 

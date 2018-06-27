@@ -3,7 +3,7 @@ use std::{
 };
 
 use fev_core::{
-    prop::PropLabel,
+    prop::{LabeledPropList, PropLabel},
 };
 
 
@@ -56,6 +56,8 @@ pub enum DataType {
 
     /// Multiple values of a primitive type with a fixed number of values,
     /// specified by `len`.
+    ///
+    /// `len` is expected to be a fairly small number.
     FixedLen {
         ty: PrimitiveType,
         len: u64,
@@ -256,6 +258,18 @@ pub trait PropListSerialize {
         prop_index: usize,
         serializer: S,
     ) -> Result<(), S::Error>;
+
+    fn typed_labels() -> Vec<TypedLabel>
+    where
+        Self: LabeledPropList,
+    {
+        (0..Self::num_props()).map(|i| {
+            TypedLabel {
+                label: Self::label_of(i),
+                data_type: Self::data_type_of(i)
+            }
+        }).collect()
+    }
 }
 
 impl<'a, T: 'a + PropListSerialize> PropListSerialize for &'a T {
@@ -293,10 +307,16 @@ impl<'a, T: 'a + PropListSerialize> PropListSerialize for &'a T {
 // }
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct TypedLabel {
     pub label: PropLabel,
     pub data_type: DataType,
+}
+
+impl fmt::Debug for TypedLabel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}: {:?}", self.label, self.data_type)
+    }
 }
 
 

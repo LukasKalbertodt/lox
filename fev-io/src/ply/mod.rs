@@ -7,8 +7,9 @@ use std::{
 
 pub mod write;
 
+use fev_core::{MeshElement};
 use crate::{
-    ser::{PrimitiveType},
+    ser::{PrimitiveType, TypedLabel},
 };
 
 // use byteorder::{WriteBytesExt, BigEndian, LittleEndian};
@@ -150,16 +151,20 @@ pub enum PlyError {
     // )]
     // FixedLenListTooLong(u64),
 
-    // #[fail(display =
-    //     "attempt to add {} property '{}' to PLY file, but a property with that name has already been \
-    //     added",
-    //     element,
-    //     label,
-    // )]
-    // LabelAlreadyInUse {
-    //     label: String,
-    //     element: ElementKind,
-    // },
+    #[fail(display =
+        "attempt to add {} property `{:?}` to PLY file which uses the field name '{}', but a \
+         property with that name has already been added ({:?})",
+        element,
+        new_label,
+        name,
+        old_label,
+    )]
+    NameAlreadyInUse {
+        name: String,
+        element: MeshElement,
+        old_label: TypedLabel,
+        new_label: TypedLabel,
+    },
 
     // TODO: remove this
     #[fail(display = "something :(")]
