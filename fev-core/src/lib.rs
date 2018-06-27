@@ -5,6 +5,8 @@ pub mod handle;
 pub mod prop;
 pub mod refs;
 
+use std::fmt;
+
 use crate::{
     handle::{DefaultId, FaceHandle, VertexHandle},
     refs::{FaceRef, VertexRef},
@@ -12,10 +14,21 @@ use crate::{
 
 
 /// The three basic elements in a polygon mesh.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MeshElement {
     Edge,
     Face,
     Vertex,
+}
+
+impl fmt::Display for MeshElement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            MeshElement::Edge => "edge",
+            MeshElement::Face => "face",
+            MeshElement::Vertex => "vertex",
+        }.fmt(f)
+    }
 }
 
 // Alternative names:
