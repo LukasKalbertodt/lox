@@ -64,3 +64,8 @@ pub trait ExplicitFace {
         Self: Sized;
     // TODO: visit_mut
 }
+
+
+pub trait MeshUnsorted {
+    fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3];
+}
