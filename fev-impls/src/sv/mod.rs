@@ -4,6 +4,7 @@
 use fev_core::{
     ExplicitVertex,
     ExplicitFace,
+    MeshUnsorted,
     handle::{DefaultId, FaceHandle, VertexHandle},
     refs::{FaceRef, VertexRef},
 };
@@ -32,13 +33,6 @@ impl<VertexT, FaceT> SharedVertexMesh<VertexT, FaceT> {
         }
     }
 
-    pub fn vertices_of_face(
-        &self,
-        face: FaceHandle,
-    ) -> [VertexHandle; 3] {
-        self.faces[face].vertices
-    }
-
     pub fn add_vertex(&mut self, prop: VertexT) -> VertexHandle {
         self.vertices.push(prop)
     }
@@ -51,6 +45,15 @@ impl<VertexT, FaceT> SharedVertexMesh<VertexT, FaceT> {
         Self::new()
     }
 
+}
+
+impl<VertexT, FaceT> MeshUnsorted for SharedVertexMesh<VertexT, FaceT> {
+    fn vertices_of_face(
+        &self,
+        face: FaceHandle,
+    ) -> [VertexHandle; 3] {
+        self.faces[face].vertices
+    }
 }
 
 impl<VertexT, FaceT> ExplicitVertex for SharedVertexMesh<VertexT, FaceT> {
