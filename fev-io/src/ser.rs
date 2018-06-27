@@ -3,6 +3,7 @@ use std::{
 };
 
 use fev_core::{
+    handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
     prop::{LabeledPropList, PropLabel},
 };
 
@@ -185,6 +186,27 @@ impl_serialize_for_tuple!(3, T, (T, T, T) => a, b, c);
 impl_serialize_for_tuple!(4, T, (T, T, T, T) => a, b, c, d);
 impl_serialize_for_tuple!(5, T, (T, T, T, T, T) => a, b, c, d, e);
 impl_serialize_for_tuple!(6, T, (T, T, T, T, T, T) => a, b, c, d, e, f);
+
+macro_rules! impl_serialize_for_handle {
+    ($name:ident) => {
+        impl Serialize for $name {
+            // TODO: change if index has a different type.
+            const DATA_TYPE: DataType = DataType::Single(PrimitiveType::Uint32);
+
+            fn serialize<S: Serializer>(&self, serializer: S) -> Result<(), S::Error> {
+                serializer.serialize_u32(self.id())
+            }
+        }
+
+        impl SinglePrimitive for $name {
+            const PRIMITIVE_TYPE: PrimitiveType = PrimitiveType::Uint32;
+        }
+    }
+}
+
+impl_serialize_for_handle!(EdgeHandle);
+impl_serialize_for_handle!(FaceHandle);
+impl_serialize_for_handle!(VertexHandle);
 
 
 /// A type that can serialize a subset of the types from  the `fev-io` data
