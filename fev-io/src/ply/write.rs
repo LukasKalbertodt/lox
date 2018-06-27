@@ -7,8 +7,8 @@ use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 use frunk::{HCons, HNil};
 
 use fev_core::{
-    ExplicitVertex, ExplicitFace, MeshElement,
-    handle::{Handle, VertexHandle},
+    ExplicitVertex, ExplicitFace, MeshElement, MeshUnsorted,
+    handle::{Handle, FaceHandle, VertexHandle},
     prop::{LabeledPropList, PropLabel},
 };
 use fev_map::{
@@ -18,43 +18,65 @@ use fev_map::{
 
 use crate::{
     MeshWriter,
-    ser::{DataType, PrimitiveType, Serialize, Serializer, PropListSerialize, TypedLabel},
+    ser::{
+        DataType, PrimitiveType, Serialize, Serializer, PropListSerialize, TypedLabel, SingleProp
+    },
 };
 use super::{PlyError, PlyFormat};
 
 
+const INDICES_NAME: &str = "vertex_indices";
 
-pub struct PlyWriter<'a, MeshT: 'a, VertexL: PlyPropTopList<VertexHandle>> {
+
+pub struct PlyWriter<'a, MeshT, VertexL, FaceL>
+where
+    MeshT: 'a,
+    VertexL: PlyPropTopList<VertexHandle>,
+    FaceL: PlyPropTopList<FaceHandle>,
+ {
     format: PlyFormat,
     mesh: &'a MeshT,
     vertex_props: VertexL,
     vertex_prop_names: HashMap<String, TypedLabel>,
+    face_props: FaceL,
+    face_prop_names: HashMap<String, TypedLabel>,
 }
 
-impl<'a, MeshT> PlyWriter<'a, MeshT, HNil>
+impl<'a, MeshT> PlyWriter<'a, MeshT, HNil, HNil>
 where
-    MeshT: ExplicitVertex + ExplicitFace,
+    MeshT: ExplicitVertex + ExplicitFace + MeshUnsorted,
     MeshT::VertexProp: LabeledPropList + PropListSerialize,
 {
     pub fn tmp_new(format: PlyFormat, mesh: &'a MeshT) -> Result<Self, PlyError> {
+        // Prepare names of vertex properties
         let mut vertex_prop_names = HashMap::new();
         let typed_labels = MeshT::VertexProp::typed_labels();
         Self::add_names(&mut vertex_prop_names, &typed_labels)?;
+
+        // Prepare names of face property
+        let mut face_prop_names = HashMap::new();
+        face_prop_names.insert(INDICES_NAME.into(), typed_label_of_vertex_indices());
 
         Ok(Self {
             format,
             mesh,
             vertex_props: HNil,
             vertex_prop_names,
+            face_props: HNil,
+            face_prop_names,
         })
     }
 }
 
-impl<'a, MeshT, VertexL: PlyPropTopList<VertexHandle>> PlyWriter<'a, MeshT, VertexL> {
+impl<'a, MeshT, VertexL, FaceL> PlyWriter<'a, MeshT, VertexL, FaceL>
+where
+    VertexL: PlyPropTopList<VertexHandle>,
+    FaceL: PlyPropTopList<FaceHandle>,
+{
     pub fn add_vertex_prop<MapT>(
         mut self,
         map: &'a MapT,
-    ) -> Result<PlyWriter<'a, MeshT, VertexL::Out>, PlyError>
+    ) -> Result<PlyWriter<'a, MeshT, VertexL::Out, FaceL>, PlyError>
     where
         MapT: PropMap<'a, VertexHandle>,
         MapT::Target: PropListSerialize + LabeledPropList,
@@ -72,6 +94,8 @@ impl<'a, MeshT, VertexL: PlyPropTopList<VertexHandle>> PlyWriter<'a, MeshT, Vert
             mesh: self.mesh,
             vertex_props: self.vertex_props.add(desc),
             vertex_prop_names: self.vertex_prop_names,
+            face_props: self.face_props,
+            face_prop_names: self.face_prop_names,
         })
     }
 
@@ -79,7 +103,7 @@ impl<'a, MeshT, VertexL: PlyPropTopList<VertexHandle>> PlyWriter<'a, MeshT, Vert
         mut self,
         map: &'a MapT,
         labels: &[PropLabel],
-    ) -> Result<PlyWriter<'a, MeshT, VertexL::Out>, PlyError>
+    ) -> Result<PlyWriter<'a, MeshT, VertexL::Out, FaceL>, PlyError>
     where
         MapT: PropMap<'a, VertexHandle>,
         MapT::Target: PropListSerialize,
@@ -111,6 +135,8 @@ impl<'a, MeshT, VertexL: PlyPropTopList<VertexHandle>> PlyWriter<'a, MeshT, Vert
             mesh: self.mesh,
             vertex_props: self.vertex_props.add(desc),
             vertex_prop_names: self.vertex_prop_names,
+            face_props: self.face_props,
+            face_prop_names: self.face_prop_names,
         })
     }
 
@@ -145,46 +171,40 @@ impl<'a, MeshT, VertexL: PlyPropTopList<VertexHandle>> PlyWriter<'a, MeshT, Vert
 }
 
 
-impl<'a, MeshT, VertexL> MeshWriter for PlyWriter<'a, MeshT, VertexL>
+impl<'a, MeshT, VertexL, FaceL,> MeshWriter for PlyWriter<'a, MeshT, VertexL, FaceL>
 where
     VertexL: PlyPropTopList<VertexHandle>,
-    MeshT: ExplicitVertex + ExplicitFace,
+    FaceL: PlyPropTopList<FaceHandle>,
+    MeshT: ExplicitVertex + ExplicitFace + MeshUnsorted,
     MeshT::VertexProp: LabeledPropList + PropListSerialize,
 {
     type Error = PlyError;
 
     fn write(&self, mut w: impl Write) -> Result<(), Self::Error> {
-        let mesh_vertex_props = {
-            let typed_labels = (0..MeshT::VertexProp::num_props())
-                .map(|i| {
-                    TypedLabel {
-                        label: MeshT::VertexProp::label_of(i),
-                        data_type: MeshT::VertexProp::data_type_of(i)
-                    }
-                })
-                .collect();
-
-            PropListDesc {
-                typed_labels,
-                data: &FnMap(|handle| self.mesh.vertex_prop(handle)),
-            }
+        // ===================================================================
+        // ===== Combine properties from maps with properties from mesh
+        // ===================================================================
+        // Vertex
+        let mesh_vertex_props = PropListDesc {
+            typed_labels: MeshT::VertexProp::typed_labels(),
+            data: &FnMap(|handle| self.mesh.vertex_prop(handle)),
         };
+        let vertex_props = hlist!(mesh_vertex_props, ...&self.vertex_props);
 
-        // let test = &FnMap(|handle| self.mesh.vertex_prop(handle));
-        // PropMap::get(&test, VertexHandle::from_usize(0));
-
-        // let vertex_props = hlist!(&mesh_vertex_props) + self.vertex_props.to_ref();
-        let vertex_props = HCons {
-            head: mesh_vertex_props,
-            tail: &self.vertex_props,
-            // tail: HNil,
-        };
-
-
+        // Face
+        // TODO: this needs to be fixed. The typed labels doesnt fit the
+        // PropListSerialize and it uses `uint` as length type, which is way
+        // too much.
+        // let mesh_face_props = PropListDesc {
+        //     typed_labels: vec![typed_label_of_vertex_indices()],
+        //     data: &FnMap(|handle| Some(SingleProp(&self.mesh.vertices_of_face(handle)))),
+        // };
+        // let face_props = hlist!(mesh_face_props, ...&self.face_props);
+        let face_props = &self.face_props;
 
 
         // ===================================================================
-        // Write header (this part is always ASCII)
+        // ===== Write header (this part is always ASCII)
         // ===================================================================
         // Magic signature
         w.write_all(b"ply\n")?;
@@ -207,69 +227,39 @@ where
 
         // Define `vertex` element with all properties
         writeln!(w, "element vertex {}", self.mesh.num_vertices())?;
-        // for i in 0..MeshT::VertexProp::num_props() {
-        //     let label = MeshT::VertexProp::label_of(i);
-        //     let ty = MeshT::VertexProp::data_type_of(i);
-        //     write_header_property(&mut w, &label, ty)?;
-        // }
-
         vertex_props.write_header(&mut w)?;
-        // for prop_set in &self.vertex_prop_sets {
-        //     for label in &prop_set.labels {
-        //         write_header_property(&mut w, label)?;
-        //     }
-        // }
 
         // Define `face` element with all properties
         writeln!(w, "element face {}", self.mesh.num_faces())?;
-        // for prop_set in &self.face_prop_sets {
-        //     for label in &prop_set.labels {
-        //         write_header_property(&mut w, label)?;
-        //     }
-        // }
+        writeln!(w, "property list uchar uint vertex_indices")?;
+        face_props.write_header(&mut w)?;
 
         w.write_all(b"end_header\n")?;
 
 
         // ===================================================================
-        // Write body
+        // ===== Write body
         // ===================================================================
-
-        // let finish_block = match self.format {
-        //     PlyFormat::Ascii => PlyAsciiPropSetSerializer::finish_block,
-        //     PlyFormat::BinaryBigEndian => PlyBinaryBePropSetSerializer::finish_block,
-        //     PlyFormat::BinaryLittleEndian => PlyBinaryLePropSetSerializer::finish_block,
-        // };
-
-
 
         for v in self.mesh.vertices() {
             let block = AsciiBlock::new(&mut w);
-            // (hlist!(mesh_vertex_props.clone()) + self.vertex_props)
-            // hlist!(mesh_vertex_props.clone())
-            vertex_props
-                .serialize_block(block, v.handle())?;
-
-
-            // for (i, prop) in self.vertex_prop_sets.iter().enumerate() {
-            //     (prop.serialize)(&mut w, i == 0, vertex_handle)?;
-            // }
-
-            // finish_block(&mut w)?;
+            vertex_props.serialize_block(block, v.handle())?;
         }
 
-        // for face_handle in self.mesh.faces() {
-        //     for (i, prop) in self.face_prop_sets.iter().enumerate() {
-        //         (prop.serialize)(&mut w, i == 0, face_handle)?;
-        //     }
+        for f in self.mesh.faces() {
+            let mut block = AsciiBlock::new(&mut w);
 
-        //     finish_block(&mut w)?;
-        // }
+            // Write special `vertex_indices` data
+            block.add(SingleProp(3), 0)?;
+            block.add(SingleProp(self.mesh.vertices_of_face(f.handle())), 0)?;
+
+            // Write other face properties
+            face_props.serialize_block(block, f.handle())?;
+        }
 
         Ok(())
     }
 }
-
 
 
 
@@ -280,10 +270,10 @@ where
 /// The internal representation of a single property list.
 pub struct PropListDesc<'a, M: 'a> {
     /// The labels and types of the properties in this list.
-    pub(in ply) typed_labels: Vec<TypedLabel>,
+    typed_labels: Vec<TypedLabel>,
 
     /// The map holding the properties.
-    pub(in ply) data: &'a M,
+    data: &'a M,
 }
 
 /// A heterogeneous list of property lists that can be serialized into a
@@ -462,7 +452,7 @@ fn primitive_ply_type_name(ty: PrimitiveType) -> Result<&'static str, PlyError> 
     }
 }
 
-pub (in ply) fn names_of_prop(tl: &TypedLabel) -> Vec<String> {
+fn names_of_prop(tl: &TypedLabel) -> Vec<String> {
     match (&tl.label, tl.data_type) {
         (PropLabel::Position, _) => vec!["x".into(), "y".into(), "z".into()],
         (PropLabel::Normal, _) => vec!["nx".into(), "ny".into(), "nz".into()],
@@ -473,6 +463,14 @@ pub (in ply) fn names_of_prop(tl: &TypedLabel) -> Vec<String> {
         (PropLabel::Named(name), DataType::FixedLen { len, .. }) => {
             (0..len).map(|i| format!("{}[{}]", name, i)).collect()
         }
+    }
+}
+
+fn typed_label_of_vertex_indices() -> TypedLabel {
+    TypedLabel {
+        label: PropLabel::Named(INDICES_NAME.into()),
+        // TODO: fix in far future (when indices are not necessarily u32 anymore)
+        data_type: DataType::VariableLen(PrimitiveType::Uint32),
     }
 }
 
@@ -502,13 +500,13 @@ pub trait PlyBlock {
 }
 
 
-pub(in ply) struct AsciiBlock<'a, W: 'a + Write> {
+struct AsciiBlock<'a, W: 'a + Write> {
     writer: &'a mut W,
     at_start: bool,
 }
 
 impl<'a, W: 'a + Write> AsciiBlock<'a, W> {
-    pub(in ply) fn new(w: &'a mut W) -> Self {
+    fn new(w: &'a mut W) -> Self {
         Self {
             writer: w,
             at_start: true,
@@ -691,7 +689,10 @@ macro_rules! gen_binary_primitive_serializer {
                 Ok(())
             }
 
-            fn serialize_variable_len_seq<T: Serialize>(self, seq: &[T]) -> Result<(), Self::Error> {
+            fn serialize_variable_len_seq<T: Serialize>(
+                self,
+                seq: &[T],
+            ) -> Result<(), Self::Error> {
                 self.writer.write_u32::<$endianess>(seq.len() as u32)?;
 
                 for v in seq {
