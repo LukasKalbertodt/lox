@@ -1,6 +1,7 @@
 //! ...
 
 #![feature(crate_in_paths)]
+#![feature(rust_2018_preview)]
 
 extern crate fev_core;
 extern crate stable_vec;
@@ -18,10 +19,12 @@ use fev_core::{
 mod foreign_impls;
 
 pub mod aliases;
+pub mod fn_map;
 pub mod hash_map;
 pub mod vec_map;
 
 pub use self::aliases::*;
+pub use fn_map::FnMap;
 pub use hash_map::HashMap;
 pub use vec_map::VecMap;
 

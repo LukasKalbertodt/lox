@@ -3,17 +3,15 @@ use fev_core::handle::Handle;
 use super::PropMap;
 
 
-// ===========================================================================
-// ===== Impls for closures and the like
-// ===========================================================================
-impl<'s, H, F, OutT> PropMap<'s, H> for F
+// References to prop maps are prop maps
+impl<'s, M, H> PropMap<'s, H> for &'s M
 where
+    M: PropMap<'s, H>,
     H: Handle,
-    F: Fn(H) -> Option<OutT>,
 {
-    type Target = OutT;
+    type Target = M::Target;
 
     fn get(&'s self, handle: H) -> Option<Self::Target> {
-        self(handle)
+        <M as PropMap<'s, H>>::get(*self, handle)
     }
 }
