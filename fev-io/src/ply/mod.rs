@@ -4,13 +4,15 @@ use std::{
     io,
 };
 
-
-pub mod write;
-
 use fev_core::{MeshElement};
 use crate::{
     ser::{PrimitiveType, TypedLabel},
 };
+
+
+mod write;
+
+pub use self::write::PlyWriter;
 
 // use byteorder::{WriteBytesExt, BigEndian, LittleEndian};
 

@@ -13,7 +13,7 @@ use fev::{
         ser::{DataType, PropListSerialize, Serializer, Serialize, SingleProp},
         ply::{
             PlyFormat,
-            write::PlyWriter,
+            PlyWriter,
         },
     },
 };
