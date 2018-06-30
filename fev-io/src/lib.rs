@@ -72,20 +72,3 @@ pub trait MeshWriter {
         Ok(w.into_inner())
     }
 }
-
-
-// TODO: find place for this
-
-// struct Wat {
-//     first: bool,
-// }
-
-// impl Wat {
-//     fn wut(&mut self, f: impl FnOnce()) {
-//         if self.first {
-//             self.first = true;
-//         } else {
-//             f();
-//         }
-//     }
-// }
