@@ -14,7 +14,7 @@ extern crate frunk;
 
 use std::{
     fs::{File},
-    io::{self, Cursor, Write},
+    io::{self, BufWriter, Cursor, Write},
     path::Path,
 };
 
@@ -54,7 +54,7 @@ pub trait MeshWriter {
     /// Writes the mesh to the file given by the filename. Overwrites the file
     /// if it already exists.
     fn write_to_file(&self, path: impl AsRef<Path>) -> Result<(), Self::Error> {
-        self.write(File::create(path)?)
+        self.write(BufWriter::new(File::create(path)?))
     }
 
     /// Writes the mesh to stdout. Locks stdout for the time the mesh is being
