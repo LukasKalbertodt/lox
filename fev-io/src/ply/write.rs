@@ -364,7 +364,7 @@ where
     fn write_header(&self, w: &mut impl Write) -> Result<(), PlyError> {
         // Write header for all properties in this property list
         for tl in &self.head.typed_labels {
-            write_header_property({w}, &tl.label, tl.data_type)?;
+            write_header_property({w}, &tl)?;
         }
 
         // Proceed to next item in top list.
@@ -426,13 +426,8 @@ where
 // ===============================================================================================
 
 /// Writes the header entry for one property to the given writer.
-fn write_header_property(
-    w: &mut impl Write,
-    // TODO: Replace with TypedLabel
-    label: &PropLabel,
-    data_type: DataType,
-) -> Result<(), PlyError> {
-    match (label, data_type) {
+fn write_header_property(w: &mut impl Write, tl: &TypedLabel) -> Result<(), PlyError> {
+    match (&tl.label, tl.data_type) {
         // Positions are stored as properties 'x', 'y' and 'z' by
         // convention.
         (PropLabel::Position, ty) => {
