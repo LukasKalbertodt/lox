@@ -242,20 +242,39 @@ where
         // ===== Write body
         // ===================================================================
 
-        for v in self.mesh.vertices() {
-            let block = AsciiBlock::new(&mut w);
-            vertex_props.serialize_block(block, v.handle())?;
+        // We have to branch over the format somehow. Either we do it "low",
+        // but this has the disadvantages that many branches are needed which
+        // will result in a slow down. Or we do it "high" -- only once at the
+        // top level. This will result in a lot of duplicate machine code, but
+        // it's probably worth it.
+        //
+        // To avoid having duplicate Rust-code, we use this macro.
+        macro_rules! do_with_block {
+            ($block:ident) => {{
+                // Write vertex properties
+                for v in self.mesh.vertices() {
+                    let block = $block::new(&mut w);
+                    vertex_props.serialize_block(block, v.handle())?;
+                }
+
+                // Write face properties
+                for f in self.mesh.faces() {
+                    let mut block = $block::new(&mut w);
+
+                    // Write special `vertex_indices` data
+                    block.add(SingleProp(3u8), 0)?;
+                    block.add(SingleProp(self.mesh.vertices_of_face(f.handle())), 0)?;
+
+                    // Write other face properties
+                    face_props.serialize_block(block, f.handle())?;
+                }
+            }}
         }
 
-        for f in self.mesh.faces() {
-            let mut block = AsciiBlock::new(&mut w);
-
-            // Write special `vertex_indices` data
-            block.add(SingleProp(3), 0)?;
-            block.add(SingleProp(self.mesh.vertices_of_face(f.handle())), 0)?;
-
-            // Write other face properties
-            face_props.serialize_block(block, f.handle())?;
+        match self.format {
+            PlyFormat::Ascii => do_with_block!(AsciiBlock),
+            PlyFormat::BinaryBigEndian => do_with_block!(BinaryBeBlock),
+            PlyFormat::BinaryLittleEndian => do_with_block!(BinaryLeBlock),
         }
 
         Ok(())
@@ -500,7 +519,7 @@ pub trait PlyBlock {
     fn finish(self) -> Result<(), PlyError>;
 }
 
-
+/// A PLY block which inserts spaces and newline seperators.
 struct AsciiBlock<'a, W: 'a + Write> {
     writer: &'a mut W,
     at_start: bool,
@@ -536,6 +555,41 @@ impl<'a, W: 'a + Write> PlyBlock for AsciiBlock<'a, W> {
         Ok(())
     }
 }
+
+macro_rules! gen_binary_block {
+    ($name:ident, $serializer:ident) => {
+        /// A PLY block which doesn't insert seperators.
+        struct $name<'a, W: 'a + Write> {
+            writer: &'a mut W,
+        }
+
+        impl<'a, W: 'a + Write> $name<'a, W> {
+            fn new(w: &'a mut W) -> Self {
+                Self {
+                    writer: w,
+                }
+            }
+        }
+
+        impl<'a, W: 'a + Write> PlyBlock for $name<'a, W> {
+            fn add(
+                &mut self,
+                props: impl PropListSerialize,
+                index: usize,
+            ) -> Result<(), PlyError> {
+                let ser = $serializer::new(self.writer);
+                props.serialize_at(index, ser)
+            }
+
+            fn finish(self) -> Result<(), PlyError> {
+                Ok(())
+            }
+        }
+    }
+}
+
+gen_binary_block!(BinaryBeBlock, BinaryBeSerializer);
+gen_binary_block!(BinaryLeBlock, BinaryLeSerializer);
 
 
 // ===============================================================================================
@@ -625,7 +679,7 @@ impl<'a, W: Write + 'a + ?Sized> Serializer for AsciiSerializer<'a, W> {
 
 // The two binary primitive serializer are very similar. The macro avoids some
 // duplicate code.
-macro_rules! gen_binary_primitive_serializer {
+macro_rules! gen_binary_serializer {
     ($name:ident, $endianess:ident) => {
         struct $name<'a, W: Write + 'a + ?Sized> {
             writer: &'a mut W,
@@ -702,5 +756,5 @@ macro_rules! gen_binary_primitive_serializer {
     }
 }
 
-gen_binary_primitive_serializer!(BinaryBeSerializer, BigEndian);
-gen_binary_primitive_serializer!(BinaryLeSerializer, LittleEndian);
+gen_binary_serializer!(BinaryBeSerializer, BigEndian);
+gen_binary_serializer!(BinaryLeSerializer, LittleEndian);
