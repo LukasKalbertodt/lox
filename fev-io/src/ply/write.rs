@@ -5,6 +5,7 @@ use std::{
 
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 use frunk::{HCons, HNil};
+use splop::SkipFirst;
 
 use fev_core::{
     ExplicitVertex, ExplicitFace, MeshElement, MeshUnsorted,
@@ -599,13 +600,9 @@ impl<'a, W: Write + 'a + ?Sized> Serializer for AsciiSerializer<'a, W> {
     }
 
     fn serialize_fixed_len_seq<T: Serialize>(self, seq: &[T]) -> Result<(), Self::Error> {
-        let mut first = true;
+        let mut space_sep = SkipFirst::new();
         for v in seq {
-            if first {
-                first = false;
-            } else {
-                write!(self.writer, " ")?;
-            }
+            space_sep.skip_first(|| write!(self.writer, " ")).unwrap_or(Ok(()))?;
             v.serialize(Self::new(self.writer))?;
         }
 

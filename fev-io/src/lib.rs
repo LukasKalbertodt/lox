@@ -10,6 +10,7 @@ extern crate fev_core;
 extern crate fev_map;
 #[macro_use]
 extern crate frunk;
+extern crate splop;
 
 
 use std::{
