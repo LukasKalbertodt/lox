@@ -1,3 +1,22 @@
+//! Defines `PlyWriter` and stuff related to writing a PLY file.
+//!
+//! This module is fairly complicated, due to two main reasons:
+//!
+//! - `PlyWriter` stores type level heterogeneous lists to store the properties
+//!   of the mesh elements. Not doing this would result in a big number of
+//!   virtual calls and a lot of indirection.
+//!
+//! - To avoid frequent branches over the PLY format, most things exist in
+//!   three variants (most importantly the `Serializer` and `Block` types).
+//!
+//! The heterogeneous list (hlist) makes the API fairly verbose, but is
+//! actually really nice! To operate on the hlist at all, this module defines a
+//! bunch of helper traits. To "iterate" through this hlist, one has to use
+//! recursion.
+//!
+//! The main function to write the file is `PlyWriter::write`. The main work
+//! is done by methods on the hlist (this way we iterate through it).
+
 use std::{
     collections::HashMap,
     io::Write,
@@ -286,7 +305,7 @@ where
 
 
 // ===============================================================================================
-// ===== Traits and types for our Hlists
+// ===== Traits and types for our Hlists (helper stuff)
 // ===============================================================================================
 
 /// The internal representation of a single property list.
@@ -370,6 +389,7 @@ where
     }
 }
 
+/// Helper trait to add an element to our list.
 pub trait PlyPropTopListAdd<H: Handle, N> {
     type Out: PlyPropTopList<H>;
     fn add(self, item: N) -> Self::Out;
