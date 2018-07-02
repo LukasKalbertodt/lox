@@ -105,10 +105,12 @@ fn main() -> Result<(), Error> {
     vm.insert(c, MyNormal { normal: [0.0, 0.0, 1.0]});
     mesh.add_face([a, b, c], ());
 
-    PlyWriter::tmp_new(PlyFormat::BinaryLittleEndian, &mesh)?
+    PlyWriter::tmp_new(PlyFormat::Ascii, &mesh)?
+    // PlyWriter::tmp_new(PlyFormat::BinaryLittleEndian, &mesh)?
         .add_vertex_prop(&vm)?
         .add_vertex_prop_as(&FnMap(|_| Some(SingleProp(7))), &[PropLabel::Named("peter".into())])?
-        .write_to_file("test.ply")?;
+        .write_to_stdout()?;
+        // .write_to_file("test.ply")?;
 
     // println!("{:#?}", mesh);
 

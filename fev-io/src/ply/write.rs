@@ -47,6 +47,7 @@ impl<'a, MeshT> PlyWriter<'a, MeshT, HNil, HNil>
 where
     MeshT: ExplicitVertex + ExplicitFace + MeshUnsorted,
     MeshT::VertexProp: LabeledPropList + PropListSerialize,
+    MeshT::FaceProp: LabeledPropList + PropListSerialize,
 {
     pub fn tmp_new(format: PlyFormat, mesh: &'a MeshT) -> Result<Self, PlyError> {
         // Prepare names of vertex properties
@@ -178,6 +179,7 @@ where
     FaceL: PlyPropTopList<FaceHandle>,
     MeshT: ExplicitVertex + ExplicitFace + MeshUnsorted,
     MeshT::VertexProp: LabeledPropList + PropListSerialize,
+    MeshT::FaceProp: LabeledPropList + PropListSerialize,
 {
     type Error = PlyError;
 
@@ -193,15 +195,11 @@ where
         let vertex_props = hlist!(mesh_vertex_props, ...&self.vertex_props);
 
         // Face
-        // TODO: this needs to be fixed. The typed labels doesnt fit the
-        // PropListSerialize and it uses `uint` as length type, which is way
-        // too much.
-        // let mesh_face_props = PropListDesc {
-        //     typed_labels: vec![typed_label_of_vertex_indices()],
-        //     data: &FnMap(|handle| Some(SingleProp(&self.mesh.vertices_of_face(handle)))),
-        // };
-        // let face_props = hlist!(mesh_face_props, ...&self.face_props);
-        let face_props = &self.face_props;
+        let mesh_face_props = PropListDesc {
+            typed_labels: MeshT::FaceProp::typed_labels(),
+            data: &FnMap(|handle| self.mesh.face_prop(handle)),
+        };
+        let face_props = hlist!(mesh_face_props, ...&self.face_props);
 
 
         // ===================================================================

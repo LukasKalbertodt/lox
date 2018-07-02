@@ -308,6 +308,16 @@ impl<'a, T: 'a + PropListSerialize> PropListSerialize for &'a T {
     }
 }
 
+impl PropListSerialize for () {
+    fn data_type_of(_: usize) -> DataType {
+        panic!() // TODO
+    }
+
+    fn serialize_at<S: Serializer>(&self, _: usize, _: S) -> Result<(), S::Error> {
+        panic!() // TODO
+    }
+}
+
 // impl<T: Serialize> PropListSerialize for T {
 //     fn data_type_of(prop_index: usize) -> DataType {
 //         match prop_index {

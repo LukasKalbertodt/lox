@@ -304,3 +304,13 @@ impl<'a, T: 'a + LabeledPropList> LabeledPropList for &'a T {
         T::label_of(prop_index)
     }
 }
+
+impl LabeledPropList for () {
+    fn num_props() -> usize {
+        0
+    }
+
+    fn label_of(_: usize) -> PropLabel {
+        panic!() // TODO
+    }
+}
