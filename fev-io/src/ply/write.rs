@@ -12,10 +12,7 @@ use fev_core::{
     handle::{Handle, FaceHandle, VertexHandle},
     prop::{LabeledPropList, PropLabel},
 };
-use fev_map::{
-    PropMap,
-    FnMap,
-};
+use fev_map::{PropMap, FnMap};
 
 use crate::{
     MeshWriter,
@@ -26,9 +23,14 @@ use crate::{
 use super::{PlyError, PlyFormat};
 
 
+/// The field name in the PLY file conventionally used to store the indices of
+/// vertices of a face.
 const INDICES_NAME: &str = "vertex_indices";
 
 
+/// PLY mesh writer: serializes meshes in the PLY format.
+///
+/// This type allows to add (almost) arbitrary properties for mesh elements.
 pub struct PlyWriter<'a, MeshT, VertexL, FaceL>
 where
     MeshT: 'a,
@@ -141,6 +143,8 @@ where
             face_prop_names: self.face_prop_names,
         })
     }
+
+    // TODO: Add face properties
 
     /// Adds the PLY property names of all typed labels to the given hash map
     /// and checks for duplicate names. If a duplicate name is found,
