@@ -168,6 +168,9 @@ pub enum PlyError {
         new_label: TypedLabel,
     },
 
+    #[fail(display = "IO error: {}", _0)]
+    Io(io::Error),
+
     // TODO: remove this
     #[fail(display = "something :(")]
     Something,
@@ -189,8 +192,8 @@ pub enum PlyError {
 // }
 
 impl From<io::Error> for PlyError {
-    fn from(_src: io::Error) -> Self {
-        PlyError::Something
+    fn from(src: io::Error) -> Self {
+        PlyError::Io(src)
     }
 }
 
