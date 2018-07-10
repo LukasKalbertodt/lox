@@ -36,7 +36,8 @@ use fev_map::{PropMap, FnMap};
 use crate::{
     MeshWriter,
     ser::{
-        DataType, PrimitiveType, Serialize, Serializer, PropListSerialize, TypedLabel, SingleProp
+        DataType, PrimitiveType, Serialize, Serializer, PropListSerialize,
+        TypedLabel, SingleProp, SinglePrimitiveSerializer,
     },
 };
 use super::{PlyError, PlyFormat};
@@ -632,7 +633,7 @@ impl<'a, W: Write + 'a + ?Sized> AsciiSerializer<'a, W> {
     }
 }
 
-impl<'a, W: Write + 'a + ?Sized> Serializer for AsciiSerializer<'a, W> {
+impl<'a, W: Write + 'a + ?Sized> SinglePrimitiveSerializer for AsciiSerializer<'a, W> {
     type Error = PlyError;
 
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
@@ -669,7 +670,9 @@ impl<'a, W: Write + 'a + ?Sized> Serializer for AsciiSerializer<'a, W> {
     fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
         write!(self.writer, "{}", v).map_err(|e| e.into())
     }
+}
 
+impl<'a, W: Write + 'a + ?Sized> Serializer for AsciiSerializer<'a, W> {
     fn serialize_fixed_len_seq<T: Serialize>(self, seq: &[T]) -> Result<(), Self::Error> {
         let mut space_sep = SkipFirst::new();
         for v in seq {
@@ -710,7 +713,7 @@ macro_rules! gen_binary_serializer {
             }
         }
 
-        impl<'a, W: Write + 'a + ?Sized> Serializer for $name<'a, W> {
+        impl<'a, W: Write + 'a + ?Sized> SinglePrimitiveSerializer for $name<'a, W> {
             type Error = PlyError;
 
             fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
@@ -749,6 +752,9 @@ macro_rules! gen_binary_serializer {
                 self.writer.write_f64::<$endianess>(v).map_err(|e| e.into())
             }
 
+        }
+
+        impl<'a, W: Write + 'a + ?Sized> Serializer for $name<'a, W> {
             fn serialize_fixed_len_seq<T: Serialize>(self, seq: &[T]) -> Result<(), Self::Error> {
                 for v in seq {
                     v.serialize(Self::new(self.writer))?;

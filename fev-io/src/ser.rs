@@ -99,6 +99,11 @@ pub trait SinglePrimitive: Serialize {
     /// The primitive type representing this type.
     const PRIMITIVE_TYPE: PrimitiveType;
 
+    /// Serialize this value into the given single-primitive-serializer.
+    fn serialize_single<S: SinglePrimitiveSerializer>(
+        &self,
+        serializer: S,
+    ) -> Result<(), S::Error>;
 }
 
 
@@ -108,12 +113,19 @@ macro_rules! impl_for_primitives {
             const DATA_TYPE: DataType = DataType::Single(PrimitiveType::$ty);
 
             fn serialize<S: Serializer>(&self, serializer: S) -> Result<(), S::Error> {
-                serializer.$func(*self)
+                self.serialize_single(serializer)
             }
         }
 
         impl SinglePrimitive for $name {
             const PRIMITIVE_TYPE: PrimitiveType = PrimitiveType::$ty;
+
+            fn serialize_single<S: SinglePrimitiveSerializer>(
+                &self,
+                serializer: S,
+            ) -> Result<(), S::Error> {
+                serializer.$func(*self)
+            }
         }
     }
 }
@@ -190,12 +202,19 @@ macro_rules! impl_serialize_for_handle {
             const DATA_TYPE: DataType = DataType::Single(PrimitiveType::Uint32);
 
             fn serialize<S: Serializer>(&self, serializer: S) -> Result<(), S::Error> {
-                serializer.serialize_u32(self.id())
+                self.serialize_single(serializer)
             }
         }
 
         impl SinglePrimitive for $name {
             const PRIMITIVE_TYPE: PrimitiveType = PrimitiveType::Uint32;
+
+            fn serialize_single<S: SinglePrimitiveSerializer>(
+                &self,
+                serializer: S,
+            ) -> Result<(), S::Error> {
+                serializer.serialize_u32(self.id())
+            }
         }
     }
 }
@@ -205,8 +224,8 @@ impl_serialize_for_handle!(FaceHandle);
 impl_serialize_for_handle!(VertexHandle);
 
 
-/// A type that can serialize a subset of the types from  the `fev-io` data
-/// model.
+/// A type that can serialize (potentially only a subset of) the types from
+/// the `fev-io` data model.
 ///
 /// This trait is fairly similar to `serde::Serializer`, with two differences:
 /// - This serializer cannot serialize as many combined types (no maps, ...).
@@ -224,6 +243,10 @@ impl_serialize_for_handle!(VertexHandle);
 /// - Sequences with fixed length (like Rust's arrays `[T; N]`)
 /// - Sequences with variable length (like Rust's slices `[T]`)
 ///
+/// The serializer functionality is split into two traits: The
+/// [`SinglePrimitiveSerializer`] (which can only serialize single primitives)
+/// and this trait which additionally can serialize sequences.
+///
 /// Types that implement this trait don't necessarily need to be able to
 /// serialize all types from our data model. In that case an error can be
 /// returned. Note that the documentation of implementing types should clearly
@@ -235,7 +258,24 @@ impl_serialize_for_handle!(VertexHandle);
 /// `0` and a `true` as `1`. Similarly, if a format doesn't support fixed
 /// length sequences, but variable length sequences, the former can simply
 /// encoded as the latter.
-pub trait Serializer {
+pub trait Serializer: SinglePrimitiveSerializer {
+
+    // TODO: We might want to change those to return another serializer instead
+    // of taking a slice.
+    fn serialize_fixed_len_seq<T: Serialize>(self, v: &[T]) -> Result<(), Self::Error>;
+    fn serialize_variable_len_seq<T: Serialize>(self, v: &[T]) -> Result<(), Self::Error>;
+}
+
+/// A type that can serialize (potentially only a subset of) the single
+/// primitive types from the `fev-io` data model.
+///
+/// The primitive types from the `fev_io` data model are:
+/// - `bool`
+/// - Integers (`u8`, `i8`, ..., `u64`, `i64`)
+/// - Floats (`f32`, `f64`)
+///
+/// See the [`Serializer`] documentation for more information.
+pub trait SinglePrimitiveSerializer {
     type Error;
 
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error>;
@@ -252,11 +292,6 @@ pub trait Serializer {
 
     fn serialize_f32(self, v: f32) -> Result<(), Self::Error>;
     fn serialize_f64(self, v: f64) -> Result<(), Self::Error>;
-
-    // TODO: We might want to change those to return another serializer instead
-    // of taking a slice.
-    fn serialize_fixed_len_seq<T: Serialize>(self, v: &[T]) -> Result<(), Self::Error>;
-    fn serialize_variable_len_seq<T: Serialize>(self, v: &[T]) -> Result<(), Self::Error>;
 }
 
 /// A property list where all properties in the list can be serialized.
