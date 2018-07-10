@@ -2,6 +2,7 @@
 #![feature(rust_2018_preview)]
 #![feature(specialization)]
 
+extern crate auto_impl;
 extern crate byteorder;
 extern crate failure;
 #[macro_use]

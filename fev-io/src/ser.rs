@@ -2,6 +2,7 @@ use std::{
     fmt,
 };
 
+use auto_impl::auto_impl;
 use fev_core::{
     handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
     prop::{LabeledPropList, PropLabel},
@@ -79,6 +80,7 @@ impl DataType {
 /// A type that can be represented as a data type from the `fev-io` data model.
 ///
 /// The mapping to the data type has to be known at compile time.
+#[auto_impl(&)]
 pub trait Serialize {
     /// The data type representing this type.
     const DATA_TYPE: DataType;
@@ -92,17 +94,11 @@ pub trait Serialize {
 ///
 /// When this trait is implemented, `<Self as Serialize>::DATA_TYPE` should be
 /// equal to `DataType::Single(Self::PRIMITIVE_TYPE)`.
+#[auto_impl(&)]
 pub trait SinglePrimitive: Serialize {
     /// The primitive type representing this type.
     const PRIMITIVE_TYPE: PrimitiveType;
-}
 
-impl<'a, T: 'a + Serialize> Serialize for &'a T {
-    const DATA_TYPE: DataType = T::DATA_TYPE;
-
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<(), S::Error> {
-        (*self).serialize(serializer)
-    }
 }
 
 

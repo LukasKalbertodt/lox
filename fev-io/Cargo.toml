@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
 
 [dependencies]
+auto_impl = { git = "https://github.com/LukasKalbertodt/auto_impl", branch = "rewrite" }
 fev-core = { path = "../fev-core" }
 fev-map = { path = "../fev-map" }
 byteorder = "1.2"
