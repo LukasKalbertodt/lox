@@ -21,11 +21,13 @@ mod foreign_impls;
 pub mod aliases;
 pub mod fn_map;
 pub mod hash_map;
+pub mod mesh_map;
 pub mod vec_map;
 
 pub use self::aliases::*;
 pub use fn_map::FnMap;
 pub use hash_map::HashMap;
+pub use mesh_map::{MeshFaceMap, MeshVertexMap};
 pub use vec_map::VecMap;
 
 
