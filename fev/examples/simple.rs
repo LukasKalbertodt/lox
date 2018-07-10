@@ -1,3 +1,5 @@
+#![allow(unused_imports)] // TODO: remove later
+
 extern crate fev;
 extern crate failure;
 
@@ -6,7 +8,7 @@ use failure::Error;
 
 use fev::{
     impls::sv::SharedVertexMesh,
-    prop::{LabeledPropList, PropLabel},
+    prop::{HasPosition, LabeledPropList, PropLabel},
     map::{VertexVecMap, PropStoreMut, fn_map::FnMap},
     io::{
         MeshWriter,
@@ -15,12 +17,23 @@ use fev::{
             PlyFormat,
             PlyWriter,
         },
+        stl::{
+            StlFormat,
+            StlWriter,
+        },
     },
 };
 
-
+#[derive(Copy, Clone)]
 struct MyProp {
     pos: (f32, f32, f32),
+}
+
+impl HasPosition for MyProp {
+    type Position = (f32, f32, f32);
+    fn position(&self) -> &Self::Position {
+        &self.pos
+    }
 }
 
 impl PropListSerialize for MyProp {
@@ -105,12 +118,16 @@ fn main() -> Result<(), Error> {
     vm.insert(c, MyNormal { normal: [0.0, 0.0, 1.0]});
     mesh.add_face([a, b, c], ());
 
-    PlyWriter::tmp_new(PlyFormat::Ascii, &mesh)?
-    // PlyWriter::tmp_new(PlyFormat::BinaryLittleEndian, &mesh)?
-        .add_vertex_prop(&vm)?
-        .add_vertex_prop_as(&FnMap(|_| Some(SingleProp(7))), &[PropLabel::Named("peter".into())])?
-        .write_to_stdout()?;
-        // .write_to_file("test.ply")?;
+    // PlyWriter::tmp_new(PlyFormat::Ascii, &mesh)?
+    PlyWriter::tmp_new(PlyFormat::BinaryLittleEndian, &mesh)?
+    //     .add_vertex_prop(&vm)?
+    //     .add_vertex_prop_as(&FnMap(|_| Some(SingleProp(7))), &[PropLabel::Named("peter".into())])?
+    //     .write_to_stdout()?;
+        .write_to_file("test.ply")?;
+
+    StlWriter::tmp_new(StlFormat::Ascii, &mesh)?
+        // .write_to_stdout()?;
+        .write_to_file("test.stl")?;
 
     // println!("{:#?}", mesh);
 
