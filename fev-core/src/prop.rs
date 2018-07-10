@@ -36,6 +36,10 @@
 
 
 
+use auto_impl::auto_impl;
+
+
+
 /// Types that can be interpreted to represent some kind of 3D position.
 ///
 /// This type is implemented for strongly typed "position"-types, like
@@ -168,12 +172,14 @@ impl<T: PrimitiveNum> Vec3Like for [T; 3] {
 
 
 /// Property sets that store a 3D position.
+#[auto_impl(&)]
 pub trait HasPosition {
     type Position: Pos3Like;
     fn position(&self) -> &Self::Position;
 }
 
 /// Property sets that store a 3D normal.
+#[auto_impl(&)]
 pub trait HasNormal {
     type Normal: Vec3Like;
     fn normal(&self) -> &Self::Normal;
@@ -260,6 +266,7 @@ impl_primitive_num!(f64,       Float, Bits64);
 pub enum PropLabel {
     Position,
     Normal,
+    // TODO: rename to Custom
     Named(String),
 }
 
@@ -275,6 +282,7 @@ pub enum PropLabel {
 /// This trait can and should also be implemented for single properties that
 /// are labeled. In other words: it's fine when the list contains only one
 /// property.
+#[auto_impl(&)]
 pub trait LabeledPropList {
     // TODO: Maybe this belongs into an own trait
     /// The number of properties in this list.
@@ -292,16 +300,6 @@ pub trait LabeledPropList {
         (0..Self::num_props())
             .map(|i| Self::label_of(i))
             .collect()
-    }
-}
-
-impl<'a, T: 'a + LabeledPropList> LabeledPropList for &'a T {
-    fn num_props() -> usize {
-        T::num_props()
-    }
-
-    fn label_of(prop_index: usize) -> PropLabel {
-        T::label_of(prop_index)
     }
 }
 

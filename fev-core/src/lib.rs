@@ -1,5 +1,7 @@
+#![feature(proc_macro)]
 #![feature(crate_in_paths)]
 
+extern crate auto_impl;
 
 pub mod handle;
 pub mod prop;
@@ -67,5 +69,6 @@ pub trait ExplicitFace {
 
 
 pub trait MeshUnsorted {
+    /// Maybe we should return vertex refs?
     fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3];
 }
