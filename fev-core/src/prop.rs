@@ -35,10 +35,13 @@
 //! TODO: talk about derive.
 
 
-use std::fmt::Debug;
+use std::{
+    any::Any,
+    fmt::Debug,
+};
 
 use auto_impl::auto_impl;
-use num_traits::{AsPrimitive, Num, NumAssign, NumCast};
+use num_traits::{Num, NumAssign, NumCast};
 
 #[cfg(feature = "cgmath")]
 use cgmath::{Point3};
@@ -220,12 +223,49 @@ pub trait HasNormal {
 
 /// Primitive numerical types, like `f64` and `u32`.
 pub trait PrimitiveNum: 'static + Copy + Debug + Num + NumCast + PartialOrd + NumAssign {
-    fn cast_as<T>(self) -> T
-    where
-        T: PrimitiveNum,
-        Self: AsPrimitive<T>,
-    {
-        self.as_()
+    /// Casts into another primitive numerical type, possibly with loss of
+    /// precision.
+    ///
+    /// # Panics, precision and rounding
+    ///
+    /// This method panics if this value is too big or too small to be
+    /// representable in the target type. Examples:
+    ///
+    /// ```should-panic
+    /// use fev_core::prop::PrimitiveNum;
+    ///
+    /// // All of these will panic
+    /// 300u16.cast::<u8>();
+    /// -5i8.cast::<u8>();
+    /// 1e300f64.cast::<f32>();
+    /// ```
+    ///
+    /// However, if the target type can approximately represent the value, the
+    /// cast succeeds:
+    ///
+    /// ```
+    /// use fev_core::prop::PrimitiveNum;
+    ///
+    /// // All of these will "succeed", but the resulting value might not
+    /// // exactly represent the original value.
+    /// u32::max_value().cast::<f32>();
+    /// 1e30f64.cast::<f32>();
+    /// 3.14f64.cast::<u32>();
+    /// ```
+    fn cast<T: PrimitiveNum>(self) -> T {
+        match T::from(self) {
+            Some(v) => v,
+            None => {
+                // Panic with a nice error message
+                panic!(
+                    "failed to cast '{}' into smaller numerical type: value '{:?}' doesn't fit \
+                        into '{}'",
+                    primitive_type_name::<Self>(),
+                    self,
+                    primitive_type_name::<T>(),
+                )
+            }
+        }
     }
 }
 
@@ -234,6 +274,21 @@ where
     T: 'static + Copy + Debug + Num + NumCast + PartialOrd + NumAssign,
 {}
 
+fn primitive_type_name<T: Any>() -> &'static str {
+    match () {
+        () if Any::is::<T>(&0u8) => "u8",
+        () if Any::is::<T>(&0i8) => "i8",
+        () if Any::is::<T>(&0u16) => "u16",
+        () if Any::is::<T>(&0i16) => "i16",
+        () if Any::is::<T>(&0u32) => "u32",
+        () if Any::is::<T>(&0i32) => "i32",
+        () if Any::is::<T>(&0u64) => "u64",
+        () if Any::is::<T>(&0i64) => "i64",
+        () if Any::is::<T>(&0f32) => "f32",
+        () if Any::is::<T>(&0f64) => "f64",
+        _ => "??",
+    }
+}
 
 /// Describes what a property can semantically represent.
 ///
