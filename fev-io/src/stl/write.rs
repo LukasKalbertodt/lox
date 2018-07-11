@@ -266,28 +266,83 @@ impl<'a, W: Write> SinglePrimitiveSerializer for StlSerializer<'a, W> {
         // format mentioned in the "specification". This does not necessarily
         // make any sense and wastes memory, but so does ASCII STL. Just don't
         // use the ASCII STL format!
-        let exponent = v.log10().floor();
-        let mantissa = v / 10f32.powf(exponent);
-        write!(self.writer, "{}E{:+}", mantissa, exponent)
-            .map_err(|e| e.into())
+        use std::num::FpCategory;
+
+        match v.classify() {
+            FpCategory::Normal | FpCategory::Subnormal => {
+                let exponent = v.abs().log10().floor();
+                let mantissa = v / 10f32.powf(exponent);
+                write!(self.writer, "{}E{:+}", mantissa, exponent)
+                    .map_err(|e| e.into())
+            }
+            _ => {
+                // `v` is either infinite, `NaN` or zero. We want to serialize
+                // the zeroes as `0.0`.
+                write!(self.writer, "{:.1}", v)
+                    .map_err(|e| e.into())
+            }
+        }
     }
     fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
         self.serialize_f32(v as f32)
     }
 }
 
-// trait StlVertexPositions {
 
-// }
 
-// impl<B: HasPosition> StlVertexPositions for (NoneType, B) {
+#[cfg(test)]
+mod test {
+    use crate::{
+        ser::SinglePrimitiveSerializer,
+    };
+    use super::{
+        StlSerializer,
+    };
 
-// }
+    // Helper to serialize into a `Vec<u8>`. The vector is returned.
+    macro_rules! ser_into_vec {
+        (|$s:ident| $call:expr) => {{
+            let mut v = Vec::new();
+            {
+                let $s = StlSerializer::new(&mut v);
+                $call.unwrap();
+            }
+            v
+        }}
+    }
 
-// impl<'a, A, B> StlVertexPositions for (SomeType<A>, B)
-// where
-//     A: PropMap<'a, VertexHandle>,
-//     A::Target: HasPosition,
-// {
+    #[test]
+    fn ascii_serialize_zeroes() {
+        // f32
+        assert_eq!(ser_into_vec!(|s| s.serialize_f32(0.0)), b"0.0");
+        assert_eq!(ser_into_vec!(|s| s.serialize_f32(-0.0)), b"0.0");
 
-// }
+        // f64
+        assert_eq!(ser_into_vec!(|s| s.serialize_f64(0.0)), b"0.0");
+        assert_eq!(ser_into_vec!(|s| s.serialize_f64(-0.0)), b"0.0");
+
+        // integers
+        assert_eq!(ser_into_vec!(|s| s.serialize_u8(0)), b"0.0");
+        assert_eq!(ser_into_vec!(|s| s.serialize_i8(0)), b"0.0");
+        assert_eq!(ser_into_vec!(|s| s.serialize_u16(0)), b"0.0");
+        assert_eq!(ser_into_vec!(|s| s.serialize_i16(0)), b"0.0");
+        assert_eq!(ser_into_vec!(|s| s.serialize_u32(0)), b"0.0");
+        assert_eq!(ser_into_vec!(|s| s.serialize_i32(0)), b"0.0");
+        assert_eq!(ser_into_vec!(|s| s.serialize_u64(0)), b"0.0");
+        assert_eq!(ser_into_vec!(|s| s.serialize_i64(0)), b"0.0");
+    }
+
+    #[test]
+    fn ascii_serialize_subnormals() {
+        assert_eq!(ser_into_vec!(|s| s.serialize_f32(1.1754942e-38)), b"1.1754943E-38");
+        assert_eq!(ser_into_vec!(|s| s.serialize_f64(1.1754942e-38)), b"1.1754943E-38");
+    }
+
+    #[test]
+    fn ascii_serialize_nan() {
+        use std::{f32, f64};
+
+        assert_eq!(ser_into_vec!(|s| s.serialize_f32(f32::NAN)), b"NaN");
+        assert_eq!(ser_into_vec!(|s| s.serialize_f64(f64::NAN)), b"NaN");
+    }
+}
