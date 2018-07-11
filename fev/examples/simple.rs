@@ -126,6 +126,7 @@ fn main() -> Result<(), Error> {
         .write_to_file("test.ply")?;
 
     StlWriter::tmp_new(StlFormat::Ascii, &mesh)?
+        .calculate_normals()
         // .write_to_stdout()?;
         .write_to_file("test.stl")?;
 

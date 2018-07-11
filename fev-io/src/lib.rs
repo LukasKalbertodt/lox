@@ -4,6 +4,7 @@
 
 extern crate auto_impl;
 extern crate byteorder;
+extern crate cgmath;
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;

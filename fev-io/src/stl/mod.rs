@@ -5,7 +5,7 @@ use std::{
 use fev_core::prop::PropLabel;
 
 use crate::{
-    ser::{PrimitiveType, TypedLabel},
+    ser::{PrimitiveType},
 };
 
 

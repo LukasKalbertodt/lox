@@ -5,13 +5,13 @@ use std::{
 // use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 // use splop::SkipFirst;
 
+use cgmath::prelude::*;
 use fev_core::{
     ExplicitVertex, ExplicitFace, MeshUnsorted,
-    handle::{Handle, FaceHandle, VertexHandle},
-    // prop::{LabeledPropList, PropLabel},
-    prop::{HasPosition, Pos3Like},
+    handle::{FaceHandle, VertexHandle},
+    prop::{HasNormal, HasPosition, Pos3Like, PrimitiveNum, Vec3Like},
 };
-use fev_map::{PropMap, MeshVertexMap};
+use fev_map::{PropMap, MeshFaceMap, MeshVertexMap};
 
 use crate::{
     MeshWriter,
@@ -23,20 +23,84 @@ use super::{StlError, StlFormat};
 const DEFAULT_SOLID_NAME: &str = "mesh";
 
 
-// pub struct NoneType;
-// pub struct SomeType<T>(T);
 
-pub struct StlWriter<'a, MeshT: 'a, PosMapT> {
+pub struct StlWriter<'a, MeshT: 'a, PosMapT, FaceNormalsT> {
     solid_name: String,
     format: StlFormat,
     mesh: &'a MeshT,
     vertex_positions: PosMapT,
+    face_normals: FaceNormalsT,
+}
+
+pub trait FaceNormals {
+    fn get<MeshT, PosMapT, VertexPropT>(
+        &self,
+        handle: FaceHandle,
+        mesh: &MeshT,
+        vertex_positions: &PosMapT,
+    ) -> [f32; 3]
+    where
+        MeshT: MeshUnsorted,
+        PosMapT: for<'s> PropMap<'s, VertexHandle, Target = VertexPropT>,
+        VertexPropT: HasPosition;
+}
+
+pub struct CalculateFaceNormals;
+
+impl FaceNormals for CalculateFaceNormals {
+    fn get<MeshT, PosMapT, VertexPropT>(
+        &self,
+        handle: FaceHandle,
+        mesh: &MeshT,
+        vertex_positions: &PosMapT,
+    ) -> [f32; 3]
+    where
+        MeshT: MeshUnsorted,
+        PosMapT: for<'s> PropMap<'s, VertexHandle, Target = VertexPropT>,
+        VertexPropT: HasPosition,
+    {
+        let [va, vb, vc] = mesh.vertices_of_face(handle);
+        let pa = vertex_positions.get(va).unwrap().position().to_point3();
+        let pb = vertex_positions.get(vb).unwrap().position().to_point3();
+        let pc = vertex_positions.get(vc).unwrap().position().to_point3();
+
+        let normal = (pb - pa).cross(pc - pa).cast::<f32>().unwrap().normalize();
+        [normal.x, normal.y, normal.z]
+    }
+}
+
+pub struct FaceNormalMap<M>(M);
+
+impl<M, FacePropT> FaceNormals for FaceNormalMap<M>
+where
+    M: for<'s> PropMap<'s, FaceHandle, Target = FacePropT>,
+    FacePropT: HasNormal,
+{
+    fn get<MeshT, PosMapT, VertexPropT>(
+        &self,
+        handle: FaceHandle,
+        _: &MeshT,
+        _: &PosMapT,
+    ) -> [f32; 3]
+    where
+        MeshT: MeshUnsorted,
+        PosMapT: for<'s> PropMap<'s, VertexHandle, Target = VertexPropT>,
+        VertexPropT: HasPosition,
+    {
+        let prop = PropMap::get(&self.0, handle).unwrap();
+        let normal = prop.normal();
+
+        [
+            normal.x().cast(),
+            normal.y().cast(),
+            normal.z().cast(),
+        ]
+    }
 }
 
 
 
-
-impl<'a, MeshT: 'a> StlWriter<'a, MeshT, MeshVertexMap<'a, MeshT>>
+impl<'a, MeshT: 'a> StlWriter<'a, MeshT, MeshVertexMap<'a, MeshT>, FaceNormalMap<MeshFaceMap<'a, MeshT>>>
 where
     MeshT: ExplicitVertex + ExplicitFace + MeshUnsorted,
 {
@@ -47,20 +111,37 @@ where
             solid_name: DEFAULT_SOLID_NAME.into(),
             format,
             mesh,
-            vertex_positions: MeshVertexMap::new(&mesh),
+            vertex_positions: MeshVertexMap::new(mesh),
+            face_normals: FaceNormalMap(MeshFaceMap::new(mesh)),
         })
+    }
+}
+
+impl<'a, MeshT, PosMapT, NormalMapT> StlWriter<'a, MeshT, PosMapT, NormalMapT> {
+    pub fn calculate_normals(
+        self
+    ) -> StlWriter<'a, MeshT, PosMapT, CalculateFaceNormals> {
+        StlWriter {
+            solid_name: self.solid_name,
+            format: self.format,
+            mesh: self.mesh,
+            vertex_positions: self.vertex_positions,
+            face_normals: CalculateFaceNormals,
+        }
     }
 }
 
 
 
-impl<'a, MeshT, PosMapT, VertexPropT> MeshWriter for StlWriter<'a, MeshT, PosMapT>
+impl<'a, MeshT, PosMapT, VertexPropT, FaceNormalsT> MeshWriter
+    for StlWriter<'a, MeshT, PosMapT, FaceNormalsT>
 where
     // TODO: maybe this is too much
     MeshT: ExplicitVertex + ExplicitFace + MeshUnsorted,
     PosMapT: for<'s> PropMap<'s, VertexHandle, Target = VertexPropT>,
     VertexPropT: HasPosition,
     <VertexPropT::Position as Pos3Like>::Scalar: SinglePrimitive,
+    FaceNormalsT: FaceNormals,
 {
     type Error = StlError;
 
@@ -74,7 +155,19 @@ where
 
             for face in self.mesh.faces() {
                 // TODO: normal
-                writeln!(w, "  facet normal 1.0 0.0 0.0")?;
+                let [nx, ny, nz] = self.face_normals.get(
+                    face.handle(),
+                    self.mesh,
+                    &self.vertex_positions
+                );
+                write!(w, "  facet normal ")?;
+                nx.serialize_single(StlSerializer::new(&mut w))?;
+                write!(w, " ")?;
+                ny.serialize_single(StlSerializer::new(&mut w))?;
+                write!(w, " ")?;
+                nz.serialize_single(StlSerializer::new(&mut w))?;
+                writeln!(w, "")?;
+
                 writeln!(w, "    outer loop")?;
 
                 for vertex_handle in &self.mesh.vertices_of_face(face.handle()) {
