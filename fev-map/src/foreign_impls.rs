@@ -4,7 +4,7 @@ use super::PropMap;
 
 
 // References to prop maps are prop maps
-impl<'s, M, H> PropMap<'s, H> for &'s M
+impl<'a, 's, M, H> PropMap<'s, H> for &'a M
 where
     M: PropMap<'s, H>,
     H: Handle,

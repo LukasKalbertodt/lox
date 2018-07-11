@@ -69,9 +69,8 @@ impl FaceNormals for CalculateFaceNormals {
     }
 }
 
-pub struct FaceNormalMap<M>(M);
 
-impl<M, FacePropT> FaceNormals for FaceNormalMap<M>
+impl<M, FacePropT> FaceNormals for M
 where
     M: for<'s> PropMap<'s, FaceHandle, Target = FacePropT>,
     FacePropT: HasNormal,
@@ -87,7 +86,7 @@ where
         PosMapT: for<'s> PropMap<'s, VertexHandle, Target = VertexPropT>,
         VertexPropT: HasPosition,
     {
-        let prop = PropMap::get(&self.0, handle).unwrap();
+        let prop = PropMap::get(self, handle).unwrap();
         let normal = prop.normal();
 
         [
@@ -100,7 +99,7 @@ where
 
 
 
-impl<'a, MeshT: 'a> StlWriter<'a, MeshT, MeshVertexMap<'a, MeshT>, FaceNormalMap<MeshFaceMap<'a, MeshT>>>
+impl<'a, MeshT: 'a> StlWriter<'a, MeshT, MeshVertexMap<'a, MeshT>, MeshFaceMap<'a, MeshT>>
 where
     MeshT: ExplicitVertex + ExplicitFace + MeshUnsorted,
 {
@@ -112,7 +111,7 @@ where
             format,
             mesh,
             vertex_positions: MeshVertexMap::new(mesh),
-            face_normals: FaceNormalMap(MeshFaceMap::new(mesh)),
+            face_normals: MeshFaceMap::new(mesh),
         })
     }
 }
@@ -127,6 +126,23 @@ impl<'a, MeshT, PosMapT, NormalMapT> StlWriter<'a, MeshT, PosMapT, NormalMapT> {
             mesh: self.mesh,
             vertex_positions: self.vertex_positions,
             face_normals: CalculateFaceNormals,
+        }
+    }
+
+    pub fn with_normals<M, NormalT>(
+        self,
+        normals: &'a M,
+    ) -> StlWriter<'a, MeshT, PosMapT, &'a M>
+    where
+        M: for<'s> PropMap<'s, FaceHandle, Target = NormalT>,
+        NormalT: HasNormal,
+    {
+        StlWriter {
+            solid_name: self.solid_name,
+            format: self.format,
+            mesh: self.mesh,
+            vertex_positions: self.vertex_positions,
+            face_normals: normals,
         }
     }
 }

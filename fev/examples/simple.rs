@@ -7,9 +7,10 @@ use failure::Error;
 
 
 use fev::{
+    handle::FaceHandle,
     impls::sv::SharedVertexMesh,
-    prop::{HasPosition, LabeledPropList, PropLabel},
-    map::{VertexVecMap, PropStoreMut, fn_map::FnMap},
+    prop::{HasNormal, HasPosition, LabeledPropList, PropLabel},
+    map::{PropMap, VertexVecMap, PropStoreMut, fn_map::FnMap},
     io::{
         MeshWriter,
         ser::{DataType, PropListSerialize, Serializer, Serialize, SingleProp},
@@ -73,6 +74,13 @@ struct MyNormal {
     normal: [f32; 3],
 }
 
+impl HasNormal for MyNormal {
+    type Normal = [f32; 3];
+    fn normal(&self) -> &Self::Normal {
+        &self.normal
+    }
+}
+
 impl PropListSerialize for MyNormal {
     fn data_type_of(prop_index: usize) -> DataType {
         match prop_index {
@@ -126,11 +134,10 @@ fn main() -> Result<(), Error> {
         .write_to_file("test.ply")?;
 
     StlWriter::tmp_new(StlFormat::Ascii, &mesh)?
-        .calculate_normals()
-        // .write_to_stdout()?;
-        .write_to_file("test.stl")?;
-
-    // println!("{:#?}", mesh);
+        // .calculate_normals()
+        .with_normals(&FnMap(|_| Some(MyNormal { normal: [0.0, 0.0, 1.0]})))
+        .write_to_stdout()?;
+        // .write_to_file("test.stl")?;
 
     Ok(())
 }
