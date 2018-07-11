@@ -35,8 +35,10 @@
 //! TODO: talk about derive.
 
 
+use std::fmt::Debug;
 
 use auto_impl::auto_impl;
+use num_traits::{AsPrimitive, Num, NumAssign, NumCast};
 
 
 
@@ -185,72 +187,22 @@ pub trait HasNormal {
     fn normal(&self) -> &Self::Normal;
 }
 
-/// The width of a primitive type.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PrimitiveWidth {
-    Bits8,
-    Bits16,
-    Bits32,
-    Bits64,
-}
-
-/// The kind of a primitive numerical type.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NumKind {
-    Float,
-    UnsignedInt,
-    SignedInt,
-}
 
 /// Primitive numerical types, like `f64` and `u32`.
-pub trait PrimitiveNum: Copy {
-    /// The kind of this number (float, unsigned int or signed int).
-    const KIND: NumKind;
-
-    /// The width of this number.
-    const WIDTH: PrimitiveWidth;
-
-    /// Returns the best/closest representation of `v` as `Self`.
-    fn from_float(v: f64) -> Self;
-
-    /// Returns the best/closest representation of `v` as `Self`.
-    fn from_unsigned_int(v: u64) -> Self;
-
-    /// Returns the best/closest representation of `v` as `Self`.
-    fn from_signed_int(v: i64) -> Self;
-}
-
-macro_rules! impl_primitive_num {
-    ($name:ident, $kind:ident, $width:ident) => {
-        impl PrimitiveNum for $name {
-            const KIND: NumKind = NumKind::$kind;
-            const WIDTH: PrimitiveWidth = PrimitiveWidth::$width;
-
-            fn from_float(v: f64) -> Self {
-                v as $name
-            }
-
-            fn from_unsigned_int(v: u64) -> Self {
-                v as $name
-            }
-
-            fn from_signed_int(v: i64) -> Self {
-                v as $name
-            }
-        }
+pub trait PrimitiveNum: 'static + Copy + Debug + Num + NumCast + PartialOrd + NumAssign {
+    fn cast_as<T>(self) -> T
+    where
+        T: PrimitiveNum,
+        Self: AsPrimitive<T>,
+    {
+        self.as_()
     }
 }
 
-impl_primitive_num!( u8, UnsignedInt, Bits8);
-impl_primitive_num!(u16, UnsignedInt, Bits16);
-impl_primitive_num!(u32, UnsignedInt, Bits32);
-impl_primitive_num!(u64, UnsignedInt, Bits64);
-impl_primitive_num!( i8,   SignedInt, Bits8);
-impl_primitive_num!(i16,   SignedInt, Bits16);
-impl_primitive_num!(i32,   SignedInt, Bits32);
-impl_primitive_num!(i64,   SignedInt, Bits64);
-impl_primitive_num!(f32,       Float, Bits32);
-impl_primitive_num!(f64,       Float, Bits64);
+impl<T> PrimitiveNum for T
+where
+    T: 'static + Copy + Debug + Num + NumCast + PartialOrd + NumAssign,
+{}
 
 
 /// Describes what a property can semantically represent.

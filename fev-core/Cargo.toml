@@ -5,3 +5,4 @@ authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
 
 [dependencies]
 auto_impl = { git = "https://github.com/LukasKalbertodt/auto_impl", branch = "rewrite" }
+num-traits = "0.2"
