@@ -2,7 +2,10 @@
 #![feature(crate_in_paths)]
 
 extern crate auto_impl;
+#[cfg(feature = "cgmath")]
+extern crate cgmath;
 pub extern crate num_traits;
+
 
 pub mod handle;
 pub mod prop;

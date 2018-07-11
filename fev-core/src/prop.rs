@@ -40,6 +40,9 @@ use std::fmt::Debug;
 use auto_impl::auto_impl;
 use num_traits::{AsPrimitive, Num, NumAssign, NumCast};
 
+#[cfg(feature = "cgmath")]
+use cgmath::{Point3};
+
 
 
 /// Types that can be interpreted to represent some kind of 3D position.
@@ -64,7 +67,34 @@ pub trait Pos3Like: Copy {
 
     /// Returns the `z` component of this position.
     fn z(&self) -> &Self::Scalar;
+
+    #[cfg(feature = "cgmath")]
+    fn to_point3(&self) -> Point3<Self::Scalar> {
+        Point3::new(*self.x(), *self.y(), *self.z())
+    }
 }
+
+#[cfg(feature = "cgmath")]
+impl<T: PrimitiveNum> Pos3Like for Point3<T> {
+    type Scalar = T;
+
+    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
+        Self::new(x, y, z)
+    }
+
+    fn x(&self) -> &Self::Scalar {
+        &self.x
+    }
+
+    fn y(&self) -> &Self::Scalar {
+        &self.y
+    }
+
+    fn z(&self) -> &Self::Scalar {
+        &self.z
+    }
+}
+
 
 impl<T: PrimitiveNum> Pos3Like for (T, T, T) {
     type Scalar = T;
