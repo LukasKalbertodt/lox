@@ -301,57 +301,32 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::{
-        ser::SinglePrimitiveSerializer,
-    };
     use super::{
-        StlSerializer,
+        write_ascii_f32,
     };
 
     // Helper to serialize into a `Vec<u8>`. The vector is returned.
-    macro_rules! ser_into_vec {
-        (|$s:ident| $call:expr) => {{
+    macro_rules! f32_into_vec {
+        ($value:expr) => {{
             let mut v = Vec::new();
-            {
-                let $s = StlSerializer::new(&mut v);
-                $call.unwrap();
-            }
+            write_ascii_f32(&mut v, $value).unwrap();
             v
         }}
     }
 
     #[test]
     fn ascii_serialize_zeroes() {
-        // f32
-        assert_eq!(ser_into_vec!(|s| s.serialize_f32(0.0)), b"0.0");
-        assert_eq!(ser_into_vec!(|s| s.serialize_f32(-0.0)), b"0.0");
-
-        // f64
-        assert_eq!(ser_into_vec!(|s| s.serialize_f64(0.0)), b"0.0");
-        assert_eq!(ser_into_vec!(|s| s.serialize_f64(-0.0)), b"0.0");
-
-        // integers
-        assert_eq!(ser_into_vec!(|s| s.serialize_u8(0)), b"0.0");
-        assert_eq!(ser_into_vec!(|s| s.serialize_i8(0)), b"0.0");
-        assert_eq!(ser_into_vec!(|s| s.serialize_u16(0)), b"0.0");
-        assert_eq!(ser_into_vec!(|s| s.serialize_i16(0)), b"0.0");
-        assert_eq!(ser_into_vec!(|s| s.serialize_u32(0)), b"0.0");
-        assert_eq!(ser_into_vec!(|s| s.serialize_i32(0)), b"0.0");
-        assert_eq!(ser_into_vec!(|s| s.serialize_u64(0)), b"0.0");
-        assert_eq!(ser_into_vec!(|s| s.serialize_i64(0)), b"0.0");
+        assert_eq!(f32_into_vec!( 0.0), b"0.0");
+        assert_eq!(f32_into_vec!(-0.0), b"0.0");
     }
 
     #[test]
     fn ascii_serialize_subnormals() {
-        assert_eq!(ser_into_vec!(|s| s.serialize_f32(1.1754942e-38)), b"1.1754943E-38");
-        assert_eq!(ser_into_vec!(|s| s.serialize_f64(1.1754942e-38)), b"1.1754943E-38");
+        assert_eq!(f32_into_vec!(1.1754942e-38), b"1.1754943E-38");
     }
 
     #[test]
     fn ascii_serialize_nan() {
-        use std::{f32, f64};
-
-        assert_eq!(ser_into_vec!(|s| s.serialize_f32(f32::NAN)), b"NaN");
-        assert_eq!(ser_into_vec!(|s| s.serialize_f64(f64::NAN)), b"NaN");
+        assert_eq!(f32_into_vec!(::std::f32::NAN), b"NaN");
     }
 }
