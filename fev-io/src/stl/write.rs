@@ -1,11 +1,8 @@
-use std::{
-    io::{self, Write},
-};
+use std::io::{self, Write};
 
 use byteorder::{LittleEndian, WriteBytesExt};
-// use splop::SkipFirst;
-
 use cgmath::prelude::*;
+
 use fev_core::{
     ExplicitVertex, ExplicitFace, MeshUnsorted,
     handle::{FaceHandle, VertexHandle},
@@ -13,9 +10,7 @@ use fev_core::{
 };
 use fev_map::{PropMap, MeshFaceMap, MeshVertexMap};
 
-use crate::{
-    MeshWriter,
-};
+use crate::MeshWriter;
 use super::{StlError, StlFormat};
 
 
@@ -23,43 +18,16 @@ const DEFAULT_SOLID_NAME: &str = "mesh";
 
 
 
+// ===============================================================================================
+// ===== StlWriter
+// ===============================================================================================
+
 pub struct StlWriter<'a, MeshT: 'a, PosMapT, FaceNormalsT> {
     solid_name: String,
     format: StlFormat,
     mesh: &'a MeshT,
     vertex_positions: PosMapT,
     face_normals: FaceNormalsT,
-}
-
-pub trait FaceNormals {
-    fn normal_of(&self, handle: FaceHandle, vertex_positions: [[f32; 3]; 3]) -> [f32; 3];
-}
-
-pub struct CalculateFaceNormals;
-
-impl FaceNormals for CalculateFaceNormals {
-    fn normal_of(&self, _: FaceHandle, [pos_a, pos_b, pos_c]: [[f32; 3]; 3]) -> [f32; 3] {
-        let pos_a = pos_a.to_point3();
-        let pos_b = pos_b.to_point3();
-        let pos_c = pos_c.to_point3();
-
-        let normal = (pos_b - pos_a).cross(pos_c - pos_a).normalize();
-        [normal.x, normal.y, normal.z]
-    }
-}
-
-
-impl<M, FacePropT> FaceNormals for M
-where
-    M: for<'s> PropMap<'s, FaceHandle, Target = FacePropT>,
-    FacePropT: HasNormal,
-{
-    fn normal_of(&self, handle: FaceHandle, _: [[f32; 3]; 3]) -> [f32; 3] {
-        let prop = self.get(handle).unwrap();
-        let normal = prop.normal();
-
-        [normal.x().cast(), normal.y().cast(), normal.z().cast()]
-    }
 }
 
 impl<'a, MeshT: 'a> StlWriter<'a, MeshT, MeshVertexMap<'a, MeshT>, MeshFaceMap<'a, MeshT>>
@@ -80,13 +48,6 @@ where
 }
 
 impl<'a, MeshT, PosMapT, FaceNormalsT> StlWriter<'a, MeshT, PosMapT, FaceNormalsT> {
-    pub fn with_solid_name(self, name: impl Into<String>) -> Self {
-        Self {
-            solid_name: name.into(),
-            .. self
-        }
-    }
-
     pub fn calculate_normals(
         self
     ) -> StlWriter<'a, MeshT, PosMapT, CalculateFaceNormals> {
@@ -124,26 +85,14 @@ impl<'a, MeshT, PosMapT, FaceNormalsT> StlWriter<'a, MeshT, PosMapT, FaceNormals
             face_normals: self.face_normals,
         }
     }
-}
 
-pub trait VertexPositions {
-    fn pos_of(&self, handle: VertexHandle) -> [f32; 3];
-}
-
-impl<M, VertexPropT> VertexPositions for M
-where
-    M: for<'s> PropMap<'s, VertexHandle, Target = VertexPropT>,
-    VertexPropT: HasPosition,
-{
-    fn pos_of(&self, handle: VertexHandle) -> [f32; 3] {
-        let prop = self.get(handle).unwrap();
-        let pos = prop.position();
-
-        [pos.x().cast(), pos.y().cast(), pos.z().cast()]
+    pub fn with_solid_name(self, name: impl Into<String>) -> Self {
+        Self {
+            solid_name: name.into(),
+            .. self
+        }
     }
 }
-
-
 
 impl<'a, MeshT, PosMapT, FaceNormalsT> MeshWriter
     for StlWriter<'a, MeshT, PosMapT, FaceNormalsT>
@@ -156,7 +105,19 @@ where
     type Error = StlError;
 
     fn write(&self, mut w: impl Write) -> Result<(), Self::Error> {
+        let get_pos_and_normal = |face_handle| {
+            let [va, vb, vc] = self.mesh.vertices_of_face(face_handle);
+            let positions = [
+                self.vertex_positions.pos_of(va),
+                self.vertex_positions.pos_of(vb),
+                self.vertex_positions.pos_of(vc),
+            ];
 
+            (
+                positions,
+                self.face_normals.normal_of(face_handle, positions),
+            )
+        };
 
         if self.format == StlFormat::Ascii {
             // ===============================================================
@@ -165,16 +126,9 @@ where
             writeln!(w, "solid {}", self.solid_name)?;
 
             for face in self.mesh.faces() {
-                // Obtain vertex positions
-                let [va, vb, vc] = self.mesh.vertices_of_face(face.handle());
-                let positions = [
-                    self.vertex_positions.pos_of(va),
-                    self.vertex_positions.pos_of(vb),
-                    self.vertex_positions.pos_of(vc),
-                ];
+                let (positions, normal) = get_pos_and_normal(face.handle());
 
                 // Write face normal
-                let normal = self.face_normals.normal_of(face.handle(), positions);
                 write!(w, "  facet normal ")?;
                 write_ascii_vector(&mut w, normal)?;
                 writeln!(w, "")?;
@@ -208,16 +162,9 @@ where
             w.write_u32::<LittleEndian>(self.mesh.num_faces())?;
 
             for face in self.mesh.faces() {
-                // Obtain vertex positions
-                let [va, vb, vc] = self.mesh.vertices_of_face(face.handle());
-                let positions = [
-                    self.vertex_positions.pos_of(va),
-                    self.vertex_positions.pos_of(vb),
-                    self.vertex_positions.pos_of(vc),
-                ];
+                let (positions, [nx, ny, nz]) = get_pos_and_normal(face.handle());
 
                 // Write face normal
-                let [nx, ny, nz] = self.face_normals.normal_of(face.handle(), positions);
                 w.write_f32::<LittleEndian>(nx)?;
                 w.write_f32::<LittleEndian>(ny)?;
                 w.write_f32::<LittleEndian>(nz)?;
@@ -242,7 +189,14 @@ where
     }
 }
 
-pub fn write_ascii_vector(w: &mut Write, [x, y, z]: [f32; 3]) -> Result<(), io::Error> {
+
+// ===============================================================================================
+// ===== Helper functions for number encoding
+// ===============================================================================================
+
+/// Writes the three values of the given vector (in STL ASCII format, separated
+/// by ' ') into the writer.
+fn write_ascii_vector(w: &mut Write, [x, y, z]: [f32; 3]) -> Result<(), io::Error> {
     write_ascii_f32(w, x)?;
     write!(w, " ")?;
     write_ascii_f32(w, y)?;
@@ -287,6 +241,63 @@ fn write_ascii_f32(w: &mut Write, v: f32) -> Result<(), io::Error> {
     }
 }
 
+
+// ===============================================================================================
+// ===== Helper traits for vertex positions and face normals
+// ===============================================================================================
+
+pub trait VertexPositions {
+    fn pos_of(&self, handle: VertexHandle) -> [f32; 3];
+}
+
+impl<M, VertexPropT> VertexPositions for M
+where
+    M: for<'s> PropMap<'s, VertexHandle, Target = VertexPropT>,
+    VertexPropT: HasPosition,
+{
+    fn pos_of(&self, handle: VertexHandle) -> [f32; 3] {
+        let prop = self.get(handle).unwrap();
+        let pos = prop.position();
+
+        [pos.x().cast(), pos.y().cast(), pos.z().cast()]
+    }
+}
+
+pub trait FaceNormals {
+    fn normal_of(&self, handle: FaceHandle, vertex_positions: [[f32; 3]; 3]) -> [f32; 3];
+}
+
+pub struct CalculateFaceNormals;
+
+impl FaceNormals for CalculateFaceNormals {
+    fn normal_of(&self, _: FaceHandle, [pos_a, pos_b, pos_c]: [[f32; 3]; 3]) -> [f32; 3] {
+        let pos_a = pos_a.to_point3();
+        let pos_b = pos_b.to_point3();
+        let pos_c = pos_c.to_point3();
+
+        let normal = (pos_b - pos_a).cross(pos_c - pos_a).normalize();
+        [normal.x, normal.y, normal.z]
+    }
+}
+
+
+impl<M, FacePropT> FaceNormals for M
+where
+    M: for<'s> PropMap<'s, FaceHandle, Target = FacePropT>,
+    FacePropT: HasNormal,
+{
+    fn normal_of(&self, handle: FaceHandle, _: [[f32; 3]; 3]) -> [f32; 3] {
+        let prop = self.get(handle).unwrap();
+        let normal = prop.normal();
+
+        [normal.x().cast(), normal.y().cast(), normal.z().cast()]
+    }
+}
+
+
+// ===============================================================================================
+// ===== Tests
+// ===============================================================================================
 
 #[cfg(test)]
 mod test {
