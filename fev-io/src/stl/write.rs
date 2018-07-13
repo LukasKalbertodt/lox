@@ -116,7 +116,7 @@ where
     }
 }
 
-impl<'a, MeshT, PosMapT, NormalMapT> StlWriter<'a, MeshT, PosMapT, NormalMapT> {
+impl<'a, MeshT, PosMapT, FaceNormalsT> StlWriter<'a, MeshT, PosMapT, FaceNormalsT> {
     pub fn calculate_normals(
         self
     ) -> StlWriter<'a, MeshT, PosMapT, CalculateFaceNormals> {
@@ -129,13 +129,13 @@ impl<'a, MeshT, PosMapT, NormalMapT> StlWriter<'a, MeshT, PosMapT, NormalMapT> {
         }
     }
 
-    pub fn with_normals<M, NormalT>(
+    pub fn with_normals<M, PropT>(
         self,
         normals: &'a M,
     ) -> StlWriter<'a, MeshT, PosMapT, &'a M>
     where
-        M: for<'s> PropMap<'s, FaceHandle, Target = NormalT>,
-        NormalT: HasNormal,
+        M: for<'s> PropMap<'s, FaceHandle, Target = PropT>,
+        PropT: HasNormal,
     {
         StlWriter {
             solid_name: self.solid_name,
@@ -143,6 +143,23 @@ impl<'a, MeshT, PosMapT, NormalMapT> StlWriter<'a, MeshT, PosMapT, NormalMapT> {
             mesh: self.mesh,
             vertex_positions: self.vertex_positions,
             face_normals: normals,
+        }
+    }
+
+    pub fn with_vertex_positions<M, PropT>(
+        self,
+        positions: &'a M,
+    ) -> StlWriter<'a, MeshT, &'a M, FaceNormalsT>
+    where
+        M: for<'s> PropMap<'s, VertexHandle, Target = PropT>,
+        PropT: HasPosition,
+    {
+        StlWriter {
+            solid_name: self.solid_name,
+            format: self.format,
+            mesh: self.mesh,
+            vertex_positions: positions,
+            face_normals: self.face_normals,
         }
     }
 }

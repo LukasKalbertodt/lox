@@ -136,6 +136,7 @@ fn main() -> Result<(), Error> {
     StlWriter::tmp_new(StlFormat::Ascii, &mesh)?
         // .calculate_normals()
         .with_normals(&FnMap(|_| Some(MyNormal { normal: [0.0, 0.0, 1.0]})))
+        .with_vertex_positions(&FnMap(|_| Some(MyProp { pos: (0.0, 0.0, 0.0) })))
         .write_to_stdout()?;
         // .write_to_file("test.stl")?;
 
