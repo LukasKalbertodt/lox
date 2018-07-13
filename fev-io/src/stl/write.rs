@@ -1,5 +1,5 @@
 use std::{
-    io::Write,
+    io::{self, Write},
 };
 
 // use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
@@ -15,7 +15,6 @@ use fev_map::{PropMap, MeshFaceMap, MeshVertexMap};
 
 use crate::{
     MeshWriter,
-    ser::{SinglePrimitive, SinglePrimitiveSerializer},
 };
 use super::{StlError, StlFormat};
 
@@ -33,38 +32,18 @@ pub struct StlWriter<'a, MeshT: 'a, PosMapT, FaceNormalsT> {
 }
 
 pub trait FaceNormals {
-    fn get<MeshT, PosMapT, VertexPropT>(
-        &self,
-        handle: FaceHandle,
-        mesh: &MeshT,
-        vertex_positions: &PosMapT,
-    ) -> [f32; 3]
-    where
-        MeshT: MeshUnsorted,
-        PosMapT: for<'s> PropMap<'s, VertexHandle, Target = VertexPropT>,
-        VertexPropT: HasPosition;
+    fn normal_of(&self, handle: FaceHandle, vertex_positions: [[f32; 3]; 3]) -> [f32; 3];
 }
 
 pub struct CalculateFaceNormals;
 
 impl FaceNormals for CalculateFaceNormals {
-    fn get<MeshT, PosMapT, VertexPropT>(
-        &self,
-        handle: FaceHandle,
-        mesh: &MeshT,
-        vertex_positions: &PosMapT,
-    ) -> [f32; 3]
-    where
-        MeshT: MeshUnsorted,
-        PosMapT: for<'s> PropMap<'s, VertexHandle, Target = VertexPropT>,
-        VertexPropT: HasPosition,
-    {
-        let [va, vb, vc] = mesh.vertices_of_face(handle);
-        let pa = vertex_positions.get(va).unwrap().position().to_point3();
-        let pb = vertex_positions.get(vb).unwrap().position().to_point3();
-        let pc = vertex_positions.get(vc).unwrap().position().to_point3();
+    fn normal_of(&self, _: FaceHandle, [pos_a, pos_b, pos_c]: [[f32; 3]; 3]) -> [f32; 3] {
+        let pos_a = pos_a.to_point3();
+        let pos_b = pos_b.to_point3();
+        let pos_c = pos_c.to_point3();
 
-        let normal = (pb - pa).cross(pc - pa).cast::<f32>().unwrap().normalize();
+        let normal = (pos_b - pos_a).cross(pos_c - pos_a).normalize();
         [normal.x, normal.y, normal.z]
     }
 }
@@ -75,29 +54,13 @@ where
     M: for<'s> PropMap<'s, FaceHandle, Target = FacePropT>,
     FacePropT: HasNormal,
 {
-    fn get<MeshT, PosMapT, VertexPropT>(
-        &self,
-        handle: FaceHandle,
-        _: &MeshT,
-        _: &PosMapT,
-    ) -> [f32; 3]
-    where
-        MeshT: MeshUnsorted,
-        PosMapT: for<'s> PropMap<'s, VertexHandle, Target = VertexPropT>,
-        VertexPropT: HasPosition,
-    {
-        let prop = PropMap::get(self, handle).unwrap();
+    fn normal_of(&self, handle: FaceHandle, _: [[f32; 3]; 3]) -> [f32; 3] {
+        let prop = self.get(handle).unwrap();
         let normal = prop.normal();
 
-        [
-            normal.x().cast(),
-            normal.y().cast(),
-            normal.z().cast(),
-        ]
+        [normal.x().cast(), normal.y().cast(), normal.z().cast()]
     }
 }
-
-
 
 impl<'a, MeshT: 'a> StlWriter<'a, MeshT, MeshVertexMap<'a, MeshT>, MeshFaceMap<'a, MeshT>>
 where
@@ -117,6 +80,13 @@ where
 }
 
 impl<'a, MeshT, PosMapT, FaceNormalsT> StlWriter<'a, MeshT, PosMapT, FaceNormalsT> {
+    pub fn with_solid_name(self, name: impl Into<String>) -> Self {
+        Self {
+            solid_name: name.into(),
+            .. self
+        }
+    }
+
     pub fn calculate_normals(
         self
     ) -> StlWriter<'a, MeshT, PosMapT, CalculateFaceNormals> {
@@ -129,14 +99,10 @@ impl<'a, MeshT, PosMapT, FaceNormalsT> StlWriter<'a, MeshT, PosMapT, FaceNormals
         }
     }
 
-    pub fn with_normals<M, PropT>(
+    pub fn with_normals<M: FaceNormals>(
         self,
         normals: &'a M,
-    ) -> StlWriter<'a, MeshT, PosMapT, &'a M>
-    where
-        M: for<'s> PropMap<'s, FaceHandle, Target = PropT>,
-        PropT: HasNormal,
-    {
+    ) -> StlWriter<'a, MeshT, PosMapT, &'a M> {
         StlWriter {
             solid_name: self.solid_name,
             format: self.format,
@@ -146,14 +112,10 @@ impl<'a, MeshT, PosMapT, FaceNormalsT> StlWriter<'a, MeshT, PosMapT, FaceNormals
         }
     }
 
-    pub fn with_vertex_positions<M, PropT>(
+    pub fn with_vertex_positions<M: VertexPositions>(
         self,
         positions: &'a M,
-    ) -> StlWriter<'a, MeshT, &'a M, FaceNormalsT>
-    where
-        M: for<'s> PropMap<'s, VertexHandle, Target = PropT>,
-        PropT: HasPosition,
-    {
+    ) -> StlWriter<'a, MeshT, &'a M, FaceNormalsT> {
         StlWriter {
             solid_name: self.solid_name,
             format: self.format,
@@ -164,16 +126,31 @@ impl<'a, MeshT, PosMapT, FaceNormalsT> StlWriter<'a, MeshT, PosMapT, FaceNormals
     }
 }
 
+pub trait VertexPositions {
+    fn pos_of(&self, handle: VertexHandle) -> [f32; 3];
+}
+
+impl<M, VertexPropT> VertexPositions for M
+where
+    M: for<'s> PropMap<'s, VertexHandle, Target = VertexPropT>,
+    VertexPropT: HasPosition,
+{
+    fn pos_of(&self, handle: VertexHandle) -> [f32; 3] {
+        let prop = self.get(handle).unwrap();
+        let pos = prop.position();
+
+        [pos.x().cast(), pos.y().cast(), pos.z().cast()]
+    }
+}
 
 
-impl<'a, MeshT, PosMapT, VertexPropT, FaceNormalsT> MeshWriter
+
+impl<'a, MeshT, PosMapT, FaceNormalsT> MeshWriter
     for StlWriter<'a, MeshT, PosMapT, FaceNormalsT>
 where
     // TODO: maybe this is too much
     MeshT: ExplicitVertex + ExplicitFace + MeshUnsorted,
-    PosMapT: for<'s> PropMap<'s, VertexHandle, Target = VertexPropT>,
-    VertexPropT: HasPosition,
-    <VertexPropT::Position as Pos3Like>::Scalar: SinglePrimitive,
+    PosMapT: VertexPositions,
     FaceNormalsT: FaceNormals,
 {
     type Error = StlError;
@@ -183,38 +160,29 @@ where
             // ===============================================================
             // ===== STL ASCII
             // ===============================================================
-
             writeln!(w, "solid {}", self.solid_name)?;
 
             for face in self.mesh.faces() {
-                // TODO: normal
-                let [nx, ny, nz] = self.face_normals.get(
-                    face.handle(),
-                    self.mesh,
-                    &self.vertex_positions
-                );
+                // Obtain vertex positions
+                let [va, vb, vc] = self.mesh.vertices_of_face(face.handle());
+                let positions = [
+                    self.vertex_positions.pos_of(va),
+                    self.vertex_positions.pos_of(vb),
+                    self.vertex_positions.pos_of(vc),
+                ];
+
+                // Write face normal
+                let normal = self.face_normals.normal_of(face.handle(), positions);
                 write!(w, "  facet normal ")?;
-                nx.serialize_single(StlSerializer::new(&mut w))?;
-                write!(w, " ")?;
-                ny.serialize_single(StlSerializer::new(&mut w))?;
-                write!(w, " ")?;
-                nz.serialize_single(StlSerializer::new(&mut w))?;
+                write_ascii_vector(&mut w, normal)?;
                 writeln!(w, "")?;
 
+                // Write all vertex positions
                 writeln!(w, "    outer loop")?;
-
-                for vertex_handle in &self.mesh.vertices_of_face(face.handle()) {
-                    let prop = self.vertex_positions
-                        .get(*vertex_handle)
-                        .unwrap();
-                    let pos = prop.position();
+                for &vertex_pos in &positions {
 
                     write!(w, "      vertex ")?;
-                    pos.x().serialize_single(StlSerializer::new(&mut w))?;
-                    write!(w, " ")?;
-                    pos.y().serialize_single(StlSerializer::new(&mut w))?;
-                    write!(w, " ")?;
-                    pos.z().serialize_single(StlSerializer::new(&mut w))?;
+                    write_ascii_vector(&mut w, vertex_pos)?;
                     writeln!(w, "")?;
                 }
 
@@ -234,93 +202,50 @@ where
     }
 }
 
+pub fn write_ascii_vector(w: &mut Write, [x, y, z]: [f32; 3]) -> Result<(), io::Error> {
+    write_ascii_f32(w, x)?;
+    write!(w, " ")?;
+    write_ascii_f32(w, y)?;
+    write!(w, " ")?;
+    write_ascii_f32(w, z)?;
 
-struct StlSerializer<'a, W: 'a + Write> {
-    writer: &'a mut W,
+    Ok(())
 }
 
-impl<'a, W: Write> StlSerializer<'a, W> {
-    fn new(writer: &'a mut W) -> Self {
-        Self { writer }
-    }
-}
+/// Writes the given `f32` in STL ASCII format into the given writer.
+///
+/// The STL specification is terribly underspecified. The only information
+/// about how to encode floats in ASCII is this:
+///
+/// > The numerical data in the facet normal and vertex lines are single
+/// > precision floats, for example, 1.23456E+789. A facet normal coordinate
+/// > may have a leading minus sign; a vertex coordinate may not.
+///
+/// I don't think the last sentence makes any sense: why forbid negative
+/// coordinates? In any case, no one in the real world cares about that: there
+/// are plenty of STL files out there with negative vertex coordinates.
+///
+/// About the actual format: clearly unhelpful. In real world STL files floats
+/// are encoded all over the place. I've seen `1`, `1.2`, `10.2`, `1.02e1`,
+/// `1.020000E+001` and more. We just stick to the exact format mentioned in
+/// the "specification". This does not necessarily make any sense and wastes
+/// memory, but so does ASCII STL. Just don't use the ASCII STL format!
+fn write_ascii_f32(w: &mut Write, v: f32) -> Result<(), io::Error> {
+    use std::num::FpCategory;
 
-// As STL only supports 32 bit floats, we cast all other types into `f32`. This
-// can lead to loss of precision! We might want to change the behavior later
-// and return an error instead.
-impl<'a, W: Write> SinglePrimitiveSerializer for StlSerializer<'a, W> {
-    type Error = StlError;
-
-    fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
-        // Serialize bool as small integer.
-        self.serialize_f32(v as u8 as f32)
-    }
-    fn serialize_i8(self, v: i8) -> Result<(), Self::Error> {
-        self.serialize_f32(v.into())
-    }
-    fn serialize_i16(self, v: i16) -> Result<(), Self::Error> {
-        self.serialize_f32(v.into())
-    }
-    fn serialize_i32(self, v: i32) -> Result<(), Self::Error> {
-        self.serialize_f32(v as f32)
-    }
-    fn serialize_i64(self, v: i64) -> Result<(), Self::Error> {
-        self.serialize_f32(v as f32)
-    }
-    fn serialize_u8(self, v: u8) -> Result<(), Self::Error> {
-        self.serialize_f32(v.into())
-    }
-    fn serialize_u16(self, v: u16) -> Result<(), Self::Error> {
-        self.serialize_f32(v.into())
-    }
-    fn serialize_u32(self, v: u32) -> Result<(), Self::Error> {
-        self.serialize_f32(v as f32)
-    }
-    fn serialize_u64(self, v: u64) -> Result<(), Self::Error> {
-        self.serialize_f32(v as f32)
-    }
-    fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
-        // The STL specification is terribly underspecified. The only
-        // information about how to encode floats in ASCII is this:
-        //
-        // > The numerical data in the facet normal and vertex lines are single
-        // > precision floats, for example, 1.23456E+789. A facet normal
-        // > coordinate may have a leading minus sign; a vertex coordinate may
-        // > not.
-        //
-        // I don't think the last sentence makes any sense: why forbid negative
-        // coordinates? In any case, no one in the real world cares about that:
-        // there are plenty of STL files out there with negative vertex
-        // coordinates.
-        //
-        // About the actual format: clearly unhelpful. In real world STL files
-        // floats are encoded all over the place. I've seen `1`, `1.2`, `10.2`,
-        // `1.02e1`, `1.020000E+001` and more. We just stick to the exact
-        // format mentioned in the "specification". This does not necessarily
-        // make any sense and wastes memory, but so does ASCII STL. Just don't
-        // use the ASCII STL format!
-        use std::num::FpCategory;
-
-        match v.classify() {
-            FpCategory::Normal | FpCategory::Subnormal => {
-                let exponent = v.abs().log10().floor();
-                let mantissa = v / 10f32.powf(exponent);
-                write!(self.writer, "{}E{:+}", mantissa, exponent)
-                    .map_err(|e| e.into())
-            }
-            _ => {
-                // `v` is either infinite, `NaN` or zero. We want to serialize
-                // the zeroes as `0.0`.
-                write!(self.writer, "{:.1}", v)
-                    .map_err(|e| e.into())
-            }
+    match v.classify() {
+        FpCategory::Normal | FpCategory::Subnormal => {
+            let exponent = v.abs().log10().floor();
+            let mantissa = v / 10f32.powf(exponent);
+            write!(w, "{}E{:+}", mantissa, exponent)
+        }
+        _ => {
+            // `v` is either infinite, `NaN` or zero. We want to serialize
+            // the zeroes as `0.0`.
+            write!(w, "{:.1}", v)
         }
     }
-    fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
-        self.serialize_f32(v as f32)
-    }
 }
-
 
 
 #[cfg(test)]
