@@ -56,7 +56,7 @@ impl<'a, MeshT, PosMapT, FaceNormalsT> StlWriter<'a, MeshT, PosMapT, FaceNormals
             format: self.format,
             mesh: self.mesh,
             vertex_positions: self.vertex_positions,
-            face_normals: CalculateFaceNormals,
+            face_normals: CalculateFaceNormals(()),
         }
     }
 
@@ -246,7 +246,12 @@ fn write_ascii_f32(w: &mut Write, v: f32) -> Result<(), io::Error> {
 // ===== Helper traits for vertex positions and face normals
 // ===============================================================================================
 
+/// Property maps that contain a position.
+///
+/// This is pretty much just a trait alias for `PropMap<VertexHandle>` where
+/// `Target: HasPosition` (see the only impl).
 pub trait VertexPositions {
+    /// The vertex position with `f32` scalars. STL only supports `f32`
     fn pos_of(&self, handle: VertexHandle) -> [f32; 3];
 }
 
@@ -263,11 +268,21 @@ where
     }
 }
 
+/// Types that can provide a normal for a given triangular face.
+///
+/// There are basically two types implementing this trait:
+///
+/// - `CalculateFaceNormals`: the face normal is calculated from the three
+///   vertex positions. For this to work, all faces must have a non-zero area
+///   (two edge vectors need to be linear independent).
+/// - Property maps which return something that `HasNormal`.
 pub trait FaceNormals {
+    #[inline(always)]
     fn normal_of(&self, handle: FaceHandle, vertex_positions: [[f32; 3]; 3]) -> [f32; 3];
 }
 
-pub struct CalculateFaceNormals;
+/// Calculates the face normal from the vertex positions.
+pub struct CalculateFaceNormals(());
 
 impl FaceNormals for CalculateFaceNormals {
     fn normal_of(&self, _: FaceHandle, [pos_a, pos_b, pos_c]: [[f32; 3]; 3]) -> [f32; 3] {
@@ -298,7 +313,6 @@ where
 // ===============================================================================================
 // ===== Tests
 // ===============================================================================================
-
 #[cfg(test)]
 mod test {
     use super::{
