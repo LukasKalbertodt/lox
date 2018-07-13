@@ -2,7 +2,7 @@ use std::{
     io::{self, Write},
 };
 
-// use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
+use byteorder::{LittleEndian, WriteBytesExt};
 // use splop::SkipFirst;
 
 use cgmath::prelude::*;
@@ -156,6 +156,8 @@ where
     type Error = StlError;
 
     fn write(&self, mut w: impl Write) -> Result<(), Self::Error> {
+
+
         if self.format == StlFormat::Ascii {
             // ===============================================================
             // ===== STL ASCII
@@ -195,7 +197,45 @@ where
             // ===============================================================
             // ===== STL binary
             // ===============================================================
-            unimplemented!()
+            // First, a 80 bytes useless header that must not begin with
+            // "solid"!
+            let signature = b"FEV   ... PLY specs are terrible ...";
+            let padding = vec![b' '; 80 - signature.len()];
+            w.write_all(signature)?;
+            w.write_all(&padding)?;
+
+            // Next, number of triangles
+            w.write_u32::<LittleEndian>(self.mesh.num_faces())?;
+
+            for face in self.mesh.faces() {
+                // Obtain vertex positions
+                let [va, vb, vc] = self.mesh.vertices_of_face(face.handle());
+                let positions = [
+                    self.vertex_positions.pos_of(va),
+                    self.vertex_positions.pos_of(vb),
+                    self.vertex_positions.pos_of(vc),
+                ];
+
+                // Write face normal
+                let [nx, ny, nz] = self.face_normals.normal_of(face.handle(), positions);
+                w.write_f32::<LittleEndian>(nx)?;
+                w.write_f32::<LittleEndian>(ny)?;
+                w.write_f32::<LittleEndian>(nz)?;
+
+                // Write all vertex positions
+                for &[x, y, z] in &positions {
+                    w.write_f32::<LittleEndian>(x)?;
+                    w.write_f32::<LittleEndian>(y)?;
+                    w.write_f32::<LittleEndian>(z)?;
+                }
+
+                // Write "attribute byte count". As Wikipedia beautifully put
+                // it: "this should be zero because most software does not
+                // understand anything else." Great. Some people abuse this to
+                // store color or other information. This is terrible, we won't
+                // use it.
+                w.write_u16::<LittleEndian>(0)?;
+            }
         }
 
         Ok(())

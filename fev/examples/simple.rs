@@ -127,19 +127,19 @@ fn main() -> Result<(), Error> {
     mesh.add_face([a, b, c], ());
 
     // PlyWriter::tmp_new(PlyFormat::Ascii, &mesh)?
-    PlyWriter::tmp_new(PlyFormat::BinaryLittleEndian, &mesh)?
+    // PlyWriter::tmp_new(PlyFormat::BinaryLittleEndian, &mesh)?
     //     .add_vertex_prop(&vm)?
     //     .add_vertex_prop_as(&FnMap(|_| Some(SingleProp(7))), &[PropLabel::Named("peter".into())])?
     //     .write_to_stdout()?;
-        .write_to_file("test.ply")?;
+        // .write_to_file("test.ply")?;
 
-    StlWriter::tmp_new(StlFormat::Ascii, &mesh)?
+    StlWriter::tmp_new(StlFormat::Binary, &mesh)?
         // .calculate_normals()
         .with_normals(&FnMap(|_| Some(MyNormal { normal: [0.0, 0.0, 1.0]})))
         .with_solid_name("peter")
         // .with_vertex_positions(&FnMap(|_| Some(MyProp { pos: (0.0, 0.0, 0.0) })))
-        .write_to_stdout()?;
-        // .write_to_file("test.stl")?;
+        // .write_to_stdout()?;
+        .write_to_file("test.stl")?;
 
     Ok(())
 }
