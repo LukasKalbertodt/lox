@@ -1,3 +1,8 @@
 # Cargo generated
 /target/
 Cargo.lock
+
+# Mesh files are generally ignored
+*.ply
+*.obj
+*.stl
