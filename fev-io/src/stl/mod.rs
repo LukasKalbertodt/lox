@@ -1,26 +1,23 @@
-use std::{
-    io,
-};
+use std::io;
 
 use fev_core::prop::PropLabel;
 
-use crate::{
-    ser::{PrimitiveType},
-};
+use crate::ser::PrimitiveType;
 
 
 mod write;
 
 pub use self::write::StlWriter;
 
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StlFormat {
+pub enum Format {
     Ascii,
     Binary,
 }
 
 #[derive(Debug, Fail)]
-pub enum StlError {
+pub enum Error {
     #[fail(display = "type '{}' is not supported by PLY", _0)]
     PrimitiveTypeNotSupported(PrimitiveType),
 
@@ -31,8 +28,8 @@ pub enum StlError {
     Io(io::Error),
 }
 
-impl From<io::Error> for StlError {
+impl From<io::Error> for Error {
     fn from(src: io::Error) -> Self {
-        StlError::Io(src)
+        Error::Io(src)
     }
 }

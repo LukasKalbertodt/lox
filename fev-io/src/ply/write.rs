@@ -40,7 +40,7 @@ use crate::{
         TypedLabel, SingleProp, SinglePrimitiveSerializer,
     },
 };
-use super::{PlyError, PlyFormat};
+use super::{Error, Format};
 
 
 /// The field name in the PLY file conventionally used to store the indices of
@@ -57,7 +57,7 @@ where
     VertexL: PlyPropTopList<VertexHandle>,
     FaceL: PlyPropTopList<FaceHandle>,
  {
-    format: PlyFormat,
+    format: Format,
     mesh: &'a MeshT,
     vertex_props: VertexL,
     vertex_prop_names: HashMap<String, TypedLabel>,
@@ -71,7 +71,7 @@ where
     MeshT::VertexProp: LabeledPropList + PropListSerialize,
     MeshT::FaceProp: LabeledPropList + PropListSerialize,
 {
-    pub fn tmp_new(format: PlyFormat, mesh: &'a MeshT) -> Result<Self, PlyError> {
+    pub fn tmp_new(format: Format, mesh: &'a MeshT) -> Result<Self, Error> {
         // Prepare names of vertex properties
         let mut vertex_prop_names = HashMap::new();
         let typed_labels = MeshT::VertexProp::typed_labels();
@@ -100,7 +100,7 @@ where
     pub fn add_vertex_prop<MapT>(
         mut self,
         map: &'a MapT,
-    ) -> Result<PlyWriter<'a, MeshT, VertexL::Out, FaceL>, PlyError>
+    ) -> Result<PlyWriter<'a, MeshT, VertexL::Out, FaceL>, Error>
     where
         MapT: PropMap<'a, VertexHandle>,
         MapT::Target: PropListSerialize + LabeledPropList,
@@ -127,7 +127,7 @@ where
         mut self,
         map: &'a MapT,
         labels: &[PropLabel],
-    ) -> Result<PlyWriter<'a, MeshT, VertexL::Out, FaceL>, PlyError>
+    ) -> Result<PlyWriter<'a, MeshT, VertexL::Out, FaceL>, Error>
     where
         MapT: PropMap<'a, VertexHandle>,
         MapT::Target: PropListSerialize,
@@ -168,18 +168,18 @@ where
 
     /// Adds the PLY property names of all typed labels to the given hash map
     /// and checks for duplicate names. If a duplicate name is found,
-    /// `PlyError::NameAlreadyInUse` is returned.
+    /// `Error::NameAlreadyInUse` is returned.
     fn add_names(
         names: &mut HashMap<String, TypedLabel>,
         typed_labels: &[TypedLabel],
-    ) -> Result<(), PlyError> {
+    ) -> Result<(), Error> {
         for tl in typed_labels {
             let new_names = names_of_prop(&tl);
 
             // Check for duplicates
             if let Some(name) = new_names.iter().find(|s| names.contains_key(*s)) {
                 return Err(
-                    PlyError::NameAlreadyInUse {
+                    Error::NameAlreadyInUse {
                         name: name.clone(),
                         element: MeshElement::Vertex, // TODO
                         old_label: names.get(name).unwrap().clone(),
@@ -205,7 +205,7 @@ where
     MeshT::VertexProp: LabeledPropList + PropListSerialize,
     MeshT::FaceProp: LabeledPropList + PropListSerialize,
 {
-    type Error = PlyError;
+    type Error = Error;
 
     fn write(&self, mut w: impl Write) -> Result<(), Self::Error> {
         // ===================================================================
@@ -234,9 +234,9 @@ where
 
         // The line defining the format of the file
         let format_line = match self.format {
-            PlyFormat::Ascii => b"format ascii 1.0\n" as &[_],
-            PlyFormat::BinaryBigEndian => b"format binary_big_endian 1.0\n",
-            PlyFormat::BinaryLittleEndian => b"format binary_little_endian 1.0\n",
+            Format::Ascii => b"format ascii 1.0\n" as &[_],
+            Format::BinaryBigEndian => b"format binary_big_endian 1.0\n",
+            Format::BinaryLittleEndian => b"format binary_little_endian 1.0\n",
         };
         w.write_all(format_line)?;
 
@@ -294,9 +294,9 @@ where
         }
 
         match self.format {
-            PlyFormat::Ascii => do_with_block!(AsciiBlock),
-            PlyFormat::BinaryBigEndian => do_with_block!(BinaryBeBlock),
-            PlyFormat::BinaryLittleEndian => do_with_block!(BinaryLeBlock),
+            Format::Ascii => do_with_block!(AsciiBlock),
+            Format::BinaryBigEndian => do_with_block!(BinaryBeBlock),
+            Format::BinaryLittleEndian => do_with_block!(BinaryLeBlock),
         }
 
         Ok(())
@@ -323,31 +323,31 @@ pub struct PropListDesc<'a, M: 'a> {
 pub trait PlyPropTopList<H: Handle> {
     /// Writes the header descriptions of all properties in this list into
     /// the given writer.
-    fn write_header(&self, w: &mut impl Write) -> Result<(), PlyError>;
+    fn write_header(&self, w: &mut impl Write) -> Result<(), Error>;
 
     /// Serializes all properties in this list associated with the given
     /// handle into the given block.
-    fn serialize_block(&self, block: impl PlyBlock, handle: H) -> Result<(), PlyError>;
+    fn serialize_block(&self, block: impl PlyBlock, handle: H) -> Result<(), Error>;
 }
 
 // Impl for empty list
 impl<H: Handle> PlyPropTopList<H> for HNil {
-    fn write_header(&self, _: &mut impl Write) -> Result<(), PlyError> {
+    fn write_header(&self, _: &mut impl Write) -> Result<(), Error> {
         Ok(())
     }
 
-    fn serialize_block(&self, block: impl PlyBlock, _: H) -> Result<(), PlyError> {
+    fn serialize_block(&self, block: impl PlyBlock, _: H) -> Result<(), Error> {
         block.finish()
     }
 }
 
 // Impl for references to lists
 impl<'a, H: Handle, L: PlyPropTopList<H>> PlyPropTopList<H> for &'a L {
-    fn write_header(&self, w: &mut impl Write) -> Result<(), PlyError> {
+    fn write_header(&self, w: &mut impl Write) -> Result<(), Error> {
         (*self).write_header(w)
     }
 
-    fn serialize_block(&self, block: impl PlyBlock, handle: H) -> Result<(), PlyError> {
+    fn serialize_block(&self, block: impl PlyBlock, handle: H) -> Result<(), Error> {
         (*self).serialize_block(block, handle)
     }
 }
@@ -362,7 +362,7 @@ where
     MapT::Target: PropListSerialize,
     Tail: PlyPropTopList<H>,
 {
-    fn write_header(&self, w: &mut impl Write) -> Result<(), PlyError> {
+    fn write_header(&self, w: &mut impl Write) -> Result<(), Error> {
         // Write header for all properties in this property list
         for tl in &self.head.typed_labels {
             write_header_property({w}, &tl)?;
@@ -372,7 +372,7 @@ where
         self.tail.write_header(w)
     }
 
-    fn serialize_block(&self, mut block: impl PlyBlock, handle: H) -> Result<(), PlyError> {
+    fn serialize_block(&self, mut block: impl PlyBlock, handle: H) -> Result<(), Error> {
         for (i, tl) in self.head.typed_labels.iter().enumerate() {
             match self.head.data.get(handle) {
                 Some(props) => block.add(props, i)?,
@@ -427,7 +427,7 @@ where
 // ===============================================================================================
 
 /// Writes the header entry for one property to the given writer.
-fn write_header_property(w: &mut impl Write, tl: &TypedLabel) -> Result<(), PlyError> {
+fn write_header_property(w: &mut impl Write, tl: &TypedLabel) -> Result<(), Error> {
     match (&tl.label, tl.data_type) {
         // Positions are stored as properties 'x', 'y' and 'z' by
         // convention.
@@ -475,7 +475,7 @@ fn write_header_property(w: &mut impl Write, tl: &TypedLabel) -> Result<(), PlyE
 }
 
 /// Returns the name of the PLY type corresponding to the given type.
-fn primitive_ply_type_name(ty: PrimitiveType) -> Result<&'static str, PlyError> {
+fn primitive_ply_type_name(ty: PrimitiveType) -> Result<&'static str, Error> {
     match ty {
         PrimitiveType::Bool    => Ok("uchar"),  // we store booleans as `u8`
         PrimitiveType::Uint8   => Ok("uchar"),
@@ -486,7 +486,7 @@ fn primitive_ply_type_name(ty: PrimitiveType) -> Result<&'static str, PlyError> 
         PrimitiveType::Int32   => Ok("int"),
         PrimitiveType::Float32 => Ok("float"),
         PrimitiveType::Float64 => Ok("double"),
-        t => Err(PlyError::PrimitiveTypeNotSupported(t)),
+        t => Err(Error::PrimitiveTypeNotSupported(t)),
     }
 }
 
@@ -530,11 +530,11 @@ pub trait PlyBlock {
         &mut self,
         props: impl PropListSerialize,
         index: usize,
-    ) -> Result<(), PlyError>;
+    ) -> Result<(), Error>;
 
     /// Finishes the block. Writes '\n' for ASCII format, does nothing for
     /// binary formats.
-    fn finish(self) -> Result<(), PlyError>;
+    fn finish(self) -> Result<(), Error>;
 }
 
 /// A PLY block which inserts spaces and newline seperators.
@@ -557,7 +557,7 @@ impl<'a, W: 'a + Write> PlyBlock for AsciiBlock<'a, W> {
         &mut self,
         props: impl PropListSerialize,
         index: usize,
-    ) -> Result<(), PlyError> {
+    ) -> Result<(), Error> {
         if self.at_start {
             self.at_start = false;
         } else {
@@ -568,7 +568,7 @@ impl<'a, W: 'a + Write> PlyBlock for AsciiBlock<'a, W> {
         props.serialize_at(index, ser)
     }
 
-    fn finish(self) -> Result<(), PlyError> {
+    fn finish(self) -> Result<(), Error> {
         self.writer.write_all(b"\n")?;
         Ok(())
     }
@@ -594,12 +594,12 @@ macro_rules! gen_binary_block {
                 &mut self,
                 props: impl PropListSerialize,
                 index: usize,
-            ) -> Result<(), PlyError> {
+            ) -> Result<(), Error> {
                 let ser = $serializer::new(self.writer);
                 props.serialize_at(index, ser)
             }
 
-            fn finish(self) -> Result<(), PlyError> {
+            fn finish(self) -> Result<(), Error> {
                 Ok(())
             }
         }
@@ -634,7 +634,7 @@ impl<'a, W: Write + 'a + ?Sized> AsciiSerializer<'a, W> {
 }
 
 impl<'a, W: Write + 'a + ?Sized> SinglePrimitiveSerializer for AsciiSerializer<'a, W> {
-    type Error = PlyError;
+    type Error = Error;
 
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
         // Serialize bool as small integer.
@@ -714,7 +714,7 @@ macro_rules! gen_binary_serializer {
         }
 
         impl<'a, W: Write + 'a + ?Sized> SinglePrimitiveSerializer for $name<'a, W> {
-            type Error = PlyError;
+            type Error = Error;
 
             fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
                 // We convert the bool to `u8` to serialize it, because PLY

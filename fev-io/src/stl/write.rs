@@ -11,7 +11,7 @@ use fev_core::{
 use fev_map::{PropMap, MeshFaceMap, MeshVertexMap};
 
 use crate::MeshWriter;
-use super::{StlError, StlFormat};
+use super::{Error, Format};
 
 
 const DEFAULT_SOLID_NAME: &str = "mesh";
@@ -24,7 +24,7 @@ const DEFAULT_SOLID_NAME: &str = "mesh";
 
 pub struct StlWriter<'a, MeshT: 'a, PosMapT, FaceNormalsT> {
     solid_name: String,
-    format: StlFormat,
+    format: Format,
     mesh: &'a MeshT,
     vertex_positions: PosMapT,
     face_normals: FaceNormalsT,
@@ -34,7 +34,7 @@ impl<'a, MeshT: 'a> StlWriter<'a, MeshT, MeshVertexMap<'a, MeshT>, MeshFaceMap<'
 where
     MeshT: ExplicitVertex + ExplicitFace + MeshUnsorted,
 {
-    pub fn tmp_new(format: StlFormat, mesh: &'a MeshT) -> Result<Self, StlError> {
+    pub fn tmp_new(format: Format, mesh: &'a MeshT) -> Result<Self, Error> {
         // TODO: verify mesh properties
 
         Ok(Self {
@@ -102,7 +102,7 @@ where
     PosMapT: VertexPositions,
     FaceNormalsT: FaceNormals,
 {
-    type Error = StlError;
+    type Error = Error;
 
     fn write(&self, mut w: impl Write) -> Result<(), Self::Error> {
         let get_pos_and_normal = |face_handle| {
@@ -119,7 +119,7 @@ where
             )
         };
 
-        if self.format == StlFormat::Ascii {
+        if self.format == Format::Ascii {
             // ===============================================================
             // ===== STL ASCII
             // ===============================================================

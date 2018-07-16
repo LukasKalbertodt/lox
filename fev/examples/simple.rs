@@ -15,11 +15,11 @@ use fev::{
         MeshWriter,
         ser::{DataType, PropListSerialize, Serializer, Serialize, SingleProp},
         ply::{
-            PlyFormat,
+            Format as PlyFormat,
             PlyWriter,
         },
         stl::{
-            StlFormat,
+            Format as StlFormat,
             StlWriter,
         },
     },
@@ -126,12 +126,12 @@ fn main() -> Result<(), Error> {
     vm.insert(c, MyNormal { normal: [0.0, 0.0, 1.0]});
     mesh.add_face([a, b, c], ());
 
-    // PlyWriter::tmp_new(PlyFormat::Ascii, &mesh)?
-    // PlyWriter::tmp_new(PlyFormat::BinaryLittleEndian, &mesh)?
+    // PlyWriter::tmp_new(Format as PlyFormat::Ascii, &mesh)?
+    // PlyWriter::tmp_new(Format as PlyFormat::BinaryLittleEndian, &mesh)?
     //     .add_vertex_prop(&vm)?
     //     .add_vertex_prop_as(&FnMap(|_| Some(SingleProp(7))), &[PropLabel::Named("peter".into())])?
-    //     .write_to_stdout()?;
-        // .write_to_file("test.ply")?;
+    //     .write_to_stdout() as StlFormat?;
+        // .write_to_file("test.ply as StlFormat")?;
 
     StlWriter::tmp_new(StlFormat::Binary, &mesh)?
         // .calculate_normals()
