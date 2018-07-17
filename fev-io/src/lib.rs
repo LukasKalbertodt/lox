@@ -1,6 +1,7 @@
 #![feature(crate_in_paths)]
 #![feature(rust_2018_preview)]
 #![feature(specialization)]
+#![feature(use_extern_macros)]
 
 extern crate auto_impl;
 extern crate byteorder;

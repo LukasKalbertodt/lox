@@ -1,4 +1,4 @@
-#![feature(proc_macro)]
+#![feature(use_extern_macros)]
 #![feature(crate_in_paths)]
 
 extern crate auto_impl;
