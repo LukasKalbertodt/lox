@@ -6,7 +6,10 @@ use std::{
 
 use fev_core::handle::Handle;
 
-use crate::{boo, PropMap, PropStore, PropStoreMut};
+use crate::{
+    PropMap, PropStore, PropStoreMut,
+    gat::{Family, RefFamily},
+};
 
 
 /// A property map using a hashmap to store the properties.
@@ -39,8 +42,8 @@ impl<H: Handle + Hash, T> HashMap<H, T> {
 
 
 impl<H: Handle + Hash, T> PropMap<H> for HashMap<H, T> {
-    type Target = boo::Borrowed<T>;
-    fn get(&self, handle: H) -> Option<boo::Wrap<Self::Target>> {
+    type Target = RefFamily<T>;
+    fn get(&self, handle: H) -> Option<<Self::Target as Family<'a>>::Ty> {
         self.get_ref(handle).map(Into::into)
     }
 }

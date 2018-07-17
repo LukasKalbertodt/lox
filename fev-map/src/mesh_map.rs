@@ -3,7 +3,10 @@ use fev_core::{
     handle::{VertexHandle, FaceHandle},
 };
 
-use super::{boo, PropMap};
+use crate::{
+    PropMap,
+    gat::{Family, RefFamily},
+};
 
 
 /// Map representing the vertex properties of a mesh.
@@ -43,9 +46,9 @@ impl<'a, MeshT> PropMap<VertexHandle> for MeshVertexMap<'a, MeshT>
 where
     MeshT: ExplicitVertex,
 {
-    type Target = boo::Borrowed<MeshT::VertexProp>;
+    type Target = RefFamily<MeshT::VertexProp>;
 
-    fn get(&'s self, handle: VertexHandle) -> Option<boo::Wrap<Self::Target>> {
+    fn get(&'s self, handle: VertexHandle) -> Option<<Self::Target as Family<'a>>::Ty> {
         self.mesh.vertex_prop(handle).map(Into::into)
     }
 }
@@ -88,9 +91,9 @@ impl<'a, MeshT> PropMap<FaceHandle> for MeshFaceMap<'a, MeshT>
 where
     MeshT: ExplicitFace,
 {
-    type Target = boo::Borrowed<MeshT::FaceProp>;
+    type Target = RefFamily<MeshT::FaceProp>;
 
-    fn get(&'s self, handle: FaceHandle) -> Option<boo::Wrap<Self::Target>> {
+    fn get(&'s self, handle: FaceHandle) -> Option<<Self::Target as Family<'a>>::Ty> {
         self.mesh.face_prop(handle).map(Into::into)
     }
 }

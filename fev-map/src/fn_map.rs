@@ -1,6 +1,9 @@
 use fev_core::handle::Handle;
 
-use super::{boo, PropMap};
+use crate::{
+    PropMap,
+    gat::{Family, OwnedFamily},
+};
 
 
 /// A simple wrapper for property maps defined by functions (usually closures).
@@ -44,9 +47,9 @@ where
     H: Handle,
     F: Fn(H) -> Option<OutT>,
 {
-    type Target = boo::Owned<OutT>;
+    type Target = OwnedFamily<OutT>;
 
-    fn get(&self, handle: H) -> Option<boo::Wrap<Self::Target>> {
+    fn get(&self, handle: H) -> Option<<Self::Target as Family<'a>>::Ty> {
         (self.0)(handle).map(Into::into)
     }
 }
