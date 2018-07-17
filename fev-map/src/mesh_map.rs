@@ -45,10 +45,11 @@ impl<'a, MeshT: ExplicitVertex> MeshVertexMap<'a, MeshT> {
 impl<'a, MeshT> PropMap<VertexHandle> for MeshVertexMap<'a, MeshT>
 where
     MeshT: ExplicitVertex,
+    MeshT::VertexProp: 'static,
 {
     type Target = RefFamily<MeshT::VertexProp>;
 
-    fn get(&'s self, handle: VertexHandle) -> Option<<Self::Target as Family<'a>>::Ty> {
+    fn get(&'s self, handle: VertexHandle) -> Option<<Self::Target as Family<'s>>::Ty> {
         self.mesh.vertex_prop(handle).map(Into::into)
     }
 }
@@ -90,10 +91,11 @@ impl<'a, MeshT: ExplicitFace> MeshFaceMap<'a, MeshT> {
 impl<'a, MeshT> PropMap<FaceHandle> for MeshFaceMap<'a, MeshT>
 where
     MeshT: ExplicitFace,
+    MeshT::FaceProp: 'static,
 {
     type Target = RefFamily<MeshT::FaceProp>;
 
-    fn get(&'s self, handle: FaceHandle) -> Option<<Self::Target as Family<'a>>::Ty> {
+    fn get(&'s self, handle: FaceHandle) -> Option<<Self::Target as Family<'s>>::Ty> {
         self.mesh.face_prop(handle).map(Into::into)
     }
 }

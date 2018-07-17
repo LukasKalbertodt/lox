@@ -41,9 +41,9 @@ impl<H: Handle + Hash, T> HashMap<H, T> {
 }
 
 
-impl<H: Handle + Hash, T> PropMap<H> for HashMap<H, T> {
+impl<H: Handle + Hash, T: 'static> PropMap<H> for HashMap<H, T> {
     type Target = RefFamily<T>;
-    fn get(&self, handle: H) -> Option<<Self::Target as Family<'a>>::Ty> {
+    fn get(&'s self, handle: H) -> Option<<Self::Target as Family<'s>>::Ty> {
         self.get_ref(handle).map(Into::into)
     }
 }

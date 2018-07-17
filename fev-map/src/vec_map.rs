@@ -66,9 +66,9 @@ impl<H: Handle, T: Clone> VecMap<H, T> {
     }
 }
 
-impl<H: Handle, T> PropMap<H> for VecMap<H, T> {
+impl<H: Handle, T: 'static> PropMap<H> for VecMap<H, T> {
     type Target = RefFamily<T>;
-    fn get(&'s self, handle: H) -> Option<<Self::Target as Family<'a>>::Ty> {
+    fn get(&'s self, handle: H) -> Option<<Self::Target as Family<'s>>::Ty> {
         self.get_ref(handle).map(Into::into)
     }
 }

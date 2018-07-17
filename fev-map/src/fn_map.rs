@@ -49,7 +49,7 @@ where
 {
     type Target = OwnedFamily<OutT>;
 
-    fn get(&self, handle: H) -> Option<<Self::Target as Family<'a>>::Ty> {
+    fn get(&self, handle: H) -> Option<<Self::Target as Family<'s>>::Ty> {
         (self.0)(handle).map(Into::into)
     }
 }

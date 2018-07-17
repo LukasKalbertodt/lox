@@ -10,7 +10,7 @@ use crate::{
 impl<'a, M: PropMap<H>, H: Handle> PropMap<H> for &'a M {
     type Target = M::Target;
 
-    fn get(&self, handle: H) -> Option<<Self::Target as Family<'a>>::Ty> {
+    fn get(&'s self, handle: H) -> Option<<Self::Target as Family<'s>>::Ty> {
         M::get(*self, handle)
     }
 }

@@ -71,7 +71,7 @@ pub trait PropMap<H: Handle> {
 
     /// Returns the property associated with `handle` or `None` if no such
     /// property exists.
-    fn get(&self, handle: H) -> Option<<Self::Target as Family<'a>>::Ty>;
+    fn get(&'s self, handle: H) -> Option<<Self::Target as Family<'s>>::Ty>;
 
     /// Returns `true` if there is a property associated with `handle`, `false`
     /// otherwise.
