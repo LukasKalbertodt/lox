@@ -1,6 +1,6 @@
 use fev_core::handle::Handle;
 
-use super::PropMap;
+use super::{boo, PropMap};
 
 
 /// A simple wrapper for property maps defined by functions (usually closures).
@@ -39,14 +39,14 @@ use super::PropMap;
 /// ```
 pub struct FnMap<F>(pub F);
 
-impl<'s, H, F, OutT> PropMap<'s, H> for FnMap<F>
+impl<'s, H, F, OutT> PropMap<H> for FnMap<F>
 where
     H: Handle,
     F: Fn(H) -> Option<OutT>,
 {
-    type Target = OutT;
+    type Target = boo::Owned<OutT>;
 
-    fn get(&'s self, handle: H) -> Option<Self::Target> {
-        (self.0)(handle)
+    fn get(&self, handle: H) -> Option<boo::Wrap<Self::Target>> {
+        (self.0)(handle).map(Into::into)
     }
 }

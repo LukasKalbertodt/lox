@@ -12,6 +12,7 @@ use fev_core::{
 
 use crate::{
     PropMap, PropStore, PropStoreMut,
+    boo,
 };
 
 
@@ -65,10 +66,10 @@ impl<H: Handle, T: Clone> VecMap<H, T> {
     }
 }
 
-impl<'s, H: Handle, T: 's> PropMap<'s, H> for VecMap<H, T> {
-    type Target = &'s T;
-    fn get(&'s self, handle: H) -> Option<Self::Target> {
-        self.get_ref(handle)
+impl<H: Handle, T> PropMap<H> for VecMap<H, T> {
+    type Target = boo::Borrowed<T>;
+    fn get(&'s self, handle: H) -> Option<boo::Wrap<Self::Target>> {
+        self.get_ref(handle).map(Into::into)
     }
 }
 

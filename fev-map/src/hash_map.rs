@@ -6,7 +6,7 @@ use std::{
 
 use fev_core::handle::Handle;
 
-use crate::{PropMap, PropStore, PropStoreMut};
+use crate::{boo, PropMap, PropStore, PropStoreMut};
 
 
 /// A property map using a hashmap to store the properties.
@@ -38,10 +38,10 @@ impl<H: Handle + Hash, T> HashMap<H, T> {
 }
 
 
-impl<'s, H: Handle + Hash, T: 's> PropMap<'s, H> for HashMap<H, T> {
-    type Target = &'s T;
-    fn get(&'s self, handle: H) -> Option<Self::Target> {
-        self.get_ref(handle)
+impl<H: Handle + Hash, T> PropMap<H> for HashMap<H, T> {
+    type Target = boo::Borrowed<T>;
+    fn get(&self, handle: H) -> Option<boo::Wrap<Self::Target>> {
+        self.get_ref(handle).map(Into::into)
     }
 }
 

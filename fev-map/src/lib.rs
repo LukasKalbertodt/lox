@@ -1,5 +1,6 @@
 //! ...
 
+#![feature(never_type)]
 #![feature(crate_in_paths)]
 #![feature(rust_2018_preview)]
 
@@ -19,6 +20,7 @@ use fev_core::{
 mod foreign_impls;
 
 pub mod aliases;
+pub mod boo;
 pub mod fn_map;
 pub mod hash_map;
 pub mod mesh_map;
@@ -62,16 +64,16 @@ pub use vec_map::VecMap;
 /// - Example how to implement `PropMap`
 /// - Explain parameter `'s`
 /// - Trait alias
-pub trait PropMap<'s, H: Handle> {
-    type Target;
+pub trait PropMap<H: Handle> {
+    type Target: boo::Marker;
 
     /// Returns the property associated with `handle` or `None` if no such
     /// property exists.
-    fn get(&'s self, handle: H) -> Option<Self::Target>;
+    fn get(&self, handle: H) -> Option<boo::Wrap<Self::Target>>;
 
     /// Returns `true` if there is a property associated with `handle`, `false`
     /// otherwise.
-    fn contains_handle(&'s self, handle: H) -> bool {
+    fn contains_handle(&self, handle: H) -> bool {
         self.get(handle).is_some()
     }
 }
