@@ -8,10 +8,7 @@ use fev_core::{
     handle::{FaceHandle, VertexHandle},
     prop::{HasNormal, HasPosition, Pos3Like, PrimitiveNum, Vec3Like},
 };
-use fev_map::{
-    PropMap, MeshFaceMap, MeshVertexMap,
-    gat::Family,
-};
+use fev_map::{boo, PropMap, MeshFaceMap, MeshVertexMap};
 
 use crate::MeshWriter;
 use super::{Error, Format};
@@ -261,7 +258,7 @@ pub trait VertexPositions {
 impl<M> VertexPositions for M
 where
     M: PropMap<VertexHandle>,
-    for<'s> <M::Target as Family<'s>>::Ty: HasPosition,
+    <M::Target as boo::Marker>::Inner: HasPosition,
 {
     fn pos_of(&self, handle: VertexHandle) -> [f32; 3] {
         let prop = self.get(handle).unwrap();
@@ -302,7 +299,7 @@ impl FaceNormals for CalculateFaceNormals {
 impl<M> FaceNormals for M
 where
     M: PropMap<FaceHandle>,
-    for<'s> <M::Target as Family<'s>>::Ty: HasNormal,
+    <M::Target as boo::Marker>::Inner: HasNormal,
 {
     fn normal_of(&self, handle: FaceHandle, _: [[f32; 3]; 3]) -> [f32; 3] {
         let prop = self.get(handle).unwrap();

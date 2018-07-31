@@ -22,7 +22,6 @@ mod foreign_impls;
 pub mod aliases;
 pub mod boo;
 pub mod fn_map;
-pub mod gat;
 pub mod hash_map;
 pub mod mesh_map;
 pub mod vec_map;
@@ -33,7 +32,6 @@ pub use hash_map::HashMap;
 pub use mesh_map::{MeshFaceMap, MeshVertexMap};
 pub use vec_map::VecMap;
 
-use gat::Family;
 
 
 /// A mapping from a handle to some optional data (property).
@@ -67,11 +65,11 @@ use gat::Family;
 /// - Explain parameter `'s`
 /// - Trait alias
 pub trait PropMap<H: Handle> {
-    type Target: for<'a> Family<'a>;
+    type Target: boo::Marker;
 
     /// Returns the property associated with `handle` or `None` if no such
     /// property exists.
-    fn get(&'s self, handle: H) -> Option<<Self::Target as Family<'s>>::Ty>;
+    fn get(&self, handle: H) -> Option<boo::Wrap<Self::Target>>;
 
     /// Returns `true` if there is a property associated with `handle`, `false`
     /// otherwise.

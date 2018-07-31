@@ -31,10 +31,7 @@ use fev_core::{
     handle::{Handle, FaceHandle, VertexHandle},
     prop::{LabeledPropList, PropLabel},
 };
-use fev_map::{
-    PropMap, FnMap,
-    gat::Family,
-};
+use fev_map::{boo, PropMap, FnMap};
 
 use crate::{
     MeshWriter,
@@ -106,11 +103,11 @@ where
     ) -> Result<PlyWriter<'a, MeshT, VertexL::Out, FaceL>, Error>
     where
         MapT: PropMap<VertexHandle>,
-        <MapT::Target as Family<'a>>::Ty: PropListSerialize + LabeledPropList,
+        <MapT::Target as boo::Marker>::Inner: PropListSerialize + LabeledPropList,
         VertexL: PlyPropTopListAdd<VertexHandle, PropListDesc<'a, MapT>>,
     {
         let desc = PropListDesc {
-            typed_labels: <MapT::Target as Family<'a>>::Ty::typed_labels(),
+            typed_labels: <MapT::Target as boo::Marker>::Inner::typed_labels(),
             data: map,
         };
 
@@ -133,7 +130,7 @@ where
     ) -> Result<PlyWriter<'a, MeshT, VertexL::Out, FaceL>, Error>
     where
         MapT: PropMap<VertexHandle>,
-        <MapT::Target as Family<'a>>::Ty: PropListSerialize,
+        <MapT::Target as boo::Marker>::Inner: PropListSerialize,
         VertexL: PlyPropTopListAdd<VertexHandle, PropListDesc<'a, MapT>>,
     {
         // Obtain typed labels from `labels` array and from the `MapT::Target`
@@ -144,7 +141,7 @@ where
             .map(|(i, label)| {
                 TypedLabel {
                     label: label,
-                    data_type: <MapT::Target as Family<>>::Ty::data_type_of(i),
+                    data_type: <MapT::Target as boo::Marker>::Inner::data_type_of(i),
                 }
             })
             .collect();
@@ -362,7 +359,7 @@ impl<'a, H: Handle, L: PlyPropTopList<H>> PlyPropTopList<H> for &'a L {
 impl<'a, H: Handle, MapT, Tail> PlyPropTopList<H> for HCons<PropListDesc<'a, MapT>, Tail>
 where
     MapT: PropMap<H>,
-    <MapT::Target as Family<'a>>::Ty: PropListSerialize,
+    <MapT::Target as boo::Marker>::Inner: PropListSerialize,
     Tail: PlyPropTopList<H>,
 {
     fn write_header(&self, w: &mut impl Write) -> Result<(), Error> {
@@ -378,7 +375,7 @@ where
     fn serialize_block(&self, mut block: impl PlyBlock, handle: H) -> Result<(), Error> {
         for (i, tl) in self.head.typed_labels.iter().enumerate() {
             match self.head.data.get(handle) {
-                Some(props) => block.add(props, i)?,
+                Some(props) => block.add(&*props, i)?,
                 None => {
                     panic!(
                         "PropMap incomplete: no value for handle {:?} (property {:?}: {:?})",
@@ -403,7 +400,7 @@ impl<'a, H, MapT> PlyPropTopListAdd<H, PropListDesc<'a, MapT>> for HNil
 where
     H: Handle,
     MapT: PropMap<H>,
-    <MapT::Target as Family<'a>>::Ty: PropListSerialize,
+    <MapT::Target as boo::Marker>::Inner: PropListSerialize,
 {
     type Out = Hlist!(PropListDesc<'a, MapT>);
     fn add(self, item: PropListDesc<'a, MapT>) -> Self::Out {
@@ -415,7 +412,7 @@ impl<H, T, MapT, Tail> PlyPropTopListAdd<H, T> for HCons<PropListDesc<'a, MapT>,
 where
     H: Handle,
     MapT: PropMap<H>,
-    <MapT::Target as Family<'a>>::Ty: PropListSerialize,
+    <MapT::Target as boo::Marker>::Inner: PropListSerialize,
     Tail: PlyPropTopListAdd<H, T>,
 {
     type Out = HCons<PropListDesc<'a, MapT>, Tail::Out>;
