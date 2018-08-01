@@ -40,7 +40,7 @@ impl<H: Handle + Hash, T> HashMap<H, T> {
 
 impl<H: Handle + Hash, T> PropMap<H> for HashMap<H, T> {
     type Target = boo::Borrowed<T>;
-    fn get(&self, handle: H) -> Option<boo::Wrap<Self::Target>> {
+    fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target>> {
         self.get_ref(handle).map(Into::into)
     }
 }

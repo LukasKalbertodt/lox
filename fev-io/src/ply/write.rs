@@ -23,7 +23,7 @@ use std::{
 };
 
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
-use frunk::{HCons, HNil};
+use frunk::{hlist, Hlist, HCons, HNil};
 use splop::SkipFirst;
 
 use fev_core::{

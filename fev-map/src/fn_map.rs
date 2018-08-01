@@ -39,14 +39,15 @@ use super::{boo, PropMap};
 /// ```
 pub struct FnMap<F>(pub F);
 
-impl<'s, H, F, OutT> PropMap<H> for FnMap<F>
+impl<H, F, OutT> PropMap<H> for FnMap<F>
 where
     H: Handle,
     F: Fn(H) -> Option<OutT>,
 {
     type Target = boo::Owned<OutT>;
 
-    fn get(&self, handle: H) -> Option<boo::Wrap<Self::Target>> {
+    fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target>> {
+        // unimplemented!()
         (self.0)(handle).map(Into::into)
     }
 }

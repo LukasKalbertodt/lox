@@ -1,5 +1,4 @@
-#![feature(use_extern_macros)]
-#![feature(crate_in_paths)]
+#![feature(rust_2018_preview)]
 
 extern crate auto_impl;
 #[cfg(feature = "cgmath")]

@@ -7,7 +7,7 @@ use super::{PropMap, boo};
 impl<'a, M: PropMap<H>, H: Handle> PropMap<H> for &'a M {
     type Target = M::Target;
 
-    fn get(&self, handle: H) -> Option<boo::Wrap<Self::Target>> {
+    fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target>> {
         M::get(*self, handle)
     }
 }

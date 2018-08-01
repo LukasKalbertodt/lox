@@ -1,7 +1,8 @@
 use std::io;
 
-use fev_core::prop::PropLabel;
+use failure::Fail;
 
+use fev_core::prop::PropLabel;
 use crate::ser::PrimitiveType;
 
 

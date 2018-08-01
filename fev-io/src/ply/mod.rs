@@ -4,6 +4,8 @@ use std::{
     io,
 };
 
+use failure::Fail;
+
 use fev_core::{MeshElement};
 use crate::{
     ser::{PrimitiveType, TypedLabel},

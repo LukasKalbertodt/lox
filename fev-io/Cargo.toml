@@ -1,7 +1,10 @@
+cargo-features = ["edition"]
+
 [package]
 name = "fev-io"
 version = "0.1.0"
 authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
+edition = "2018"
 
 [dependencies]
 auto_impl = { git = "https://github.com/LukasKalbertodt/auto_impl", branch = "rewrite" }

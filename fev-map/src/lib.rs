@@ -1,11 +1,7 @@
 //! ...
 
 #![feature(never_type)]
-#![feature(crate_in_paths)]
 #![feature(rust_2018_preview)]
-
-extern crate fev_core;
-extern crate stable_vec;
 
 
 use std::{
@@ -26,11 +22,13 @@ pub mod hash_map;
 pub mod mesh_map;
 pub mod vec_map;
 
-pub use self::aliases::*;
-pub use fn_map::FnMap;
-pub use hash_map::HashMap;
-pub use mesh_map::{MeshFaceMap, MeshVertexMap};
-pub use vec_map::VecMap;
+pub use crate::{
+    aliases::*,
+    fn_map::FnMap,
+    hash_map::HashMap,
+    mesh_map::{MeshFaceMap, MeshVertexMap},
+    vec_map::VecMap,
+};
 
 
 
@@ -69,7 +67,7 @@ pub trait PropMap<H: Handle> {
 
     /// Returns the property associated with `handle` or `None` if no such
     /// property exists.
-    fn get(&self, handle: H) -> Option<boo::Wrap<Self::Target>>;
+    fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target>>;
 
     /// Returns `true` if there is a property associated with `handle`, `false`
     /// otherwise.

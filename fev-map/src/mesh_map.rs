@@ -45,7 +45,7 @@ where
 {
     type Target = boo::Borrowed<MeshT::VertexProp>;
 
-    fn get(&'s self, handle: VertexHandle) -> Option<boo::Wrap<Self::Target>> {
+    fn get(&'s self, handle: VertexHandle) -> Option<boo::Wrap<'_, Self::Target>> {
         self.mesh.vertex_prop(handle).map(Into::into)
     }
 }
@@ -90,7 +90,7 @@ where
 {
     type Target = boo::Borrowed<MeshT::FaceProp>;
 
-    fn get(&'s self, handle: FaceHandle) -> Option<boo::Wrap<Self::Target>> {
+    fn get(&'s self, handle: FaceHandle) -> Option<boo::Wrap<'_, Self::Target>> {
         self.mesh.face_prop(handle).map(Into::into)
     }
 }

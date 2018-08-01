@@ -1,19 +1,4 @@
-#![feature(crate_in_paths)]
 #![feature(rust_2018_preview)]
-#![feature(specialization)]
-#![feature(use_extern_macros)]
-
-extern crate auto_impl;
-extern crate byteorder;
-extern crate cgmath;
-extern crate failure;
-#[macro_use]
-extern crate failure_derive;
-extern crate fev_core;
-extern crate fev_map;
-#[macro_use]
-extern crate frunk;
-extern crate splop;
 
 
 use std::{
@@ -21,7 +6,6 @@ use std::{
     io::{self, BufWriter, Cursor, Write},
     path::Path,
 };
-
 
 
 pub mod ply;
