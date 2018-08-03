@@ -8,12 +8,12 @@ use std::{
     ops,
 };
 
+use auto_impl::auto_impl;
+
 use fev_core::{
     handle::Handle,
 };
 
-
-mod foreign_impls;
 
 pub mod aliases;
 pub mod boo;
@@ -62,6 +62,7 @@ pub use crate::{
 /// - Example how to implement `PropMap`
 /// - Explain parameter `'s`
 /// - Trait alias
+#[auto_impl(&)]
 pub trait PropMap<H: Handle> {
     type Target;
     type Marker: boo::Marker;

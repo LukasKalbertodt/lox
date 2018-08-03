@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 fev-core = { path = "../fev-core" }
 stable-vec = { git = "https://github.com/LukasKalbertodt/stable-vec" }
+auto_impl = { git = "https://github.com/KodrAus/auto_impl" }
