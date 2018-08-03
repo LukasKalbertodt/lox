@@ -63,11 +63,12 @@ pub use crate::{
 /// - Explain parameter `'s`
 /// - Trait alias
 pub trait PropMap<H: Handle> {
-    type Target: boo::Marker;
+    type Target;
+    type Marker: boo::Marker;
 
     /// Returns the property associated with `handle` or `None` if no such
     /// property exists.
-    fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target>>;
+    fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target, Self::Marker>>;
 
     /// Returns `true` if there is a property associated with `handle`, `false`
     /// otherwise.

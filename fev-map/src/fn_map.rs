@@ -21,7 +21,7 @@ use super::{boo, PropMap};
 /// use fev_core::handle::{Handle, VertexHandle};
 /// use fev_map::{FnMap, PropMap};
 ///
-/// fn foo<'a>(map: &impl PropMap<'a, VertexHandle>) {}
+/// fn foo(map: &impl PropMap<VertexHandle>) {}
 ///
 ///
 /// // This property map returns 27 for all handles with an id smaller than 10.
@@ -44,9 +44,10 @@ where
     H: Handle,
     F: Fn(H) -> Option<OutT>,
 {
-    type Target = boo::Owned<OutT>;
+    type Target = OutT;
+    type Marker = boo::Owned;
 
-    fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target>> {
+    fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target, Self::Marker>> {
         // unimplemented!()
         (self.0)(handle).map(Into::into)
     }

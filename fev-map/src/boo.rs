@@ -18,21 +18,13 @@
 //! - Ghosts say boo. This is kinda creepy and ugly and should be avoided. But
 //!   it stays until GATs are here.
 
-use std::{
-    marker::PhantomData,
-    ops,
-};
+use std::ops;
 
-/// Types which wrap another type and denote it's borrowed or owned.
+/// Types which denote if a type is borrowed or owned.
 ///
 /// This trait is only implemented by two types, [`Owned`] and [`Borrowed`].
 /// You **shouldn't** implement this trait for your own types!
-///
-/// To get the wrapped type, use the `Inner` associated type!
 pub trait Marker {
-    /// The wrapped type. Use this to define any bounds on the type.
-    type Inner;
-
     /// For internal use: by setting this to `!` (never), we can make sure that
     /// the compiler removes some branches.
     type RefDummy;
@@ -44,65 +36,80 @@ pub trait Marker {
 
 /// An owned type T. This type cannot be constructed and can only be used as a
 /// marker.
-pub struct Owned<T> {
-    _never: !,
-    _phantom: PhantomData<T>,
-}
+pub enum Owned {}
 
-impl<T> Marker for Owned<T> {
-    type Inner = T;
+impl Marker for Owned {
     type RefDummy = !;
     type OwnedDummy = ();
 }
 
 /// A borrowed type T. This type cannot be constructed and can only be used as a
 /// marker.
-pub struct Borrowed<T> {
-    _never: !,
-    _phantom: PhantomData<T>,
-}
+pub enum Borrowed {}
 
-impl<T> Marker for Borrowed<T> {
-    type Inner = T;
+impl Marker for Borrowed {
     type RefDummy = ();
     type OwnedDummy = !;
 }
 
 /// Holds either an owned or a borrowed value. The borrowed/owned state is
-/// fully determined by the type parameter `T`!
+/// fully determined by the type parameter `M`!
 ///
-/// This type can only be used in two ways: `Wrap<Borrowed<T>>` and
-/// `Wrap<Owned<T>>`. To create an instance of this type use the appropriate
+/// This type can only be used in two ways: `Wrap<T, Borrowed>` and
+/// `Wrap<T, Owned>`. To create an instance of this type use the appropriate
 /// `From` impls (usually via `.into()`).
 ///
 /// This type implements `Deref` which allows you to get a reference to the
-/// underlying data.
-pub enum Wrap<'a, T: Marker>
-where
-    T::Inner: 'a,
-{
-    Borrowed(&'a T::Inner, T::RefDummy),
-    Owned(T::Inner, T::OwnedDummy),
+/// underlying data. If you want extract the exact value from this type, use
+/// the `.into_inner()` method.
+pub struct Wrap<'a, T: 'a, M: Marker>(WrapInner<'a, T, M>);
+
+
+/// The actual `Wrap` implementation. But we don't want to make the fields
+/// public, so we wrap it in a struct.
+enum WrapInner<'a, T: 'a, M: Marker> {
+    Borrowed(&'a T, M::RefDummy),
+    Owned(T, M::OwnedDummy),
 }
 
-impl<'a, T: Marker> ops::Deref for Wrap<'a, T> {
-    type Target = T::Inner;
+impl<T, M: Marker> ops::Deref for Wrap<'_, T, M> {
+    type Target = T;
     fn deref(&self) -> &Self::Target {
-        match self {
-            Wrap::Borrowed(b,_ ) => b,
-            Wrap::Owned(v, _) => v,
+        match &self.0 {
+            WrapInner::Borrowed(b,_ ) => b,
+            WrapInner::Owned(v, _) => v,
         }
     }
 }
 
-impl<'a, T> From<T> for Wrap<'a, Owned<T>> {
+impl<'a, T> From<T> for Wrap<'a, T, Owned> {
     fn from(src: T) -> Self {
-        Wrap::Owned(src, ())
+        Wrap(WrapInner::Owned(src, ()))
     }
 }
 
-impl<'a, T> From<&'a T> for Wrap<'a, Borrowed<T>> {
+impl<'a, T> From<&'a T> for Wrap<'a, T, Borrowed> {
     fn from(src: &'a T) -> Self {
-        Wrap::Borrowed(src, ())
+        Wrap(WrapInner::Borrowed(src, ()))
+    }
+}
+
+impl<T> Wrap<'_, T, Owned> {
+    /// Returns the underlying value.
+    pub fn into_inner(self) -> T {
+        match self.0 {
+            WrapInner::Borrowed(_, never) => never,
+            WrapInner::Owned(v, _) => v,
+        }
+    }
+}
+
+impl<'a, T> Wrap<'a, T, Borrowed> {
+    /// Returns the underlying value.
+    pub fn into_inner(self) -> &'a T {
+        match self.0 {
+            WrapInner::Borrowed(v, _) => v,
+            WrapInner::Owned(_, never) => never,
+        }
     }
 }

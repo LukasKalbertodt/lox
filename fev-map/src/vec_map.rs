@@ -67,8 +67,10 @@ impl<H: Handle, T: Clone> VecMap<H, T> {
 }
 
 impl<H: Handle, T> PropMap<H> for VecMap<H, T> {
-    type Target = boo::Borrowed<T>;
-    fn get(&'s self, handle: H) -> Option<boo::Wrap<'_, Self::Target>> {
+    type Target = T;
+    type Marker = boo::Borrowed;
+
+    fn get(&'s self, handle: H) -> Option<boo::Wrap<'_, Self::Target, Self::Marker>> {
         self.get_ref(handle).map(Into::into)
     }
 }
