@@ -6,9 +6,11 @@ use fev_core::prop::PropLabel;
 use crate::ser::PrimitiveType;
 
 
+mod read;
 mod write;
 
 pub use self::write::StlWriter;
+pub use self::read::StlReader;
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,13 +1,21 @@
+#![feature(rust_2018_preview)]
 #![allow(unused_imports)] // TODO: remove later
 
 extern crate fev;
 extern crate failure;
 
+use std::{
+    env,
+    fs,
+    io,
+};
+
 use failure::Error;
 
 
 use fev::{
-    handle::FaceHandle,
+    AdhocBuilder, TriMeshSource,
+    handle::{VertexHandle, FaceHandle},
     impls::sv::SharedVertexMesh,
     prop::{HasNormal, HasPosition, LabeledPropList, PropLabel},
     map::{PropMap, FaceVecMap, VertexVecMap, PropStoreMut, fn_map::FnMap},
@@ -21,6 +29,7 @@ use fev::{
         stl::{
             Format as StlFormat,
             StlWriter,
+            StlReader,
         },
     },
 };
@@ -128,21 +137,14 @@ fn main() -> Result<(), Error> {
     let f = mesh.add_face([a, b, c], ());
     face_normals.insert(f, MyNormal { normal: [1.0, 0.0, 0.0]});
 
-    // PlyWriter::tmp_new(Format as PlyFormat::Ascii, &mesh)?
-    // PlyWriter::tmp_new(Format as PlyFormat::BinaryLittleEndian, &mesh)?
-    //     .add_vertex_prop(&vm)?
-    //     .add_vertex_prop_as(&FnMap(|_| Some(SingleProp(7))), &[PropLabel::Named("peter".into())])?
-    //     .write_to_stdout() as StlFormat?;
-        // .write_to_file("test.ply as StlFormat")?;
-
-    StlWriter::tmp_new(StlFormat::Binary, &mesh)?
-        // .calculate_normals()
-        .with_normals(&face_normals)
-        // .with_normals(&FnMap(|_| Some(MyNormal { normal: [0.0, 0.0, 1.0]})))
-        .with_solid_name("peter")
-        // .with_vertex_positions(&FnMap(|_| Some(MyProp { pos: (0.0, 0.0, 0.0) })))
-        // .write_to_stdout()?;
-        .write_to_file("test.stl")?;
+    let filename = env::args().nth(1).unwrap();
+    StlReader::open(filename)?.append(&mut AdhocBuilder {
+        add_vertex: |v| {
+            println!("{:?}", v);
+            VertexHandle(0)
+        },
+        add_face: |verts, f| println!("{:?} -> {:?}", verts, f),
+    }).unwrap();
 
     Ok(())
 }

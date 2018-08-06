@@ -156,7 +156,7 @@ macro_rules! make_handle_type {
     ($(#[$attr:meta])* $name:ident = $short:expr;) => {
         $(#[$attr])*
         #[derive(Clone, Copy, PartialEq, Eq)]
-        pub struct $name(DefaultId);
+        pub struct $name(pub DefaultId);
 
         impl Handle for $name {
             fn from_id(id: DefaultId) -> Self {

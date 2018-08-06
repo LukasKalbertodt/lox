@@ -8,10 +8,14 @@ use std::{
 };
 
 
+mod parse;
 pub mod ply;
 pub mod stl;
 pub mod ser;
 
+pub use self::{
+    stl::StlReader,
+};
 
 
 // TODO: Make better with GATs
@@ -60,4 +64,9 @@ pub trait MeshWriter {
         self.write(&mut w)?;
         Ok(w.into_inner())
     }
+}
+
+
+pub trait MeshReader {
+
 }

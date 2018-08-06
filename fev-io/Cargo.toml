@@ -15,4 +15,6 @@ failure_derive = "0.1.1"
 fev-core = { path = "../fev-core" }
 fev-map = { path = "../fev-map" }
 frunk = "0.2"
+new-ordered-float = "1.0"
+nom = "4.0"
 splop = "0.2"

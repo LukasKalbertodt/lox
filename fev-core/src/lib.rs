@@ -6,6 +6,7 @@ extern crate cgmath;
 pub extern crate num_traits;
 
 
+mod build;
 pub mod handle;
 pub mod prop;
 pub mod refs;
@@ -15,6 +16,10 @@ use std::fmt;
 use crate::{
     handle::{DefaultId, FaceHandle, VertexHandle},
     refs::{FaceRef, VertexRef},
+};
+
+pub use crate::{
+    build::{AdhocBuilder, TriMeshBuilder, TriMeshSource},
 };
 
 
@@ -35,6 +40,15 @@ impl fmt::Display for MeshElement {
         }.fmt(f)
     }
 }
+
+pub trait Mesh {
+    fn empty() -> Self;
+}
+
+pub trait TriMesh: Mesh {
+
+}
+
 
 // Alternative names:
 // - HasVertices

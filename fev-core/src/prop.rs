@@ -213,6 +213,15 @@ pub trait HasPosition {
     fn position(&self) -> &Self::Position;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Position<T: Pos3Like>(pub T);
+impl<T: Pos3Like> HasPosition for Position<T> {
+    type Position = T;
+    fn position(&self) -> &Self::Position {
+        &self.0
+    }
+}
+
 /// Property sets that store a 3D normal.
 #[auto_impl(&)]
 pub trait HasNormal {
@@ -220,6 +229,14 @@ pub trait HasNormal {
     fn normal(&self) -> &Self::Normal;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Normal<T: Vec3Like>(pub T);
+impl<T: Vec3Like> HasNormal for Normal<T> {
+    type Normal = T;
+    fn normal(&self) -> &Self::Normal {
+        &self.0
+    }
+}
 
 /// Primitive numerical types, like `f64` and `u32`.
 pub trait PrimitiveNum: 'static + Copy + Debug + Num + NumCast + PartialOrd + NumAssign {
