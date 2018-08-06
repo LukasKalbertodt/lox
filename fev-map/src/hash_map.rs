@@ -92,6 +92,10 @@ impl<H: Handle + Hash, T> PropStoreMut<H> for HashMap<H, T> {
     fn clear(&mut self) {
         self.0.clear()
     }
+
+    fn reserve(&mut self, additional: usize) {
+        self.0.reserve(additional);
+    }
 }
 
 impl<H: Handle + Hash, T> From<StdHashMap<H, T>> for HashMap<H, T> {

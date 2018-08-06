@@ -171,6 +171,9 @@ pub trait PropStoreMut<H: Handle>: PropStore<H> + ops::IndexMut<H> {
     /// Removes all properties so that all `contains_handle()` returns `false`
     /// for all handles.
     fn clear(&mut self);
+
+    /// Reserves memory for at least `additional` new properties.
+    fn reserve(&mut self, additional: usize);
 }
 
 

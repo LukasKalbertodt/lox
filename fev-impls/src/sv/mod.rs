@@ -2,9 +2,8 @@
 
 
 use fev_core::{
-    ExplicitVertex,
-    ExplicitFace,
-    MeshUnsorted,
+    ExplicitVertex, ExplicitFace, MeshUnsorted, TriMeshBuilder, Mesh,
+    prop::{FromProp, IntoProp},
     handle::{DefaultId, FaceHandle, VertexHandle},
     refs::{FaceRef, VertexRef},
 };
@@ -46,6 +45,13 @@ impl<VertexT, FaceT> SharedVertexMesh<VertexT, FaceT> {
     }
 
 }
+
+impl<VertexT, FaceT> Mesh for SharedVertexMesh<VertexT, FaceT> {
+    fn empty() -> Self {
+        Self::new()
+    }
+}
+
 
 impl<VertexT, FaceT> MeshUnsorted for SharedVertexMesh<VertexT, FaceT> {
     fn vertices_of_face(
@@ -105,5 +111,30 @@ impl<VertexT, FaceT> ExplicitFace for SharedVertexMesh<VertexT, FaceT> {
         Box::new(self.faces.handles().map(move |handle| {
             FaceRef::new(self, handle)
         }))
+    }
+}
+
+
+impl<VertexT, FaceT, VertexInfoT, FaceInfoT> TriMeshBuilder<VertexInfoT, FaceInfoT>
+    for SharedVertexMesh<VertexT, FaceT>
+where
+    VertexT: FromProp<VertexInfoT>,
+    FaceT: FromProp<FaceInfoT>,
+{
+    fn add_vertex(&mut self, info: VertexInfoT) -> VertexHandle {
+        Self::add_vertex(self, info.into_prop())
+    }
+
+    fn add_face(&mut self, vertices: [VertexHandle; 3], info: FaceInfoT) {
+        Self::add_face(self, vertices, info.into_prop());
+    }
+
+    fn hint_num_faces(&mut self, num: usize) {
+        // We assume that every face shares at most two vertices with any other
+        // face. Thus we allocate for `num` many vertices, too. If this is a
+        // very degenerate mesh (very unlikely), we only wasted a bit of
+        // memory.
+        self.faces.reserve(num);
+        self.vertices.reserve(num);
     }
 }

@@ -136,6 +136,10 @@ impl<H: Handle, T> PropStoreMut<H> for VecMap<H, T> {
     fn clear(&mut self) {
         self.vec.clear()
     }
+
+    fn reserve(&mut self, additional: usize) {
+        self.vec.reserve(additional);
+    }
 }
 
 

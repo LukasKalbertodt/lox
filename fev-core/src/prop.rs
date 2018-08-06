@@ -71,74 +71,15 @@ pub trait Pos3Like: Copy {
     /// Returns the `z` component of this position.
     fn z(&self) -> &Self::Scalar;
 
+    fn convert<T: Pos3Like>(self) -> T {
+        T::from_coords(self.x().cast(), self.y().cast(), self.z().cast())
+    }
+
     #[cfg(feature = "cgmath")]
-    fn to_point3(&self) -> Point3<Self::Scalar> {
-        Point3::new(*self.x(), *self.y(), *self.z())
+    fn to_point3(self) -> Point3<Self::Scalar> {
+        self.convert()
     }
 }
-
-#[cfg(feature = "cgmath")]
-impl<T: PrimitiveNum> Pos3Like for Point3<T> {
-    type Scalar = T;
-
-    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
-        Self::new(x, y, z)
-    }
-
-    fn x(&self) -> &Self::Scalar {
-        &self.x
-    }
-
-    fn y(&self) -> &Self::Scalar {
-        &self.y
-    }
-
-    fn z(&self) -> &Self::Scalar {
-        &self.z
-    }
-}
-
-
-impl<T: PrimitiveNum> Pos3Like for (T, T, T) {
-    type Scalar = T;
-
-    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
-        (x, y, z)
-    }
-
-    fn x(&self) -> &Self::Scalar {
-        &self.0
-    }
-
-    fn y(&self) -> &Self::Scalar {
-        &self.1
-    }
-
-    fn z(&self) -> &Self::Scalar {
-        &self.2
-    }
-}
-
-impl<T: PrimitiveNum> Pos3Like for [T; 3] {
-    type Scalar = T;
-
-    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
-        [x, y, z]
-    }
-
-    fn x(&self) -> &Self::Scalar {
-        &self[0]
-    }
-
-    fn y(&self) -> &Self::Scalar {
-        &self[1]
-    }
-
-    fn z(&self) -> &Self::Scalar {
-        &self[2]
-    }
-}
-
 
 /// Types that can be interpreted to represent some kind of 3D direction
 /// vector.
@@ -163,45 +104,9 @@ pub trait Vec3Like: Copy {
 
     /// Returns the `z` component of this vector.
     fn z(&self) -> &Self::Scalar;
-}
 
-impl<T: PrimitiveNum> Vec3Like for (T, T, T) {
-    type Scalar = T;
-
-    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
-        (x, y, z)
-    }
-
-    fn x(&self) -> &Self::Scalar {
-        &self.0
-    }
-
-    fn y(&self) -> &Self::Scalar {
-        &self.1
-    }
-
-    fn z(&self) -> &Self::Scalar {
-        &self.2
-    }
-}
-
-impl<T: PrimitiveNum> Vec3Like for [T; 3] {
-    type Scalar = T;
-
-    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
-        [x, y, z]
-    }
-
-    fn x(&self) -> &Self::Scalar {
-        &self[0]
-    }
-
-    fn y(&self) -> &Self::Scalar {
-        &self[1]
-    }
-
-    fn z(&self) -> &Self::Scalar {
-        &self[2]
+    fn convert<T: Pos3Like>(self) -> T {
+        T::from_coords(self.x().cast(), self.y().cast(), self.z().cast())
     }
 }
 
@@ -364,5 +269,95 @@ impl LabeledPropList for () {
 
     fn label_of(_: usize) -> PropLabel {
         panic!() // TODO
+    }
+}
+
+
+
+// ----------------
+
+
+#[cfg(feature = "cgmath")]
+impl<T: PrimitiveNum> Pos3Like for Point3<T> {
+    type Scalar = T;
+    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
+        Self::new(x, y, z)
+    }
+    fn x(&self) -> &Self::Scalar { &self.x }
+    fn y(&self) -> &Self::Scalar { &self.y }
+    fn z(&self) -> &Self::Scalar { &self.z }
+}
+
+#[cfg(feature = "cgmath")]
+impl<T: PrimitiveNum> HasPosition for Point3<T> {
+    type Position = Self;
+    fn position(&self) -> &Self::Position { self }
+}
+
+impl<T: PrimitiveNum> Pos3Like for (T, T, T) {
+    type Scalar = T;
+    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
+        (x, y, z)
+    }
+    fn x(&self) -> &Self::Scalar { &self.0 }
+    fn y(&self) -> &Self::Scalar { &self.1 }
+    fn z(&self) -> &Self::Scalar { &self.2 }
+}
+
+
+impl<T: PrimitiveNum> HasPosition for (T, T, T) {
+    type Position = Self;
+    fn position(&self) -> &Self::Position { self }
+}
+
+impl<T: PrimitiveNum> Pos3Like for [T; 3] {
+    type Scalar = T;
+    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
+        [x, y, z]
+    }
+    fn x(&self) -> &Self::Scalar { &self[0] }
+    fn y(&self) -> &Self::Scalar { &self[1] }
+    fn z(&self) -> &Self::Scalar { &self[2] }
+}
+
+
+impl<T: PrimitiveNum> HasPosition for [T; 3] {
+    type Position = Self;
+    fn position(&self) -> &Self::Position { self }
+}
+
+
+impl<T: PrimitiveNum> Vec3Like for (T, T, T) {
+    type Scalar = T;
+    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
+        (x, y, z)
+    }
+    fn x(&self) -> &Self::Scalar { &self.0 }
+    fn y(&self) -> &Self::Scalar { &self.1 }
+    fn z(&self) -> &Self::Scalar { &self.2 }
+}
+
+impl<T: PrimitiveNum> Vec3Like for [T; 3] {
+    type Scalar = T;
+    fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
+        [x, y, z]
+    }
+    fn x(&self) -> &Self::Scalar { &self[0] }
+    fn y(&self) -> &Self::Scalar { &self[1] }
+    fn z(&self) -> &Self::Scalar { &self[2] }
+}
+
+
+pub trait FromProp<P> {
+    fn from_prop(src: P) -> Self;
+}
+
+pub trait IntoProp<P> {
+    fn into_prop(self) -> P;
+}
+
+impl<SrcT, DstT: FromProp<SrcT>> IntoProp<DstT> for SrcT {
+    fn into_prop(self) -> DstT {
+        DstT::from_prop(self)
     }
 }

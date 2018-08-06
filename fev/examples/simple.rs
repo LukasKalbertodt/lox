@@ -17,7 +17,7 @@ use fev::{
     AdhocBuilder, TriMeshSource,
     handle::{VertexHandle, FaceHandle},
     impls::sv::SharedVertexMesh,
-    prop::{HasNormal, HasPosition, LabeledPropList, PropLabel},
+    prop::{HasNormal, HasPosition, LabeledPropList, PropLabel, FromProp, Pos3Like, Vec3Like},
     map::{PropMap, FaceVecMap, VertexVecMap, PropStoreMut, fn_map::FnMap},
     io::{
         MeshWriter,
@@ -34,7 +34,7 @@ use fev::{
     },
 };
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct MyProp {
     pos: (f32, f32, f32),
 }
@@ -79,6 +79,15 @@ impl LabeledPropList for MyProp {
     }
 }
 
+impl<T: HasPosition> FromProp<T> for MyProp {
+    fn from_prop(src: T) -> Self {
+        Self {
+            pos: src.position().convert(),
+        }
+    }
+}
+
+#[derive(Debug)]
 struct MyNormal {
     normal: [f32; 3],
 }
@@ -123,6 +132,14 @@ impl LabeledPropList for MyNormal {
     }
 }
 
+impl<T: HasNormal> FromProp<T> for MyNormal {
+    fn from_prop(src: T) -> Self {
+        Self {
+            normal: src.normal().convert(),
+        }
+    }
+}
+
 fn main() -> Result<(), Error> {
     let mut vm = VertexVecMap::new();
     let mut face_normals = FaceVecMap::new();
@@ -138,13 +155,19 @@ fn main() -> Result<(), Error> {
     face_normals.insert(f, MyNormal { normal: [1.0, 0.0, 0.0]});
 
     let filename = env::args().nth(1).unwrap();
-    StlReader::open(filename)?.append(&mut AdhocBuilder {
-        add_vertex: |v| {
-            println!("{:?}", v);
-            VertexHandle(0)
-        },
-        add_face: |verts, f| println!("{:?} -> {:?}", verts, f),
-    }).unwrap();
+    // StlReader::open(filename)?.append(&mut AdhocBuilder {
+    //     add_vertex: |v| {
+    //         println!("{:?}", v);
+    //         VertexHandle(0)
+    //     },
+    //     add_face: |verts, f| println!("{:?} -> {:?}", verts, f),
+    // }).unwrap();
+
+    let mesh: SharedVertexMesh<MyProp, MyNormal> = StlReader::open(filename)?.build().unwrap();
+
+    // println!("{:#?}", mesh);
+    StlWriter::tmp_new(StlFormat::Binary, &mesh)?
+        .write_to_file("mine.stl")?;
 
     Ok(())
 }
