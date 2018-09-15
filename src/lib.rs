@@ -2,4 +2,8 @@
 //!
 //! **TODO**: Everything.
 
-pub const DUMMY: u8 = 0;
+pub mod handle;
+
+pub use self::{
+    handle::{EdgeHandle, FaceHandle, VertexHandle},
+};
