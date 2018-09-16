@@ -1,4 +1,5 @@
 use std::{
+    fmt,
     marker::PhantomData,
     mem,
     ops::{Index, IndexMut},
@@ -20,7 +21,7 @@ use super::{
 /// # TODO
 ///
 /// - Explain memory requirements of this data structure
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct VecMap<H: Handle, T> {
     vec: StableVec<T>,
     _dummy: PhantomData<H>,
@@ -140,7 +141,13 @@ impl<H: Handle, T> PropStoreMut<H> for VecMap<H, T> {
         self.vec.reserve(additional);
     }
 }
-
+impl<H: Handle, T: fmt::Debug> fmt::Debug for VecMap<H, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_map()
+            .entries(self.vec.keys().map(|k| (H::from_usize(k), &self.vec[k])))
+            .finish()
+    }
+}
 
 
 

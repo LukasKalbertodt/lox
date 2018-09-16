@@ -1,5 +1,6 @@
 //! Everything related to the `SharedVertexMesh`.
 
+use std::fmt;
 
 use crate::{
     handle::{DefaultInt, FaceHandle, VertexHandle},
@@ -11,7 +12,7 @@ use crate::{
 
 
 // TODO: Manual debug impl
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct SharedVertexMesh {
     vertices: VecMap<VertexHandle, ()>,
     faces: VecMap<FaceHandle, [VertexHandle; 3]>,
@@ -73,6 +74,21 @@ impl ExplicitFace for SharedVertexMesh {
     }
 }
 
+impl fmt::Debug for SharedVertexMesh {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        struct VerticesDebug<'a>(&'a VecMap<VertexHandle, ()>);
+        impl fmt::Debug for VerticesDebug<'_> {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.debug_list().entries(self.0.handles()).finish()
+            }
+        }
+
+        f.debug_struct("SharedVertexMesh")
+            .field("vertices", &VerticesDebug(&self.vertices))
+            .field("faces", &self.faces)
+            .finish()
+    }
+}
 
 #[cfg(test)]
 mod test {
