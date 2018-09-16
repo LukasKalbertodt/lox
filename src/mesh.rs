@@ -31,9 +31,7 @@ pub trait TriMesh: Mesh {}
 pub trait ExplicitVertex {
     fn num_vertices(&self) -> DefaultInt;
 
-    fn vertices<'s>(&'s self) -> Box<dyn Iterator<Item = VertexRef<Self>> + 's>
-    where
-        Self: Sized;
+    fn vertices<'s>(&'s self) -> Box<dyn Iterator<Item = VertexRef<'s, Self>> + 's>;
     // TODO: visit_mut
     // TODO: iterator over handles
     // TODO: mutable iterator?
@@ -42,9 +40,7 @@ pub trait ExplicitVertex {
 pub trait ExplicitFace {
     fn num_faces(&self) -> DefaultInt;
 
-    fn faces<'s>(&'s self) -> Box<dyn Iterator<Item = FaceRef<Self>> + 's>
-    where
-        Self: Sized;
+    fn faces<'s>(&'s self) -> Box<dyn Iterator<Item = FaceRef<'s, Self>> + 's>;
     // TODO: visit_mut
     // TODO: iterator over handles
     // TODO: mutable iterator?
