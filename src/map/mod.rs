@@ -13,18 +13,18 @@ use crate::{
 
 // pub mod aliases;
 pub mod boo;
-// pub mod fn_map;
+mod fn_map;
 // pub mod hash_map;
 // pub mod mesh_map;
 // pub mod vec_map;
 
-// pub use crate::{
+pub use self::{
 //     aliases::*,
-//     fn_map::FnMap,
+    fn_map::FnMap,
 //     hash_map::HashMap,
 //     mesh_map::{MeshFaceMap, MeshVertexMap},
 //     vec_map::VecMap,
-// };
+};
 
 
 
