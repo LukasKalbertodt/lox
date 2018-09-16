@@ -5,6 +5,7 @@
 #![feature(never_type)]
 
 
+pub mod ds;
 pub mod handle;
 pub mod map;
 pub mod math;
