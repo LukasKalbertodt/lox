@@ -4,4 +4,10 @@ version = "0.1.0"
 authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
 edition = "2018"
 
+
+[features]
+default = ["cgmath"]
+
 [dependencies]
+num-traits = "0.2"
+cgmath = { version = "0.16", optional = true }
