@@ -9,5 +9,6 @@ edition = "2018"
 default = ["cgmath"]
 
 [dependencies]
-num-traits = "0.2"
 cgmath = { version = "0.16", optional = true }
+num-traits = "0.2"
+stable-vec = { git = "https://github.com/LukasKalbertodt/stable-vec" }
