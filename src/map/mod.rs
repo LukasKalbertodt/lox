@@ -10,14 +10,14 @@ use crate::{
 };
 
 
-// pub mod aliases;
+pub mod aliases;
 pub mod boo;
 mod fn_map;
 mod hash_map;
 mod vec_map;
 
 pub use self::{
-//     aliases::*,
+    aliases::*,
     fn_map::FnMap,
     hash_map::HashMap,
     vec_map::VecMap,
