@@ -25,15 +25,6 @@ impl SharedVertexMesh {
             faces: VecMap::new(),
         }
     }
-
-    pub fn add_vertex(&mut self) -> VertexHandle {
-        self.vertices.push(())
-    }
-
-    // CCW!
-    pub fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
-        self.faces.push(vertices)
-    }
 }
 
 impl Mesh for SharedVertexMesh {
@@ -53,6 +44,10 @@ impl ExplicitVertex for SharedVertexMesh {
         self.vertices.num_elements()
     }
 
+    fn add_vertex(&mut self) -> VertexHandle {
+        self.vertices.push(())
+    }
+
     fn vertices<'s>(&'s self) -> Box<Iterator<Item = VertexRef<Self>> + 's> {
         Box::new(self.vertices.handles().map(move |handle| {
             VertexRef::new(self, handle)
@@ -65,6 +60,10 @@ impl ExplicitVertex for SharedVertexMesh {
 impl ExplicitFace for SharedVertexMesh {
     fn num_faces(&self) -> DefaultInt {
         self.faces.num_elements()
+    }
+
+    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
+        self.faces.push(vertices)
     }
 
     fn faces<'s>(&'s self) -> Box<Iterator<Item = FaceRef<Self>> + 's> {
