@@ -3,31 +3,76 @@
 /// # TODO
 /// - Example
 #[macro_export]
-macro_rules! tri_mesh {
+macro_rules! mesh {
+    // Special rule for an empty mesh
     (
+        type: $mesh_type:path,
+        vertices: [],
+        faces: [] $(,)*
+    ) => { <$mesh_type as $crate::Mesh>::empty() };
+
+    // The main rule
+    (
+        type: $mesh_type:path,
         vertices: [
-            $($name:ident ,)*
+            $first_vert_name:ident: ( $($first_vert_val:expr),* ),
+            $( $vert_name:ident: ( $($vert_val:expr),* ) ,)*
         ],
         faces: [
             $([$va:ident, $vb:ident, $vc:ident] ,)*
-        ],
+        ] $(,)*
     ) => {{
-        use $crate::{Mesh, ExplicitFace, ExplicitVertex};
+        use $crate::{
+            Mesh, ExplicitFace, ExplicitVertex,
+            map::{PropStoreMut, VecMap},
+        };
 
-        fn build<M: Mesh + ExplicitFace + ExplicitVertex>() -> M {
-            let mut m = M::empty();
+        let mut mesh = <$mesh_type as Mesh>::empty();
 
-            $(
-                let $name = m.add_vertex();
-            )*
+        // Add vertices
+        let $first_vert_name = mesh.add_vertex();
+        $(
+            let $vert_name = mesh.add_vertex();
+        )*
 
-            $(
-                m.add_face([$va, $vb, $vc]);
-            )*
+        // Add faces
+        $(
+            <$mesh_type as ExplicitFace>::add_face(&mut mesh, [$va, $vb, $vc]);
+        )*
 
-            m
-        }
+        // Create all property maps and return everything
+        mesh!(@make
+            (mesh);
+            ( $( {$first_vert_val} )* );
+            [
+                $first_vert_name: ( $($first_vert_val),* ),
+                $( $vert_name: ( $($vert_val),* ) ,)*
+            ]
+        )
+    }};
 
-        build()
-    }}
+    (@make
+        $ret:tt;
+        ();
+        $($_tail:tt)*
+    ) => {{
+        $ret
+    }};
+
+    (@make
+        ($($ret:tt)*);
+        ($_head:tt $($tail:tt)* );
+        [$($vert_name:ident: ( $first_vert_val:expr $(, $val:expr)* ) ,)*]
+    ) => {{
+        let mut map = VecMap::new();
+        $(
+            <VecMap<_, _> as PropStoreMut<_>>::insert(&mut map, $vert_name, $first_vert_val);
+        )*
+
+        mesh!(@make
+            ($($ret)*, map);
+            ($($tail)*);
+            [$($vert_name: ( $($val),* ) ,)*]
+        )
+    }};
 }
