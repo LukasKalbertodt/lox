@@ -3,7 +3,7 @@
 /// # TODO
 /// - Example
 #[macro_export]
-macro_rules! mesh {
+macro_rules! mesh_old {
     // Special rule for an empty mesh
     (
         type: $mesh_type:path,

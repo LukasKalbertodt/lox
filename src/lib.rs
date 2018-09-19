@@ -7,7 +7,7 @@
 
 pub mod ds;
 pub mod handle;
-mod macros;
+pub mod macros;
 pub mod map;
 pub mod math;
 mod mesh;
@@ -17,3 +17,4 @@ pub use self::{
     handle::{EdgeHandle, FaceHandle, VertexHandle},
     mesh::{Mesh, TriMesh, MeshElement, ExplicitFace, ExplicitVertex},
 };
+pub use lox_macros::mesh;

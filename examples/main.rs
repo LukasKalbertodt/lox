@@ -1,3 +1,5 @@
+#![feature(proc_macro_non_items)]
+
 use lox::{
     mesh,
     ds::SharedVertexMesh,
@@ -5,7 +7,7 @@ use lox::{
 
 
 fn main() {
-    let (mesh, maps) = mesh!{
+    let (mesh, maps) = mesh! {
         type: SharedVertexMesh,
         vertices: [
             v0: (3.0),

@@ -10,5 +10,6 @@ default = ["cgmath"]
 
 [dependencies]
 cgmath = { version = "0.16", optional = true }
+lox-macros = { path = "lox-macros" }
 num-traits = "0.2"
 stable-vec = { git = "https://github.com/LukasKalbertodt/stable-vec" }
