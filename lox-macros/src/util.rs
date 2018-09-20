@@ -2,12 +2,12 @@
 
 use proc_macro2::{Ident, Spacing};
 use syn::{
-    parse::{ParseStream, Result},
+    parse::{ParseBuffer, Result},
 };
 
 
-/// Adds a few methods to `ParseStream` to parse specific tokens.
-pub(crate) trait ParseStreamExt {
+/// Adds a few methods to `ParseBuffer` to parse specific tokens.
+pub(crate) trait ParseBufferExt {
     /// Consumes an `Ident` token if that's the next token in the stream. If
     /// `expected` is not `None`, the token is compared to the given string. If
     /// the string doesn't match or the next token is not an `Ident`, an error
@@ -22,7 +22,7 @@ pub(crate) trait ParseStreamExt {
     fn eat_punct(&self, expected: &[u8]) -> Result<()>;
 }
 
-impl ParseStreamExt for ParseStream<'_> {
+impl ParseBufferExt for ParseBuffer<'_> {
     fn eat_ident<'a>(&self, expected: impl Into<Option<&'a str>>) -> Result<Ident> {
         self.step(|cursor| {
             match (expected.into(), cursor.ident()) {
