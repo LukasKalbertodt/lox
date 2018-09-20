@@ -1,28 +1,42 @@
 #![feature(proc_macro_non_items)]
 
+use failure::Error;
+
 use lox::{
     mesh,
     ds::SharedVertexMesh,
+    io::{
+        MeshWriter,
+        stl,
+    },
 };
 
 
-fn main() {
-    let (mesh, positions, labels, names) = mesh! {
+fn main() -> Result<(), Error> {
+    let (mesh, positions) = mesh! {
         type: SharedVertexMesh,
         vertices: [
-            v0: (3.0, 'x'),
-            v1: (5.0, 'y'),
-            v2: (1.0, 'z'),
-            v3: (8.2, 'w'),
+            v0: ([0.0, 0.0, 0.0]),
+            v1: ([0.0, 1.0, 0.0]),
+            v2: ([1.0, 0.0, 0.0]),
+            v3: ([1.0, 1.0, 0.0]),
         ],
         faces: [
-            [v0, v1, v2]: ("top"),
-            [v1, v2, v3]: ("bottom"),
+            [v0, v2, v1],
+            [v3, v1, v2],
         ],
     };
 
-    println!("{:?}", mesh);
-    println!("{:?}", positions);
-    println!("{:?}", labels);
-    println!("{:?}", names);
+    // println!("{:?}", mesh);
+    // println!("{:?}", positions);
+    // println!("{:?}", labels);
+    // println!("{:?}", names);
+
+    stl::Serializer::ascii()
+        .into_writer(&mesh, &positions)
+        // .write_to_stdout()?;
+        .write_to_file("mesh.stl")?;
+
+
+    Ok(())
 }

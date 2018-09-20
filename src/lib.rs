@@ -12,6 +12,7 @@ pub mod macros;
 pub mod map;
 pub mod math;
 mod mesh;
+pub mod io;
 pub mod refs;
 
 pub use self::{
