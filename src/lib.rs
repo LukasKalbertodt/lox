@@ -16,7 +16,7 @@ pub mod refs;
 
 pub use self::{
     handle::{EdgeHandle, FaceHandle, VertexHandle},
-    mesh::{Mesh, TriMesh, MeshElement, ExplicitFace, ExplicitVertex},
+    mesh::{Mesh, TriMesh, MeshElement, ExplicitFace, ExplicitVertex, MeshUnsorted},
 };
 
 
