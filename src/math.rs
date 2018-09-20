@@ -46,12 +46,16 @@ pub trait Pos3Like: Copy {
     /// Returns the `z` component of this position.
     fn z(&self) -> &Self::Scalar;
 
-    #[cfg(feature = "cgmath")]
-    fn to_point3(self) -> Point3<Self::Scalar> {
-        Point3::new(*self.x(), *self.y(), *self.z())
+    /// Converts this value into another `Pos3Like` value with the same scalar
+    /// type.
+    fn convert<P: Pos3Like<Scalar = Self::Scalar>>(&self) -> P {
+        P::from_coords(*self.x(), *self.y(), *self.z())
     }
 
-    // TODO: cast
+    #[cfg(feature = "cgmath")]
+    fn to_point3(&self) -> Point3<Self::Scalar> {
+        self.convert()
+    }
 }
 
 #[cfg(feature = "cgmath")]
@@ -110,7 +114,11 @@ pub trait Vec3Like: Copy {
     /// Returns the `z` component of this vector.
     fn z(&self) -> &Self::Scalar;
 
-    // TODO: cast()
+    /// Converts this value into another `Vec3Like` value with the same scalar
+    /// type.
+    fn convert<V: Vec3Like<Scalar = Self::Scalar>>(&self) -> V {
+        V::from_coords(*self.x(), *self.y(), *self.z())
+    }
 }
 
 
