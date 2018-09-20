@@ -6,14 +6,19 @@ use byteorder::{LittleEndian, WriteBytesExt};
 
 use crate::{
     Mesh, MeshUnsorted, ExplicitFace,
-    handle::{FaceHandle, VertexHandle},
-    map::PropMap,
+    map::VertexPropMap,
+    math::Pos3Like,
     io::MeshWriter,
 };
 use super::{Error, Format};
 
 
 const DEFAULT_SOLID_NAME: &str = "mesh";
+
+
+// ===============================================================================================
+// ===== STL Serializer
+// ===============================================================================================
 
 pub struct Serializer {
     solid_name: String,
@@ -47,37 +52,65 @@ impl Serializer {
         self,
         mesh: &'a MeshT,
         vertex_positions: &'a PosM,
-    ) -> Writer<'a, MeshT, PosM> {
+    ) -> Writer<'a, MeshT, PosM>
+    where
+        MeshT: Mesh + MeshUnsorted + ExplicitFace,
+        PosM: VertexPropMap,
+        PosM::Target: Pos3Like<Scalar = f32>,
+    {
+        Writer::new(self, mesh, vertex_positions)
+    }
+}
+
+
+// ===============================================================================================
+// ===== STL Writer
+// ===============================================================================================
+
+pub struct Writer<'a, MeshT, PosM>
+where
+    MeshT: Mesh + MeshUnsorted + ExplicitFace,
+    PosM: VertexPropMap,
+    PosM::Target: Pos3Like<Scalar = f32>,
+{
+    ser: Serializer,
+    mesh: &'a MeshT,
+    vertex_positions: &'a PosM,
+}
+
+impl<'a, MeshT, PosM> Writer<'a, MeshT, PosM>
+where // TODO: remove once implied bounds land
+    MeshT: Mesh + MeshUnsorted + ExplicitFace,
+    PosM: VertexPropMap,
+    PosM::Target: Pos3Like<Scalar = f32>,
+{
+    fn new(ser: Serializer, mesh: &'a MeshT, vertex_positions: &'a PosM) -> Self {
         Writer {
-            ser: self,
+            ser,
             mesh,
             vertex_positions,
         }
     }
 }
 
-
-pub struct Writer<'a, MeshT, PosM> {
-    ser: Serializer,
-    mesh: &'a MeshT,
-    vertex_positions: &'a PosM,
-}
-
 impl<MeshT, PosM> MeshWriter for Writer<'_, MeshT, PosM>
-where
+where // TODO: remove once implied bounds land
     MeshT: Mesh + MeshUnsorted + ExplicitFace,
-    PosM: PropMap<VertexHandle, Target = [f32; 3]>, // TODO: generalize
+    PosM: VertexPropMap,
+    PosM::Target: Pos3Like<Scalar = f32>,
 {
     type Error = Error;
 
     fn write_to(&self, mut w: impl Write) -> Result<(), Self::Error> {
         let get_pos_and_normal = |face_handle| -> ([[f32; 3]; 3], [f32; 3]) {
             let [va, vb, vc] = self.mesh.vertices_of_face(face_handle);
-            let positions = [
-                *self.vertex_positions.get(va).unwrap(),
-                *self.vertex_positions.get(vb).unwrap(),
-                *self.vertex_positions.get(vc).unwrap(),
-            ];
+
+            // Get positions from map and convert them to array
+            let get = |h| self.vertex_positions
+                .get(h)
+                .unwrap_or_else(|| panic!("no position for {:?} in map while writing STL", h))
+                .convert();
+            let positions = [get(va), get(vb), get(vc)];
 
             (positions, [0.0; 3])
         };
@@ -151,7 +184,6 @@ where
         Ok(())
     }
 }
-
 
 
 // ===============================================================================================
