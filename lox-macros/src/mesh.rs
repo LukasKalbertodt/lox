@@ -1,6 +1,6 @@
 //! Everything related to the `mesh!` macro.
 
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::{Ident, Span, TokenStream};
 use syn::{
     bracketed, parenthesized, Token,
     parse::{Error, Parse, ParseStream, Result},
@@ -21,15 +21,80 @@ pub(crate) struct MeshInput {
 
 impl MeshInput {
     pub(crate) fn output(self) -> TokenStream {
-        let Self { mesh_type, .. } = self;
+        let Self { mesh_type, vertices, faces } = self;
 
+        // TODO: reserve memory for all structures
+
+        /// Helper function to create idents for `len` many property maps.
+        fn create_map_idents(prefix: &str, len: Option<usize>) -> Vec<Ident> {
+            (0..len.unwrap_or(0))
+                .map(|i| {
+                    Ident::new(
+                        &format!("{}_{}", prefix, i),
+                        Span::call_site(), // TODO: sure this is ok?
+                    )
+                })
+                .collect()
+        }
+
+        // Create the idents for the vertex and face maps
+        let vertex_maps = create_map_idents("vertex_map", vertices.get(0).map(|(_, v)| v.len()));
+        let face_maps = create_map_idents("face_map", faces.get(0).map(|(_, v)| v.len()));
+
+        // Create code that adds vertices to the mesh and the corresponding
+        // properties to the property maps.
+        let vertex_maps = &vertex_maps;
+        let mut add_vertices = quote! {
+            #( let mut #vertex_maps = VecMap::new(); )*
+        };
+        for (name, values) in vertices {
+            add_vertices.extend(quote! {
+                let #name = ExplicitVertex::add_vertex(&mut mesh);
+            });
+
+            for (value, map_ident) in values.into_iter().zip(vertex_maps) {
+                add_vertices.extend(quote! {
+                    PropStoreMut::insert(&mut #map_ident, #name, #value);
+                });
+            }
+        }
+
+        // Create code that adds faces to the mesh and the corresponding
+        // properties to the property maps.
+        let face_maps = &face_maps;
+        let mut add_faces = quote! {
+            #( let mut #face_maps = VecMap::new(); )*
+        };
+        for ([va, vb, vc], values) in faces {
+            add_faces.extend(quote! {
+                let face = ExplicitFace::add_face(&mut mesh, [#va, #vb, #vc]);
+            });
+
+            for (value, map_ident) in values.into_iter().zip(face_maps) {
+                add_faces.extend(quote! {
+                    PropStoreMut::insert(&mut #map_ident, face, #value);
+                });
+            }
+        }
+
+
+        // Combine everything
         quote! {{
             use lox::{
                 Mesh, ExplicitFace, ExplicitVertex,
                 map::{PropStoreMut, VecMap},
             };
 
-            <#mesh_type as Mesh>::empty()
+            let mut mesh = <#mesh_type as Mesh>::empty();
+
+            #add_vertices
+            #add_faces
+
+            (
+                mesh
+                #(, #vertex_maps )*
+                #(, #face_maps )*
+            )
         }}
     }
 }
