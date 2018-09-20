@@ -3,17 +3,19 @@ use std::{
 };
 
 use byteorder::{LittleEndian, WriteBytesExt};
+use cgmath::prelude::*;
 
 use crate::{
     Mesh, MeshUnsorted, ExplicitFace,
-    map::VertexPropMap,
-    math::Pos3Like,
+    map::{EmptyMap, FacePropMap, VertexPropMap},
+    math::{Pos3Like, Vec3Like},
     io::MeshWriter,
 };
 use super::{Error, Format};
 
 
 const DEFAULT_SOLID_NAME: &str = "mesh";
+type DummyMap = EmptyMap<[f32; 3]>;
 
 
 // ===============================================================================================
@@ -52,7 +54,7 @@ impl Serializer {
         self,
         mesh: &'a MeshT,
         vertex_positions: &'a PosM,
-    ) -> Writer<'a, MeshT, PosM>
+    ) -> Writer<'a, MeshT, PosM, DummyMap>
     where
         MeshT: Mesh + MeshUnsorted + ExplicitFace,
         PosM: VertexPropMap,
@@ -67,52 +69,97 @@ impl Serializer {
 // ===== STL Writer
 // ===============================================================================================
 
-pub struct Writer<'a, MeshT, PosM>
+pub struct Writer<'a, MeshT, PosM, NormalM>
 where
     MeshT: Mesh + MeshUnsorted + ExplicitFace,
     PosM: VertexPropMap,
     PosM::Target: Pos3Like<Scalar = f32>,
+    NormalM: FacePropMap,
+    NormalM::Target: Vec3Like<Scalar = f32>,
 {
     ser: Serializer,
     mesh: &'a MeshT,
     vertex_positions: &'a PosM,
+    face_normals: Option<&'a NormalM>,
 }
 
-impl<'a, MeshT, PosM> Writer<'a, MeshT, PosM>
+impl<'a, MeshT, PosM> Writer<'a, MeshT, PosM, DummyMap>
 where // TODO: remove once implied bounds land
     MeshT: Mesh + MeshUnsorted + ExplicitFace,
     PosM: VertexPropMap,
     PosM::Target: Pos3Like<Scalar = f32>,
 {
     fn new(ser: Serializer, mesh: &'a MeshT, vertex_positions: &'a PosM) -> Self {
-        Writer {
+        Self {
             ser,
             mesh,
             vertex_positions,
+            face_normals: None,
+        }
+    }
+
+    pub fn with_face_normals<NormalM>(
+        self,
+        face_normals: &'a NormalM,
+    ) -> Writer<'a, MeshT, PosM, NormalM>
+    where
+        NormalM: FacePropMap,
+        NormalM::Target: Vec3Like<Scalar = f32>,
+    {
+        Writer {
+            ser: self.ser,
+            mesh: self.mesh,
+            vertex_positions: self.vertex_positions,
+            face_normals: Some(face_normals),
         }
     }
 }
 
-impl<MeshT, PosM> MeshWriter for Writer<'_, MeshT, PosM>
+
+impl<MeshT, PosM, NormalM> MeshWriter for Writer<'_, MeshT, PosM, NormalM>
 where // TODO: remove once implied bounds land
     MeshT: Mesh + MeshUnsorted + ExplicitFace,
     PosM: VertexPropMap,
     PosM::Target: Pos3Like<Scalar = f32>,
+    NormalM: FacePropMap,
+    NormalM::Target: Vec3Like<Scalar = f32>,
 {
     type Error = Error;
 
     fn write_to(&self, mut w: impl Write) -> Result<(), Self::Error> {
+        // Retrieves the positions and normal of the given face. Captures
+        // `self`.
         let get_pos_and_normal = |face_handle| -> ([[f32; 3]; 3], [f32; 3]) {
             let [va, vb, vc] = self.mesh.vertices_of_face(face_handle);
 
             // Get positions from map and convert them to array
-            let get = |h| self.vertex_positions
-                .get(h)
-                .unwrap_or_else(|| panic!("no position for {:?} in map while writing STL", h))
-                .convert();
+            let get = |h| -> [f32; 3] {
+                self.vertex_positions
+                    .get(h)
+                    .unwrap_or_else(|| panic!("no position for {:?} in map while writing STL", h))
+                    .convert()
+            };
             let positions = [get(va), get(vb), get(vc)];
 
-            (positions, [0.0; 3])
+            // If a normal map was specified, retrieve the normal from there,
+            // otherwise calculate it via cross product.
+            let normal = if let Some(normals) = self.face_normals {
+                normals.get(face_handle)
+                    .unwrap_or_else(|| panic!(
+                        "no normal for {:?} in map while writing STL",
+                        face_handle,
+                    ))
+                    .convert()
+            } else {
+                let pos_a = positions[0].to_point3();
+                let pos_b = positions[1].to_point3();
+                let pos_c = positions[2].to_point3();
+
+                let normal = (pos_b - pos_a).cross(pos_c - pos_a).normalize();
+                [normal.x, normal.y, normal.z]
+            };
+
+            (positions, normal)
         };
 
         if self.ser.format == Format::Ascii {
