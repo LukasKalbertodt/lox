@@ -32,7 +32,8 @@ fn main() -> Result<(), Error> {
     // println!("{:?}", labels);
     // println!("{:?}", names);
 
-    stl::Serializer::ascii()
+    // stl::Serializer::ascii()
+    stl::Serializer::binary()
         .into_writer(&mesh, &positions)
         // .write_to_stdout()?;
         .write_to_file("mesh.stl")?;

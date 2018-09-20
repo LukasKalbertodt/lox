@@ -2,6 +2,8 @@ use std::{
     io::{self, Write},
 };
 
+use byteorder::{LittleEndian, WriteBytesExt};
+
 use crate::{
     Mesh, MeshUnsorted, ExplicitFace,
     handle::{FaceHandle, VertexHandle},
@@ -109,41 +111,41 @@ where
 
             writeln!(w, "endsolid {}", self.ser.solid_name)?;
         } else {
-            // // ===============================================================
-            // // ===== STL binary
-            // // ===============================================================
-            // // First, a 80 bytes useless header that must not begin with
-            // // "solid"!
-            // let signature = b"FEV   ... PLY specs are terrible ...";
-            // let padding = vec![b' '; 80 - signature.len()];
-            // w.write_all(signature)?;
-            // w.write_all(&padding)?;
+            // ===============================================================
+            // ===== STL binary
+            // ===============================================================
+            // First, a 80 bytes useless header that must not begin with
+            // "solid"!
+            let signature = b"LOX   ... PLY specs are terrible ...";
+            let padding = vec![b' '; 80 - signature.len()];
+            w.write_all(signature)?;
+            w.write_all(&padding)?;
 
-            // // Next, number of triangles
-            // w.write_u32::<LittleEndian>(self.mesh.num_faces())?;
+            // Next, number of triangles
+            w.write_u32::<LittleEndian>(self.mesh.num_faces())?;
 
-            // for face in self.mesh.faces() {
-            //     let (positions, [nx, ny, nz]) = get_pos_and_normal(face.handle());
+            for face in self.mesh.faces() {
+                let (positions, [nx, ny, nz]) = get_pos_and_normal(face.handle());
 
-            //     // Write face normal
-            //     w.write_f32::<LittleEndian>(nx)?;
-            //     w.write_f32::<LittleEndian>(ny)?;
-            //     w.write_f32::<LittleEndian>(nz)?;
+                // Write face normal
+                w.write_f32::<LittleEndian>(nx)?;
+                w.write_f32::<LittleEndian>(ny)?;
+                w.write_f32::<LittleEndian>(nz)?;
 
-            //     // Write all vertex positions
-            //     for &[x, y, z] in &positions {
-            //         w.write_f32::<LittleEndian>(x)?;
-            //         w.write_f32::<LittleEndian>(y)?;
-            //         w.write_f32::<LittleEndian>(z)?;
-            //     }
+                // Write all vertex positions
+                for &[x, y, z] in &positions {
+                    w.write_f32::<LittleEndian>(x)?;
+                    w.write_f32::<LittleEndian>(y)?;
+                    w.write_f32::<LittleEndian>(z)?;
+                }
 
-            //     // Write "attribute byte count". As Wikipedia beautifully put
-            //     // it: "this should be zero because most software does not
-            //     // understand anything else." Great. Some people abuse this to
-            //     // store color or other information. This is terrible, we won't
-            //     // use it.
-            //     w.write_u16::<LittleEndian>(0)?;
-            // }
+                // Write "attribute byte count". As Wikipedia beautifully put
+                // it: "this should be zero because most software does not
+                // understand anything else." Great. Some people abuse this to
+                // store color or other information. This is terrible, we won't
+                // do that.
+                w.write_u16::<LittleEndian>(0)?;
+            }
         }
 
         Ok(())

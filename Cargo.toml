@@ -9,6 +9,7 @@ edition = "2018"
 default = ["cgmath"]
 
 [dependencies]
+byteorder = "1.2"
 cgmath = { version = "0.16", optional = true }
 failure = "0.1.2"
 lox-macros = { path = "lox-macros" }
