@@ -7,20 +7,22 @@ use lox::{
 
 
 fn main() {
-    let (mesh, maps) = mesh! {
+    let (mesh, positions, labels, names) = mesh! {
         type: SharedVertexMesh,
         vertices: [
-            v0: (3.0),
-            v1: (5.0),
-            v2: (1.0),
-            v3: (8.2),
+            v0: (3.0, 'x'),
+            v1: (5.0, 'y'),
+            v2: (1.0, 'z'),
+            v3: (8.2, 'w'),
         ],
         faces: [
-            [v0, v1, v2]: (),
-            [v1, v2, v3]: (),
+            [v0, v1, v2]: ("top"),
+            [v1, v2, v3]: ("bottom"),
         ],
     };
 
     println!("{:?}", mesh);
-    println!("{:?}", maps);
+    println!("{:?}", positions);
+    println!("{:?}", labels);
+    println!("{:?}", names);
 }
