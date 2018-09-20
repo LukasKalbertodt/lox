@@ -1,9 +1,9 @@
 //! Everything related to the `mesh!` macro.
 
-use proc_macro2::{Delimiter, Ident, TokenStream};
+use proc_macro2::{Ident, TokenStream};
 use syn::{
     bracketed, parenthesized, Token,
-    parse::{Parse, ParseStream, Result},
+    parse::{Error, Parse, ParseStream, Result},
     punctuated::Punctuated,
 };
 
@@ -21,7 +21,7 @@ pub(crate) struct MeshInput {
 
 impl MeshInput {
     pub(crate) fn output(self) -> TokenStream {
-        let Self { mesh_type, vertices, faces } = self;
+        let Self { mesh_type, .. } = self;
 
         quote! {{
             use lox::{
@@ -49,25 +49,52 @@ impl Parse for MeshInput {
 
         let inner;
         bracketed!(inner in input);
-        let mut vertices = Vec::new();
+        let mut vertices: Vec<(_, Vec<_>)> = Vec::new();
+        // let mut count = None;
         while !inner.is_empty() {
             // Parse name and colon
             let name = inner.eat_ident(None)?;
-            inner.eat_punct(b":")?;
 
-            // Parse values
-            let values_inner;
-            parenthesized!(values_inner in inner);
-            let exprs: Punctuated<_, Token![,]>
-                = values_inner.parse_terminated(syn::Expr::parse)?;
+            // There might or might not be values specified after a colon.
+            let (values, error_span) = if inner.peek(Token![:]) {
+                inner.eat_punct(b":")?;
+
+                // Fork for span information
+                let values_span = inner.cursor().span();
+
+                // Parse values
+                let values_inner;
+                parenthesized!(values_inner in inner);
+                let exprs: Punctuated<_, Token![,]>
+                    = values_inner.parse_terminated(syn::Expr::parse)?;
+
+                (exprs.into_iter().collect(), values_span)
+            } else {
+                (vec![], name.span())
+            };
+
+            // Check that the number of properties of this vertex matches
+            // the number of the first one.
+            if !vertices.is_empty() {
+                if values.len() != vertices[0].1.len() {
+                    let msg = format!(
+                        "all vertices must have the same number of properties (the first \
+                            vertex has {}, this vertex has {})",
+                        vertices[0].1.len(),
+                        values.len(),
+                    );
+                    return Err(Error::new(error_span, msg));
+                }
+            }
 
             // Eat comma
             if !inner.is_empty() {
                 inner.eat_punct(b",")?;
             }
 
-            vertices.push((name, exprs.into_iter().collect()));
+            vertices.push((name, values));
         }
+
         input.eat_punct(b",")?;
 
 
@@ -77,13 +104,10 @@ impl Parse for MeshInput {
 
         let inner;
         bracketed!(inner in input);
-        let mut faces = Vec::new();
+        let mut faces: Vec<(_, Vec<_>)> = Vec::new();
         while !inner.is_empty() {
-            // We fork the token stream to get a span to the group we are about
-            // to parse. We need this for nice errors.
-            let error_fork = inner.fork();
-
             // Parse vertices of face: `[<ident>, <ident>, <ident>]`
+            let vertex_list_span = inner.cursor().span();
             let vertices_inner;
             bracketed!(vertices_inner in inner);
             let vertices_of_face: Punctuated<_, Token![,]>
@@ -91,27 +115,52 @@ impl Parse for MeshInput {
 
             // Make sure we have exactly three vertices
             let vertices_of_face = if vertices_of_face.len() != 3 {
-                return Err(error_fork.error("right now, only triangular faces are supported"));
+                return Err(Error::new(
+                    vertex_list_span,
+                    "right now, only triangular faces are supported",
+                ));
             } else {
                 let mut it = vertices_of_face.into_iter();
                 [it.next().unwrap(), it.next().unwrap(), it.next().unwrap()]
             };
 
-            // Eat colon
-            inner.eat_punct(b":")?;
+            // There might or might not be values specified after a colon.
+            let (values, error_span) = if inner.peek(Token![:]) {
+                inner.eat_punct(b":")?;
 
-            // Parse values
-            let values_inner;
-            parenthesized!(values_inner in inner);
-            let exprs: Punctuated<_, Token![,]>
-                = values_inner.parse_terminated(syn::Expr::parse)?;
+                let values_span = inner.cursor().span();
+
+                // Parse values
+                let values_inner;
+                parenthesized!(values_inner in inner);
+                let exprs: Punctuated<_, Token![,]>
+                    = values_inner.parse_terminated(syn::Expr::parse)?;
+
+                (exprs.into_iter().collect(), values_span)
+            } else {
+                (vec![], vertex_list_span)
+            };
+
+            // Check that the number of properties of this faces matches the
+            // number of the first one.
+            if !faces.is_empty() {
+                if values.len() != faces[0].1.len() {
+                    let msg = format!(
+                        "all faces must have the same number of properties (the first \
+                            face has {}, this face has {})",
+                        faces[0].1.len(),
+                        values.len(),
+                    );
+                    return Err(Error::new(error_span, msg));
+                }
+            }
 
             // Eat comma
             if !inner.is_empty() {
                 inner.eat_punct(b",")?;
             }
 
-            faces.push((vertices_of_face, exprs.into_iter().collect()));
+            faces.push((vertices_of_face, values));
         }
 
         // Optionally eat trailing comma
