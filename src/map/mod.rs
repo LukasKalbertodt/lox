@@ -14,12 +14,14 @@ pub mod aliases;
 pub mod boo;
 mod fn_map;
 mod hash_map;
+mod special_maps;
 mod vec_map;
 
 pub use self::{
     aliases::*,
     fn_map::FnMap,
     hash_map::HashMap,
+    special_maps::{ConstMap, EmptyMap},
     vec_map::VecMap,
 };
 

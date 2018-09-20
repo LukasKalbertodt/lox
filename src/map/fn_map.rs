@@ -15,7 +15,6 @@ use super::{boo, PropMap};
 /// # Example
 ///
 /// ```
-/// extern crate lox;
 /// use lox::{
 ///     handle::{Handle, VertexHandle},
 ///     map::{FnMap, PropMap},
@@ -35,6 +34,7 @@ use super::{boo, PropMap};
 /// foo(&map);  // works
 ///
 /// // This property map always returns 3 (you don't need to use the handle).
+/// // However, in this case, you should usually use `ConstMap`.
 /// foo(&FnMap(|_| Some(3)));  // works
 /// ```
 pub struct FnMap<F>(pub F);
