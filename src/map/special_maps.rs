@@ -18,6 +18,7 @@ use super::{boo, PropMap};
 ///
 /// foo(&ConstMap(27));  // always returns `&27`
 /// ```
+#[derive(Clone, Copy, Debug)]
 pub struct ConstMap<T>(pub T);
 
 impl<T, H: Handle> PropMap<H> for ConstMap<T> {
@@ -49,6 +50,7 @@ impl<T, H: Handle> PropMap<H> for ConstMap<T> {
 /// fn bar(map: &impl PropMap<VertexHandle>) {}
 /// bar(&EmptyMap::<u32>::new());
 /// ```
+#[derive(Clone, Copy, Debug)]
 pub struct EmptyMap<T>(PhantomData<T>);
 
 impl<T> EmptyMap<T> {

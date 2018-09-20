@@ -37,6 +37,7 @@ use super::{boo, PropMap};
 /// // However, in this case, you should usually use `ConstMap`.
 /// foo(&FnMap(|_| Some(3)));  // works
 /// ```
+#[derive(Clone, Copy, Debug)]
 pub struct FnMap<F>(pub F);
 
 impl<H, F, OutT> PropMap<H> for FnMap<F>
