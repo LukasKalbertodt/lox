@@ -155,7 +155,7 @@ pub trait Handle: Copy + fmt::Debug + Eq {
 macro_rules! make_handle_type {
     ($(#[$attr:meta])* $name:ident = $short:expr;) => {
         $(#[$attr])*
-        #[derive(Clone, Copy, PartialEq, Eq)]
+        #[derive(Clone, Copy, PartialEq, Eq, Hash)]
         pub struct $name(pub DefaultInt);
 
         impl Handle for $name {
