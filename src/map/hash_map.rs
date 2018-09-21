@@ -47,6 +47,10 @@ impl<H: Handle + Hash, T> PropMap<H> for HashMap<H, T> {
     fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target, Self::Marker>> {
         self.get_ref(handle).map(Into::into)
     }
+
+    fn contains_handle(&self, handle: H) -> bool {
+        self.0.contains_key(&handle)
+    }
 }
 
 impl<H: Handle + Hash, T> Index<H> for HashMap<H, T> {

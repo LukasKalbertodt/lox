@@ -73,6 +73,10 @@ impl<H: Handle, T> PropMap<H> for VecMap<H, T> {
     fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target, Self::Marker>> {
         self.get_ref(handle).map(Into::into)
     }
+
+    fn contains_handle(&self, handle: H) -> bool {
+        self.vec.has_element_at(handle.to_usize())
+    }
 }
 
 impl<H: Handle, T> Index<H> for VecMap<H, T> {
@@ -141,6 +145,7 @@ impl<H: Handle, T> PropStoreMut<H> for VecMap<H, T> {
         self.vec.reserve(additional);
     }
 }
+
 impl<H: Handle, T: fmt::Debug> fmt::Debug for VecMap<H, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_map()
@@ -148,7 +153,6 @@ impl<H: Handle, T: fmt::Debug> fmt::Debug for VecMap<H, T> {
             .finish()
     }
 }
-
 
 
 pub struct Handles<'map, H: Handle> {
