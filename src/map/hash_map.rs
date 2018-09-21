@@ -67,6 +67,10 @@ impl<H: Handle + Hash, T> PropStore<H> for HashMap<H, T> {
     fn get_ref(&self, handle: H) -> Option<&Self::Output> {
         self.0.get(&handle)
     }
+
+    fn num_props(&self) -> usize {
+        self.0.len()
+    }
 }
 
 impl<H: Handle + Hash, T> IndexMut<H> for HashMap<H, T> {

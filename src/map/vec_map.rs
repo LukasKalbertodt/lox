@@ -146,6 +146,10 @@ impl<H: Handle, T> PropStore<H> for VecMap<H, T> {
     fn get_ref(&self, handle: H) -> Option<&Self::Output> {
         self.vec.get(handle.to_usize())
     }
+
+    fn num_props(&self) -> usize {
+        self.vec.num_elements()
+    }
 }
 
 impl<H: Handle, T> IndexMut<H> for VecMap<H, T> {

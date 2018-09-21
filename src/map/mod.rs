@@ -102,24 +102,14 @@ pub trait PropStore<H: Handle>: PropMap<H> + ops::Index<H> {
     /// if no such property exists.
     fn get_ref(&self, handle: H) -> Option<&Self::Output>;
 
+    /// Returns the number of properties stored in this map.
+    fn num_props(&self) -> usize;
+
     // Additional maybe useful methods:
-    // - numValues
     // - Iterator over
     //      - handles
     //      - values
     //      - both
-
-    // // Combinators
-    // fn map<F, NewOutT>(&'s self, mapping: F) -> MappedPropMap<'s, F, Self>
-    // where
-    //     Self: Sized,
-    //     F: Fn(Self::Out) -> NewOutT,
-    // {
-    //     MappedPropMap {
-    //         original: self,
-    //         mapping,
-    //     }
-    // }
 }
 
 // TODO: maybe combine this with `PropStore`?
