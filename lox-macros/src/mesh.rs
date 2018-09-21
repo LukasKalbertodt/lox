@@ -23,7 +23,7 @@ impl MeshInput {
     pub(crate) fn output(self) -> TokenStream {
         let Self { mesh_type, vertices, faces } = self;
 
-        // TODO: reserve memory for all structures
+        // TODO: reserve memory for the mesh
 
         /// Helper function to create idents for `len` many property maps.
         fn create_map_idents(prefix: &str, len: Option<usize>) -> Vec<Ident> {
@@ -43,16 +43,21 @@ impl MeshInput {
 
         // Create code that adds vertices to the mesh and the corresponding
         // properties to the property maps.
-        let vertex_maps = &vertex_maps;
-        let mut add_vertices = quote! {
-            #( let mut #vertex_maps = VecMap::new(); )*
-        };
+        let vertex_count = vertices.len();
+        let mut add_vertices = vertex_maps.iter()
+            .map(|map| {
+                quote! {
+                    let mut #map = VecMap::new();
+                    PropStoreMut::reserve(&mut #map, #vertex_count);
+                }
+            })
+            .collect::<TokenStream>();
         for (name, values) in vertices {
             add_vertices.extend(quote! {
                 let #name = ExplicitVertex::add_vertex(&mut mesh);
             });
 
-            for (value, map_ident) in values.into_iter().zip(vertex_maps) {
+            for (value, map_ident) in values.into_iter().zip(&vertex_maps) {
                 add_vertices.extend(quote! {
                     PropStoreMut::insert(&mut #map_ident, #name, #value);
                 });
@@ -61,16 +66,21 @@ impl MeshInput {
 
         // Create code that adds faces to the mesh and the corresponding
         // properties to the property maps.
-        let face_maps = &face_maps;
-        let mut add_faces = quote! {
-            #( let mut #face_maps = VecMap::new(); )*
-        };
+        let face_count = faces.len();
+        let mut add_faces = face_maps.iter()
+            .map(|map| {
+                quote! {
+                    let mut #map = VecMap::new();
+                    PropStoreMut::reserve(&mut #map, #face_count);
+                }
+            })
+            .collect::<TokenStream>();
         for ([va, vb, vc], values) in faces {
             add_faces.extend(quote! {
                 let face = ExplicitFace::add_face(&mut mesh, [#va, #vb, #vc]);
             });
 
-            for (value, map_ident) in values.into_iter().zip(face_maps) {
+            for (value, map_ident) in values.into_iter().zip(&face_maps) {
                 add_faces.extend(quote! {
                     PropStoreMut::insert(&mut #map_ident, face, #value);
                 });
