@@ -102,12 +102,6 @@ pub trait PropStore<H: Handle>: PropMap<H> + ops::Index<H> {
     /// if no such property exists.
     fn get_ref(&self, handle: H) -> Option<&Self::Output>;
 
-    /// Returns `true` if there is a property associated with `handle`, `false`
-    /// otherwise.
-    fn contains_handle(&self, handle: H) -> bool {
-        self.get_ref(handle).is_some()
-    }
-
     // Additional maybe useful methods:
     // - numValues
     // - Iterator over
