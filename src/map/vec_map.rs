@@ -16,11 +16,64 @@ use super::{
 };
 
 
-/// A property map that uses a simple vector to store the properties.
+/// A property map that uses a simple contiguous vector to store the
+/// properties.
 ///
-/// # TODO
 ///
-/// - Explain memory requirements of this data structure
+/// # Memory requirements and use cases
+///
+/// This data structure's memory requirement doesn't grow with the number of
+/// elements stored inside this map, but rather with the highest handle ID. The
+/// handle is simply used as an index into the underlying vector. This has two
+/// important consequences:
+///
+/// - **Good**: this map usually has the best access times since it just is
+///   just an array lookup. A hash map would need to calculate the hash and do
+///   more work to find an element for a given handle.
+/// - **Bad**: if you don't pay attention, you could waste a lot of memory with
+///   this map and subsequently lose the speed advantage.
+///
+/// Most sources of handles (like all mesh data structures in this libary) will
+/// produce handles with sequentially increasing IDs. So if you add three
+/// vertices to a mesh, the handles of those vertices will have the IDs 0, 1
+/// and 2. If you have a source of handles that works differently (e.g. by
+/// using random number as handle IDs), this map is absolutely not useful for
+/// you.
+///
+/// However, **if you have a handle source with sequential IDs and you want to
+/// associated data with (almost) all of those handles, this map is the best
+/// choice.** If you only want to associated data with some of those handles,
+/// you should probably use [`HashMap`][crate::map::HashMap] or `TinyMap`
+/// instead (TODO: add link to tiny map once implemented).
+///
+///
+/// # Example
+///
+/// ```
+/// use lox::{
+///     FaceHandle,
+///     handle::Handle,
+///     map::{PropStore, PropStoreMut, VecMap},
+/// };
+///
+///
+/// let mut map = VecMap::new();
+///
+/// let f0 = FaceHandle::from_usize(0);
+/// assert_eq!(map.get_ref(f0), None);
+/// map.insert(f0, "bob");
+/// assert_eq!(map.get_ref(f0), Some(&"bob"));
+///
+/// // Note that after this insert operation, the `VecMap` has allocated memory
+/// // for 6 elements (2 of which are used).
+/// let f5 = FaceHandle::from_usize(5);
+/// map.insert(f5, "lena");
+/// assert_eq!(map.get_ref(f5), Some(&"lena"));
+/// ```
+///
+/// TODO: more examples:
+/// - generating some property for all vertices of a mesh
+/// - iterator stuff
 #[derive(Clone)]
 pub struct VecMap<H: Handle, T> {
     vec: StableVec<T>,
