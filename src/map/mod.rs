@@ -10,6 +10,10 @@ use crate::{
 };
 
 
+#[cfg(test)]
+#[macro_use]
+mod tests;
+
 pub mod aliases;
 pub mod boo;
 mod fn_map;

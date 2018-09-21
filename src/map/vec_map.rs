@@ -229,4 +229,9 @@ impl<'map, H: Handle> Iterator for Handles<'map, H> {
 }
 
 
-// TODO: tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    gen_tests_for_store_impl!(VecMap);
+}
