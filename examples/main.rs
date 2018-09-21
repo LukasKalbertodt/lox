@@ -15,7 +15,7 @@ use lox::{
 
 
 fn main() -> Result<(), Error> {
-    let (mesh, positions, face_normals) = mesh! {
+    let (mesh, positions, _face_normals) = mesh! {
         type: SharedVertexMesh,
         vertices: [
             v0: (Point3::new(0.0, 0.0, 0.0)),

@@ -150,6 +150,10 @@ impl<H: Handle, T> PropStore<H> for VecMap<H, T> {
     fn num_props(&self) -> usize {
         self.vec.num_elements()
     }
+
+    fn handles<'a>(&'a self) -> Box<dyn Iterator<Item = H> + 'a> {
+        Box::new(self.handles())
+    }
 }
 
 impl<H: Handle, T> IndexMut<H> for VecMap<H, T> {

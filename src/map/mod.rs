@@ -105,9 +105,16 @@ pub trait PropStore<H: Handle>: PropMap<H> + ops::Index<H> {
     /// Returns the number of properties stored in this map.
     fn num_props(&self) -> usize;
 
+    /// Returns an iterator over all handles that have a value associated with
+    /// them.
+    ///
+    /// The order of the handles is not specified.
+    ///
+    /// TODO: improve with GATs
+    fn handles<'a>(&'a self) -> Box<dyn Iterator<Item = H> + 'a>;
+
     // Additional maybe useful methods:
     // - Iterator over
-    //      - handles
     //      - values
     //      - both
 }

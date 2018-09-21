@@ -71,6 +71,10 @@ impl<H: Handle + Hash, T> PropStore<H> for HashMap<H, T> {
     fn num_props(&self) -> usize {
         self.0.len()
     }
+
+    fn handles<'a>(&'a self) -> Box<dyn Iterator<Item = H> + 'a> {
+        Box::new(self.0.keys().cloned())
+    }
 }
 
 impl<H: Handle + Hash, T> IndexMut<H> for HashMap<H, T> {
