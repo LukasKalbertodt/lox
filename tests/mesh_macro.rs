@@ -3,7 +3,8 @@
 #![feature(proc_macro_non_items)]
 
 use lox::{
-    mesh, ExplicitFace, ExplicitVertex, MeshUnsorted,
+    mesh,
+    prelude::*,
     ds::SharedVertexMesh,
 };
 

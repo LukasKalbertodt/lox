@@ -7,10 +7,8 @@ use failure::Error;
 use lox::{
     mesh,
     ds::SharedVertexMesh,
-    io::{
-        MeshWriter,
-        stl,
-    },
+    io::stl,
+    prelude::*,
 };
 
 
