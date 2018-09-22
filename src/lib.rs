@@ -44,8 +44,11 @@ pub use lox_macros::mesh as mesh;
 ///
 /// ```
 /// #![feature(proc_macro_non_items)]
-/// # use lox_macros::mesh;
-/// use lox::ds::SharedVertexMesh;
+/// use lox::{
+///     mesh,
+///     prelude::*,
+///     ds::SharedVertexMesh,
+/// };
 ///
 ///
 /// let (mesh, positions, distances, face_colors) = mesh! {
@@ -61,6 +64,9 @@ pub use lox_macros::mesh as mesh;
 ///         [v3, v1, v2]: ("green"),
 ///     ],
 /// };
+///
+/// assert_eq!(mesh.num_vertices(), 4);
+/// assert_eq!(mesh.num_faces(), 2);
 /// ```
 ///
 /// In the code above, we associate a position and a scalar value with each
@@ -82,8 +88,10 @@ pub use lox_macros::mesh as mesh;
 ///
 /// ```
 /// #![feature(proc_macro_non_items)]
-/// # use lox_macros::mesh;
-/// use lox::ds::SharedVertexMesh;
+/// use lox::{
+///     mesh,
+///     ds::SharedVertexMesh,
+/// };
 ///
 ///
 /// let mesh = mesh! {
@@ -113,8 +121,10 @@ pub use lox_macros::mesh as mesh;
 ///
 /// ```
 /// #![feature(proc_macro_non_items)]
-/// # use lox_macros::mesh;
-/// use lox::ds::SharedVertexMesh;
+/// use lox::{
+///     mesh,
+///     ds::SharedVertexMesh,
+/// };
 ///
 ///
 /// let empty_mesh = mesh! {
