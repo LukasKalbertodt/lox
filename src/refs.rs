@@ -97,6 +97,17 @@ impl<'a, HandleT: Handle, MeshT: 'a> ElementRefMut<'a, HandleT, MeshT> {
     }
 }
 
+impl<'a, HandleT: Handle, MeshT: 'a> Clone for ElementRef<'a, HandleT, MeshT> {
+    fn clone(&self) -> Self {
+        Self {
+            handle: self.handle,
+            mesh: self.mesh,
+        }
+    }
+}
+
+impl<'a, HandleT: Handle, MeshT: 'a> Copy for ElementRef<'a, HandleT, MeshT> {}
+
 
 multi_impl!{
     [
