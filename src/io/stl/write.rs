@@ -9,7 +9,7 @@ use crate::{
     Mesh, MeshUnsorted, ExplicitFace,
     map::{EmptyMap, FacePropMap, VertexPropMap},
     math::{Pos3Like, Vec3Like},
-    io::MeshWriter,
+    io::{IntoMeshWriter, MeshWriter},
 };
 use super::{Error, Format};
 
@@ -50,17 +50,16 @@ impl Serializer {
             .. self
         }
     }
+}
 
-    pub fn into_writer<'a, MeshT, PosM>(
-        self,
-        mesh: &'a MeshT,
-        vertex_positions: &'a PosM,
-    ) -> Writer<'a, MeshT, PosM, DummyMap>
-    where
-        MeshT: Mesh + MeshUnsorted + ExplicitFace,
-        PosM: VertexPropMap,
-        PosM::Target: Pos3Like<Scalar = f32>,
-    {
+impl<'a, MeshT, PosM> IntoMeshWriter<'a, MeshT, PosM> for Serializer
+where
+    MeshT: 'a + Mesh + MeshUnsorted + ExplicitFace,
+    PosM: 'a + VertexPropMap,
+    PosM::Target: Pos3Like<Scalar = f32>,
+{
+    type Writer = Writer<'a, MeshT, PosM, DummyMap>;
+    fn into_writer(self, mesh: &'a MeshT, vertex_positions: &'a PosM) -> Self::Writer {
         Writer::new(self, mesh, vertex_positions)
     }
 }

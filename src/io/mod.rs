@@ -4,9 +4,25 @@ use std::{
     path::Path,
 };
 
+use crate::{
+    Mesh, MeshUnsorted, ExplicitFace,
+    map::VertexPropMap,
+    math::Pos3Like,
+};
+
 
 pub mod stl;
 
+/// Types that can be transformed into a [`MeshWriter`].
+pub trait IntoMeshWriter<'a, MeshT, PosM>
+where
+    MeshT: 'a + Mesh + MeshUnsorted + ExplicitFace,
+    PosM: 'a + VertexPropMap,
+    PosM::Target: Pos3Like,
+{
+    type Writer: MeshWriter;
+    fn into_writer(self, mesh: &'a MeshT, vertex_positions: &'a PosM) -> Self::Writer;
+}
 
 /// Types that can serialize a mesh with vertex positions and potentially
 /// additional properties. The mesh and properties are already stored within
