@@ -19,6 +19,7 @@ pub mod boo;
 mod fn_map;
 mod hash_map;
 mod special_maps;
+mod tiny_map;
 mod vec_map;
 
 pub use self::{
@@ -26,6 +27,7 @@ pub use self::{
     fn_map::FnMap,
     hash_map::HashMap,
     special_maps::{ConstMap, EmptyMap},
+    tiny_map::TinyMap,
     vec_map::VecMap,
 };
 
