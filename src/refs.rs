@@ -9,6 +9,7 @@ use crate::{
 ///
 /// This is just a handle paired with a reference to the mesh associated with
 /// that handle.
+#[derive(Debug)]
 pub struct ElementRef<'a, HandleT: Handle, MeshT: 'a + ?Sized> {
     handle: HandleT,
     mesh: &'a MeshT,
@@ -37,6 +38,7 @@ pub type VertexRef<'a, MeshT> = ElementRef<'a, VertexHandle, MeshT>;
 ///
 /// This is just a handle paired with a mutable reference to the mesh
 /// associated with that handle.
+#[derive(Debug)]
 pub struct ElementRefMut<'a, HandleT: Handle, MeshT: 'a + ?Sized> {
     handle: HandleT,
     mesh: &'a mut MeshT,

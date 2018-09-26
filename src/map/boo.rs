@@ -21,7 +21,12 @@
 //! For more information, see this [blog
 //! post](http://tiny.cc/streaming-iterator-gats).
 
-use std::ops;
+#![allow(missing_debug_implementations)]
+
+use std::{
+    fmt,
+    ops,
+};
 
 /// Types which denote if a type is borrowed or owned.
 ///
@@ -113,6 +118,15 @@ impl<'a, T> Wrap<'a, T, Borrowed> {
         match self.0 {
             WrapInner::Borrowed(v, _) => v,
             WrapInner::Owned(_, never) => never,
+        }
+    }
+}
+
+impl<'a, T: fmt::Debug, M: Marker> fmt::Debug for Wrap<'a, T, M> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.0 {
+            WrapInner::Borrowed(v, _) => write!(f, "Borrowed({:?})", v),
+            WrapInner::Owned(v, _) =>  write!(f, "Owned({:?})", v),
         }
     }
 }

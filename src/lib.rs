@@ -5,6 +5,8 @@
 #![feature(never_type)]
 #![feature(doc_cfg)]
 
+#![deny(missing_debug_implementations)]
+
 
 pub mod ds;
 pub mod handle;

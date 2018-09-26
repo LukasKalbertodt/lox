@@ -22,6 +22,7 @@ type DummyMap = EmptyMap<[f32; 3]>;
 // ===== STL Serializer
 // ===============================================================================================
 
+#[derive(Clone, Debug)]
 pub struct Serializer {
     solid_name: String,
     format: Format,
@@ -69,6 +70,7 @@ impl Serializer {
 // ===== STL Writer
 // ===============================================================================================
 
+#[derive(Debug)]
 pub struct Writer<'a, MeshT, PosM, NormalM>
 where
     MeshT: Mesh + MeshUnsorted + ExplicitFace,

@@ -216,6 +216,7 @@ impl<H: Handle, T: fmt::Debug> fmt::Debug for VecMap<H, T> {
 }
 
 
+#[derive(Debug)]
 pub struct Handles<'map, H: Handle> {
     iter: Keys<'map>,
     _dummy: PhantomData<H>,
