@@ -11,6 +11,7 @@ use crate::{
 };
 
 
+pub mod ply;
 pub mod stl;
 
 /// Types that can be transformed into a [`MeshWriter`].

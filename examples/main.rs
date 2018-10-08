@@ -7,7 +7,7 @@ use failure::Error;
 use lox::{
     mesh,
     ds::SharedVertexMesh,
-    io::stl,
+    io::{stl, ply},
     prelude::*,
 };
 
@@ -16,7 +16,7 @@ fn main() -> Result<(), Error> {
     let (mesh, positions, _face_normals) = mesh! {
         type: SharedVertexMesh,
         vertices: [
-            v0: (Point3::new(0.0, 0.0, 0.0)),
+            v0: (Point3::new(0.0f32, 0.0, 0.0)),
             v1: (Point3::new(0.0, 1.0, 0.0)),
             v2: (Point3::new(1.0, 0.0, 0.0)),
             v3: (Point3::new(1.0, 1.0, 1.0)),
@@ -27,12 +27,12 @@ fn main() -> Result<(), Error> {
         ],
     };
 
-    stl::Serializer::ascii()
+    ply::Serializer::ascii()
     // stl::Serializer::binary()
         .into_writer(&mesh, &positions)
         // .with_face_normals(&face_normals)
-        .write_to_stdout()?;
-        // .write_to_file("mesh.stl")?;
+        // .write_to_stdout()?;
+        .write_to_file("mesh.ply")?;
 
 
     Ok(())
