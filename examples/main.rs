@@ -1,4 +1,4 @@
-#![feature(proc_macro_non_items)]
+#![feature(proc_macro_hygiene)]
 #![allow(unused_imports)]
 
 use cgmath::{Point3, Vector3};

@@ -37,15 +37,15 @@ pub use lox_macros::mesh as mesh;
 /// Convenience macro to quickly create a small mesh.
 ///
 /// **Note about unstable features**: this proc macro needs to be invoked in
-/// expression context, which is still unstable. So your crate need to enable
-/// the `proc_macro_non_items` feature for this to work.
+/// expression context, which is still unstable. So your crate needs to enable
+/// the `proc_macro_hygiene` feature for this to work.
 ///
 /// # Examples
 ///
 /// Here we create two triangles:
 ///
 /// ```
-/// #![feature(proc_macro_non_items)]
+/// #![feature(proc_macro_hygiene)]
 /// use lox::{
 ///     mesh,
 ///     prelude::*,
@@ -89,7 +89,7 @@ pub use lox_macros::mesh as mesh;
 /// parenthesis (`()`) or just omit the colon and the parenthesis:
 ///
 /// ```
-/// #![feature(proc_macro_non_items)]
+/// #![feature(proc_macro_hygiene)]
 /// use lox::{
 ///     mesh,
 ///     ds::SharedVertexMesh,
@@ -122,7 +122,7 @@ pub use lox_macros::mesh as mesh;
 /// syntax when you haven't yet decided how your mesh should look like.
 ///
 /// ```
-/// #![feature(proc_macro_non_items)]
+/// #![feature(proc_macro_hygiene)]
 /// use lox::{
 ///     mesh,
 ///     ds::SharedVertexMesh,

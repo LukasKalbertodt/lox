@@ -1,6 +1,6 @@
 //! Tests related to the `mesh!` macro.
 
-#![feature(proc_macro_non_items)]
+#![feature(proc_macro_hygiene)]
 
 use lox::{
     mesh,
