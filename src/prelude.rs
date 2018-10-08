@@ -12,5 +12,6 @@
 pub use crate::{
     Mesh, TriMesh, ExplicitFace, ExplicitVertex, MeshUnsorted,
     handle::Handle,
+    map::{PropMap, PropStore, PropStoreMut},
     io::{IntoMeshWriter, MeshWriter},
 };
