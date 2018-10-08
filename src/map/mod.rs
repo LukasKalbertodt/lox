@@ -14,6 +14,7 @@ use crate::{
 #[macro_use]
 mod tests;
 
+pub mod adaptors;
 pub mod aliases;
 pub mod boo;
 mod fn_map;
@@ -75,6 +76,61 @@ pub trait PropMap<H: Handle> {
     /// otherwise.
     fn contains_handle(&self, handle: H) -> bool {
         self.get(handle).is_some()
+    }
+
+    /// Creates a new prop map that applies the given function to each element
+    /// of the original map. Very similar to `Iterator::map`.
+    ///
+    /// This adaptor doesn't change for which handles a value is present. So
+    /// `contains_handle` always returns the same result as on the original
+    /// map.
+    ///
+    /// # Example
+    ///
+    /// This example shows a normal hash map on which `map` is called. The
+    /// element's borrowed state and type is changed (from `&str` to `usize`).
+    ///
+    /// ```
+    /// use lox::{
+    ///     FaceHandle,
+    ///     prelude::*,
+    ///     map::HashMap,
+    /// };
+    ///
+    /// // Just shortcuts for later
+    /// let f0 = FaceHandle::from_usize(0);
+    /// let f1 = FaceHandle::from_usize(1);
+    /// let f2 = FaceHandle::from_usize(2);
+    ///
+    /// // Create a normal hashmap and insert two values
+    /// let mut orig = HashMap::new();
+    /// orig.insert(f0, "Anna");
+    /// orig.insert(f1, "Peter");
+    ///
+    /// // Here we create a new map by applying the function that simply
+    /// // returns the length of the string.
+    /// let mapped = orig.map_value(|s| s.len().into());
+    ///
+    ///
+    /// assert_eq!(orig.get(f0).map(|v| *v), Some("Anna"));
+    /// assert_eq!(mapped.get(f0).map(|v| *v), Some(4));
+    ///
+    /// assert_eq!(orig.get(f1).map(|v| *v), Some("Peter"));
+    /// assert_eq!(mapped.get(f1).map(|v| *v), Some(5));
+    ///
+    /// assert_eq!(orig.get(f2), None);
+    /// assert_eq!(mapped.get(f2), None);
+    /// ```
+    fn map_value<F, TargetT, MarkerT>(&self, f: F) -> adaptors::Mapper<'_, Self, F>
+    where
+        Self: Sized,
+        MarkerT: boo::Marker,
+        F: Fn(boo::Wrap<'_, Self::Target, Self::Marker>) -> boo::Wrap<'_, TargetT, MarkerT>,
+    {
+        adaptors::Mapper {
+            inner: self,
+            mapper: f,
+        }
     }
 }
 
