@@ -2,7 +2,7 @@
 /target/
 Cargo.lock
 
-# Mesh files are generally ignored
-*.ply
-*.obj
-*.stl
+# Top level mesh files are generally ignored
+/*.ply
+/*.obj
+/*.stl
