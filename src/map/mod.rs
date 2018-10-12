@@ -81,6 +81,10 @@ pub trait PropMap<H: Handle> {
     /// Creates a new prop map that applies the given function to each element
     /// of the original map. Very similar to `Iterator::map`.
     ///
+    /// This method only works when the given closure returns a new property by
+    /// value. If you want to instead borrow from the old property, use
+    /// [`PropMap::map_ref`] instead.
+    ///
     /// This adaptor doesn't change for which handles a value is present. So
     /// `contains_handle` always returns the same result as on the original
     /// map.
@@ -121,13 +125,88 @@ pub trait PropMap<H: Handle> {
     /// assert_eq!(orig.get(f2), None);
     /// assert_eq!(mapped.get(f2), None);
     /// ```
-    fn map_value<F, TargetT, MarkerT>(&self, f: F) -> adaptors::Mapper<'_, Self, F>
+    ///
+    /// In the above example, the mapping function received a borrowed property
+    /// and returns a new property by value. But this method also works with
+    /// maps that return the original property by value.
+    ///
+    /// The closure always receives a `Wrap<...>`. As this type implements
+    /// `Deref`, most operations just work. However, if you need access to the
+    /// owned value, you need to use `into_inner()`. This is shown here:
+    ///
+    /// ```
+    /// use lox::{
+    ///     FaceHandle,
+    ///     prelude::*,
+    ///     map::FnMap,
+    /// };
+    ///
+    /// // The `FnMap` returns its properties by value
+    /// let orig = FnMap(|_| Some(vec![1, 2, 3]));
+    ///
+    /// // If you just need to access the property by immutable reference, you
+    /// // can simply do that thanks to deref coercions.
+    /// let mapped = orig.map_value(|v| v.len());
+    /// assert_eq!(mapped.get(FaceHandle::from_usize(0)).map(|x| *x), Some(3usize));
+    ///
+    /// // However, sometimes you really need the owned value. In that case,
+    /// // you need to call `into_inner` on the `Wrap` that was passed in.
+    /// let mapped = orig.map_value(|v| v.into_inner().into_boxed_slice());
+    /// assert_eq!(
+    ///     mapped.get(FaceHandle::from_usize(0)).as_ref().map(|x| &**x),
+    ///     Some(&vec![1, 2, 3].into_boxed_slice()),
+    /// );
+    /// ```
+    fn map_value<F, TargetT>(&self, f: F) -> adaptors::Mapper<'_, Self, F>
     where
         Self: Sized,
-        MarkerT: boo::Marker,
-        F: Fn(boo::Wrap<'_, Self::Target, Self::Marker>) -> boo::Wrap<'_, TargetT, MarkerT>,
+        F: Fn(boo::Wrap<'_, Self::Target, Self::Marker>) -> TargetT,
     {
         adaptors::Mapper {
+            inner: self,
+            mapper: f,
+        }
+    }
+
+    /// Creates a new prop map that applies the given function to each element
+    /// of the original map. Similar to [`PropMap::map_value`].
+    ///
+    /// The closure given to this function has to borrow from the original
+    /// property. If you want to return an owned value instead, use
+    /// [`PropMap::map_value`]. Otherwise, this method works exactly like
+    /// `map_value`.
+    ///
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use lox::{
+    ///     FaceHandle,
+    ///     prelude::*,
+    ///     map::HashMap,
+    /// };
+    ///
+    /// // Just shortcuts for later
+    /// let f0 = FaceHandle::from_usize(0);
+    /// let f1 = FaceHandle::from_usize(1);
+    ///
+    /// // Create a normal hashmap and insert two values
+    /// let mut orig = HashMap::new();
+    /// orig.insert(f0, ["a".to_string(), "b".to_string()]);
+    /// orig.insert(f1, ["x".to_string(), "y".to_string()]);
+    ///
+    /// // Map the value by taking the first element.
+    /// let mapped = orig.map_ref(|s| &s[0]);
+    ///
+    /// assert_eq!(mapped.get(f0).map(|v| v.into_inner().as_str()), Some("a"));
+    /// assert_eq!(mapped.get(f1).map(|v| v.into_inner().as_str()), Some("x"));
+    /// ```
+    fn map_ref<F, TargetT>(&self, f: F) -> adaptors::RefMapper<'_, Self, F>
+    where
+        Self: Sized + PropMap<H, Marker = boo::Borrowed>,
+        F: Fn(&Self::Target) -> &TargetT,
+    {
+        adaptors::RefMapper {
             inner: self,
             mapper: f,
         }

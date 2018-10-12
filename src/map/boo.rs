@@ -134,9 +134,5 @@ impl<'a, T: fmt::Debug, M: Marker> fmt::Debug for Wrap<'a, T, M> {
 impl<U, T: PartialEq<U>, Ma: Marker, Mb: Marker> PartialEq<Wrap<'_, U, Mb>> for Wrap<'_, T, Ma> {
     fn eq(&self, other: &Wrap<'_, U, Mb>) -> bool {
         &*self == &*other
-        // match &self.0 {
-        //     WrapInner::Borrowed(v, _) => (*v).eq(other),
-        //     WrapInner::Owned(v, _) => (*v).eq(other),
-        // }
     }
 }
