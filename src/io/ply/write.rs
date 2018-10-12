@@ -1,3 +1,17 @@
+//! Everything related to writing a PLY file.
+//!
+//! # Random notes on the format
+//!
+//! Unfortunately, the PLY format is terribly underspecified (as are most mesh
+//! formats). Therefore, here are a few notes on missing information or this
+//! particular implementation. You will find more comments on this below.
+//!
+//! - The specs say "The header is a series of carriage-return terminated
+//!   lines", but the example files used by the specs and all files in the wild
+//!   use `'\n'` as terminator and not `'\r'` (carriage-return).
+//!
+//!
+
 #![allow(unused_imports)] // TODO
 
 use std::{
@@ -10,7 +24,7 @@ use cgmath::prelude::*;
 use crate::{
     Mesh, MeshUnsorted, ExplicitFace, ExplicitVertex,
     handle::{Handle, VertexHandle},
-    map::{EmptyMap, FacePropMap, VertexPropMap},
+    map::{EmptyMap, PropMap, FacePropMap, VertexPropMap},
     math::{Pos3Like, Vec3Like},
     io::{IntoMeshWriter, MeshWriter},
 };
@@ -93,21 +107,28 @@ where
     vertex_props: VertexPropsT,
 }
 
-
-// impl<'a, MeshT> Writer<'a, MeshT>
-// where // TODO: remove once implied bounds land
-//     MeshT: Mesh + MeshUnsorted + ExplicitFace + ExplicitVertex,
-
-// {
-//     fn new<PosM>(ser: Serializer, mesh: &'a MeshT, vertex_positions: &'a PosM) -> Self
-//     where
-//         PosM: VertexPropMap,
-//         PosM::Target: Pos3Like,
-//         <PosM::Target as Pos3Like>::Scalar: Serialize,
-//     {
-
-//     }
-// }
+impl<'a, MeshT, VertexPropsT> Writer<'a, MeshT, VertexPropsT>
+where
+    MeshT: Mesh + MeshUnsorted + ExplicitFace + ExplicitVertex,
+    VertexPropsT: 'a + PropList<VertexHandle>,
+{
+    pub fn add_vertex_prop<MapT>(self, name: impl Into<String>, map: &'a MapT)
+        -> Writer<'a, MeshT, impl 'a + PropList<VertexHandle>>
+    where
+        MapT: 'a + VertexPropMap,
+        MapT::Target: Serialize,
+    {
+        Writer {
+            ser: self.ser,
+            mesh: self.mesh,
+            vertex_props: ListSingleElem {
+                name: name.into(),
+                map,
+                tail: self.vertex_props,
+            },
+        }
+    }
+}
 
 impl<MeshT, VertexPropsT> MeshWriter for Writer<'_, MeshT, VertexPropsT>
 where // TODO: remove once implied bounds land
@@ -151,7 +172,9 @@ where // TODO: remove once implied bounds land
             Format::Ascii => {
                 for v in self.mesh.vertices() {
                     // writeln!(w, "{:?}", v.handle());
-                    self.vertex_props.write_block(v.handle(), AsciiBlock::new(&mut w))?;
+                    let mut block = AsciiBlock::new(&mut w);
+                    self.vertex_props.write_block(v.handle(), &mut block)?;
+                    block.finish()?;
                 }
 
                 for f in self.mesh.faces() {
@@ -179,9 +202,17 @@ where // TODO: remove once implied bounds land
 // ===== Helper stuff for the heterogeneous list stored inside the MeshWriter
 // ===============================================================================================
 
+/// A heterogenous list of property maps with a PLY field name. For internal
+/// use, you don't have to worry about this!
+///
+/// The lists are basically stored backwards, because adding something to the
+/// back of the list is kind of a hassle (not algorithmically, but realizing
+/// this in Rust's type system). So all operations recurse first and then do
+/// their work. This makes tail recursion impossible, but tail recursion isn't
+/// a thing in Rust anyway.
 pub trait PropList<H: Handle> {
     fn write_header(&self, w: &mut impl Write) -> Result<(), Error>;
-    fn write_block(&self, handle: H, block: impl Block) -> Result<(), Error>;
+    fn write_block(&self, handle: H, block: &mut impl Block) -> Result<(), Error>;
 }
 
 
@@ -192,8 +223,8 @@ impl<H: Handle> PropList<H> for EmptyList {
     fn write_header(&self, _: &mut impl Write) -> Result<(), Error> {
         Ok(())
     }
-    fn write_block(&self, _: H, block: impl Block) -> Result<(), Error> {
-        block.finish()
+    fn write_block(&self, _: H, _: &mut impl Block) -> Result<(), Error> {
+        Ok(())
     }
 }
 
@@ -211,14 +242,19 @@ where
     <MapT::Target as Pos3Like>::Scalar: Serialize,
 {
     fn write_header(&self, w: &mut impl Write) -> Result<(), Error> {
+        self.tail.write_header(w)?;
+
         let type_name = <<MapT::Target as Pos3Like>::Scalar as Serialize>::HEADER_TYPE_NAME;
-        writeln!(w, "property {} x", type_name);
-        writeln!(w, "property {} y", type_name);
-        writeln!(w, "property {} z", type_name);
-        self.tail.write_header(w)
+        writeln!(w, "property {} x", type_name)?;
+        writeln!(w, "property {} y", type_name)?;
+        writeln!(w, "property {} z", type_name)?;
+
+        Ok(())
     }
 
-    fn write_block(&self, handle: VertexHandle, mut block: impl Block) -> Result<(), Error> {
+    fn write_block(&self, handle: VertexHandle, block: &mut impl Block) -> Result<(), Error> {
+        self.tail.write_block(handle, {block})?;
+
         let pos = self.map.get(handle).unwrap_or_else(|| {
             panic!("vertex position PropMap incomplete: no value for handle {:?}", handle);
         });
@@ -227,26 +263,45 @@ where
         block.add(pos.y())?;
         block.add(pos.z())?;
 
-        self.tail.write_block(handle, block)
+        Ok(())
     }
 }
 
 
-// #[derive(Debug)]
-// pub struct ListSingleElem<TailT> {
-//     name: String,
-//     tail: TailT,
-// }
+#[derive(Debug)]
+pub struct ListSingleElem<'a , TailT, MapT: 'a> {
+    name: String,
+    map: &'a MapT,
+    tail: TailT,
+}
 
-// impl<H: Handle, TailT: PropList<H>> PropList<H> for ListSingleElem<TailT> {
-//     fn write_header(&self, w: &mut impl Write) -> Result<(), Error> {
-//         write!(w, "TODO: {}", self.name);
-//         self.tail.write_header(w)
-//     }
-// }
+impl<H: Handle, TailT: PropList<H>, MapT> PropList<H> for ListSingleElem<'_, TailT, MapT>
+where
+    MapT: PropMap<H>,
+    MapT::Target: Serialize,
+{
+    fn write_header(&self, w: &mut impl Write) -> Result<(), Error> {
+        self.tail.write_header(w)?;
+
+        writeln!(w, "property {} {}", self.name, <MapT::Target as Serialize>::HEADER_TYPE_NAME)?;
+
+        Ok(())
+    }
+
+    fn write_block(&self, handle: H, block: &mut impl Block) -> Result<(), Error> {
+        self.tail.write_block(handle, {block})?;
+
+        let prop = self.map.get(handle).unwrap_or_else(|| {
+            panic!("PropMap for '{}' incomplete: no value for handle {:?}", self.name, handle);
+        });
+        block.add(&*prop)?;
+
+        Ok(())
+    }
+}
 
 // ===============================================================================================
-// ===== Definition of blocks (properties for one specific element)
+// ===== Definition of blocks (including implementation of `Serializer`)
 // ===============================================================================================
 
 /// A block holds all properties for one specific element. In the ASCII format
@@ -324,27 +379,3 @@ impl<'a, W: Write + 'a> PropSerializer for &mut AsciiBlock<'a, W> {
         write!(self.writer, "{}", v).map_err(|e| e.into())
     }
 }
-
-
-
-// ===============================================================================================
-// ===== Serializer for PLY
-// ===============================================================================================
-
-// /// Serializes properties as PLY ASCII (simply using the `Display` impl).
-// ///
-// /// Unfortunately, the PLY format isn't too detailed. So we can't know for sure
-// /// how to serialize numbers. E.g. it's not specified how many decimal digits
-// /// are allowed/required and if floats should be printed in scientific notation
-// /// or not. So we just use `Display` which seems to work.
-// struct AsciiSerializer<'a, W: Write + 'a + ?Sized> {
-//     writer: &'a mut W,
-// }
-
-// impl<'a, W: Write + 'a + ?Sized> AsciiSerializer<'a, W> {
-//     fn new(w: &'a mut W) -> Self {
-//         Self {
-//             writer: w,
-//         }
-//     }
-// }

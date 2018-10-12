@@ -8,6 +8,7 @@ use lox::{
     mesh,
     ds::SharedVertexMesh,
     io::{stl, ply},
+    map::ConstMap,
     prelude::*,
 };
 
@@ -30,9 +31,10 @@ fn main() -> Result<(), Error> {
     ply::Serializer::ascii()
     // stl::Serializer::binary()
         .into_writer(&mesh, &positions)
+        .add_vertex_prop("peter", &ConstMap(27u8))
         // .with_face_normals(&face_normals)
-        // .write_to_stdout()?;
-        .write_to_file("mesh.ply")?;
+        .write_to_stdout()?;
+        // .write_to_file("mesh.ply")?;
 
 
     Ok(())
