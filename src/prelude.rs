@@ -13,5 +13,6 @@ pub use crate::{
     Mesh, TriMesh, ExplicitFace, ExplicitVertex, MeshUnsorted,
     handle::Handle,
     map::{PropMap, PropStore, PropStoreMut},
+    math::{Pos3Like, Vec3Like},
     io::{IntoMeshWriter, MeshWriter},
 };
