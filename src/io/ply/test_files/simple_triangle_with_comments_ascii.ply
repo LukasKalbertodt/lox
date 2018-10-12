@@ -1,0 +1,16 @@
+ply
+format ascii 1.0
+comment My name is Tom
+comment Yes we can have multiple comments :)
+comment Comments appear in the file in the same order as they are added with `add_comment`
+element vertex 3
+property float x
+property float y
+property float z
+element face 1
+property list uchar uint vertex_indices
+end_header
+0 0 0
+3 5 8
+1.942 152.99 0.007
+3 0 1 2
