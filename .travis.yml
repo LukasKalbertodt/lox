@@ -1,11 +1,19 @@
-language: rust
-rust:
-  - nightly
-
-script:
-  - ci/check-basic-style.sh
-  - ci/compile-all.sh
-  - ci/test-all.sh
-
-# Speeds up travis build
-cache: cargo
+# We define two jobs:
+# - "Check Style": it only runs a simple style checker script
+# - "Compile & Test": this actually needs Rust and compiles everything
+matrix:
+  fast_finish: true
+  include:
+    - name: "Check style"
+      language: generic
+      script: ./ci/check-basic-style.sh
+    - name: "Compile & Test"
+      language: rust
+      rust: nightly
+      env:
+        - RUSTFLAGS="--deny warnings"
+      script:
+        - cargo build --verbose
+        - cargo test --verbose
+      # speeds up travis build
+      cache: cargo

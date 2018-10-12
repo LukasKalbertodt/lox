@@ -1,5 +1,4 @@
-use fev_core::handle::Handle;
-
+use crate::handle::Handle;
 use super::{boo, PropMap};
 
 
@@ -16,10 +15,10 @@ use super::{boo, PropMap};
 /// # Example
 ///
 /// ```
-/// # extern crate fev_core;
-/// # extern crate fev_map;
-/// use fev_core::handle::{Handle, VertexHandle};
-/// use fev_map::{FnMap, PropMap};
+/// use lox::{
+///     handle::{Handle, VertexHandle},
+///     map::{FnMap, PropMap},
+/// };
 ///
 /// fn foo(map: &impl PropMap<VertexHandle>) {}
 ///
@@ -35,8 +34,10 @@ use super::{boo, PropMap};
 /// foo(&map);  // works
 ///
 /// // This property map always returns 3 (you don't need to use the handle).
+/// // However, in this case, you should usually use `ConstMap`.
 /// foo(&FnMap(|_| Some(3)));  // works
 /// ```
+#[derive(Clone, Copy, Debug)]
 pub struct FnMap<F>(pub F);
 
 impl<H, F, OutT> PropMap<H> for FnMap<F>
@@ -48,7 +49,6 @@ where
     type Marker = boo::Owned;
 
     fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target, Self::Marker>> {
-        // unimplemented!()
         (self.0)(handle).map(Into::into)
     }
 }

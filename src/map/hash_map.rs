@@ -4,17 +4,19 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use fev_core::handle::Handle;
-
-use crate::{boo, PropMap, PropStore, PropStoreMut};
+use crate::handle::Handle;
+use super::{boo, PropMap, PropStore, PropStoreMut};
 
 
 /// A property map using a hashmap to store the properties.
 ///
-/// This is just a wrapper around `std::collections::HashMap`.
+/// This is just a wrapper around `std::collections::HashMap`. We cannot
+/// implement the traits for `std::collections::HashMap` directly, because it
+/// doesn't implement `Index<K>`. Instead of implements `Index<&Q>` where `Q`
+/// is something that allows to borrow `K` from it. But our `PropStore`
+/// requires `Index<H>`, so we have to use this wrapper type.
 #[derive(Clone, Debug)]
 pub struct HashMap<H: Handle + Hash, T>(StdHashMap<H, T>);
-
 
 impl<H: Handle + Hash, T> HashMap<H, T> {
     /// Creates an empty `HashMap`.
@@ -45,6 +47,10 @@ impl<H: Handle + Hash, T> PropMap<H> for HashMap<H, T> {
     fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target, Self::Marker>> {
         self.get_ref(handle).map(Into::into)
     }
+
+    fn contains_handle(&self, handle: H) -> bool {
+        self.0.contains_key(&handle)
+    }
 }
 
 impl<H: Handle + Hash, T> Index<H> for HashMap<H, T> {
@@ -60,6 +66,14 @@ impl<H: Handle + Hash, T> Index<H> for HashMap<H, T> {
 impl<H: Handle + Hash, T> PropStore<H> for HashMap<H, T> {
     fn get_ref(&self, handle: H) -> Option<&Self::Output> {
         self.0.get(&handle)
+    }
+
+    fn num_props(&self) -> usize {
+        self.0.len()
+    }
+
+    fn handles<'a>(&'a self) -> Box<dyn Iterator<Item = H> + 'a> {
+        Box::new(self.0.keys().cloned())
     }
 }
 
@@ -106,4 +120,9 @@ impl<H: Handle + Hash, T> From<StdHashMap<H, T>> for HashMap<H, T> {
 
 
 
-// TODO: tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    gen_tests_for_store_impl!(HashMap);
+}

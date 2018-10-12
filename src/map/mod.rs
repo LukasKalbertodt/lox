@@ -1,38 +1,40 @@
 //! ...
 
-#![feature(never_type)]
-#![feature(rust_2018_preview)]
-
 
 use std::{
     ops,
 };
 
-use auto_impl::auto_impl;
-
-use fev_core::{
+use crate::{
     handle::Handle,
 };
 
 
+#[cfg(test)]
+#[macro_use]
+mod tests;
+
+pub mod adaptors;
 pub mod aliases;
 pub mod boo;
-pub mod fn_map;
-pub mod hash_map;
-pub mod mesh_map;
-pub mod vec_map;
+mod fn_map;
+mod hash_map;
+mod special_maps;
+mod tiny_map;
+mod vec_map;
 
-pub use crate::{
+pub use self::{
     aliases::*,
     fn_map::FnMap,
     hash_map::HashMap,
-    mesh_map::{MeshFaceMap, MeshVertexMap},
+    special_maps::{ConstMap, EmptyMap},
+    tiny_map::TinyMap,
     vec_map::VecMap,
 };
 
 
 
-/// A mapping from a handle to some optional data (property).
+/// A mapping from a handle to some data (property).
 ///
 /// This is a bare minimal trait representing all types that can map a handle
 /// to optional data, called property. The returned property can be owned or
@@ -45,7 +47,7 @@ pub use crate::{
 /// a specific set of handles. For example:
 ///
 /// ```ignore
-/// // TODO: use proper mesh traits here and possibly make this compile!
+/// # // TODO: use proper mesh traits here and possibly make this compile!
 /// fn print_face_props<'s>(mesh: ..., map: impl PropMap<'s, FaceHandle>) {
 ///     ...
 /// }
@@ -60,9 +62,8 @@ pub use crate::{
 ///
 /// - Example how to use `PropMap`s
 /// - Example how to implement `PropMap`
-/// - Explain parameter `'s`
+/// - Explain strange `boo` thingies
 /// - Trait alias
-#[auto_impl(&)]
 pub trait PropMap<H: Handle> {
     type Target;
     type Marker: boo::Marker;
@@ -75,6 +76,61 @@ pub trait PropMap<H: Handle> {
     /// otherwise.
     fn contains_handle(&self, handle: H) -> bool {
         self.get(handle).is_some()
+    }
+
+    /// Creates a new prop map that applies the given function to each element
+    /// of the original map. Very similar to `Iterator::map`.
+    ///
+    /// This adaptor doesn't change for which handles a value is present. So
+    /// `contains_handle` always returns the same result as on the original
+    /// map.
+    ///
+    /// # Example
+    ///
+    /// This example shows a normal hash map on which `map` is called. The
+    /// element's borrowed state and type is changed (from `&str` to `usize`).
+    ///
+    /// ```
+    /// use lox::{
+    ///     FaceHandle,
+    ///     prelude::*,
+    ///     map::HashMap,
+    /// };
+    ///
+    /// // Just shortcuts for later
+    /// let f0 = FaceHandle::from_usize(0);
+    /// let f1 = FaceHandle::from_usize(1);
+    /// let f2 = FaceHandle::from_usize(2);
+    ///
+    /// // Create a normal hashmap and insert two values
+    /// let mut orig = HashMap::new();
+    /// orig.insert(f0, "Anna");
+    /// orig.insert(f1, "Peter");
+    ///
+    /// // Here we create a new map by applying the function that simply
+    /// // returns the length of the string.
+    /// let mapped = orig.map_value(|s| s.len().into());
+    ///
+    ///
+    /// assert_eq!(orig.get(f0).map(|v| *v), Some("Anna"));
+    /// assert_eq!(mapped.get(f0).map(|v| *v), Some(4));
+    ///
+    /// assert_eq!(orig.get(f1).map(|v| *v), Some("Peter"));
+    /// assert_eq!(mapped.get(f1).map(|v| *v), Some(5));
+    ///
+    /// assert_eq!(orig.get(f2), None);
+    /// assert_eq!(mapped.get(f2), None);
+    /// ```
+    fn map_value<F, TargetT, MarkerT>(&self, f: F) -> adaptors::Mapper<'_, Self, F>
+    where
+        Self: Sized,
+        MarkerT: boo::Marker,
+        F: Fn(boo::Wrap<'_, Self::Target, Self::Marker>) -> boo::Wrap<'_, TargetT, MarkerT>,
+    {
+        adaptors::Mapper {
+            inner: self,
+            mapper: f,
+        }
     }
 }
 
@@ -90,23 +146,11 @@ pub trait PropMap<H: Handle> {
 ///
 /// # Type level relationship between `PropStore` and `PropMap`
 ///
-/// `PropStore` is a subtype of `PropMap`, as in: every `PropStore` is also
-/// a `PropMap`, at least semantically. Sadly, this fact is not reflected in
-/// the type system yet. This has two reasons:
-///
-/// - Right now, Rust doesn't offer generic associated types (GATs). To work
-///   around that limitation, `PropMap` has a pretty annoying lifetime
-///   parameter. To have `PropMap` as super trait of `PropStore`, `PropStore`
-///   would also have to get a lifetime parameter. So we'll wait for GATs
-///   before we add `PropMap` as super trait.
-/// - It would be really nice to implement `PropMap` for all types that
-///   implement `PropStore` (at least provide a default implementation). But
-///   this is currently not allowed due to (a) orphan rules and (b)
-///   specialization being unstable.
-///
-/// So right now the situation is a bit sub-optimal, but it will hopefully be
-/// full resolved in the future. For now, types that implement `PropStore` are
-/// just expected to also implement `PropMap`.
+/// `PropStore` is a subtype of `PropMap`, as in: every `PropStore` is also a
+/// `PropMap`. It would be really nice to implement `PropMap` for all types
+/// that implement `PropStore` (at least provide a default implementation). But
+/// this is currently problematic due to (a) coherence and (b) specialization
+/// being unstable. TODO: try this in the future again.
 ///
 ///
 /// # TODO
@@ -115,37 +159,29 @@ pub trait PropMap<H: Handle> {
 /// - Example how to implement `PropStore`
 /// - When to use `PropMap` and when to use `PropStore`
 /// - Trait alias
-pub trait PropStore<H: Handle>: ops::Index<H> {
+pub trait PropStore<H: Handle>: PropMap<H> + ops::Index<H> {
     /// Returns a reference to the property associated with `handle` or `None`
     /// if no such property exists.
     fn get_ref(&self, handle: H) -> Option<&Self::Output>;
 
-    /// Returns `true` if there is a property associated with `handle`, `false`
-    /// otherwise.
-    fn contains_handle(&self, handle: H) -> bool {
-        self.get_ref(handle).is_some()
-    }
+    /// Returns the number of properties stored in this map.
+    fn num_props(&self) -> usize;
+
+    /// Returns an iterator over all handles that have a value associated with
+    /// them.
+    ///
+    /// The order of the handles is not specified.
+    ///
+    /// TODO: improve with GATs
+    fn handles<'a>(&'a self) -> Box<dyn Iterator<Item = H> + 'a>;
 
     // Additional maybe useful methods:
-    // - numValues
     // - Iterator over
-    //      - handles
     //      - values
     //      - both
-
-    // // Combinators
-    // fn map<F, NewOutT>(&'s self, mapping: F) -> MappedPropMap<'s, F, Self>
-    // where
-    //     Self: Sized,
-    //     F: Fn(Self::Out) -> NewOutT,
-    // {
-    //     MappedPropMap {
-    //         original: self,
-    //         mapping,
-    //     }
-    // }
 }
 
+// TODO: maybe combine this with `PropStore`?
 /// ...
 pub trait PropStoreMut<H: Handle>: PropStore<H> + ops::IndexMut<H> {
     /// Returns a mutable reference to the property associated with `handle` or
@@ -175,36 +211,3 @@ pub trait PropStoreMut<H: Handle>: PropStore<H> + ops::IndexMut<H> {
     /// Reserves memory for at least `additional` new properties.
     fn reserve(&mut self, additional: usize);
 }
-
-
-
-// pub struct MappedPropMap<'a, F, MapT: 'a> {
-//     original: &'a MapT,
-//     mapping: F,
-// }
-
-// impl<'a, F, H, MapT, NewOutT> ops::Index<H> for MappedPropMap<'a, F, MapT>
-// where
-//     H: 'a + Handle,
-//     MapT: 'a + PropMap<H>,
-//     F: Fn(&'a Map::Output) -> &'a NewOutT,
-//     NewOutT: 'a,
-// {
-//     type Output = NewOutT;
-
-//     fn index(&self, idx: H) -> &Self::Output {
-//         self.get(idx).unwrap() // TODO: expect
-//     }
-// }
-
-// impl<'s, F, H, MapT, NewOutT> PropMap<'s, H> for MappedPropMap<'s, F, MapT>
-// where
-//     H: Handle,
-//     MapT: PropMap<'s, H>,
-//     F: Fn(MapT::Out) -> NewOutT,
-// {
-//     type Out = NewOutT;
-//     fn get(&self, handle: H) -> Option<Self::Out> {
-//         self.original.get(handle).map(&self.mapping)
-//     }
-// }

@@ -1,9 +1,19 @@
+[package]
+name = "lox"
+version = "0.1.0"
+authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
+edition = "2018"
+
 [workspace]
 
-members = [
-    "fev",
-    "fev-core",
-    "fev-impls",
-    "fev-io",
-    "fev-map",
-]
+[features]
+default = ["cgmath"]
+
+[dependencies]
+byteorder = "1.2"
+cgmath = { version = "0.16", optional = true }
+failure = "0.1.2"
+lox-macros = { path = "lox-macros" }
+num-traits = "0.2"
+smallvec = "0.6"
+stable-vec = "0.2.1"

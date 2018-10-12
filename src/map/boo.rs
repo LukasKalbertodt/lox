@@ -17,8 +17,16 @@
 //! - It's an acronym for **b**orrowed **o**r **o**wned
 //! - Ghosts say boo. This is kinda creepy and ugly and should be avoided. But
 //!   it stays until GATs are here.
+//!
+//! For more information, see this [blog
+//! post](http://tiny.cc/streaming-iterator-gats).
 
-use std::ops;
+#![allow(missing_debug_implementations)]
+
+use std::{
+    fmt,
+    ops,
+};
 
 /// Types which denote if a type is borrowed or owned.
 ///
@@ -111,5 +119,24 @@ impl<'a, T> Wrap<'a, T, Borrowed> {
             WrapInner::Borrowed(v, _) => v,
             WrapInner::Owned(_, never) => never,
         }
+    }
+}
+
+impl<'a, T: fmt::Debug, M: Marker> fmt::Debug for Wrap<'a, T, M> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.0 {
+            WrapInner::Borrowed(v, _) => write!(f, "Borrowed({:?})", v),
+            WrapInner::Owned(v, _) => write!(f, "Owned({:?})", v),
+        }
+    }
+}
+
+impl<U, T: PartialEq<U>, Ma: Marker, Mb: Marker> PartialEq<Wrap<'_, U, Mb>> for Wrap<'_, T, Ma> {
+    fn eq(&self, other: &Wrap<'_, U, Mb>) -> bool {
+        &*self == &*other
+        // match &self.0 {
+        //     WrapInner::Borrowed(v, _) => (*v).eq(other),
+        //     WrapInner::Owned(v, _) => (*v).eq(other),
+        // }
     }
 }
