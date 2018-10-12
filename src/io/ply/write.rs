@@ -45,8 +45,14 @@ impl Serializer {
         }
     }
 
+    /// Adds a `comment` line to the file header. The given string must not
+    /// contain `'\n'` or else this method panics.
     pub fn add_comment(mut self, comment: impl Into<String>) -> Self {
-        self.comments.push(comment.into());
+        let comment = comment.into();
+
+        assert!(!comment.contains('\n'), "PLY comments must not contain '\\n'!");
+
+        self.comments.push(comment);
         self
     }
 }
@@ -125,13 +131,10 @@ where // TODO: remove once implied bounds land
         };
         w.write_all(format_line)?;
 
-
-        // TODO: would be nice to write some meta data, such as date, into the
-        // file
-
-        // TODO: it would be nice to let the user add comments to the file if
-        // they want to.
-
+        // Add all comments
+        for comment in &self.ser.comments {
+            writeln!(w, "comment {}", comment)?;
+        }
 
         // Define `vertex` element with all properties
         writeln!(w, "element vertex {}", self.mesh.num_vertices())?;
