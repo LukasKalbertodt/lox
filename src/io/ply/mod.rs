@@ -7,6 +7,10 @@ use failure::Fail;
 
 mod write;
 
+#[cfg(test)]
+mod tests;
+
+
 pub use self::write::{Serializer, Writer};
 
 

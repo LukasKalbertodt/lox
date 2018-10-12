@@ -4,6 +4,7 @@
 
 #![feature(never_type)]
 #![feature(doc_cfg)]
+#![feature(proc_macro_hygiene)]
 
 #![deny(missing_debug_implementations)]
 
