@@ -259,9 +259,9 @@ where
             panic!("vertex position PropMap incomplete: no value for handle {:?}", handle);
         });
 
-        block.add(pos.x())?;
-        block.add(pos.y())?;
-        block.add(pos.z())?;
+        block.add(&pos.x())?;
+        block.add(&pos.y())?;
+        block.add(&pos.z())?;
 
         Ok(())
     }

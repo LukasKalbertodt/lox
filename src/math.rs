@@ -38,18 +38,18 @@ pub trait Pos3Like: Copy {
     fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self;
 
     /// Returns the `x` component of this position.
-    fn x(&self) -> &Self::Scalar;
+    fn x(&self) -> Self::Scalar;
 
     /// Returns the `y` component of this position.
-    fn y(&self) -> &Self::Scalar;
+    fn y(&self) -> Self::Scalar;
 
     /// Returns the `z` component of this position.
-    fn z(&self) -> &Self::Scalar;
+    fn z(&self) -> Self::Scalar;
 
     /// Converts this value into another `Pos3Like` value with the same scalar
     /// type.
     fn convert<P: Pos3Like<Scalar = Self::Scalar>>(&self) -> P {
-        P::from_coords(*self.x(), *self.y(), *self.z())
+        P::from_coords(self.x(), self.y(), self.z())
     }
 
     #[cfg(feature = "cgmath")]
@@ -64,9 +64,9 @@ impl<T: PrimitiveNum> Pos3Like for Point3<T> {
     fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
         Self::new(x, y, z)
     }
-    fn x(&self) -> &Self::Scalar { &self.x }
-    fn y(&self) -> &Self::Scalar { &self.y }
-    fn z(&self) -> &Self::Scalar { &self.z }
+    fn x(&self) -> Self::Scalar { self.x }
+    fn y(&self) -> Self::Scalar { self.y }
+    fn z(&self) -> Self::Scalar { self.z }
 }
 
 impl<T: PrimitiveNum> Pos3Like for (T, T, T) {
@@ -74,9 +74,9 @@ impl<T: PrimitiveNum> Pos3Like for (T, T, T) {
     fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
         (x, y, z)
     }
-    fn x(&self) -> &Self::Scalar { &self.0 }
-    fn y(&self) -> &Self::Scalar { &self.1 }
-    fn z(&self) -> &Self::Scalar { &self.2 }
+    fn x(&self) -> Self::Scalar { self.0 }
+    fn y(&self) -> Self::Scalar { self.1 }
+    fn z(&self) -> Self::Scalar { self.2 }
 }
 
 impl<T: PrimitiveNum> Pos3Like for [T; 3] {
@@ -84,9 +84,9 @@ impl<T: PrimitiveNum> Pos3Like for [T; 3] {
     fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
         [x, y, z]
     }
-    fn x(&self) -> &Self::Scalar { &self[0] }
-    fn y(&self) -> &Self::Scalar { &self[1] }
-    fn z(&self) -> &Self::Scalar { &self[2] }
+    fn x(&self) -> Self::Scalar { self[0] }
+    fn y(&self) -> Self::Scalar { self[1] }
+    fn z(&self) -> Self::Scalar { self[2] }
 }
 
 
@@ -106,18 +106,18 @@ pub trait Vec3Like: Copy {
     fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self;
 
     /// Returns the `x` component of this vector.
-    fn x(&self) -> &Self::Scalar;
+    fn x(&self) -> Self::Scalar;
 
     /// Returns the `y` component of this vector.
-    fn y(&self) -> &Self::Scalar;
+    fn y(&self) -> Self::Scalar;
 
     /// Returns the `z` component of this vector.
-    fn z(&self) -> &Self::Scalar;
+    fn z(&self) -> Self::Scalar;
 
     /// Converts this value into another `Vec3Like` value with the same scalar
     /// type.
     fn convert<V: Vec3Like<Scalar = Self::Scalar>>(&self) -> V {
-        V::from_coords(*self.x(), *self.y(), *self.z())
+        V::from_coords(self.x(), self.y(), self.z())
     }
 }
 
@@ -128,9 +128,9 @@ impl<T: PrimitiveNum> Vec3Like for Vector3<T> {
     fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
         Self::new(x, y, z)
     }
-    fn x(&self) -> &Self::Scalar { &self.x }
-    fn y(&self) -> &Self::Scalar { &self.y }
-    fn z(&self) -> &Self::Scalar { &self.z }
+    fn x(&self) -> Self::Scalar { self.x }
+    fn y(&self) -> Self::Scalar { self.y }
+    fn z(&self) -> Self::Scalar { self.z }
 }
 
 
@@ -139,9 +139,9 @@ impl<T: PrimitiveNum> Vec3Like for (T, T, T) {
     fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
         (x, y, z)
     }
-    fn x(&self) -> &Self::Scalar { &self.0 }
-    fn y(&self) -> &Self::Scalar { &self.1 }
-    fn z(&self) -> &Self::Scalar { &self.2 }
+    fn x(&self) -> Self::Scalar { self.0 }
+    fn y(&self) -> Self::Scalar { self.1 }
+    fn z(&self) -> Self::Scalar { self.2 }
 }
 
 impl<T: PrimitiveNum> Vec3Like for [T; 3] {
@@ -149,7 +149,7 @@ impl<T: PrimitiveNum> Vec3Like for [T; 3] {
     fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
         [x, y, z]
     }
-    fn x(&self) -> &Self::Scalar { &self[0] }
-    fn y(&self) -> &Self::Scalar { &self[1] }
-    fn z(&self) -> &Self::Scalar { &self[2] }
+    fn x(&self) -> Self::Scalar { self[0] }
+    fn y(&self) -> Self::Scalar { self[1] }
+    fn z(&self) -> Self::Scalar { self[2] }
 }
