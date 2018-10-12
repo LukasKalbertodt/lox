@@ -14,6 +14,7 @@ use crate::{
 
 #[derive(Debug)]
 pub(crate) struct MeshInput {
+    is_internal_call: bool,
     mesh_type: syn::Path,
     vertices: Vec<(Ident, Vec<syn::Expr>)>,
     faces: Vec<([Ident; 3], Vec<syn::Expr>)>,
@@ -21,7 +22,7 @@ pub(crate) struct MeshInput {
 
 impl MeshInput {
     pub(crate) fn output(self) -> TokenStream {
-        let Self { mesh_type, vertices, faces } = self;
+        let Self { is_internal_call, mesh_type, vertices, faces } = self;
 
         // TODO: reserve memory for the mesh
 
@@ -87,10 +88,15 @@ impl MeshInput {
             }
         }
 
+        let crate_ident = if is_internal_call {
+            quote! { crate }
+        } else {
+            quote! { lox }
+        };
 
         // Combine everything
         quote! {{
-            use lox::{
+            use #crate_ident::{
                 Mesh, ExplicitFace, ExplicitVertex,
                 map::{PropStoreMut, VecMap},
             };
@@ -111,14 +117,17 @@ impl MeshInput {
 
 impl Parse for MeshInput {
     fn parse(input: ParseStream) -> Result<Self> {
-        // ----- Parse type of mesh ------------------
+        // ----- Check for special internal marker ----
+        let is_internal_call = input.eat_punct(b"*").is_ok();
+
+        // ----- Parse type of mesh -------------------
         input.eat_ident("type")?;
         input.eat_punct(b":")?;
         let mesh_type = input.parse::<syn::Path>()?;
         input.eat_punct(b",")?;
 
 
-        // ----- Parse vertex data -------------------
+        // ----- Parse vertex data --------------------
         input.eat_ident("vertices")?;
         input.eat_punct(b":")?;
 
@@ -245,6 +254,7 @@ impl Parse for MeshInput {
 
 
         Ok(Self {
+            is_internal_call,
             mesh_type,
             vertices,
             faces,
