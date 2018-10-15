@@ -116,6 +116,8 @@ where
     VertexPropsT: 'a + PropList<VertexHandle>,
     FacePropsT: 'a + PropList<FaceHandle>,
 {
+    /// Adds the given vertex property to the PLY file. The given string is used
+    /// as property name.
     pub fn add_vertex_prop<MapT>(self, name: impl Into<String>, map: &'a MapT)
         -> Writer<'a, MeshT, impl 'a + PropList<VertexHandle>, FacePropsT>
     where
@@ -134,6 +136,8 @@ where
         }
     }
 
+    /// Adds the given face property to the PLY file. The given string is used
+    /// as property name.
     pub fn add_face_prop<MapT>(self, name: impl Into<String>, map: &'a MapT)
         -> Writer<'a, MeshT, VertexPropsT, impl 'a + PropList<FaceHandle>>
     where
@@ -151,6 +155,28 @@ where
             },
         }
     }
+
+    /// Adds the given map as vertex normals. The normal will be serialized
+    /// with the three property names `nx`, `ny` and `nz`.
+    pub fn with_vertex_normals<MapT>(self, map: &'a MapT)
+        -> Writer<'a, MeshT, impl 'a + PropList<VertexHandle>, FacePropsT>
+    where
+        MapT: 'a + VertexPropMap,
+        MapT::Target: Vec3Like,
+        <MapT::Target as Vec3Like>::Scalar: SingleSerialize,
+    {
+        Writer {
+            ser: self.ser,
+            mesh: self.mesh,
+            vertex_props: ListVertexNormalElem {
+                map,
+                tail: self.vertex_props,
+            },
+            face_props: self.face_props,
+        }
+    }
+
+    // TODO: color (just add another list element type like `PosElem`)
 }
 
 impl<MeshT, VertexPropsT, FacePropsT> MeshWriter for Writer<'_, MeshT, VertexPropsT, FacePropsT>
@@ -247,6 +273,7 @@ pub trait PropList<H: Handle> {
 }
 
 
+// ----- EmptyList --------------------------------------------------------
 #[derive(Debug)]
 pub struct EmptyList;
 
@@ -259,6 +286,8 @@ impl<H: Handle> PropList<H> for EmptyList {
     }
 }
 
+
+// ----- ListPosElem --------------------------------------------------------
 #[derive(Debug)]
 pub struct ListPosElem<'m, MapT, TailT> {
     map: &'m MapT,
@@ -299,7 +328,49 @@ where
     }
 }
 
+// ----- ListPosElem --------------------------------------------------------
+#[derive(Debug)]
+pub struct ListVertexNormalElem<'m, MapT, TailT> {
+    map: &'m MapT,
+    tail: TailT,
+}
 
+impl<MapT, TailT> PropList<VertexHandle> for ListVertexNormalElem<'_, MapT, TailT>
+where
+    TailT: PropList<VertexHandle>,
+    MapT: VertexPropMap,
+    MapT::Target: Vec3Like,
+    <MapT::Target as Vec3Like>::Scalar: SingleSerialize,
+{
+    fn write_header(&self, w: &mut impl Write) -> Result<(), Error> {
+        self.tail.write_header(w)?;
+
+        let ty = <<MapT::Target as Vec3Like>::Scalar as SingleSerialize>::SINGLE_TYPE;
+        let ty = ty.ply_type_name();
+        writeln!(w, "property {} nx", ty)?;
+        writeln!(w, "property {} ny", ty)?;
+        writeln!(w, "property {} nz", ty)?;
+
+        Ok(())
+    }
+
+    fn write_block(&self, handle: VertexHandle, block: &mut impl Block) -> Result<(), Error> {
+        self.tail.write_block(handle, {block})?;
+
+        let pos = self.map.get(handle).unwrap_or_else(|| {
+            panic!("face normal PropMap incomplete: no value for handle {:?}", handle);
+        });
+
+        block.add(&pos.x())?;
+        block.add(&pos.y())?;
+        block.add(&pos.z())?;
+
+        Ok(())
+    }
+}
+
+
+// ----- ListSingleElem ------------------------------------------------------
 #[derive(Debug)]
 pub struct ListSingleElem<'a , TailT, MapT: 'a> {
     name: String,
