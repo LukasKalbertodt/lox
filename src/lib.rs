@@ -9,6 +9,10 @@
 #![deny(missing_debug_implementations)]
 
 
+#[cfg(test)]
+#[macro_use]
+mod test_utils;
+
 pub mod ds;
 pub mod handle;
 pub mod io;

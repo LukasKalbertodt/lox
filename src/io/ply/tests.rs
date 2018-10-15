@@ -4,13 +4,14 @@ use crate::{
     mesh,
     prelude::*,
     ds::SharedVertexMesh,
+    map::VecMap,
 };
 use super::{Serializer};
 
 
-#[test]
-fn simple_triangle_ascii() -> Result<(), Error> {
-    let (mesh, positions) = mesh! {*
+
+fn triangle_mesh() -> (SharedVertexMesh, VecMap<VertexHandle, [f32; 3]>) {
+    mesh! {*
         type: SharedVertexMesh,
         vertices: [
             v0: ([0.0f32, 0.0, 0.0]),
@@ -20,29 +21,24 @@ fn simple_triangle_ascii() -> Result<(), Error> {
         faces: [
             [v0, v1, v2],
         ],
-    };
+    }
+}
+
+#[test]
+fn triangle_ascii() -> Result<(), Error> {
+    let (mesh, positions) = triangle_mesh();
 
     let res = Serializer::ascii()
         .into_writer(&mesh, &positions)
         .write_to_memory()?;
 
-    assert_eq!(res, include_bytes!("test_files/simple_triangle_ascii.ply") as &[_]);
+    assert_eq_file!(&res, "triangle_ascii.ply");
     Ok(())
 }
 
 #[test]
-fn simple_triangle_with_comments_ascii() -> Result<(), Error> {
-    let (mesh, positions) = mesh! {*
-        type: SharedVertexMesh,
-        vertices: [
-            v0: ([0.0f32, 0.0, 0.0]),
-            v1: ([3.0, 5.0, 8.0]),
-            v2: ([1.942, 152.99, 0.007]),
-        ],
-        faces: [
-            [v0, v1, v2],
-        ],
-    };
+fn triangle_with_comments_ascii() -> Result<(), Error> {
+    let (mesh, positions) = triangle_mesh();
 
     let res = Serializer::ascii()
         .add_comment("My name is Tom")
@@ -53,6 +49,6 @@ fn simple_triangle_with_comments_ascii() -> Result<(), Error> {
         .into_writer(&mesh, &positions)
         .write_to_memory()?;
 
-    assert_eq!(res, include_bytes!("test_files/simple_triangle_with_comments_ascii.ply") as &[_]);
+    assert_eq_file!(&res, "triangle_with_comments_ascii.ply");
     Ok(())
 }
