@@ -23,7 +23,7 @@ use cgmath::prelude::*;
 
 use crate::{
     Mesh, MeshUnsorted, ExplicitFace, ExplicitVertex,
-    handle::{Handle, VertexHandle},
+    handle::{FaceHandle, Handle, VertexHandle},
     map::{EmptyMap, PropMap, FacePropMap, VertexPropMap},
     math::{Pos3Like, Vec3Like},
     io::{IntoMeshWriter, MeshWriter},
@@ -78,7 +78,7 @@ where
     PosM::Target: Pos3Like,
     <PosM::Target as Pos3Like>::Scalar: SingleSerialize,
 {
-    type Writer = Writer<'a, MeshT, ListPosElem<'a, PosM, EmptyList>>;
+    type Writer = Writer<'a, MeshT, ListPosElem<'a, PosM, EmptyList>, EmptyList>;
     fn into_writer(self, mesh: &'a MeshT, vertex_positions: &'a PosM) -> Self::Writer {
         Writer {
             ser: self,
@@ -87,6 +87,7 @@ where
                 map: vertex_positions,
                 tail: EmptyList,
             },
+            face_props: EmptyList,
         }
     }
 }
@@ -97,23 +98,26 @@ where
 // ===============================================================================================
 
 #[derive(Debug)]
-pub struct Writer<'a, MeshT, VertexPropsT>
+pub struct Writer<'a, MeshT, VertexPropsT, FacePropsT>
 where
     MeshT: Mesh + MeshUnsorted + ExplicitFace + ExplicitVertex,
     VertexPropsT: PropList<VertexHandle>,
+    FacePropsT: PropList<FaceHandle>,
 {
     ser: Serializer,
     mesh: &'a MeshT,
     vertex_props: VertexPropsT,
+    face_props: FacePropsT,
 }
 
-impl<'a, MeshT, VertexPropsT> Writer<'a, MeshT, VertexPropsT>
+impl<'a, MeshT, VertexPropsT, FacePropsT> Writer<'a, MeshT, VertexPropsT, FacePropsT>
 where
     MeshT: Mesh + MeshUnsorted + ExplicitFace + ExplicitVertex,
     VertexPropsT: 'a + PropList<VertexHandle>,
+    FacePropsT: 'a + PropList<FaceHandle>,
 {
     pub fn add_vertex_prop<MapT>(self, name: impl Into<String>, map: &'a MapT)
-        -> Writer<'a, MeshT, impl 'a + PropList<VertexHandle>>
+        -> Writer<'a, MeshT, impl 'a + PropList<VertexHandle>, FacePropsT>
     where
         MapT: 'a + VertexPropMap,
         MapT::Target: Serialize,
@@ -126,14 +130,34 @@ where
                 map,
                 tail: self.vertex_props,
             },
+            face_props: self.face_props,
+        }
+    }
+
+    pub fn add_face_prop<MapT>(self, name: impl Into<String>, map: &'a MapT)
+        -> Writer<'a, MeshT, VertexPropsT, impl 'a + PropList<FaceHandle>>
+    where
+        MapT: 'a + FacePropMap,
+        MapT::Target: Serialize,
+    {
+        Writer {
+            ser: self.ser,
+            mesh: self.mesh,
+            vertex_props: self.vertex_props,
+            face_props: ListSingleElem {
+                name: name.into(),
+                map,
+                tail: self.face_props,
+            },
         }
     }
 }
 
-impl<MeshT, VertexPropsT> MeshWriter for Writer<'_, MeshT, VertexPropsT>
+impl<MeshT, VertexPropsT, FacePropsT> MeshWriter for Writer<'_, MeshT, VertexPropsT, FacePropsT>
 where // TODO: remove once implied bounds land
     MeshT: Mesh + MeshUnsorted + ExplicitFace + ExplicitVertex,
     VertexPropsT: PropList<VertexHandle>,
+    FacePropsT: PropList<FaceHandle>,
 {
     type Error = Error;
 
@@ -164,14 +188,18 @@ where // TODO: remove once implied bounds land
         // Define `face` element with all properties
         writeln!(w, "element face {}", self.mesh.num_faces())?;
         writeln!(w, "property list uchar uint vertex_indices")?;
-        // face_props.write_header(&mut w)?;
+        self.face_props.write_header(&mut w)?;
 
         w.write_all(b"end_header\n")?;
+
+
+        // ===================================================================
+        // ===== Write body
+        // ===================================================================
 
         match self.ser.format {
             Format::Ascii => {
                 for v in self.mesh.vertices() {
-                    // writeln!(w, "{:?}", v.handle());
                     let mut block = AsciiBlock::new(&mut w);
                     self.vertex_props.write_block(v.handle(), &mut block)?;
                     block.finish()?;
@@ -186,6 +214,9 @@ where // TODO: remove once implied bounds land
                     block.add(&indices[0].id())?;
                     block.add(&indices[1].id())?;
                     block.add(&indices[2].id())?;
+
+                    self.face_props.write_block(f.handle(), &mut block)?;
+
                     block.finish()?;
                 }
             }
@@ -314,7 +345,7 @@ where
 }
 
 // ===============================================================================================
-// ===== Definition of blocks (including implementation of `Serializer`)
+// ===== Definition of blocks (including implementation of `PropSerializer`)
 // ===============================================================================================
 
 /// A block holds all properties for one specific element. In the ASCII format
