@@ -2,6 +2,10 @@
 //!
 //! TODO: explain everything.
 
+// TODO PLY things:
+// - Figure out colors (write and read)
+// - How to name the `Serializer`? Maybe `WriterBuilder`?
+
 use std::{
     io,
 };

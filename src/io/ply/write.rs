@@ -12,20 +12,17 @@
 //!
 //!
 
-#![allow(unused_imports)] // TODO
-
 use std::{
     collections::HashSet,
-    io::{self, Write},
+    io::Write,
 };
 
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
-use cgmath::prelude::*;
 
 use crate::{
     Mesh, MeshUnsorted, ExplicitFace, ExplicitVertex,
     handle::{FaceHandle, Handle, VertexHandle},
-    map::{EmptyMap, PropMap, FacePropMap, VertexPropMap},
+    map::{PropMap, FacePropMap, VertexPropMap},
     math::{Pos3Like, Vec3Like},
     io::{IntoMeshWriter, MeshWriter},
 };
@@ -36,7 +33,6 @@ use super::{Error, Format, Serialize, SingleSerialize, PropSerializer, PropType}
 // ===============================================================================================
 // ===== PLY Serializer
 // ===============================================================================================
-
 
 #[derive(Clone, Debug)]
 pub struct Serializer {
