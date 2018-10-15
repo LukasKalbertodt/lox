@@ -365,34 +365,32 @@ impl<W: Write> Block for AsciiBlock<'_, W> {
 }
 
 impl<W: Write> PropSerializer for &mut AsciiBlock<'_, W> {
-    type Error = Error;
-
-    fn serialize_i8(self, v: i8) -> Result<(), Self::Error> {
+    fn serialize_i8(self, v: i8) -> Result<(), Error> {
         write!(self.writer, "{}", v).map_err(|e| e.into())
     }
-    fn serialize_i16(self, v: i16) -> Result<(), Self::Error> {
+    fn serialize_i16(self, v: i16) -> Result<(), Error> {
         write!(self.writer, "{}", v).map_err(|e| e.into())
     }
-    fn serialize_i32(self, v: i32) -> Result<(), Self::Error> {
+    fn serialize_i32(self, v: i32) -> Result<(), Error> {
         write!(self.writer, "{}", v).map_err(|e| e.into())
     }
-    fn serialize_u8(self, v: u8) -> Result<(), Self::Error> {
+    fn serialize_u8(self, v: u8) -> Result<(), Error> {
         write!(self.writer, "{}", v).map_err(|e| e.into())
     }
-    fn serialize_u16(self, v: u16) -> Result<(), Self::Error> {
+    fn serialize_u16(self, v: u16) -> Result<(), Error> {
         write!(self.writer, "{}", v).map_err(|e| e.into())
     }
-    fn serialize_u32(self, v: u32) -> Result<(), Self::Error> {
+    fn serialize_u32(self, v: u32) -> Result<(), Error> {
         write!(self.writer, "{}", v).map_err(|e| e.into())
     }
-    fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
+    fn serialize_f32(self, v: f32) -> Result<(), Error> {
         write!(self.writer, "{}", v).map_err(|e| e.into())
     }
-    fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
+    fn serialize_f64(self, v: f64) -> Result<(), Error> {
         write!(self.writer, "{}", v).map_err(|e| e.into())
     }
 
-    fn serialize_fixed_len_seq<'a, I, E>(self, values: I) -> Result<(), Self::Error>
+    fn serialize_fixed_len_seq<'a, I, E>(self, values: I) -> Result<(), Error>
     where
         I: IntoIterator<Item = &'a E>,
         E: 'a + SingleSerialize,
@@ -407,7 +405,7 @@ impl<W: Write> PropSerializer for &mut AsciiBlock<'_, W> {
         Ok(())
     }
 
-    fn serialize_dyn_len_seq<'a, I, E>(self, values: I) -> Result<(), Self::Error>
+    fn serialize_dyn_len_seq<'a, I, E>(self, values: I) -> Result<(), Error>
     where
         I: IntoIterator<Item = &'a E>,
         I::IntoIter: ExactSizeIterator,

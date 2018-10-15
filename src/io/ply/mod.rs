@@ -40,23 +40,21 @@ impl From<io::Error> for Error {
 /// little endian and binary big endian. You are not really supposed to
 /// implement this trait yourself; it doesn't really make sense.
 pub trait PropSerializer {
-    type Error;
+    fn serialize_u8(self, v: u8) -> Result<(), Error>;
+    fn serialize_u16(self, v: u16) -> Result<(), Error>;
+    fn serialize_u32(self, v: u32) -> Result<(), Error>;
+    fn serialize_i8(self, v: i8) -> Result<(), Error>;
+    fn serialize_i16(self, v: i16) -> Result<(), Error>;
+    fn serialize_i32(self, v: i32) -> Result<(), Error>;
+    fn serialize_f32(self, v: f32) -> Result<(), Error>;
+    fn serialize_f64(self, v: f64) -> Result<(), Error>;
 
-    fn serialize_u8(self, v: u8) -> Result<(), Self::Error>;
-    fn serialize_u16(self, v: u16) -> Result<(), Self::Error>;
-    fn serialize_u32(self, v: u32) -> Result<(), Self::Error>;
-    fn serialize_i8(self, v: i8) -> Result<(), Self::Error>;
-    fn serialize_i16(self, v: i16) -> Result<(), Self::Error>;
-    fn serialize_i32(self, v: i32) -> Result<(), Self::Error>;
-    fn serialize_f32(self, v: f32) -> Result<(), Self::Error>;
-    fn serialize_f64(self, v: f64) -> Result<(), Self::Error>;
-
-    fn serialize_fixed_len_seq<'a, I, E>(self, values: I) -> Result<(), Self::Error>
+    fn serialize_fixed_len_seq<'a, I, E>(self, values: I) -> Result<(), Error>
     where
         I: IntoIterator<Item = &'a E>,
         E: 'a + SingleSerialize;
 
-    fn serialize_dyn_len_seq<'a, I, E>(self, values: I) -> Result<(), Self::Error>
+    fn serialize_dyn_len_seq<'a, I, E>(self, values: I) -> Result<(), Error>
     where
         I: IntoIterator<Item = &'a E>,
         I::IntoIter: ExactSizeIterator,
@@ -74,7 +72,7 @@ pub trait Serialize {
     const TYPE: PropType;
 
     /// Serializes itself with the given serializer.
-    fn serialize<S: PropSerializer>(&self, ser: S) -> Result<(), S::Error>;
+    fn serialize<S: PropSerializer>(&self, ser: S) -> Result<(), Error>;
 }
 
 /// A `Serialize` type which is not a sequence, but a single primitive type.
@@ -142,7 +140,7 @@ macro_rules! impl_primitive_type {
         impl Serialize for $name {
             const TYPE: PropType = PropType::Single(SinglePropType::$ty);
 
-            fn serialize<S: PropSerializer>(&self, ser: S) -> Result<(), S::Error> {
+            fn serialize<S: PropSerializer>(&self, ser: S) -> Result<(), Error> {
                 ser.$ser_fn(*self)
             }
         }
@@ -168,7 +166,7 @@ macro_rules! impl_for_array {
         impl<T: SingleSerialize> Serialize for [T; $len] {
             const TYPE: PropType = PropType::FixedLenSeq { len: $len, ty: T::SINGLE_TYPE };
 
-            fn serialize<S: PropSerializer>(&self, ser: S) -> Result<(), S::Error> {
+            fn serialize<S: PropSerializer>(&self, ser: S) -> Result<(), Error> {
                 ser.serialize_fixed_len_seq(self)
             }
         }
@@ -182,7 +180,7 @@ impl_for_array!(3);
 impl<T: SingleSerialize> Serialize for &[T] {
     const TYPE: PropType = PropType::DynLenSeq(T::SINGLE_TYPE);
 
-    fn serialize<S: PropSerializer>(&self, ser: S) -> Result<(), S::Error> {
+    fn serialize<S: PropSerializer>(&self, ser: S) -> Result<(), Error> {
         ser.serialize_dyn_len_seq(*self)
     }
 }
