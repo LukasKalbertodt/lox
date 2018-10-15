@@ -14,10 +14,17 @@ pub(crate) fn file_failure(actual: &[u8], expected: &[u8], filename: &str) {
     panic!("assertion failed: \n{}", msg);
 
     fn write_data(msg: &mut String, data: &[u8]) {
-        if let Ok(s) = std::str::from_utf8(data) {
-            writeln!(msg, "{}", s);
-        } else {
 
+        let s = std::str::from_utf8(data);
+        if data.iter().any(|b| *b == 0) || s.is_err() {
+            for chunk in data.chunks(32) {
+                for b in chunk {
+                    write!(msg, "{:02x} ", b);
+                }
+                writeln!(msg);
+            }
+        } else {
+            writeln!(msg, "{}", s.unwrap());
         }
     }
 }
