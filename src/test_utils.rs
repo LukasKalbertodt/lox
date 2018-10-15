@@ -8,13 +8,13 @@ pub(crate) fn file_failure(actual: &[u8], expected: &[u8], filename: &str) {
     write_data(&mut msg, expected);
     writeln!(msg);
 
-    writeln!(msg, "===== Actual data");
+    writeln!(msg, "===== Actual data (written to 'dump.bin')");
+    std::fs::write("dump.bin", actual).expect("failed to dump actual data");
     write_data(&mut msg, actual);
 
     panic!("assertion failed: \n{}", msg);
 
     fn write_data(msg: &mut String, data: &[u8]) {
-
         let s = std::str::from_utf8(data);
         if data.iter().any(|b| *b == 0) || s.is_err() {
             for chunk in data.chunks(32) {
