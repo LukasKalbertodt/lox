@@ -28,7 +28,7 @@ use crate::{
     math::{Pos3Like, Vec3Like},
     io::{IntoMeshWriter, MeshWriter},
 };
-use super::{Error, Format, Serialize, PropSerializer};
+use super::{Error, Format, Serialize, SingleSerialize, PropSerializer, PropType};
 
 
 
@@ -76,7 +76,7 @@ where
     MeshT: 'a + Mesh + MeshUnsorted + ExplicitFace + ExplicitVertex,
     PosM: 'a + VertexPropMap,
     PosM::Target: Pos3Like,
-    <PosM::Target as Pos3Like>::Scalar: Serialize,
+    <PosM::Target as Pos3Like>::Scalar: SingleSerialize,
 {
     type Writer = Writer<'a, MeshT, ListPosElem<'a, PosM, EmptyList>>;
     fn into_writer(self, mesh: &'a MeshT, vertex_positions: &'a PosM) -> Self::Writer {
@@ -239,15 +239,16 @@ where
     TailT: PropList<VertexHandle>,
     MapT: VertexPropMap,
     MapT::Target: Pos3Like,
-    <MapT::Target as Pos3Like>::Scalar: Serialize,
+    <MapT::Target as Pos3Like>::Scalar: SingleSerialize,
 {
     fn write_header(&self, w: &mut impl Write) -> Result<(), Error> {
         self.tail.write_header(w)?;
 
-        let type_name = <<MapT::Target as Pos3Like>::Scalar as Serialize>::HEADER_TYPE_NAME;
-        writeln!(w, "property {} x", type_name)?;
-        writeln!(w, "property {} y", type_name)?;
-        writeln!(w, "property {} z", type_name)?;
+        let ty = <<MapT::Target as Pos3Like>::Scalar as SingleSerialize>::SINGLE_TYPE;
+        let ty = ty.ply_type_name();
+        writeln!(w, "property {} x", ty)?;
+        writeln!(w, "property {} y", ty)?;
+        writeln!(w, "property {} z", ty)?;
 
         Ok(())
     }
@@ -283,7 +284,19 @@ where
     fn write_header(&self, w: &mut impl Write) -> Result<(), Error> {
         self.tail.write_header(w)?;
 
-        writeln!(w, "property {} {}", self.name, <MapT::Target as Serialize>::HEADER_TYPE_NAME)?;
+        match <MapT::Target as Serialize>::TYPE {
+            PropType::Single(ty) => {
+                writeln!(w, "property {} {}", ty.ply_type_name(), self.name)?;
+            }
+            PropType::DynLenSeq(ty) => {
+                writeln!(w, "property list uint {} {}", ty.ply_type_name(), self.name)?;
+            }
+            PropType::FixedLenSeq { len, ty } => {
+                for i in 0..len {
+                    writeln!(w, "property {} {}[{}]", ty.ply_type_name(), self.name, i)?;
+                }
+            }
+        }
 
         Ok(())
     }
@@ -320,12 +333,12 @@ pub trait Block {
 
 /// A PLY block which inserts spaces and newline seperators.
 #[derive(Debug)]
-struct AsciiBlock<'a, W: 'a + Write> {
+struct AsciiBlock<'a, W: Write> {
     writer: &'a mut W,
     at_start: bool,
 }
 
-impl<'a, W: 'a + Write> AsciiBlock<'a, W> {
+impl<'a, W: Write> AsciiBlock<'a, W> {
     fn new(w: &'a mut W) -> Self {
         Self {
             writer: w,
@@ -334,7 +347,7 @@ impl<'a, W: 'a + Write> AsciiBlock<'a, W> {
     }
 }
 
-impl<'a, W: 'a + Write> Block for AsciiBlock<'a, W> {
+impl<W: Write> Block for AsciiBlock<'_, W> {
     fn add(&mut self, prop: &impl Serialize) -> Result<(), Error> {
         if self.at_start {
             self.at_start = false;
@@ -351,7 +364,7 @@ impl<'a, W: 'a + Write> Block for AsciiBlock<'a, W> {
     }
 }
 
-impl<'a, W: Write + 'a> PropSerializer for &mut AsciiBlock<'a, W> {
+impl<W: Write> PropSerializer for &mut AsciiBlock<'_, W> {
     type Error = Error;
 
     fn serialize_i8(self, v: i8) -> Result<(), Self::Error> {
@@ -377,5 +390,34 @@ impl<'a, W: Write + 'a> PropSerializer for &mut AsciiBlock<'a, W> {
     }
     fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
         write!(self.writer, "{}", v).map_err(|e| e.into())
+    }
+
+    fn serialize_fixed_len_seq<'a, I, E>(self, values: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = &'a E>,
+        E: 'a + SingleSerialize,
+    {
+        // Fixed sized sequences don't need to encode the length for each
+        // property.
+        self.at_start = true;
+        for v in values {
+            self.add(v)?;
+        }
+
+        Ok(())
+    }
+
+    fn serialize_dyn_len_seq<'a, I, E>(self, values: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = &'a E>,
+        I::IntoIter: ExactSizeIterator,
+        E: 'a + SingleSerialize,
+    {
+        let iter = values.into_iter();
+
+        self.at_start = true;
+        self.add(&(iter.len() as u32))?;
+
+        Ok(())
     }
 }
