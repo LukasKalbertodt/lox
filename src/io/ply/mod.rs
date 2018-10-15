@@ -197,6 +197,12 @@ macro_rules! impl_for_array {
 impl_for_array!(1);
 impl_for_array!(2);
 impl_for_array!(3);
+impl_for_array!(4);
+impl_for_array!(5);
+impl_for_array!(6);
+impl_for_array!(7);
+impl_for_array!(8);
+impl_for_array!(16);
 
 impl<T: SingleSerialize> Serialize for &[T] {
     const TYPE: PropType = PropType::DynLenSeq(T::SINGLE_TYPE);

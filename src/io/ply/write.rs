@@ -18,7 +18,7 @@ use std::{
     io::{self, Write},
 };
 
-use byteorder::{LittleEndian, WriteBytesExt};
+use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 use cgmath::prelude::*;
 
 use crate::{
@@ -222,17 +222,17 @@ where // TODO: remove once implied bounds land
         // ===================================================================
         // ===== Write body
         // ===================================================================
-
-        match self.ser.format {
-            Format::Ascii => {
+        macro_rules! do_with_block {
+            ($block:ident) => {{
+                // Write all vertex properties
                 for v in self.mesh.vertices() {
-                    let mut block = AsciiBlock::new(&mut w);
+                    let mut block = $block::new(&mut w);
                     self.vertex_props.write_block(v.handle(), &mut block)?;
                     block.finish()?;
                 }
 
                 for f in self.mesh.faces() {
-                    let mut block = AsciiBlock::new(&mut w);
+                    let mut block = $block::new(&mut w);
 
                     // Write special `vertex_indices` data
                     let indices = self.mesh.vertices_of_face(f.handle());
@@ -241,13 +241,18 @@ where // TODO: remove once implied bounds land
                     block.add(&indices[1].id())?;
                     block.add(&indices[2].id())?;
 
+                    // Write all properties
                     self.face_props.write_block(f.handle(), &mut block)?;
 
                     block.finish()?;
                 }
-            }
-            Format::BinaryBigEndian => unimplemented!(),
-            Format::BinaryLittleEndian => unimplemented!(),
+            }}
+        }
+
+        match self.ser.format {
+            Format::Ascii => do_with_block!(AsciiBlock),
+            Format::BinaryBigEndian => do_with_block!(BinaryBeBlock),
+            Format::BinaryLittleEndian => do_with_block!(BinaryLeBlock),
         }
 
         Ok(())
@@ -433,7 +438,8 @@ pub trait Block {
     fn finish(self) -> Result<(), Error>;
 }
 
-/// A PLY block which inserts spaces and newline seperators.
+/// A PLY block which inserts spaces and newline seperators and serializes
+/// values as ASCII text.
 #[derive(Debug)]
 struct AsciiBlock<'a, W: Write> {
     writer: &'a mut W,
@@ -525,3 +531,92 @@ impl<W: Write> PropSerializer for &mut AsciiBlock<'_, W> {
         Ok(())
     }
 }
+
+macro_rules! gen_binary_block {
+    ($name:ident, $endianess:ident) => {
+        /// A PLY block which doesn't insert separators and serializes everything binary.
+        #[derive(Debug)]
+        struct $name<'a, W: Write> {
+            writer: &'a mut W,
+        }
+
+        impl<'a, W: Write> $name<'a, W> {
+            fn new(w: &'a mut W) -> Self {
+                Self {
+                    writer: w,
+                }
+            }
+        }
+
+        impl<W: Write> Block for $name<'_, W> {
+            fn add(&mut self, prop: &impl Serialize) -> Result<(), Error> {
+                prop.serialize(self)
+            }
+
+            fn finish(self) -> Result<(), Error> {
+                Ok(())
+            }
+        }
+
+        impl<W: Write> PropSerializer for &mut $name<'_, W> {
+            fn serialize_i8(self, v: i8) -> Result<(), Error> {
+                self.writer.write_i8(v).map_err(|e| e.into())
+            }
+            fn serialize_i16(self, v: i16) -> Result<(), Error> {
+                self.writer.write_i16::<$endianess>(v).map_err(|e| e.into())
+            }
+            fn serialize_i32(self, v: i32) -> Result<(), Error> {
+                self.writer.write_i32::<$endianess>(v).map_err(|e| e.into())
+            }
+            fn serialize_u8(self, v: u8) -> Result<(), Error> {
+                self.writer.write_u8(v).map_err(|e| e.into())
+            }
+            fn serialize_u16(self, v: u16) -> Result<(), Error> {
+                self.writer.write_u16::<$endianess>(v).map_err(|e| e.into())
+            }
+            fn serialize_u32(self, v: u32) -> Result<(), Error> {
+                self.writer.write_u32::<$endianess>(v).map_err(|e| e.into())
+            }
+            fn serialize_f32(self, v: f32) -> Result<(), Error> {
+                self.writer.write_f32::<$endianess>(v).map_err(|e| e.into())
+            }
+            fn serialize_f64(self, v: f64) -> Result<(), Error> {
+                self.writer.write_f64::<$endianess>(v).map_err(|e| e.into())
+            }
+
+            fn serialize_fixed_len_seq<'a, I, E>(self, values: I) -> Result<(), Error>
+            where
+                I: IntoIterator<Item = &'a E>,
+                E: 'a + SingleSerialize,
+            {
+                // Fixed sized sequences don't need to encode the length for each
+                // property.
+                for v in values {
+                    self.add(v)?;
+                }
+
+                Ok(())
+            }
+
+            fn serialize_dyn_len_seq<'a, I, E>(self, values: I) -> Result<(), Error>
+            where
+                I: IntoIterator<Item = &'a E>,
+                I::IntoIter: ExactSizeIterator,
+                E: 'a + SingleSerialize,
+            {
+                let iter = values.into_iter();
+
+                self.add(&(iter.len() as u32))?;
+
+                for v in iter {
+                    self.add(v)?;
+                }
+
+                Ok(())
+            }
+        }
+    }
+}
+
+gen_binary_block!(BinaryBeBlock, BigEndian);
+gen_binary_block!(BinaryLeBlock, LittleEndian);
