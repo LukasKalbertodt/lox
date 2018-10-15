@@ -15,6 +15,7 @@
 #![allow(unused_imports)] // TODO
 
 use std::{
+    collections::HashSet,
     io::{self, Write},
 };
 
@@ -87,7 +88,9 @@ where
                 map: vertex_positions,
                 tail: EmptyList,
             },
+            vertex_prop_names: ["x", "y", "z"].iter().map(|s| s.to_string()).collect(),
             face_props: EmptyList,
+            face_prop_names: HashSet::new(),
         }
     }
 }
@@ -107,7 +110,9 @@ where
     ser: Serializer,
     mesh: &'a MeshT,
     vertex_props: VertexPropsT,
+    vertex_prop_names: HashSet<String>,
     face_props: FacePropsT,
+    face_prop_names: HashSet<String>,
 }
 
 impl<'a, MeshT, VertexPropsT, FacePropsT> Writer<'a, MeshT, VertexPropsT, FacePropsT>
@@ -118,53 +123,67 @@ where
 {
     /// Adds the given vertex property to the PLY file. The given string is used
     /// as property name.
-    pub fn add_vertex_prop<MapT>(self, name: impl Into<String>, map: &'a MapT)
+    pub fn add_vertex_prop<MapT>(mut self, name: impl Into<String>, map: &'a MapT)
         -> Writer<'a, MeshT, impl 'a + PropList<VertexHandle>, FacePropsT>
     where
         MapT: 'a + VertexPropMap,
         MapT::Target: Serialize,
     {
+        let name = name.into();
+        self.add_vertex_prop_name(name.clone());
+
         Writer {
             ser: self.ser,
             mesh: self.mesh,
             vertex_props: ListSingleElem {
-                name: name.into(),
+                name,
                 map,
                 tail: self.vertex_props,
             },
+            vertex_prop_names: self.vertex_prop_names,
             face_props: self.face_props,
+            face_prop_names: self.face_prop_names,
         }
     }
 
     /// Adds the given face property to the PLY file. The given string is used
     /// as property name.
-    pub fn add_face_prop<MapT>(self, name: impl Into<String>, map: &'a MapT)
+    pub fn add_face_prop<MapT>(mut self, name: impl Into<String>, map: &'a MapT)
         -> Writer<'a, MeshT, VertexPropsT, impl 'a + PropList<FaceHandle>>
     where
         MapT: 'a + FacePropMap,
         MapT::Target: Serialize,
     {
+        let name = name.into();
+        self.add_face_prop_name(name.clone());
+
         Writer {
             ser: self.ser,
             mesh: self.mesh,
             vertex_props: self.vertex_props,
+            vertex_prop_names: self.vertex_prop_names,
             face_props: ListSingleElem {
                 name: name.into(),
                 map,
                 tail: self.face_props,
             },
+            face_prop_names: self.face_prop_names,
         }
     }
 
     /// Adds the given map as vertex normals. The normal will be serialized
     /// with the three property names `nx`, `ny` and `nz`.
-    pub fn with_vertex_normals<MapT>(self, map: &'a MapT)
+    pub fn with_vertex_normals<MapT>(mut self, map: &'a MapT)
         -> Writer<'a, MeshT, impl 'a + PropList<VertexHandle>, FacePropsT>
     where
         MapT: 'a + VertexPropMap,
         MapT::Target: Vec3Like,
         <MapT::Target as Vec3Like>::Scalar: SingleSerialize,
     {
+        self.add_vertex_prop_name("nx".into());
+        self.add_vertex_prop_name("ny".into());
+        self.add_vertex_prop_name("nz".into());
+
         Writer {
             ser: self.ser,
             mesh: self.mesh,
@@ -172,7 +191,31 @@ where
                 map,
                 tail: self.vertex_props,
             },
+            vertex_prop_names: self.vertex_prop_names,
             face_props: self.face_props,
+            face_prop_names: self.face_prop_names,
+        }
+    }
+
+    fn add_vertex_prop_name(&mut self, name: String) {
+        let is_new = self.vertex_prop_names.insert(name.clone());
+        if !is_new {
+            panic!(
+                "attempt to add a vertex property to PLY file with name '{}', \
+                    but that name is already used",
+                name,
+            );
+        }
+    }
+
+    fn add_face_prop_name(&mut self, name: String) {
+        let is_new = self.face_prop_names.insert(name.clone());
+        if !is_new {
+            panic!(
+                "attempt to add a face property to PLY file with name '{}', \
+                    but that name is already used",
+                    name,
+            );
         }
     }
 
@@ -237,9 +280,7 @@ where // TODO: remove once implied bounds land
                     // Write special `vertex_indices` data
                     let indices = self.mesh.vertices_of_face(f.handle());
                     block.add(&3u8)?;
-                    block.add(&indices[0].id())?;
-                    block.add(&indices[1].id())?;
-                    block.add(&indices[2].id())?;
+                    block.add(&[indices[0].id(), indices[1].id(), indices[2].id()])?;
 
                     // Write all properties
                     self.face_props.write_block(f.handle(), &mut block)?;
