@@ -11,7 +11,7 @@
 
 pub use crate::{
     Mesh, TriMesh, ExplicitFace, ExplicitVertex, MeshUnsorted,
-    handle::Handle,
+    handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
     map::{PropMap, PropStore, PropStoreMut},
     math::{Pos3Like, Vec3Like},
     io::{IntoMeshWriter, MeshWriter},
