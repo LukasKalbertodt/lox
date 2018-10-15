@@ -1,3 +1,7 @@
+//! Reading from and writing to PLY files (Polygon File Format).
+//!
+//! TODO: explain everything.
+
 use std::{
     io,
 };
@@ -17,11 +21,20 @@ pub use self::write::{Serializer, Writer};
 /// The format of a PLY file.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Format {
+    /// Everything is stored as an ASCII string. You should usually not use
+    /// this as this format is very space-inefficient.
     Ascii,
+
+    /// Binary format where all numeric types are stored in big endian layout.
+    /// The header is still ASCII.
     BinaryBigEndian,
+
+    /// Binary format where all numeric types are stored in little endian
+    /// layout. The header is still ASCII.
     BinaryLittleEndian,
 }
 
+/// Everything that can go wrong when writing or reading PLY files.
 #[derive(Debug, Fail)]
 pub enum Error {
     #[fail(display = "IO error: {}", _0)]
@@ -49,11 +62,19 @@ pub trait PropSerializer {
     fn serialize_f32(self, v: f32) -> Result<(), Error>;
     fn serialize_f64(self, v: f64) -> Result<(), Error>;
 
+    /// Serialize a sequence of values where the length of the sequence was
+    /// known beforehand.
+    ///
+    /// In particular, the sequence length must not vary in between calls of
+    /// this method.
     fn serialize_fixed_len_seq<'a, I, E>(self, values: I) -> Result<(), Error>
     where
         I: IntoIterator<Item = &'a E>,
         E: 'a + SingleSerialize;
 
+    /// Serialize a sequence of values with varying length.
+    ///
+    /// The length of each individual sequence is stored in the file.
     fn serialize_dyn_len_seq<'a, I, E>(self, values: I) -> Result<(), Error>
     where
         I: IntoIterator<Item = &'a E>,
@@ -82,7 +103,7 @@ pub trait SingleSerialize: Serialize {
     const SINGLE_TYPE: SinglePropType;
 }
 
-/// A primitive PLY type. There are 8 in total, 2 floating point types, 3
+/// A primitive PLY type. There are 8 in total: 2 floating point types, 3
 /// signed and 3 unsigned integers.
 #[derive(Debug)]
 pub enum SinglePropType {
@@ -113,7 +134,7 @@ impl SinglePropType {
     }
 }
 
-/// Represents a possibly compound PLY data type.
+/// Represents a (possibly compound) PLY data type.
 #[derive(Debug)]
 pub enum PropType {
     /// Just a single value of the given type.
