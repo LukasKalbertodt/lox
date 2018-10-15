@@ -6,7 +6,7 @@ use failure::Fail;
 
 mod write;
 
-pub use self::write::Serializer;
+pub use self::write::{Serializer, Writer};
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
