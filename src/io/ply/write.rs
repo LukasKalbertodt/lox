@@ -416,6 +416,10 @@ impl<W: Write> PropSerializer for &mut AsciiBlock<'_, W> {
         self.at_start = true;
         self.add(&(iter.len() as u32))?;
 
+        for v in iter {
+            self.add(v)?;
+        }
+
         Ok(())
     }
 }
