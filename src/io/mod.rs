@@ -11,6 +11,7 @@ use crate::{
 };
 
 
+pub mod parse;
 pub mod ply;
 pub mod stl;
 
