@@ -24,10 +24,20 @@ const MAX_BUFFER_SIZE: usize = 4 * 1024 * 1024;
 
 
 pub(crate) struct Buffer<R: Read> {
-    buf: Vec<u8>,
     reader: BufReader<R>,
+
+    buf: Vec<u8>,
+
+    /// Points to the first byte in `buf` that is real data. Invariants:
+    /// - `0 <= start < buf.len()`
+    /// - `start <= end`
     start: usize,
+
+    /// Points to the byte after the last byte of real data. Invariants:
+    /// - `0 <= end <= buf.len()`
+    /// - `start <= end`
     end: usize,
+
     consumed_total: usize,
 }
 
@@ -55,26 +65,28 @@ impl<R: Read> Buffer<R> {
         self.buf.len()
     }
 
-    pub(crate) fn consumed_total(&self) -> usize {
-        self.consumed_total
-    }
-
     /// Tries to fill the buffer with some new data, starting at `self.end`.
     ///
     /// `self.end` must not be equal to `self.cap()`! This function doesn't
     /// grow the buffer, it simply reads some data to the back of the buffer.
-    fn fill_buf(&mut self) -> Result<(), io::Error> {
+    fn fill_buf(&mut self) -> Result<usize, io::Error> {
         let n = self.reader.read(&mut self.buf[self.end..])?;
         self.end += n;
-        Ok(())
+
+        Ok(n)
     }
 
-    fn fill_buf_by(&mut self, additional: usize) -> Result<(), Error> {
+    /// Resizes the internal buffer to have space for at least `additional`
+    /// more bytes.
+    ///
+    /// This means that this function might do nothing, even if `additional` is
+    /// not 0. If the buffer is already big enough, nothing happens.
+    fn grow_buf(&mut self, additional: usize) {
         let space_after = self.cap() - self.end;
         let space_before = self.start;
 
-        // If we still have enough buffer space left at the end, we can just
-        // read new data. If that's not the case, we have to do some work to
+        // If we still have enough buffer space left at the end, we don't have
+        // to do anything. If that's not the case, we have to do some work to
         // get more space at the end.
         if space_after < additional {
             // Now we need to decide if we want to move the data to the
@@ -135,12 +147,16 @@ impl<R: Read> Buffer<R> {
             self.end -= self.start;
             self.start = 0;
         }
+    }
+
+    fn fill_buf_by(&mut self, additional: usize) -> Result<(), Error> {
+        self.grow_buf(additional);
 
         // Read new data until we have read `additional` many bytes. We ignore
         // `Interrupted` errors and just continue.
         let mut bytes_read = 0;
         while bytes_read < additional {
-            match self.reader.read(&mut self.buf[self.end..]) {
+            match self.reader.read(&mut self.buf[self.end + bytes_read..]) {
                 Ok(0) => {
                     // We know that `self.buf[self.end..]` is not an empty
                     // slice (we made sure of that above by growing the buffer
@@ -212,11 +228,16 @@ impl<R: Read> Input for Buffer<R> {
         }
     }
 
-    fn is_eof(&mut self) -> bool {
-        if let Err(Error::UnexpectedEof) = self.fill_buf_by(1) {
-            true
+    fn is_eof(&mut self) -> Result<bool, Error> {
+        if self.len() == 0 {
+            self.grow_buf(1);
+            Ok(self.fill_buf()? == 0)
         } else {
-            false
+            Ok(false)
         }
+    }
+
+    fn offset(&self) -> usize {
+        self.consumed_total
     }
 }
