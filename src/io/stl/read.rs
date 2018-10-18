@@ -12,6 +12,7 @@ use crate::{
 };
 
 
+/// A reader able to read ASCII and binary STL files.
 #[derive(Debug)]
 pub struct Reader<R: io::Read> {
     reader: R,
@@ -30,6 +31,7 @@ macro_rules! parser {
 }
 
 impl<R: io::Read> Reader<R> {
+    /// Creates a new `Reader` from the given `io::Read` instance.
     pub fn new(reader: R) -> Self {
         Self { reader }
     }
@@ -37,8 +39,8 @@ impl<R: io::Read> Reader<R> {
     /// Reads the whole file into a [`RawResult`].
     ///
     /// Usually you either want to use a higher level function (TODO: link) or
-    /// [`read_raw_into`]. The latter is the streaming version of this method
-    /// which doesn't require a temporary storage ([`RawResult`]).
+    /// [`Reader::read_raw_into`]. The latter is the streaming version of this
+    /// method which doesn't require a temporary storage ([`RawResult`]).
     pub fn read_raw(self) -> Result<RawResult, parse::Error> {
         let mut out = RawResult::new();
         self.read_raw_into(&mut out)?;
@@ -279,7 +281,10 @@ pub trait Sink {
     fn triangle(&mut self, triangle: Triangle);
 }
 
-/// One triangle in an STL file.
+/// One raw triangle in an STL file.
+///
+/// This type is used in [`RawResult`] and [`Sink`]. If you don't use the low
+/// level `raw` methods, you probably don't care about this type.
 #[derive(Clone, Debug)]
 pub struct Triangle {
     /// Face normal.
@@ -300,9 +305,8 @@ pub struct Triangle {
 
 /// Holds the raw data from a STL file.
 ///
-/// This implements [`Sink`], but instead of using [`Reader::read_raw_into`]
-/// with this type, you can use [`Reader::read_raw`] which already does it for
-/// you.
+/// to obtain a `RawResult`, call [`Reader::read_raw`]. See its documentation
+/// for more information.
 #[derive(Debug)]
 pub struct RawResult {
     /// The solid name if it's specified in the file.
