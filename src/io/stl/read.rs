@@ -1,5 +1,7 @@
 use std::{
+    fs::File,
     io,
+    path::Path,
 };
 
 use crate::{
@@ -30,8 +32,18 @@ macro_rules! parser {
     };
 }
 
+impl Reader<File> {
+    /// Creates a new `Reader` from the given file.
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, io::Error> {
+        // We don't need a `BufReader` here, because we will use our internal
+        // parse buffer anyway.
+        Ok(Self::new(File::open(path)?))
+    }
+}
+
 impl<R: io::Read> Reader<R> {
-    /// Creates a new `Reader` from the given `io::Read` instance.
+    /// Creates a new `Reader` from the given `io::Read` instance. If you want
+    /// to open a file, rather use [`Reader::open`].
     pub fn new(reader: R) -> Self {
         Self { reader }
     }

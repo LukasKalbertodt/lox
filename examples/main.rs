@@ -42,7 +42,7 @@ fn main() -> Result<(), Error> {
 
     let before = std::time::Instant::now();
     let mut sink = stl::CounterSink::new();
-    stl::Reader::new(std::fs::File::open(filename)?)
+    stl::Reader::open(filename)?
         .read_raw_into(&mut sink)?;
 
     println!("{:?}", sink);
