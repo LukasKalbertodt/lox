@@ -283,11 +283,11 @@ pub trait Sink {
 #[derive(Clone, Debug)]
 pub struct Triangle {
     /// Face normal.
-    normal: [f32; 3],
+    pub normal: [f32; 3],
 
     /// The 3D positions of the vertices in CCW order (that is, when looking at
     /// the face "from the outside").
-    vertices: [[f32; 3]; 3],
+    pub vertices: [[f32; 3]; 3],
 
     /// No one understands what this does. It's only stored in binary format
     /// and is usually zero. Sometimes it's abused to store a 16bit color. You
@@ -295,7 +295,7 @@ pub struct Triangle {
     ///
     /// If an ASCII file is parsed, this is just set to 0 (despite it being not
     /// stored in the file).
-    attribute_byte_count: u16,
+    pub attribute_byte_count: u16,
 }
 
 /// Holds the raw data from a STL file.

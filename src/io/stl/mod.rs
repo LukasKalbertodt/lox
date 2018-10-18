@@ -7,6 +7,9 @@ use failure::Fail;
 mod read;
 mod write;
 
+#[cfg(test)]
+mod tests;
+
 pub use self::read::{CounterSink, Reader, Sink, Triangle, RawResult};
 pub use self::write::{Serializer, Writer};
 
