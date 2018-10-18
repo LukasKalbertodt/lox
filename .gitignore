@@ -4,5 +4,8 @@ Cargo.lock
 
 # Top level mesh files are generally ignored
 /*.ply
+/*.PLY
 /*.obj
+/*.OBJ
 /*.stl
+/*.STL
