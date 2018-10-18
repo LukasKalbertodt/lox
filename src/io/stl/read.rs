@@ -225,29 +225,30 @@ impl<R: io::Read> Reader<R> {
             // specified number was too high and we reach EOF early, we will
             // return an error.
             for _ in 0..num_triangles {
-                /// Reads three consecutive `f32`s.
-                parser!(read_vec3 = |buf| -> [f32; 3] {
-                    let x = parse::f32_le(buf)?;
-                    let y = parse::f32_le(buf)?;
-                    let z = parse::f32_le(buf)?;
+                let triangle = buf.with_bytes(4 * 3 * 4 + 2, |sd| {
+                    use byteorder::{ByteOrder, LittleEndian};
 
-                    Ok([x, y, z])
+                    /// Reads three consecutive `f32`s.
+                    fn vec3(data: &[u8]) -> [f32; 3] {
+                        [
+                            LittleEndian::read_f32(&data[0..]),
+                            LittleEndian::read_f32(&data[4..]),
+                            LittleEndian::read_f32(&data[8..]),
+                        ]
+                    }
 
-                });
+                    Ok(Triangle {
+                        normal: vec3(&sd.data[0..]),
+                        vertices: [
+                            vec3(&sd.data[12..]),
+                            vec3(&sd.data[24..]),
+                            vec3(&sd.data[36..]),
+                        ],
+                        attribute_byte_count: LittleEndian::read_u16(&sd.data[48..]),
+                    })
+                })?;
 
-                // Read the normal and all three vertex positions.
-                let normal = read_vec3(&mut buf)?;
-                let a = read_vec3(&mut buf)?;
-                let b = read_vec3(&mut buf)?;
-                let c = read_vec3(&mut buf)?;
-                let attribute_byte_count = parse::u16_le(&mut buf)?;
-
-
-                sink.triangle(Triangle {
-                    normal,
-                    vertices: [a, b, c],
-                    attribute_byte_count,
-                });
+                sink.triangle(triangle);
             }
 
             // If the specified number of triangles was too small and there is
