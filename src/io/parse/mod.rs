@@ -12,15 +12,13 @@ pub(crate) mod buf;
 
 pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
     fn prepare(&mut self, num_bytes: usize) -> Result<(), Error>;
+    fn saturating_prepare(&mut self, num_bytes: usize) -> Result<(), Error>;
     fn consume(&mut self, num_bytes: usize);
     fn is_eof(&mut self) -> Result<bool, Error>;
     fn offset(&self) -> usize;
 
-    fn spanned_data(&self, num_bytes: usize) -> SpannedData<'_> {
-            // println!("hallo");
-        // if num_bytes >= 32 {
-        // }
 
+    fn spanned_data(&self, num_bytes: usize) -> SpannedData<'_> {
         SpannedData {
             data: &self[..num_bytes],
             span: Span::new(self.offset(), self.offset() +  num_bytes),
@@ -67,6 +65,7 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
 
     fn take_until<F, O>(
         &mut self,
+        upper_limit: usize,
         mut should_stop: impl FnMut(u8) -> bool,
         func: F,
     ) -> Result<O, Error>
@@ -84,6 +83,10 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
             }
 
             pos += 1;
+
+            if pos >= upper_limit {
+                return Err(Error::LookAheadTooBig);
+            }
         }
 
         let out = func(self.spanned_data(pos))?;
@@ -121,6 +124,11 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
 
             Ok(())
         })
+    }
+
+    fn is_next(&mut self, expected: &[u8]) -> Result<bool, Error> {
+        self.saturating_prepare(expected.len())?;
+        Ok(self.starts_with(expected))
     }
 }
 
@@ -174,8 +182,8 @@ pub enum Error {
     #[fail(display = "IO error: {}", _0)]
     Io(io::Error),
 
-    #[fail(display = "unexpected EOF while parsing")]
-    UnexpectedEof,
+    #[fail(display = "unexpected EOF while parsing (at {})", _0)]
+    UnexpectedEof(usize),
 
     #[fail(display = "expected EOF, but additional data was found")]
     UnexpectedAdditionalData,
@@ -183,17 +191,19 @@ pub enum Error {
     #[fail(display = "unexpected non-ASCII data at {}", _0)]
     NotAscii(Span),
 
+    #[fail(
+        display = "parsing lookahead got too big (due to a really degenerated \
+            file or a parser bug)"
+    )]
+    LookAheadTooBig,
+
     #[fail(display = "{} (at {})", _0, _1)]
     Custom(String, Span)
 }
 
 impl From<io::Error> for Error {
     fn from(src: io::Error) -> Self {
-        if src.kind() == io::ErrorKind::UnexpectedEof {
-            Error::UnexpectedEof
-        } else {
-            Error::Io(src)
-        }
+        Error::Io(src)
     }
 }
 

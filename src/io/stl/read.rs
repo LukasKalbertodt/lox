@@ -41,69 +41,111 @@ impl<R: io::Read> Reader<R> {
     }
 
     pub fn read_raw(self, sink: &mut impl Sink) -> Result<(), parse::Error> {
-        parser!(is_ascii = |buf| -> bool { buf.with_bytes(5, |b| Ok(b.data == b"solid")) });
+        parser!(opt_whitespace = |buf| buf.skip_until(|b| b != b' '));
+        parser!(whitespace = |buf| {
+            buf.expect_tag(b" ")?;
+            opt_whitespace(buf)?;
+            Ok(())
+        });
+        parser!(linebreak = |buf| {
+            opt_whitespace(buf)?;
+            buf.expect_tag(b"\n")?;
+            opt_whitespace(buf)?;
+            Ok(())
+        });
+        parser!(float = |buf| -> f32 {
+            buf.take_until(
+                100, // every float as ASCII fits in 100 bytes
+                |b| b == b' ' || b == b'\n',
+                |sd| sd.assert_ascii()?
+                    .parse::<f32>()
+                    .map_err(|e| sd.error(format!("invalid float literal: {}", e)))
+            )
+        });
+        parser!(vec3 = |buf| -> [f32; 3] {
+            let x = float(buf)?;
+            whitespace(buf)?;
+            let y = float(buf)?;
+            whitespace(buf)?;
+            let z = float(buf)?;
+            Ok([x, y, z])
+        });
+        parser!(vertex = |buf| -> [f32; 3] {
+            line(buf, |buf| {
+                buf.expect_tag(b"vertex")?;
+                whitespace(buf)?;
+                vec3(buf)
+            })
+        });
+
+        fn line<I, F, O>(buf: &mut I, func: F) -> Result<O, parse::Error>
+        where
+            I: Input,
+            F: FnOnce(&mut I) -> Result<O, parse::Error>,
+        {
+            opt_whitespace(buf)?;
+            let out = func(buf)?;
+            linebreak(buf)?;
+            Ok(out)
+        }
 
         let mut buf = Buffer::new(self.reader)?;
 
-        if is_ascii(&mut buf)? {
-            // ===== ASCII =======================================================
-            parser!(opt_whitespace = |buf| buf.skip_until(|b| b != b' '));
-            parser!(whitespace = |buf| {
-                buf.expect_tag(b" ")?;
-                opt_whitespace(buf)?;
-                Ok(())
-            });
-            parser!(linebreak = |buf| {
-                opt_whitespace(buf)?;
-                buf.expect_tag(b"\n")?;
-                opt_whitespace(buf)?;
-                Ok(())
-            });
-            parser!(float = |buf| -> f32 {
-                buf.take_until(
-                    |b| b == b' ' || b == b'\n',
-                    |sd| sd.assert_ascii()?
-                        .parse::<f32>()
-                        .map_err(|e| sd.error(format!("invalid float literal: {}", e)))
-                )
-            });
-            parser!(vec3 = |buf| -> [f32; 3] {
-                let x = float(buf)?;
-                whitespace(buf)?;
-                let y = float(buf)?;
-                whitespace(buf)?;
-                let z = float(buf)?;
-                Ok([x, y, z])
-            });
-            parser!(vertex = |buf| -> [f32; 3] {
-                line(buf, |buf| {
-                    buf.expect_tag(b"vertex")?;
-                    whitespace(buf)?;
-                    vec3(buf)
-                })
-            });
+        // Before reading the body, we need to figure out if this file is
+        // binary or ASCII. This is actually harder than it sounds because
+        // there is no clear metric.
+        //
+        // An ASCII file starts with `solid <name>` where `<name>` can be an
+        // arbitrary string, even arbitrarily long. The name is delimited by a
+        // newline.
+        //
+        // A binary file starts with a 80 byte header that has no significance
+        // and may contain arbitrary ASCII data. Afterwards, a big binary blob
+        // follows.
+        //
+        // We use the following metric:
+        // - If there are some non-ASCII (>127) bytes at the beginning of the
+        //   file, the file is binary.
+        // - If the file doesn't start with `solid`, it's binary.
+        //
+        // One good test would be to read the number of triangles at offset 80
+        // and check if the file size corresponds to that. But right now we
+        // can't do that because all we have is a `Read`. (TODO)
 
-            fn line<I, F, O>(buf: &mut I, func: F) -> Result<O, parse::Error>
-            where
-                I: Input,
-                F: FnOnce(&mut I) -> Result<O, parse::Error>,
-            {
-                opt_whitespace(buf)?;
-                let out = func(buf)?;
-                linebreak(buf)?;
-                Ok(out)
-            }
+        // Load the first 1K bytes (or the whole file, if the file is shorter
+        // than that). We want to inspect those bytes.
+        buf.saturating_prepare(1024)?;
+        let is_binary = !buf.starts_with(b"solid") || buf.iter().any(|b| !b.is_ascii());
 
-            // Parse the header (just specifies the name of the solid)
+        // Check if the file starts with `solid`. If yes, a string (the solid
+        // name) is stored next. It's also a strong indicator, that the file is
+        // ASCII.
+        if buf.is_next(b"solid")? {
+            // Consume `solid`
+            buf.consume(5);
+
+            // Read the solid name
             whitespace(&mut buf)?;
-            let solid_name = buf.take_until(
-                |b| b == b' ' || b == b'\n',
-                |sd| sd.assert_ascii().map(|name| name.to_string()),
-            )?;
-            linebreak(&mut buf)?;
-            sink.meta(Meta::Ascii(solid_name.clone()));
+            let solid_name = if is_binary {
+                buf.with_bytes(
+                    80 - buf.offset(),
+                    |sd| sd.assert_ascii().map(|name| name.trim().to_string()),
+                )?
+            } else {
+                let name = buf.take_until(
+                    1024, // We won't allow names longer than 1KB
+                    |b| b == b'\n',
+                    |sd| sd.assert_ascii().map(|name| name.trim().to_string()),
+                )?;
+                linebreak(&mut buf)?;
+                name
+            };
 
+            sink.solid_name(solid_name);
+        }
 
+        if !is_binary {
+            // ===== ASCII =======================================================
             // Parse facets
             loop {
                 // First line (`facet normal 0.0 1.0 0.0`)
@@ -123,7 +165,7 @@ impl<R: io::Read> Reader<R> {
                 line(&mut buf, |buf| buf.expect_tag(b"endloop"))?;
 
                 // Pass parsed triangle to sink
-                sink.add_triangle(Triangle {
+                sink.triangle(Triangle {
                     normal,
                     vertices,
                     attribute_byte_count: 0,
@@ -135,8 +177,7 @@ impl<R: io::Read> Reader<R> {
                 // Check if the next line starts with `endsolid` and break loop
                 // in that case.
                 opt_whitespace(&mut buf)?;
-                buf.prepare(b"endsolid".len())?;
-                if buf.starts_with(b"endsolid") {
+                if buf.is_next(b"endsolid")? {
                     // We've seen `endsolid`: we just stop here. There could be
                     // junk afterwards, but we don't care.
                     break;
@@ -146,11 +187,11 @@ impl<R: io::Read> Reader<R> {
             // ===== BINARY ======================================================
             // Skip the rest of the 80 byte header. 5 bytes were already
             // consumed in `is_ascci`.
-            buf.skip(75)?;
+            buf.skip(80 - buf.offset())?;
 
             // Stored next is the number of triangles.
             let num_triangles = parse::u32_le(&mut buf)?;
-            sink.meta(Meta::Binary(num_triangles));
+            sink.num_triangles(num_triangles);
 
             // We attempt to read as many triangles as specified. If the
             // specified number was too high and we reach EOF early, we will
@@ -173,7 +214,7 @@ impl<R: io::Read> Reader<R> {
                 let attribute_byte_count = parse::u16_le(&mut buf)?;
 
 
-                sink.add_triangle(Triangle {
+                sink.triangle(Triangle {
                     normal,
                     vertices: [a, b, c],
                     attribute_byte_count,
@@ -190,44 +231,20 @@ impl<R: io::Read> Reader<R> {
 /// A sink can accept data from an STL file. This is mainly used for
 /// [`Reader::read_raw`].
 pub trait Sink {
-    /// Is called once in the beginning after reading the header from the file.
-    fn meta(&mut self, meta: Meta);
+    /// Is called once in the beginning if the file starts with `solid`.
+    ///
+    /// If the file is guessed to be binary, the `name` is the 75 character
+    /// header after `solid` with whitespace trimmed from both sites. If the
+    /// file is ASCII, `name` is the first line (without `solid`). If the file
+    /// doesn't start with `solid`, this method is not called.
+    fn solid_name(&mut self, name: String);
+
+    /// If the file is binary, this method is called once in the beginning. The
+    /// number of triangles as stored in the file is passed into this method.
+    fn num_triangles(&mut self, num: u32);
 
     /// Is called for each triangle that is read from the file.
-    fn add_triangle(&mut self, triangle: Triangle);
-}
-
-/// Convenience struct which holds two closures and implements [`Sink`].
-#[derive(Debug)]
-pub struct AdhocSink<F, G>
-where
-    F: FnMut(Meta),
-    G: FnMut(Triangle),
-{
-    pub meta: F,
-    pub add_triangle: G,
-}
-
-impl<F, G> Sink for AdhocSink<F, G>
-where
-    F: FnMut(Meta),
-    G: FnMut(Triangle),
-{
-    fn meta(&mut self, meta: Meta) {
-        (self.meta)(meta);
-    }
-    fn add_triangle(&mut self, triangle: Triangle) {
-        (self.add_triangle)(triangle);
-    }
-}
-
-#[derive(Debug)]
-pub enum Meta {
-    /// For ASCII STL files, a name for the solid is stored in the file.
-    Ascii(String),
-
-    /// For binary STL files, the number of triangles is stored inside.
-    Binary(u32),
+    fn triangle(&mut self, triangle: Triangle);
 }
 
 /// One triangle in an STL file.
@@ -265,13 +282,15 @@ impl RawResult {
 }
 
 impl Sink for RawResult {
-    fn meta(&mut self, meta: Meta) {
-        match meta {
-            Meta::Binary(num_triangles) => self.triangles.reserve(num_triangles as usize),
-            Meta::Ascii(name) => self.solid_name = Some(name),
-        }
+    fn solid_name(&mut self, name: String) {
+        self.solid_name = Some(name);
     }
-    fn add_triangle(&mut self, triangle: Triangle) {
+
+    fn num_triangles(&mut self, num: u32) {
+        self.triangles.reserve(num as usize);
+    }
+
+    fn triangle(&mut self, triangle: Triangle) {
         self.triangles.push(triangle);
     }
 }

@@ -149,7 +149,7 @@ impl<R: Read> Buffer<R> {
         }
     }
 
-    fn fill_buf_by(&mut self, additional: usize) -> Result<(), Error> {
+    fn fill_buf_by(&mut self, additional: usize) -> Result<usize, Error> {
         self.grow_buf(additional);
 
         // Read new data until we have read `additional` many bytes. We ignore
@@ -162,7 +162,7 @@ impl<R: Read> Buffer<R> {
                     // slice (we made sure of that above by growing the buffer
                     // or moving data). This means that the reader is
                     // exhausted.
-                    return Err(Error::UnexpectedEof);
+                    break;
                 }
                 Ok(n) => bytes_read += n,
                 Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {}
@@ -171,7 +171,7 @@ impl<R: Read> Buffer<R> {
         }
 
         self.end += bytes_read;
-        Ok(())
+        Ok(bytes_read)
     }
 }
 
@@ -207,6 +207,19 @@ impl<R: Read> Read for Buffer<R> {
 
 impl<R: Read> Input for Buffer<R> {
     fn prepare(&mut self, num_bytes: usize) -> Result<(), Error> {
+        if self.len() < num_bytes {
+            let diff = num_bytes - self.len();
+            let bytes_read = self.fill_buf_by(diff)?;
+
+            if bytes_read < diff {
+                return Err(Error::UnexpectedEof(self.offset() + self.len()));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn saturating_prepare(&mut self, num_bytes: usize) -> Result<(), Error> {
         if self.len() < num_bytes {
             let diff = num_bytes - self.len();
             self.fill_buf_by(diff)?;
