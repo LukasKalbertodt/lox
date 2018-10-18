@@ -1,15 +1,14 @@
 use std::{
     cmp::{max, min},
-    io::{self, BufReader, Read},
+    io::{self, Read},
     ops,
 };
 
 use super::{Error, Input};
 
 
-/// The initial size of the buffer in bytes. (TODO: this should be higher than
-/// 16, but 16 is good for catching bugs).
-const START_BUFFER_SIZE: usize = 16;
+/// The initial size of the buffer in bytes.
+const START_BUFFER_SIZE: usize = 8 * 1024;
 
 /// The maximum size the internal buffer can grow to.
 ///
@@ -22,9 +21,8 @@ const START_BUFFER_SIZE: usize = 16;
 const MAX_BUFFER_SIZE: usize = 4 * 1024 * 1024;
 
 
-
 pub(crate) struct Buffer<R: Read> {
-    reader: BufReader<R>,
+    reader: R,
 
     buf: Vec<u8>,
 
@@ -45,7 +43,7 @@ impl<R: Read> Buffer<R> {
     pub(crate) fn new(reader: R) -> Result<Self, Error> {
         let mut out = Self {
             buf: vec![0; START_BUFFER_SIZE],
-            reader: BufReader::new(reader),
+            reader,
             start: 0,
             end: 0,
             consumed_total: 0,
@@ -184,7 +182,6 @@ impl<R: Read> ops::Deref for Buffer<R> {
 
 impl<R: Read> Read for Buffer<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
-
         // If our buffer is empty, we might need to fill it.
         if self.len() == 0 {
             // If we can do a big read (bigger than our internal buffer), we

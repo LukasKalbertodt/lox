@@ -39,10 +39,16 @@ fn main() -> Result<(), Error> {
 
     let filename = std::env::args().nth(1).unwrap();
     println!("loading {}", filename);
-    let res = stl::Reader::new(std::fs::File::open(filename)?).read_raw()?;
 
-    println!("{:?}", res.solid_name);
-    println!("{:?} triangles", res.triangles.len());
+    let before = std::time::Instant::now();
+    let mut sink = stl::CounterSink::new();
+    stl::Reader::new(std::fs::File::open(filename)?)
+        .read_raw_into(&mut sink)?;
+
+    println!("{:?}", sink);
+
+    let time = before.elapsed();
+    println!("elapsed: {:.2?} ({:?} per triangle)", time, time / sink.triangle_count);
 
     Ok(())
 }
