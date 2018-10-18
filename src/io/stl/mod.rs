@@ -7,7 +7,7 @@ use failure::Fail;
 mod read;
 mod write;
 
-pub use self::read::{Reader, Sink, Triangle, RawResult};
+pub use self::read::{CounterSink, Reader, Sink, Triangle, RawResult};
 pub use self::write::{Serializer, Writer};
 
 

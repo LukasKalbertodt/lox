@@ -333,3 +333,34 @@ impl Sink for RawResult {
         self.triangles.push(triangle);
     }
 }
+
+#[derive(Debug)]
+pub struct CounterSink {
+    /// The solid name if it's specified in the file.
+    pub solid_name: Option<String>,
+
+    /// The number of triangles in that file.
+    pub triangle_count: u32,
+}
+
+impl CounterSink {
+    /// Returns an instance with no name and 0 triangles.
+    pub fn new() -> Self {
+        Self {
+            solid_name: None,
+            triangle_count: 0,
+        }
+    }
+}
+
+impl Sink for CounterSink {
+    fn solid_name(&mut self, name: String) {
+        self.solid_name = Some(name);
+    }
+
+    fn num_triangles(&mut self, _: u32) {}
+
+    fn triangle(&mut self, _: Triangle) {
+        self.triangle_count += 1;
+    }
+}
