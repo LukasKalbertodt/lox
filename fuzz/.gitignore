@@ -1,4 +1,6 @@
 
 target
-corpus
 artifacts
+
+corpus/*
+!corpus/stl-parser
