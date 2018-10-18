@@ -34,50 +34,44 @@ impl<R: io::Read> Reader<R> {
         Self { reader }
     }
 
-    pub fn read_into_raw(self) -> Result<RawResult, parse::Error> {
+    /// Reads the whole file into a [`RawResult`].
+    ///
+    /// Usually you either want to use a higher level function (TODO: link) or
+    /// [`read_raw_into`]. The latter is the streaming version of this method
+    /// which doesn't require a temporary storage ([`RawResult`]).
+    pub fn read_raw(self) -> Result<RawResult, parse::Error> {
         let mut out = RawResult::new();
-        self.read_raw(&mut out)?;
+        self.read_raw_into(&mut out)?;
         Ok(out)
     }
 
-    pub fn read_raw(self, sink: &mut impl Sink) -> Result<(), parse::Error> {
+    /// Reads the whole file into the given sink.
+    ///
+    /// This is a low level building block that you usually don't want to use
+    /// directly. TODO: mention higher level methods
+    pub fn read_raw_into(self, sink: &mut impl Sink) -> Result<(), parse::Error> {
+        // Optionally skip whitespace
         parser!(opt_whitespace = |buf| buf.skip_until(|b| b != b' '));
+
+        // Requires at least one whitespace, skips all whitespace that follows
+        // it.
         parser!(whitespace = |buf| {
             buf.expect_tag(b" ")?;
             opt_whitespace(buf)?;
             Ok(())
         });
+
+        /// Requires a '\n' linebreak with optional whitespace before and after
+        /// it.
         parser!(linebreak = |buf| {
             opt_whitespace(buf)?;
             buf.expect_tag(b"\n")?;
             opt_whitespace(buf)?;
             Ok(())
         });
-        parser!(float = |buf| -> f32 {
-            buf.take_until(
-                100, // every float as ASCII fits in 100 bytes
-                |b| b == b' ' || b == b'\n',
-                |sd| sd.assert_ascii()?
-                    .parse::<f32>()
-                    .map_err(|e| sd.error(format!("invalid float literal: {}", e)))
-            )
-        });
-        parser!(vec3 = |buf| -> [f32; 3] {
-            let x = float(buf)?;
-            whitespace(buf)?;
-            let y = float(buf)?;
-            whitespace(buf)?;
-            let z = float(buf)?;
-            Ok([x, y, z])
-        });
-        parser!(vertex = |buf| -> [f32; 3] {
-            line(buf, |buf| {
-                buf.expect_tag(b"vertex")?;
-                whitespace(buf)?;
-                vec3(buf)
-            })
-        });
 
+        /// Eats optional whitespace, calls the passed parser and requires a
+        /// linebreak at the end.
         fn line<I, F, O>(buf: &mut I, func: F) -> Result<O, parse::Error>
         where
             I: Input,
@@ -124,7 +118,8 @@ impl<R: io::Read> Reader<R> {
             // Consume `solid`
             buf.consume(5);
 
-            // Read the solid name
+            // Read the solid name (until line break in ASCII case, 80 chars in
+            // binary case).
             whitespace(&mut buf)?;
             let solid_name = if is_binary {
                 buf.with_bytes(
@@ -146,6 +141,39 @@ impl<R: io::Read> Reader<R> {
 
         if !is_binary {
             // ===== ASCII =======================================================
+            /// Parses one ASCII float via `<f32 as FromStr>::parse`. There must
+            /// not be leading whitespace and the float literal has to end with ' '
+            /// or '\n'.
+            parser!(float = |buf| -> f32 {
+                buf.take_until(
+                    100, // every float as ASCII fits in 100 bytes
+                    |b| b == b' ' || b == b'\n',
+                    |sd| sd.assert_ascii()?
+                        .parse::<f32>()
+                        .map_err(|e| sd.error(format!("invalid float literal: {}", e)))
+                )
+            });
+
+            /// Parses three floats separated by whitespace. No leading or trailing
+            /// whitespace is handled.
+            parser!(vec3 = |buf| -> [f32; 3] {
+                let x = float(buf)?;
+                whitespace(buf)?;
+                let y = float(buf)?;
+                whitespace(buf)?;
+                let z = float(buf)?;
+                Ok([x, y, z])
+            });
+
+            /// Parses one ASCII line with a vertex (e.g. `vertex 2.0 0.1  1`)
+            parser!(vertex = |buf| -> [f32; 3] {
+                line(buf, |buf| {
+                    buf.expect_tag(b"vertex")?;
+                    whitespace(buf)?;
+                    vec3(buf)
+                })
+            });
+
             // Parse facets
             loop {
                 // First line (`facet normal 0.0 1.0 0.0`)
@@ -198,13 +226,14 @@ impl<R: io::Read> Reader<R> {
             // return an error.
             for _ in 0..num_triangles {
                 /// Reads three consecutive `f32`s.
-                fn read_vec3(input: &mut impl Input) -> Result<[f32; 3], parse::Error> {
-                    let x = parse::f32_le(input)?;
-                    let y = parse::f32_le(input)?;
-                    let z = parse::f32_le(input)?;
+                parser!(read_vec3 = |buf| -> [f32; 3] {
+                    let x = parse::f32_le(buf)?;
+                    let y = parse::f32_le(buf)?;
+                    let z = parse::f32_le(buf)?;
 
                     Ok([x, y, z])
-                }
+
+                });
 
                 // Read the normal and all three vertex positions.
                 let normal = read_vec3(&mut buf)?;
@@ -221,6 +250,8 @@ impl<R: io::Read> Reader<R> {
                 });
             }
 
+            // If the specified number of triangles was too small and there is
+            // still data left, we also error.
             buf.assert_eof()?;
         }
 
@@ -229,7 +260,7 @@ impl<R: io::Read> Reader<R> {
 }
 
 /// A sink can accept data from an STL file. This is mainly used for
-/// [`Reader::read_raw`].
+/// [`Reader::read_raw_into`].
 pub trait Sink {
     /// Is called once in the beginning if the file starts with `solid`.
     ///
@@ -262,13 +293,21 @@ pub struct Triangle {
     /// shouldn't do that.
     ///
     /// If an ASCII file is parsed, this is just set to 0 (despite it being not
-    /// store in the file).
+    /// stored in the file).
     attribute_byte_count: u16,
 }
 
+/// Holds the raw data from a STL file.
+///
+/// This implements [`Sink`], but instead of using [`Reader::read_raw_into`]
+/// with this type, you can use [`Reader::read_raw`] which already does it for
+/// you.
 #[derive(Debug)]
 pub struct RawResult {
+    /// The solid name if it's specified in the file.
     pub solid_name: Option<String>,
+
+    /// All triangles from the file.
     pub triangles: Vec<Triangle>,
 }
 

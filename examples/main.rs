@@ -39,7 +39,7 @@ fn main() -> Result<(), Error> {
 
     let filename = std::env::args().nth(1).unwrap();
     println!("loading {}", filename);
-    let res = stl::Reader::new(std::fs::File::open(filename)?).read_into_raw()?;
+    let res = stl::Reader::new(std::fs::File::open(filename)?).read_raw()?;
 
     println!("{:?}", res.solid_name);
     println!("{:?} triangles", res.triangles.len());
