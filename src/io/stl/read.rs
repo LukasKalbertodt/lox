@@ -23,13 +23,18 @@ use crate::{
 
 
 /// A reader able to read ASCII and binary STL files.
+///
+/// You can create a reader with [`Reader::open`] or [`Reader::new`]. To
+/// actually read data, you need to use one of the `read*` methods. You usually
+/// want to use [`Reader::read`] to read the data into a proper mesh.
 #[derive(Debug)]
 pub struct Reader<R: io::Read> {
     reader: R,
 }
 
 impl Reader<File> {
-    /// Creates a new `Reader` from the given file.
+    /// Tries to open the file specified by the given path and creates a new
+    /// `Reader` from that file.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, io::Error> {
         // We don't need a `BufReader` here, because we will use our internal
         // parse buffer anyway.
@@ -44,6 +49,31 @@ impl<R: io::Read> Reader<R> {
         Self { reader }
     }
 
+    /// Reads the whole file into a mesh plus optional prop maps.
+    ///
+    /// This method can be configured via the given options. See
+    /// [`ReadOptions`] for more details on the configurations. You also
+    /// usually have to pass the type of the mesh via turbofish (e.g.
+    /// `reader.read::<SharedVertexMesh>(options)`).
+    ///
+    /// If you need a bit more low level control, you might instead want to use
+    /// [`Reader::read_raw_into`].
+    ///
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use lox::{
+    ///     prelude::*,
+    ///     ds::SharedVertexMesh,
+    ///     io::stl::{Reader, ReadOptions},
+    /// };
+    ///
+    /// // TODO: remove `unwrap()`s once `?` in doctests is implemented
+    /// let results = Reader::open("mesh.stl").unwrap()
+    ///     .read::<SharedVertexMesh>(ReadOptions::default()).unwrap();
+    /// println!("{:?}", results);
+    /// ```
     pub fn read<M>(self, options: ReadOptions) -> Result<ReadResults<M>, parse::Error>
     where
         M: Mesh + ExplicitVertex + ExplicitFace,
@@ -195,9 +225,10 @@ impl<R: io::Read> Reader<R> {
 
     /// Reads the whole file into a [`RawResult`].
     ///
-    /// Usually you either want to use a higher level function (TODO: link) or
-    /// [`Reader::read_raw_into`]. The latter is the streaming version of this
-    /// method which doesn't require a temporary storage ([`RawResult`]).
+    /// Usually you either want to use a higher level function (like
+    /// [`Reader::read`]) or [`Reader::read_raw_into`]. The latter is the
+    /// streaming version of this method which doesn't require a temporary
+    /// storage ([`RawResult`]).
     pub fn read_raw(self) -> Result<RawResult, parse::Error> {
         let mut out = RawResult::new();
         self.read_raw_into(&mut out)?;
@@ -207,7 +238,8 @@ impl<R: io::Read> Reader<R> {
     /// Reads the whole file into the given sink.
     ///
     /// This is a low level building block that you usually don't want to use
-    /// directly. TODO: mention higher level methods
+    /// directly. [`Reader::read`] is a more high level method suited for most
+    /// purposes.
     pub fn read_raw_into(self, sink: &mut impl Sink) -> Result<(), parse::Error> {
         macro_rules! parser {
             ($name:ident = |$buf:ident| $body:expr) => {
@@ -473,9 +505,9 @@ pub struct Triangle {
 
 /// Holds the raw data from a STL file.
 ///
-/// to obtain a `RawResult`, call [`Reader::read_raw`]. See its documentation
+/// To obtain a `RawResult`, call [`Reader::read_raw`]. See its documentation
 /// for more information.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RawResult {
     /// The solid name if it's specified in the file.
     pub solid_name: Option<String>,
@@ -485,7 +517,8 @@ pub struct RawResult {
 }
 
 impl RawResult {
-    fn new() -> Self {
+    /// Creates an instance with no name and no triangles.
+    pub fn new() -> Self {
         Self {
             solid_name: None,
             triangles: Vec::new(),
@@ -493,6 +526,8 @@ impl RawResult {
     }
 }
 
+/// For convenience, you can use [`Reader::read_raw`] instead of
+/// `read_raw_into`.
 impl Sink for RawResult {
     fn solid_name(&mut self, name: String) {
         self.solid_name = Some(name);
@@ -507,12 +542,18 @@ impl Sink for RawResult {
     }
 }
 
-#[derive(Debug)]
+/// A simple sink which just counts the number of triangles and discards all
+/// triangle data.
+///
+/// This is rarely useful, but you can use this to measure the speed of reading
+/// a file (if you discard basically all triangle data, you measure only the
+/// actual reading).
+#[derive(Debug, Clone)]
 pub struct CountingSink {
     /// The solid name if it's specified in the file.
     pub solid_name: Option<String>,
 
-    /// The number of triangles in that file.
+    /// The number of triangles in the file.
     pub triangle_count: u32,
 }
 
@@ -539,7 +580,7 @@ impl Sink for CountingSink {
 }
 
 /// Returned by [`Reader::read`].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReadResults<M> {
     /// The name of the solid, if stored in the file.
     pub solid_name: Option<String>,
@@ -548,15 +589,16 @@ pub struct ReadResults<M> {
     pub mesh: M,
 
     /// The vertex positions from the file. This is `None` if `read_positions`
-    /// in the `ReadOptions` is `false`. Otherwise, this is `Some(_)`.
+    /// in the [`ReadOptions`] is `false`. Otherwise, this is `Some(_)`.
     pub vertex_positions: Option<VecMap<VertexHandle, Point3<f32>>>,
 
     /// The face normals from the file. This is `None` if `read_normals` in the
-    /// `ReadOptions` is `false`. Otherwise, this is `Some(_)`.
+    /// [`ReadOptions`] is `false`. Otherwise, this is `Some(_)`.
     pub face_normals: Option<VecMap<FaceHandle, Vector3<f32>>>,
 }
 
-/// Used to configure [`Reader::read`].
+/// Used to configure [`Reader::read`]. The common way to create an instance is
+/// via [`Default::default`].
 #[derive(Debug, Clone, Copy)]
 pub struct ReadOptions {
     /// Specifies if vertices with the exact same position should be unified
@@ -587,6 +629,16 @@ pub struct ReadOptions {
     /// Specifies if the face normals in the file should be read (otherwise
     /// they are discarded). *Default*: `true`.
     pub read_normals: bool,
+}
+
+impl ReadOptions {
+    /// Like `Default::default()` but with `read_normals = false`.
+    pub fn without_normals() -> Self {
+        Self {
+            read_normals: false,
+            .. Default::default()
+        }
+    }
 }
 
 impl Default for ReadOptions {
