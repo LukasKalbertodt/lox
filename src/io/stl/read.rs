@@ -4,7 +4,14 @@ use std::{
     path::Path,
 };
 
+use boolinator::Boolinator;
+use cgmath::{Point3, Vector3};
+use fnv::FnvHashMap;
+use ordered_float::OrderedFloat;
+
 use crate::{
+    prelude::*,
+    map::VecMap,
     io::{
         parse::{
             self, Input,
@@ -35,6 +42,143 @@ impl<R: io::Read> Reader<R> {
     /// to open a file, rather use [`Reader::open`].
     pub fn new(reader: R) -> Self {
         Self { reader }
+    }
+
+    pub fn read<M>(self, options: ReadOptions) -> Result<ReadResults<M>, parse::Error>
+    where
+        M: Mesh + ExplicitVertex + ExplicitFace,
+    {
+        // ====================================================================
+        // ===== Definition of VertexAdders: unify vertices or not.
+        // ====================================================================
+        trait VertexAdder {
+            fn new() -> Self;
+            fn size_hint(&mut self, _num_triangles: u32) {}
+            fn add_vertex<M: ExplicitVertex>(
+                &mut self,
+                mesh: &mut M,
+                pos: [f32; 3],
+            ) -> VertexHandle;
+        }
+
+        struct NonUnifyingAdder;
+        impl VertexAdder for NonUnifyingAdder {
+            fn new() -> Self {
+                NonUnifyingAdder
+            }
+
+            fn add_vertex<M: ExplicitVertex>(
+                &mut self,
+                mesh: &mut M,
+                _: [f32; 3],
+            ) -> VertexHandle {
+                mesh.add_vertex()
+            }
+        }
+
+        struct UnifyingAdder(FnvHashMap<[OrderedFloat<f32>; 3], VertexHandle>);
+        impl VertexAdder for UnifyingAdder {
+            fn new() -> Self {
+                UnifyingAdder(FnvHashMap::default())
+            }
+
+            fn size_hint(&mut self, num_triangles: u32) {
+                // There might be `3 * num_triangles` many different vertices
+                // but that is rather unlikely in a real world mesh, and we
+                // also don't want to reserve too much memory. So twice the
+                // number of triangles is a compromise. However, this was not
+                // measured and could possibly be improved.
+                self.0.reserve(2 * num_triangles as usize);
+            }
+
+            fn add_vertex<M: ExplicitVertex>(
+                &mut self,
+                mesh: &mut M,
+                pos: [f32; 3],
+            ) -> VertexHandle {
+                debug_assert!(!pos[0].is_nan());
+                debug_assert!(!pos[1].is_nan());
+                debug_assert!(!pos[2].is_nan());
+
+                let key = [OrderedFloat(pos[0]), OrderedFloat(pos[1]), OrderedFloat(pos[2])];
+                *self.0.entry(key).or_insert_with(|| mesh.add_vertex())
+            }
+        }
+
+
+        // ====================================================================
+        // ===== Definition of the Sink
+        // ====================================================================
+        struct HelperSink<M: Mesh + ExplicitVertex + ExplicitFace, A: VertexAdder> {
+            results: ReadResults<M>,
+            adder: A,
+        }
+
+        impl<M: Mesh + ExplicitVertex + ExplicitFace, A: VertexAdder> HelperSink<M, A> {
+            fn new(options: &ReadOptions) -> Self {
+                Self {
+                    results: ReadResults {
+                        solid_name: None,
+                        mesh: M::empty(),
+                        vertex_positions: options.read_positions.as_some_from(|| VecMap::new()),
+                        face_normals: options.read_normals.as_some_from(|| VecMap::new()),
+                    },
+                    adder: A::new(),
+                }
+            }
+
+            fn into_results(self) -> ReadResults<M> {
+                self.results
+            }
+        }
+
+        impl<M: Mesh + ExplicitVertex + ExplicitFace, A: VertexAdder> Sink for HelperSink<M, A> {
+            fn solid_name(&mut self, name: String) {
+                self.results.solid_name = Some(name);
+            }
+
+            fn num_triangles(&mut self, num: u32) {
+                self.adder.size_hint(num);
+                if let Some(pos_map) = &mut self.results.vertex_positions {
+                    pos_map.reserve(2 * num as usize);
+                }
+                if let Some(normal_map) = &mut self.results.face_normals {
+                    normal_map.reserve(num as usize);
+                }
+            }
+
+            fn triangle(&mut self, triangle: Triangle) {
+                let [pa, pb, pc] = triangle.vertices;
+                let a = self.adder.add_vertex(&mut self.results.mesh, pa);
+                let b = self.adder.add_vertex(&mut self.results.mesh, pb);
+                let c = self.adder.add_vertex(&mut self.results.mesh, pc);
+
+                let f = self.results.mesh.add_face([a, b, c]);
+
+                if let Some(pos_map) = &mut self.results.vertex_positions {
+                    pos_map.insert(a, pa.to_point3());
+                    pos_map.insert(b, pb.to_point3());
+                    pos_map.insert(c, pc.to_point3());
+                }
+                if let Some(normal_map) = &mut self.results.face_normals {
+                    normal_map.insert(f, triangle.normal.to_vector3());
+                }
+            }
+        }
+
+
+        // ====================================================================
+        // ===== The actual function body
+        // ====================================================================
+        if options.unify_vertices {
+            let mut sink = HelperSink::<M, UnifyingAdder>::new(&options);
+            self.read_raw_into(&mut sink)?;
+            Ok(sink.into_results())
+        } else {
+            let mut sink = HelperSink::<M, NonUnifyingAdder>::new(&options);
+            self.read_raw_into(&mut sink)?;
+            Ok(sink.into_results())
+        }
     }
 
     /// Reads the whole file into a [`RawResult`].
@@ -379,5 +523,66 @@ impl Sink for CounterSink {
 
     fn triangle(&mut self, _: Triangle) {
         self.triangle_count += 1;
+    }
+}
+
+/// Returned by [`Reader::read`].
+#[derive(Debug)]
+pub struct ReadResults<M> {
+    /// The name of the solid, if stored in the file.
+    pub solid_name: Option<String>,
+
+    /// The mesh constructed from the file.
+    pub mesh: M,
+
+    /// The vertex positions from the file. This is `None` if `read_positions`
+    /// in the `ReadOptions` is `false`. Otherwise, this is `Some(_)`.
+    pub vertex_positions: Option<VecMap<VertexHandle, Point3<f32>>>,
+
+    /// The face normals from the file. This is `None` if `read_normals` in the
+    /// `ReadOptions` is `false`. Otherwise, this is `Some(_)`.
+    pub face_normals: Option<VecMap<FaceHandle, Vector3<f32>>>,
+}
+
+/// Used to configure [`Reader::read`].
+#[derive(Debug, Clone, Copy)]
+pub struct ReadOptions {
+    /// Specifies if vertices with the exact same position should be unified
+    /// into one. *Default*: `true`.
+    ///
+    /// An STL file is a simple list of triangles. Each triangle specifies the
+    /// position of its three vertices. This means that vertices of adjacent
+    /// triangles are stored twice. When reading the file, we only know the
+    /// vertex positions and have no idea which vertices are actually the same
+    /// one and which are two different vertices that have the same position.
+    ///
+    /// It's common to unify vertices of an STL file to get a real mesh and not
+    /// just a collection of unconnected triangles. You only need to disable
+    /// this in very special cases, mainly because:
+    /// - Your mesh has vertices that have the exact same position but should
+    ///   be treated as separate vertices
+    /// - Unifying the vertices is too slow for you (unifying makes the whole
+    ///   read process around 4 times slower)
+    ///
+    /// But if any of this is a problem for you, you should rather use a better
+    /// file format instead of STL.
+    pub unify_vertices: bool,
+
+    /// Specifies if the vertex positions in the file should be read (otherwise
+    /// they are discarded). *Default*: `true`.
+    pub read_positions: bool,
+
+    /// Specifies if the face normals in the file should be read (otherwise
+    /// they are discarded). *Default*: `true`.
+    pub read_normals: bool,
+}
+
+impl Default for ReadOptions {
+    fn default() -> Self {
+        Self {
+            unify_vertices: true,
+            read_positions: true,
+            read_normals: true,
+        }
     }
 }

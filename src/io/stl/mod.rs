@@ -10,7 +10,7 @@ mod write;
 #[cfg(test)]
 mod tests;
 
-pub use self::read::{CounterSink, Reader, Sink, Triangle, RawResult};
+pub use self::read::{CounterSink, Reader, Sink, Triangle, RawResult, ReadResults, ReadOptions};
 pub use self::write::{Serializer, Writer};
 
 

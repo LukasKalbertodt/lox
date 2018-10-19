@@ -10,10 +10,13 @@ edition = "2018"
 default = ["cgmath"]
 
 [dependencies]
+boolinator = "2.4"
 byteorder = "1.2"
 cgmath = { version = "0.16", optional = true }
 failure = "0.1.2"
+fnv = "1.0.1"
 lox-macros = { path = "lox-macros" }
+ordered-float = "1.0"
 num-traits = "0.2"
 smallvec = "0.6"
 stable-vec = "0.2.1"

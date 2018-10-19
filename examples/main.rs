@@ -41,14 +41,21 @@ fn main() -> Result<(), Error> {
     println!("loading {}", filename);
 
     let before = std::time::Instant::now();
-    let mut sink = stl::CounterSink::new();
-    stl::Reader::open(filename)?
-        .read_raw_into(&mut sink)?;
+    let res = stl::Reader::open(filename)?
+        .read::<SharedVertexMesh>(stl::ReadOptions {
+            unify_vertices: true,
+            read_positions: true,
+            .. stl::ReadOptions::default()
+        })?;
+    println!("Mesh: {} vertices, {} faces", res.mesh.num_vertices(), res.mesh.num_faces());
+    if let Some(positions) = &res.vertex_positions {
+        println!("First position: {:?}", positions[VertexHandle::from_usize(0)]);
+    }
+    if let Some(normals) = &res.face_normals {
+        println!("First normal: {:?}", normals[FaceHandle::from_usize(0)]);
+    }
 
-    println!("{:?}", sink);
-
-    let time = before.elapsed();
-    println!("elapsed: {:.2?} ({:?} per triangle)", time, time / sink.triangle_count);
+    println!("elapsed: {:.2?}", before.elapsed());
 
     Ok(())
 }
