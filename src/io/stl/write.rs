@@ -19,16 +19,24 @@ type DummyMap = EmptyMap<[f32; 3]>;
 
 
 // ===============================================================================================
-// ===== STL Serializer
+// ===== STL WriterBuilder
 // ===============================================================================================
 
+/// Used to configure and create a [`Writer`].
+///
+/// This is used to configure basic settings for the file to be written. Use
+/// the [`IntoMeshWriter`][crate::io::IntoMeshWriter] implementation to obtain
+/// a writer.
 #[derive(Clone, Debug)]
-pub struct Serializer {
+pub struct WriterBuilder {
     solid_name: String,
     format: Format,
 }
 
-impl Serializer {
+impl WriterBuilder {
+    /// Creates a new builder instance from the given format. For convenience,
+    /// you can use [`WriterBuilder::binary()`] or [`WriterBuilder::ascii()`]
+    /// directly.
     fn new(format: Format) -> Self {
         Self {
             solid_name: DEFAULT_SOLID_NAME.into(),
@@ -36,14 +44,20 @@ impl Serializer {
         }
     }
 
+    /// Creates a new builder instance for a binary STL file.
     pub fn binary() -> Self {
         Self::new(Format::Binary)
     }
 
+    /// Creates a new builder instance for an ASCII STL file. **Note**: please
+    /// don't use this. STL ASCII files are even more space inefficient than
+    /// binary STL files. If you can avoid it, never use ASCII STL. In fact,
+    /// consider not using STL at all.
     pub fn ascii() -> Self {
         Self::new(Format::Ascii)
     }
 
+    /// Sets the solid name for this file. This is only used for ASCII files!
     pub fn with_solid_name(self, name: impl Into<String>) -> Self {
         Self {
             solid_name: name.into(),
@@ -52,7 +66,7 @@ impl Serializer {
     }
 }
 
-impl<'a, MeshT, PosM> IntoMeshWriter<'a, MeshT, PosM> for Serializer
+impl<'a, MeshT, PosM> IntoMeshWriter<'a, MeshT, PosM> for WriterBuilder
 where
     MeshT: 'a + Mesh + MeshUnsorted + ExplicitFace,
     PosM: 'a + VertexPropMap,
@@ -60,7 +74,12 @@ where
 {
     type Writer = Writer<'a, MeshT, PosM, DummyMap>;
     fn into_writer(self, mesh: &'a MeshT, vertex_positions: &'a PosM) -> Self::Writer {
-        Writer::new(self, mesh, vertex_positions)
+        Writer {
+            config: self,
+            mesh,
+            vertex_positions,
+            face_normals: None,
+        }
     }
 }
 
@@ -69,6 +88,19 @@ where
 // ===== STL Writer
 // ===============================================================================================
 
+/// A writer able to write binary and ASCII STL files.
+///
+/// To create a writer, you need to create a [`WriterBuilder`] first (probably
+/// via `WriterBuilder::binary()`) and call `into_writer(..)` on it. Once you
+/// have a writer, you can optionally add face normals to it. If you don't add
+/// your own face normals, normals are calculated from the vertex positions on
+/// the fly (this requires every face to have a non-zero area!).
+///
+/// You can then actually write data via the
+/// [`MeshWriter`][crate::io::MeshWriter] trait.
+///
+/// Don't be scared by all the generic parameters and trait bounds. For the
+/// most part, you don't need to worry about that at all.
 #[derive(Debug)]
 pub struct Writer<'a, MeshT, PosM, NormalM>
 where
@@ -78,7 +110,7 @@ where
     NormalM: FacePropMap,
     NormalM::Target: Vec3Like<Scalar = f32>,
 {
-    ser: Serializer,
+    config: WriterBuilder,
     mesh: &'a MeshT,
     vertex_positions: &'a PosM,
     face_normals: Option<&'a NormalM>,
@@ -90,15 +122,9 @@ where // TODO: remove once implied bounds land
     PosM: VertexPropMap,
     PosM::Target: Pos3Like<Scalar = f32>,
 {
-    fn new(ser: Serializer, mesh: &'a MeshT, vertex_positions: &'a PosM) -> Self {
-        Self {
-            ser,
-            mesh,
-            vertex_positions,
-            face_normals: None,
-        }
-    }
-
+    /// Instructs the writer to use the given face normals instead of
+    /// calculating normals on the fly. If any of your faces have a zero area,
+    /// you need to call that as automatically calculating normals won't work.
     pub fn with_face_normals<NormalM>(
         self,
         face_normals: &'a NormalM,
@@ -108,7 +134,7 @@ where // TODO: remove once implied bounds land
         NormalM::Target: Vec3Like<Scalar = f32>,
     {
         Writer {
-            ser: self.ser,
+            config: self.config,
             mesh: self.mesh,
             vertex_positions: self.vertex_positions,
             face_normals: Some(face_normals),
@@ -163,11 +189,11 @@ where // TODO: remove once implied bounds land
             (positions, normal)
         };
 
-        if self.ser.format == Format::Ascii {
+        if self.config.format == Format::Ascii {
             // ===============================================================
             // ===== STL ASCII
             // ===============================================================
-            writeln!(w, "solid {}", self.ser.solid_name)?;
+            writeln!(w, "solid {}", self.config.solid_name)?;
 
             for face in self.mesh.faces() {
                 let (positions, normal) = get_pos_and_normal(face.handle());
@@ -190,7 +216,7 @@ where // TODO: remove once implied bounds land
                 writeln!(w, "  endfacet")?;
             }
 
-            writeln!(w, "endsolid {}", self.ser.solid_name)?;
+            writeln!(w, "endsolid {}", self.config.solid_name)?;
         } else {
             // ===============================================================
             // ===== STL binary
