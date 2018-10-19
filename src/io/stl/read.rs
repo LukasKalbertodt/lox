@@ -14,22 +14,11 @@ use crate::{
 };
 
 
+
 /// A reader able to read ASCII and binary STL files.
 #[derive(Debug)]
 pub struct Reader<R: io::Read> {
     reader: R,
-}
-
-
-macro_rules! parser {
-    ($name:ident = |$buf:ident| $body:expr) => {
-        parser!($name = |$buf| -> () { $body })
-    };
-    ($name:ident = |$buf:ident| -> $out:ty $body:block) => {
-        fn $name($buf: &mut impl Input) -> Result<$out, parse::Error> {
-            $body
-        }
-    };
 }
 
 impl Reader<File> {
@@ -64,6 +53,17 @@ impl<R: io::Read> Reader<R> {
     /// This is a low level building block that you usually don't want to use
     /// directly. TODO: mention higher level methods
     pub fn read_raw_into(self, sink: &mut impl Sink) -> Result<(), parse::Error> {
+        macro_rules! parser {
+            ($name:ident = |$buf:ident| $body:expr) => {
+                parser!($name = |$buf| -> () { $body })
+            };
+            ($name:ident = |$buf:ident| -> $out:ty $body:block) => {
+                fn $name($buf: &mut impl Input) -> Result<$out, parse::Error> {
+                    $body
+                }
+            };
+        }
+
         // Optionally skip whitespace
         parser!(opt_whitespace = |buf| buf.skip_until(|b| b != b' '));
 
