@@ -8,9 +8,12 @@ use crate::{
     ds::SharedVertexMesh,
     map::{ConstMap, FnMap, VecMap},
 };
-use super::{RawResult, Reader};
+use super::{RawResult, Reader, WriterBuilder};
 
 
+// ===========================================================================
+// ===== Reading
+// ===========================================================================
 fn check_flat_data(res: &RawResult) {
     assert_eq!(res.triangles[0].normal, [0.0, 0.0, 1.0]);
     assert_eq!(res.triangles[0].vertices, [
@@ -108,6 +111,64 @@ fn read_cube_binary() -> Result<(), Error> {
     assert_eq!(res.triangles.len(), 12);
 
     check_cube_data(&res);
+
+    Ok(())
+}
+
+
+// ===========================================================================
+// ===== Writing
+// ===========================================================================
+fn triangle_mesh() -> (
+    SharedVertexMesh,
+    VecMap<VertexHandle, [f32; 3]>,
+    VecMap<FaceHandle, [f32; 3]>,
+) {
+    mesh! {*
+        type: SharedVertexMesh,
+        vertices: [
+            v0: ([0.0f32, 0.0, 0.0]),
+            v1: ([3.0, 5.0, 8.0]),
+            v2: ([1.942, 152.99, 0.007]),
+        ],
+        faces: [
+            [v0, v1, v2]: ([0.5, 0.3, 0.1]), // BS normal, but it's fine for the test
+        ],
+    }
+}
+
+#[test]
+fn triangle_ascii() -> Result<(), Error> {
+    let (mesh, positions, face_normals) = triangle_mesh();
+
+    let res = WriterBuilder::ascii()
+        .into_writer(&mesh, &positions)
+        .write_to_memory()?;
+    assert_eq_file!(&res, "triangle_ascii.stl");
+
+    let res = WriterBuilder::ascii()
+        .into_writer(&mesh, &positions)
+        .with_face_normals(&face_normals)
+        .write_to_memory()?;
+    assert_eq_file!(&res, "triangle_ascii_custom_normals.stl");
+
+    Ok(())
+}
+
+#[test]
+fn triangle_binary() -> Result<(), Error> {
+    let (mesh, positions, face_normals) = triangle_mesh();
+
+    let res = WriterBuilder::binary()
+        .into_writer(&mesh, &positions)
+        .write_to_memory()?;
+    assert_eq_file!(&res, "triangle_binary.stl");
+
+    let res = WriterBuilder::binary()
+        .into_writer(&mesh, &positions)
+        .with_face_normals(&face_normals)
+        .write_to_memory()?;
+    assert_eq_file!(&res, "triangle_binary_custom_normals.stl");
 
     Ok(())
 }

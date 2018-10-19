@@ -1,0 +1,9 @@
+solid mesh
+  facet normal 5E-1 3E-1 1E-1
+    outer loop
+      vertex 0.0 0.0 0.0
+      vertex 3E+0 5E+0 8E+0
+      vertex 1.942E+0 1.5299001E+2 7E-3
+    endloop
+  endfacet
+endsolid mesh
