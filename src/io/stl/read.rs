@@ -508,7 +508,7 @@ impl Sink for RawResult {
 }
 
 #[derive(Debug)]
-pub struct CounterSink {
+pub struct CountingSink {
     /// The solid name if it's specified in the file.
     pub solid_name: Option<String>,
 
@@ -516,7 +516,7 @@ pub struct CounterSink {
     pub triangle_count: u32,
 }
 
-impl CounterSink {
+impl CountingSink {
     /// Returns an instance with no name and 0 triangles.
     pub fn new() -> Self {
         Self {
@@ -526,7 +526,7 @@ impl CounterSink {
     }
 }
 
-impl Sink for CounterSink {
+impl Sink for CountingSink {
     fn solid_name(&mut self, name: String) {
         self.solid_name = Some(name);
     }
