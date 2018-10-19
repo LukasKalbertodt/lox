@@ -53,7 +53,7 @@ impl<R: io::Read> Reader<R> {
         // ====================================================================
         trait VertexAdder {
             fn new() -> Self;
-            fn size_hint(&mut self, _num_triangles: u32) {}
+            fn size_hint(&mut self, _num_vertices: u32) {}
             fn add_vertex<M: ExplicitVertex>(
                 &mut self,
                 mesh: &mut M,
@@ -82,13 +82,8 @@ impl<R: io::Read> Reader<R> {
                 UnifyingAdder(FnvHashMap::default())
             }
 
-            fn size_hint(&mut self, num_triangles: u32) {
-                // There might be `3 * num_triangles` many different vertices
-                // but that is rather unlikely in a real world mesh, and we
-                // also don't want to reserve too much memory. So twice the
-                // number of triangles is a compromise. However, this was not
-                // measured and could possibly be improved.
-                self.0.reserve(2 * num_triangles as usize);
+            fn size_hint(&mut self, num_vertices: u32) {
+                self.0.reserve(num_vertices as usize);
             }
 
             fn add_vertex<M: ExplicitVertex>(
@@ -111,6 +106,7 @@ impl<R: io::Read> Reader<R> {
         // ====================================================================
         struct HelperSink<M: Mesh + ExplicitVertex + ExplicitFace, A: VertexAdder> {
             results: ReadResults<M>,
+            unifying: bool,
             adder: A,
         }
 
@@ -123,6 +119,7 @@ impl<R: io::Read> Reader<R> {
                         vertex_positions: options.read_positions.as_some_from(|| VecMap::new()),
                         face_normals: options.read_normals.as_some_from(|| VecMap::new()),
                     },
+                    unifying: options.unify_vertices,
                     adder: A::new(),
                 }
             }
@@ -137,13 +134,28 @@ impl<R: io::Read> Reader<R> {
                 self.results.solid_name = Some(name);
             }
 
-            fn num_triangles(&mut self, num: u32) {
-                self.adder.size_hint(num);
+            fn num_triangles(&mut self, number_of_triangles: u32) {
+                let number_of_vertices = if self.unifying {
+                    // If we don't unify vertices, the number of vertices is
+                    // exactly 3 * |F|.
+                    3 * number_of_triangles
+                } else {
+                    // If we unify vertices, we can't know the exact number of
+                    // vertices, but can only guess. The maximum number of
+                    // vertices is still 3 * |F|; however, this is unlikely. In
+                    // a well behaved triangle mesh, |V| ≈ |F| / 2. The problem
+                    // is: if we are only slightly below the actual number of
+                    // vertices, we need to reallocate. So we will prepare for
+                    // slightly more than |F| / 2 vertices.
+                    (number_of_triangles as f64 * 0.55) as u32
+                };
+
+                self.adder.size_hint(number_of_vertices);
                 if let Some(pos_map) = &mut self.results.vertex_positions {
-                    pos_map.reserve(2 * num as usize);
+                    pos_map.reserve(number_of_vertices as usize);
                 }
                 if let Some(normal_map) = &mut self.results.face_normals {
-                    normal_map.reserve(num as usize);
+                    normal_map.reserve(number_of_triangles as usize);
                 }
             }
 
