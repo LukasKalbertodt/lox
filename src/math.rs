@@ -119,6 +119,11 @@ pub trait Vec3Like: Copy {
     fn convert<V: Vec3Like<Scalar = Self::Scalar>>(&self) -> V {
         V::from_coords(self.x(), self.y(), self.z())
     }
+
+    #[cfg(feature = "cgmath")]
+    fn to_vector3(&self) -> Vector3<Self::Scalar> {
+        self.convert()
+    }
 }
 
 
