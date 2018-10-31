@@ -1,13 +1,13 @@
 use std::{
     fs::File,
+    hash::{Hash, Hasher},
     io,
     path::Path,
 };
 
 use boolinator::Boolinator;
 use cgmath::{Point3, Vector3};
-use fnv::FnvHashMap;
-use ordered_float::OrderedFloat;
+use hashbrown::HashMap;
 
 use crate::{
     prelude::*,
@@ -106,10 +106,27 @@ impl<R: io::Read> Reader<R> {
             }
         }
 
-        struct UnifyingAdder(FnvHashMap<[OrderedFloat<f32>; 3], VertexHandle>);
+        /// The key of the hashmap: three `f32`. Implementing this like this is
+        /// faster than using `[OrderedFloat<f32>; 3]`. The values inside must
+        /// not be NaN, because those values won't be normalized (i.e. there
+        /// are 2^23 different NaN values) which will confuse the hash map.
+        #[derive(PartialEq)]
+        struct PosKey([f32; 3]);
+
+        impl Eq for PosKey  {}
+        impl Hash for PosKey {
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                self.0[0].to_bits().hash(state);
+                self.0[1].to_bits().hash(state);
+                self.0[2].to_bits().hash(state);
+            }
+        }
+
+
+        struct UnifyingAdder(HashMap<PosKey, VertexHandle>);
         impl VertexAdder for UnifyingAdder {
             fn new() -> Self {
-                UnifyingAdder(FnvHashMap::default())
+                UnifyingAdder(HashMap::default())
             }
 
             fn size_hint(&mut self, num_vertices: u32) {
@@ -121,15 +138,16 @@ impl<R: io::Read> Reader<R> {
                 mesh: &mut M,
                 pos: [f32; 3],
             ) -> VertexHandle {
-                debug_assert!(!pos[0].is_nan());
-                debug_assert!(!pos[1].is_nan());
-                debug_assert!(!pos[2].is_nan());
+                // Make sure the positions are not `NaN`. In one test, this
+                // assert didn't make any difference in speed.
+                assert!(
+                    !(pos[0].is_nan() || pos[1].is_nan() || pos[2].is_nan()),
+                    "attempt to read file with vertex position containing NaN value",
+                );
 
-                let key = [OrderedFloat(pos[0]), OrderedFloat(pos[1]), OrderedFloat(pos[2])];
-                *self.0.entry(key).or_insert_with(|| mesh.add_vertex())
+                *self.0.entry(PosKey(pos)).or_insert_with(|| mesh.add_vertex())
             }
         }
-
 
         // ====================================================================
         // ===== Definition of the Sink
@@ -165,7 +183,7 @@ impl<R: io::Read> Reader<R> {
             }
 
             fn num_triangles(&mut self, number_of_triangles: u32) {
-                let number_of_vertices = if self.unifying {
+                let number_of_vertices = if !self.unifying {
                     // If we don't unify vertices, the number of vertices is
                     // exactly 3 * |F|.
                     3 * number_of_triangles

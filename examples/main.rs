@@ -44,7 +44,7 @@ fn main() -> Result<(), Error> {
     let res = stl::Reader::open(filename)?
         .read::<SharedVertexMesh>(stl::ReadOptions {
             unify_vertices: true,
-            read_positions: true,
+            read_positions: false,
             .. stl::ReadOptions::default()
         })?;
     println!("Mesh: {} vertices, {} faces", res.mesh.num_vertices(), res.mesh.num_faces());
