@@ -52,9 +52,10 @@ impl<R: io::Read> Reader<R> {
     /// Reads the whole file into a mesh plus optional prop maps.
     ///
     /// This method can be configured via the given options. See
-    /// [`ReadOptions`] for more details on the configurations. You also
-    /// usually have to pass the type of the mesh via turbofish (e.g.
-    /// `reader.read::<SharedVertexMesh>(options)`).
+    /// [`ReadOptions`] for more details on the configurations. Most of the
+    /// times, you can just pass `Default::default()` as argument to use the
+    /// default options. You also usually have to pass the type of the mesh via
+    /// turbofish (e.g. `reader.read::<SharedVertexMesh>(options)`).
     ///
     /// If you need a bit more low level control, you might instead want to use
     /// [`Reader::read_raw_into`].
@@ -66,12 +67,12 @@ impl<R: io::Read> Reader<R> {
     /// use lox::{
     ///     prelude::*,
     ///     ds::SharedVertexMesh,
-    ///     io::stl::{Reader, ReadOptions},
+    ///     io::stl::Reader,
     /// };
     ///
     /// // TODO: remove `unwrap()`s once `?` in doctests is implemented
     /// let results = Reader::open("mesh.stl").unwrap()
-    ///     .read::<SharedVertexMesh>(ReadOptions::default()).unwrap();
+    ///     .read::<SharedVertexMesh>(Default::default()).unwrap();
     /// println!("{:?}", results);
     /// ```
     pub fn read<M>(self, options: ReadOptions) -> Result<ReadResults<M>, parse::Error>
@@ -624,20 +625,24 @@ pub struct ReadOptions {
     ///
     /// An STL file is a simple list of triangles. Each triangle specifies the
     /// position of its three vertices. This means that vertices of adjacent
-    /// triangles are stored twice. When reading the file, we only know the
-    /// vertex positions and have no idea which vertices are actually the same
-    /// one and which are two different vertices that have the same position.
+    /// triangles are stored once per triangle. When reading the file, we only
+    /// know the vertex positions and have no idea which vertices are actually
+    /// the same one and which are two different vertices that have the same
+    /// position.
     ///
     /// It's common to unify vertices of an STL file to get a real mesh and not
     /// just a collection of unconnected triangles. You only need to disable
     /// this in very special cases, mainly because:
     /// - Your mesh has vertices that have the exact same position but should
-    ///   be treated as separate vertices
+    ///   be treated as separate vertices (this is very rare)
     /// - Unifying the vertices is too slow for you (unifying makes the whole
-    ///   read process around 4 times slower)
+    ///   read process around 2.5 times slower)
     ///
     /// But if any of this is a problem for you, you should rather use a better
     /// file format instead of STL.
+    ///
+    /// When vertices are unified, `NaN` values in vertices are not allowed. So
+    /// in that case, if your file contains `NaN` values, `read` will panic.
     pub unify_vertices: bool,
 
     /// Specifies if the vertex positions in the file should be read (otherwise
