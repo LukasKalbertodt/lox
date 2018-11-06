@@ -9,3 +9,6 @@ Cargo.lock
 /*.OBJ
 /*.stl
 /*.STL
+
+# Output of `perf`
+perf.data*
