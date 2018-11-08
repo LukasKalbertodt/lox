@@ -10,7 +10,7 @@
 //! Now you have all important traits in scope.
 
 pub use crate::{
-    Mesh, TriMesh, ExplicitFace, ExplicitVertex, MeshUnsorted,
+    Mesh, TriMesh, ExplicitFace, ExplicitVertex, MeshUnsorted, MeshSource, MeshSink,
     handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
     map::{PropMap, PropStore, PropStoreMut},
     math::{Pos3Like, Vec3Like},

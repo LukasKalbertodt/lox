@@ -1,6 +1,7 @@
 use crate::{
     handle::{DefaultInt, FaceHandle, VertexHandle},
     refs::{FaceRef, VertexRef},
+    map::{VecMap, PropStoreMut},
 };
 
 /// The three basic elements in a polygon mesh.
@@ -55,4 +56,65 @@ pub trait ExplicitFace {
 pub trait MeshUnsorted {
     /// Maybe we should return vertex refs? CCW!
     fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3];
+}
+
+pub trait MeshSource {
+    type VertexInfo;
+    type FaceInfo;
+
+    fn build(self, sink: &mut impl MeshSink<Self::VertexInfo, Self::FaceInfo>) -> Result<(), ()>;
+}
+
+pub trait MeshSink<VertexInfoT, FaceInfoT> {
+    fn empty() -> Self;
+    fn add_vertex(&mut self, info: VertexInfoT) -> Result<VertexHandle, ()>;
+    fn add_face(&mut self, vertices: [VertexHandle; 3], info: FaceInfoT) -> Result<FaceHandle, ()>;
+
+    fn build_from(
+        source: impl MeshSource<VertexInfo = VertexInfoT, FaceInfo = FaceInfoT>,
+    ) -> Result<Self, ()>
+    where
+        Self: Sized,
+    {
+        let mut out = Self::empty();
+        source.build(&mut out)?;
+        Ok(out)
+    }
+}
+
+#[derive(Debug)]
+pub struct MeshWithProps<MeshT, VertexT, FaceT> {
+    pub mesh: MeshT,
+    pub vertex_props: VecMap<VertexHandle, VertexT>,
+    pub face_props: VecMap<FaceHandle, FaceT>,
+}
+
+
+impl<MeshT, VertexT, FaceT> MeshSink<VertexT, FaceT> for MeshWithProps<MeshT, VertexT, FaceT>
+where
+    MeshT: Mesh + ExplicitVertex + ExplicitFace,
+{
+    fn empty() -> Self {
+        Self {
+            mesh: MeshT::empty(),
+            vertex_props: VecMap::empty(),
+            face_props: VecMap::empty(),
+        }
+    }
+
+    fn add_vertex(&mut self, info: VertexT) -> Result<VertexHandle, ()> {
+        let handle = self.mesh.add_vertex();
+        self.vertex_props.insert(handle, info);
+        Ok(handle)
+    }
+
+    fn add_face(
+        &mut self,
+        vertices: [VertexHandle; 3],
+        info: FaceT,
+    ) -> Result<FaceHandle, ()> {
+        let handle = self.mesh.add_face(vertices);
+        self.face_props.insert(handle, info);
+        Ok(handle)
+    }
 }
