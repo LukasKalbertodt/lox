@@ -22,6 +22,7 @@ pub mod math;
 mod mesh;
 pub mod prelude;
 pub mod refs;
+pub mod shape;
 
 pub use self::{
     handle::{EdgeHandle, FaceHandle, VertexHandle},
