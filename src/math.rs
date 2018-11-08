@@ -52,6 +52,24 @@ pub trait Pos3Like: Copy {
         P::from_coords(self.x(), self.y(), self.z())
     }
 
+    /// Maps all three scalar values with the given function and creates a new
+    /// value of type `P`.
+    ///
+    /// Sadly Rust can't handle HKTs yet, so this method is a bit shitty. It
+    /// would be nice to only map the scalars and not change the outer type.
+    /// But since that's not possible, the output is not `Self<T>`, but this
+    /// `P`. So you probably have to use type annotations somewhere.
+    ///
+    /// If you have a value of `Point3` you can simply use its `map` function
+    /// which is easier to use.
+    fn map_scalar<P: Pos3Like>(&self, mut f: impl FnMut(Self::Scalar) -> P::Scalar) -> P {
+        P::from_coords(
+            f(self.x()),
+            f(self.y()),
+            f(self.z()),
+        )
+    }
+
     #[cfg(feature = "cgmath")]
     fn to_point3(&self) -> Point3<Self::Scalar> {
         self.convert()
