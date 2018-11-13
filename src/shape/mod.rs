@@ -25,7 +25,8 @@ pub struct ShapeFaceInfo {
 /// (+z).
 #[derive(Debug)]
 pub struct Disc {
-    /// The number of faces generated for the disc. *Default*: 16.
+    /// The number of faces generated for the disc. Has to be at least 3 or
+    /// else `build` will panic. *Default*: 16.
     pub faces: u32,
 
     /// The center point of the disc. *Default*: `[0, 0, 0]`.
@@ -51,6 +52,12 @@ impl MeshSource for Disc {
     type FaceInfo = ShapeFaceInfo;
 
     fn build(self, sink: &mut impl MeshSink<Self::VertexInfo, Self::FaceInfo>) -> Result<(), ()> {
+        assert!(
+            self.faces >= 3,
+            "trying to build a disc with {} faces (minimum is 3)",
+            self.faces,
+        );
+
         // We create vertices in counter clock wise order around the center,
         // the first one starting at [r, 0, 0]. This is looking top down onto
         // the disc:
