@@ -2,10 +2,10 @@
 //!
 //! STL is a pretty old and inflexible file format. It simply stores a list of
 //! triangles where each triangle specifies its normal and the position of its
-//! three vertices (plus a strange *attribute byte count*). The normal and
-//! positions are always three 32 bit IEEE floats (`f32`). Due to just storing
-//! a list of triangles, many vertices are stored multiple times, making the
-//! format fairly space inefficient.
+//! three vertices (plus a strange *attribute byte count* in binary format).
+//! The normal and positions are always three 32 bit IEEE floats (`f32`). Due
+//! to just storing a list of triangles, many vertices are stored multiple
+//! times, making the format fairly space inefficient.
 //!
 //! Furthermore, for most uses of the mesh from an STL file, you need to unify
 //! the vertices. The [`Reader`][stl::Reader] in this module can do this for you, but it's a
@@ -15,7 +15,7 @@
 //! Despite its many flaws, the file format is still used a lot, in particular
 //! for 3D printing. The only real advantage is its simplicity.
 //!
-//! Links:
+//! ### Links:
 //! - ["Specifications"](http://www.fabbers.com/tech/STL_Format)
 //! - [Wikipedia](https://en.wikipedia.org/wiki/STL_(file_format))
 //!
@@ -83,6 +83,9 @@ use std::io;
 
 use failure::Fail;
 
+use crate::{
+    io::parse,
+};
 
 
 mod read;
@@ -91,7 +94,8 @@ mod write;
 #[cfg(test)]
 mod tests;
 
-pub use self::read::{CountingSink, Reader, Sink, Triangle, RawResult, ReadResults, ReadOptions};
+// pub use self::read::{CountingSink, Reader, Sink, Triangle, RawResult, ReadResults, ReadOptions};
+pub use self::read::{FnSink, Reader, Sink, Triangle, RawResult};
 pub use self::write::{WriterBuilder, Writer};
 
 
@@ -106,13 +110,25 @@ pub enum Format {
 }
 
 #[derive(Debug, Fail)]
-pub enum Error {
+pub enum Error<S: Fail = !> {
+    #[fail(display = "Parsing error: {}", _0)]
+    Parse(parse::Error),
+
     #[fail(display = "IO error: {}", _0)]
     Io(io::Error),
+
+    #[fail(display = "Sink error: {}", _0)]
+    Sink(S)
 }
 
-impl From<io::Error> for Error {
+impl<S: Fail> From<io::Error> for Error<S> {
     fn from(src: io::Error) -> Self {
         Error::Io(src)
+    }
+}
+
+impl<S: Fail> From<parse::Error> for Error<S> {
+    fn from(src: parse::Error) -> Self {
+        Error::Parse(src)
     }
 }
