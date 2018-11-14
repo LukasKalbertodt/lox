@@ -38,3 +38,10 @@ macro_rules! assert_eq_file {
         }
     }
 }
+
+macro_rules! include_test_file {
+    ($filename:expr) => {{
+        let bytes = include_bytes!(concat!("test_files/", $filename)) as &[u8];
+        std::io::Cursor::new(bytes)
+    }}
+}
