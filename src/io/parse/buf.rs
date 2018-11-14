@@ -1,5 +1,6 @@
 use std::{
     cmp::{max, min},
+    fmt,
     io::{self, Read},
     ops,
 };
@@ -37,6 +38,12 @@ pub(crate) struct Buffer<R: Read> {
     end: usize,
 
     consumed_total: usize,
+}
+
+impl<R: Read> fmt::Debug for Buffer<R> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Buffer {{ consumed_total: {}, .. }}", self.consumed_total)
+    }
 }
 
 impl<R: Read> Buffer<R> {
