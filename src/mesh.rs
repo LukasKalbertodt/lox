@@ -1,3 +1,5 @@
+use failure::Fail;
+
 use crate::{
     handle::{DefaultInt, FaceHandle, VertexHandle},
     refs::{FaceRef, VertexRef},
@@ -58,23 +60,62 @@ pub trait MeshUnsorted {
     fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3];
 }
 
+/// Errors that can happen when transfering data from a mesh source to a mesh
+/// sink. This is either a source error or a sink error.
+#[derive(Debug, Fail)]
+pub enum TransferError<SrcE: Fail, SinkE: Fail> {
+    #[fail(display = "mesh source error: {}", _0)]
+    Source(SrcE),
+
+    #[fail(display = "mesh sink error: {}", _0)]
+    Sink(SinkE),
+}
+
+impl<SrcE: Fail> TransferError<SrcE, !> {
+    pub fn into_source(self) -> SrcE {
+        match self {
+            TransferError::Source(e) => e,
+            TransferError::Sink(n) => n,
+        }
+    }
+}
+
+impl<SinkE: Fail> TransferError<!, SinkE> {
+    pub fn into_sink(self) -> SinkE {
+        match self {
+            TransferError::Source(n) => n,
+            TransferError::Sink(e) => e,
+        }
+    }
+}
+
 pub trait MeshSource {
     type VertexInfo;
     type FaceInfo;
+    type Error: Fail;
 
-    fn build(self, sink: &mut impl MeshSink<Self::VertexInfo, Self::FaceInfo>) -> Result<(), ()>;
+    fn build<S>(self, sink: &mut S) -> Result<(), TransferError<Self::Error, S::Error>>
+    where
+        S: MeshSink<Self::VertexInfo, Self::FaceInfo>;
 }
 
 pub trait MeshSink<VertexInfoT, FaceInfoT> {
-    fn empty() -> Self;
-    fn add_vertex(&mut self, info: VertexInfoT) -> Result<VertexHandle, ()>;
-    fn add_face(&mut self, vertices: [VertexHandle; 3], info: FaceInfoT) -> Result<FaceHandle, ()>;
+    type Error: Fail;
 
-    fn build_from(
-        source: impl MeshSource<VertexInfo = VertexInfoT, FaceInfo = FaceInfoT>,
-    ) -> Result<Self, ()>
+    fn empty() -> Self;
+    fn add_vertex(&mut self, info: VertexInfoT) -> Result<VertexHandle, Self::Error>;
+    fn add_face(
+        &mut self,
+        vertices: [VertexHandle; 3],
+        info: FaceInfoT,
+    ) -> Result<FaceHandle, Self::Error>;
+
+    fn build_from<SrcT>(
+        source: SrcT,
+    ) -> Result<Self, TransferError<SrcT::Error, Self::Error>>
     where
         Self: Sized,
+        SrcT: MeshSource<VertexInfo = VertexInfoT, FaceInfo = FaceInfoT>,
     {
         let mut out = Self::empty();
         source.build(&mut out)?;
@@ -94,6 +135,8 @@ impl<MeshT, VertexT, FaceT> MeshSink<VertexT, FaceT> for MeshWithProps<MeshT, Ve
 where
     MeshT: Mesh + ExplicitVertex + ExplicitFace,
 {
+    type Error = !;
+
     fn empty() -> Self {
         Self {
             mesh: MeshT::empty(),
@@ -102,7 +145,7 @@ where
         }
     }
 
-    fn add_vertex(&mut self, info: VertexT) -> Result<VertexHandle, ()> {
+    fn add_vertex(&mut self, info: VertexT) -> Result<VertexHandle, Self::Error> {
         let handle = self.mesh.add_vertex();
         self.vertex_props.insert(handle, info);
         Ok(handle)
@@ -112,7 +155,7 @@ where
         &mut self,
         vertices: [VertexHandle; 3],
         info: FaceT,
-    ) -> Result<FaceHandle, ()> {
+    ) -> Result<FaceHandle, Self::Error> {
         let handle = self.mesh.add_face(vertices);
         self.face_props.insert(handle, info);
         Ok(handle)

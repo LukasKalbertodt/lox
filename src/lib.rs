@@ -5,6 +5,7 @@
 #![feature(never_type)]
 #![feature(doc_cfg)]
 #![feature(proc_macro_hygiene)]
+#![feature(try_blocks)]
 
 #![deny(missing_debug_implementations)]
 
@@ -28,7 +29,7 @@ pub use self::{
     handle::{EdgeHandle, FaceHandle, VertexHandle},
     mesh::{
         Mesh, TriMesh, MeshElement, ExplicitFace, ExplicitVertex, MeshUnsorted,
-        MeshSource, MeshSink, MeshWithProps,
+        MeshSource, MeshSink, MeshWithProps, TransferError,
     },
 };
 

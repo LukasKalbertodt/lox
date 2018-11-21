@@ -110,24 +110,21 @@ pub enum Format {
 }
 
 #[derive(Debug, Fail)]
-pub enum Error<S: Fail = !> {
+pub enum Error {
     #[fail(display = "Parsing error: {}", _0)]
     Parse(parse::Error),
 
     #[fail(display = "IO error: {}", _0)]
     Io(io::Error),
-
-    #[fail(display = "Sink error: {}", _0)]
-    Sink(S)
 }
 
-impl<S: Fail> From<io::Error> for Error<S> {
+impl From<io::Error> for Error {
     fn from(src: io::Error) -> Self {
         Error::Io(src)
     }
 }
 
-impl<S: Fail> From<parse::Error> for Error<S> {
+impl From<parse::Error> for Error {
     fn from(src: parse::Error) -> Self {
         Error::Parse(src)
     }

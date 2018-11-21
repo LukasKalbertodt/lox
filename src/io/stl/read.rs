@@ -7,15 +7,14 @@ use std::{
     path::Path,
 };
 
-use boolinator::Boolinator;
 use byteorder::{LittleEndian, ReadBytesExt};
 use cgmath::{Point3, Vector3};
 use failure::Fail;
 use hashbrown::{HashMap, hash_map::Entry};
 
 use crate::{
+    TransferError,
     prelude::*,
-    map::VecMap,
     io::{
         parse::{
             self, Input,
@@ -108,6 +107,9 @@ parser!(vertex = |buf| -> [f32; 3] {
 });
 
 
+// ===========================================================================
+// ===== Definition of `Reader`
+// ===========================================================================
 
 /// A reader able to read binary and ASCII STL files.
 ///
@@ -234,219 +236,60 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
             _dummy: PhantomData,
         })
     }
+
+
+    /// Configures the reader to not unify vertices with the exact same
+    /// position into one.
+    ///
+    /// An STL file is a simple list of triangles. Each triangle specifies the
+    /// position of its three vertices. This means that vertices of adjacent
+    /// triangles are stored once per triangle. When reading the file, we only
+    /// know the vertex positions and have no idea which vertices are actually
+    /// the same one and which are two different vertices that have the same
+    /// position.
+    ///
+    /// It's common to unify vertices when reading an STL file to get a real
+    /// mesh and not just a collection of unconnected triangles. You only need
+    /// to disable unification in very special cases, mainly because:
+    /// - Your mesh has vertices that have the exact same position but should
+    ///   be treated as separate vertices (this is very rare)
+    /// - Unifying the vertices is too slow for you (unifying makes the whole
+    ///   read process around 2.5 times slower)
+    ///
+    /// But if any of this is a problem for you, you should rather use a better
+    /// file format instead of STL.
+    ///
+    /// When vertices are unified, `NaN` values in vertices are not allowed. So
+    /// in that case, if your file contains `NaN` values, the reading method
+    /// will panic.
+    pub fn without_vertex_unification(self) -> Reader<R, VerbatimVertices> {
+        Reader {
+            buf: self.buf,
+            solid_name: self.solid_name,
+            triangle_count: self.triangle_count,
+            _dummy: PhantomData,
+        }
+    }
 }
 
 impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
-    /// TODO
+    /// Returns the name of the solid. If no solid name was stored in the file,
+    /// `None` is returned.
     pub fn solid_name(&self) -> Option<&str> {
         self.solid_name.as_ref().map(|s| s.as_str())
     }
 
-    /// TODO
+    /// Returns whether or not the file is a binary STL file (as opposed to
+    /// ASCII).
     pub fn is_binary(&self) -> bool {
         self.triangle_count.is_some()
     }
 
-    /// TODO
+    /// Returns the triangle count stored in the file. That number is stored if
+    /// and only if the file is binary.
     pub fn triangle_count(&self) -> Option<u32> {
         self.triangle_count
     }
-
-    // TODO: triangle estimate
-
-
-    // /// Reads the whole file into a mesh plus optional prop maps.
-    // ///
-    // /// This method can be configured via the given options. See
-    // /// [`ReadOptions`] for more details on the configurations. Most of the
-    // /// times, you can just pass `Default::default()` as argument to use the
-    // /// default options. You also usually have to pass the type of the mesh via
-    // /// turbofish (e.g. `reader.read::<SharedVertexMesh>(options)`).
-    // ///
-    // /// If you need a bit more low level control, you might instead want to use
-    // /// [`Reader::read_raw_into`].
-    // ///
-    // ///
-    // /// # Examples
-    // ///
-    // /// ```no_run
-    // /// use lox::{
-    // ///     prelude::*,
-    // ///     ds::SharedVertexMesh,
-    // ///     io::stl::Reader,
-    // /// };
-    // ///
-    // /// // TODO: remove `unwrap()`s once `?` in doctests is implemented
-    // /// let results = Reader::open("mesh.stl").unwrap()
-    // ///     .read::<SharedVertexMesh>(Default::default()).unwrap();
-    // /// println!("{:?}", results);
-    // /// ```
-    // pub fn read<M>(self, options: ReadOptions) -> Result<ReadResults<M>, parse::Error>
-    // where
-    //     M: Mesh + ExplicitVertex + ExplicitFace,
-    // {
-    //     // ====================================================================
-    //     // ===== Definition of VertexAdders: unify vertices or not.
-    //     // ====================================================================
-    //     trait VertexAdder {
-    //         fn new() -> Self;
-    //         fn size_hint(&mut self, _num_vertices: u32) {}
-    //         fn add_vertex<M: ExplicitVertex>(
-    //             &mut self,
-    //             mesh: &mut M,
-    //             pos: [f32; 3],
-    //         ) -> VertexHandle;
-    //     }
-
-    //     struct NonUnifyingAdder;
-    //     impl VertexAdder for NonUnifyingAdder {
-    //         fn new() -> Self {
-    //             NonUnifyingAdder
-    //         }
-
-    //         fn add_vertex<M: ExplicitVertex>(
-    //             &mut self,
-    //             mesh: &mut M,
-    //             _: [f32; 3],
-    //         ) -> VertexHandle {
-    //             mesh.add_vertex()
-    //         }
-    //     }
-
-    //     /// The key of the hashmap: three `f32`. Implementing this like this is
-    //     /// faster than using `[OrderedFloat<f32>; 3]`. The values inside must
-    //     /// not be NaN, because those values won't be normalized (i.e. there
-    //     /// are 2^23 different NaN values) which will confuse the hash map.
-    //     #[derive(PartialEq)]
-    //     struct PosKey([f32; 3]);
-
-    //     impl Eq for PosKey  {}
-    //     impl Hash for PosKey {
-    //         fn hash<H: Hasher>(&self, state: &mut H) {
-    //             self.0[0].to_bits().hash(state);
-    //             self.0[1].to_bits().hash(state);
-    //             self.0[2].to_bits().hash(state);
-    //         }
-    //     }
-
-
-    //     struct UnifyingAdder(HashMap<PosKey, VertexHandle>);
-    //     impl VertexAdder for UnifyingAdder {
-    //         fn new() -> Self {
-    //             UnifyingAdder(HashMap::default())
-    //         }
-
-    //         fn size_hint(&mut self, num_vertices: u32) {
-    //             self.0.reserve(num_vertices as usize);
-    //         }
-
-    //         fn add_vertex<M: ExplicitVertex>(
-    //             &mut self,
-    //             mesh: &mut M,
-    //             pos: [f32; 3],
-    //         ) -> VertexHandle {
-    //             // Make sure the positions are not `NaN`. In one test, this
-    //             // assert didn't make any difference in speed.
-    //             assert!(
-    //                 !(pos[0].is_nan() || pos[1].is_nan() || pos[2].is_nan()),
-    //                 "attempt to read file with vertex position containing NaN value",
-    //             );
-
-    //             *self.0.entry(PosKey(pos)).or_insert_with(|| mesh.add_vertex())
-    //         }
-    //     }
-
-    //     // ====================================================================
-    //     // ===== Definition of the Sink
-    //     // ====================================================================
-    //     struct HelperSink<M: Mesh + ExplicitVertex + ExplicitFace, A: VertexAdder> {
-    //         results: ReadResults<M>,
-    //         unifying: bool,
-    //         adder: A,
-    //     }
-
-    //     impl<M: Mesh + ExplicitVertex + ExplicitFace, A: VertexAdder> HelperSink<M, A> {
-    //         fn new(options: &ReadOptions) -> Self {
-    //             Self {
-    //                 results: ReadResults {
-    //                     solid_name: None,
-    //                     mesh: M::empty(),
-    //                     vertex_positions: options.read_positions.as_some_from(|| VecMap::new()),
-    //                     face_normals: options.read_normals.as_some_from(|| VecMap::new()),
-    //                 },
-    //                 unifying: options.unify_vertices,
-    //                 adder: A::new(),
-    //             }
-    //         }
-
-    //         fn into_results(self) -> ReadResults<M> {
-    //             self.results
-    //         }
-    //     }
-
-    //     impl<M: Mesh + ExplicitVertex + ExplicitFace, A: VertexAdder> Sink for HelperSink<M, A> {
-    //         fn solid_name(&mut self, name: String) {
-    //             self.results.solid_name = Some(name);
-    //         }
-
-    //         fn num_triangles(&mut self, number_of_triangles: u32) {
-    //             let number_of_vertices = if !self.unifying {
-    //                 // If we don't unify vertices, the number of vertices is
-    //                 // exactly 3 * |F|.
-    //                 3 * number_of_triangles
-    //             } else {
-    //                 // If we unify vertices, we can't know the exact number of
-    //                 // vertices, but can only guess. The maximum number of
-    //                 // vertices is still 3 * |F|; however, this is unlikely. In
-    //                 // a well behaved triangle mesh, |V| ≈ |F| / 2. The problem
-    //                 // is: if we are only slightly below the actual number of
-    //                 // vertices, we need to reallocate. So we will prepare for
-    //                 // slightly more than |F| / 2 vertices.
-    //                 (number_of_triangles as f64 * 0.55) as u32
-    //             };
-
-    //             self.adder.size_hint(number_of_vertices);
-    //             if let Some(pos_map) = &mut self.results.vertex_positions {
-    //                 pos_map.reserve(number_of_vertices as usize);
-    //             }
-    //             if let Some(normal_map) = &mut self.results.face_normals {
-    //                 normal_map.reserve(number_of_triangles as usize);
-    //             }
-    //         }
-
-    //         fn triangle(&mut self, triangle: Triangle) {
-    //             let [pa, pb, pc] = triangle.vertices;
-    //             let a = self.adder.add_vertex(&mut self.results.mesh, pa);
-    //             let b = self.adder.add_vertex(&mut self.results.mesh, pb);
-    //             let c = self.adder.add_vertex(&mut self.results.mesh, pc);
-
-    //             let f = self.results.mesh.add_face([a, b, c]);
-
-    //             if let Some(pos_map) = &mut self.results.vertex_positions {
-    //                 pos_map.insert(a, pa.to_point3());
-    //                 pos_map.insert(b, pb.to_point3());
-    //                 pos_map.insert(c, pc.to_point3());
-    //             }
-    //             if let Some(normal_map) = &mut self.results.face_normals {
-    //                 normal_map.insert(f, triangle.normal.to_vector3());
-    //             }
-    //         }
-    //     }
-
-
-    //     // ====================================================================
-    //     // ===== The actual function body
-    //     // ====================================================================
-    //     if options.unify_vertices {
-    //         let mut sink = HelperSink::<M, UnifyingAdder>::new(&options);
-    //         self.read_raw_into(&mut sink)?;
-    //         Ok(sink.into_results())
-    //     } else {
-    //         let mut sink = HelperSink::<M, NonUnifyingAdder>::new(&options);
-    //         self.read_raw_into(&mut sink)?;
-    //         Ok(sink.into_results())
-    //     }
-    // }
 
     /// Reads the whole file into a [`RawResult`].
     ///
@@ -456,7 +299,7 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
     /// storage ([`RawResult`]).
     pub fn into_raw_result(self) -> Result<RawResult, Error> {
         let mut out = RawResult::new();
-        self.read_raw_into(&mut out)?;
+        self.read_raw_into(&mut out).map_err(TransferError::into_source)?;
         Ok(out)
     }
 
@@ -464,19 +307,29 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
     ///
     /// This is a low level building block that you usually don't want to use
     /// directly. [`Reader::read`] is a more high level method suited for most
-    /// purposes.
-    pub fn read_raw_into<S: Sink>(self, sink: &mut S) -> Result<(), Error<S::Error>> {
+    /// purposes. In particular, this method itself never performs any vertex
+    /// unification (regardless of the type parameter `U`).
+    pub fn read_raw_into<S: Sink>(
+        self,
+        sink: &mut S,
+    ) -> Result<(), TransferError<Error, S::Error>> {
+        /// Tiny helper function to convert a parse error into the expected
+        /// error type.
+        fn from_parse_err<T: Fail>(e: parse::Error) -> TransferError<Error, T> {
+            TransferError::Source(Error::Parse(e))
+        }
+
         let mut buf = self.buf;
 
         // Forward metadata to the sink
         if let Some(solid_name) = self.solid_name {
-            sink.solid_name(solid_name).map_err(Error::Sink)?;
+            sink.solid_name(solid_name).map_err(TransferError::Sink)?;
         }
 
         // ===== Parse body ==================================================
         if let Some(triangle_count) = self.triangle_count {
             // ===== BINARY ==================================================
-            sink.triangle_count(triangle_count).map_err(Error::Sink)?;
+            sink.triangle_count(triangle_count).map_err(TransferError::Sink)?;
 
             // We attempt to read as many triangles as specified. If the
             // specified number was too high and we reach EOF early, we will
@@ -503,14 +356,14 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
                         ],
                         attribute_byte_count: LittleEndian::read_u16(&sd.data[48..]),
                     })
-                })?;
+                }).map_err(from_parse_err)?;
 
-                sink.triangle(triangle).map_err(Error::Sink)?;
+                sink.triangle(triangle).map_err(TransferError::Sink)?;
             }
 
             // If the specified number of triangles was too small and there is
             // still data left, we also error.
-            buf.assert_eof()?;
+            buf.assert_eof().map_err(from_parse_err)?;
         } else {
             // ===== ASCII ===================================================
             // Parse facets
@@ -520,31 +373,31 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
                     buf.expect_tag(b"facet normal")?;
                     whitespace(buf)?;
                     vec3(buf)
-                })?;
+                }).map_err(from_parse_err)?;
 
                 // Parse vertices
-                line(&mut buf, |buf| buf.expect_tag(b"outer loop"))?;
+                line(&mut buf, |buf| buf.expect_tag(b"outer loop")).map_err(from_parse_err)?;
                 let vertices = [
-                    vertex(&mut buf)?,
-                    vertex(&mut buf)?,
-                    vertex(&mut buf)?,
+                    vertex(&mut buf).map_err(from_parse_err)?,
+                    vertex(&mut buf).map_err(from_parse_err)?,
+                    vertex(&mut buf).map_err(from_parse_err)?,
                 ];
-                line(&mut buf, |buf| buf.expect_tag(b"endloop"))?;
+                line(&mut buf, |buf| buf.expect_tag(b"endloop")).map_err(from_parse_err)?;
 
                 // Pass parsed triangle to sink
                 sink.triangle(Triangle {
                     normal,
                     vertices,
                     attribute_byte_count: 0,
-                }).map_err(Error::Sink)?;
+                }).map_err(TransferError::Sink)?;
 
                 // Parse last line (`endfacet`)
-                line(&mut buf, |buf| buf.expect_tag(b"endfacet"))?;
+                line(&mut buf, |buf| buf.expect_tag(b"endfacet")).map_err(from_parse_err)?;
 
                 // Check if the next line starts with `endsolid` and break loop
                 // in that case.
-                opt_whitespace(&mut buf)?;
-                if buf.is_next(b"endsolid")? {
+                opt_whitespace(&mut buf).map_err(from_parse_err)?;
+                if buf.is_next(b"endsolid").map_err(from_parse_err)? {
                     // We've seen `endsolid`: we just stop here. There could be
                     // junk afterwards, but we don't care.
                     break;
@@ -567,58 +420,10 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> fmt::Debug for Reader<R, U> {
     }
 }
 
-// /// STL files only store the position for each vertex.
-// #[derive(Debug)]
-// #[repr(C)]
-// pub struct VertexInfo {
-//     position: Point3<f32>,
-// }
 
-// /// STL files store only the normal for each face.
-// #[derive(Debug)]
-// #[repr(C)]
-// pub struct FaceInfo {
-//     pub normal: Vector3<f32>,
-// }
-
-// impl<R: io::Read, U: UnifyingMarker> MeshSource for Reader<R, U> {
-//     type VertexInfo = VertexInfo;
-//     type FaceInfo = FaceInfo;
-
-//     fn build(self, sink: &mut impl MeshSink<VertexInfo, FaceInfo>) -> Result<(), ()> {
-//         struct HelperSink<'a, S: MeshSink<VertexInfo, FaceInfo>, A: VertexAdder> {
-//             sink: &'a mut S,
-//             vertex_adder: A,
-//         };
-
-//         impl<S: MeshSink<VertexInfo, FaceInfo>, A: VertexAdder> Sink for HelperSink<'_, S, A> {
-//             fn solid_name(&mut self, name: String) {}
-//             fn num_triangles(&mut self, num: u32) {} // TODO
-
-//             fn triangle(&mut self, triangle: Triangle) {
-//                 let [pa, pb, pc] = triangle.vertices;
-//                 let a = self.vertex_adder.add_vertex(self.sink, pa)?;
-//                 let b = self.vertex_adder.add_vertex(self.sink, pb)?;
-//                 let c = self.vertex_adder.add_vertex(self.sink, pc)?;
-
-//                 let f = self.sink.add_face([a, b, c], FaceInfo {
-//                     normal: triangle.normal.to_vector3(),
-//                 });
-//             }
-//         }
-
-
-//         // Create helper sink and read into it
-//         let mut sink = HelperSink {
-//             sink,
-//             vertex_adder: U::Adder::new(),
-//         };
-//         self.read_raw_into(&mut sink);
-//         // Ok(sink.into_results())
-
-//         Ok(())
-//     }
-// }
+// ===========================================================================
+// ===== Definition of `Sink` and some sinks
+// ===========================================================================
 
 /// A sink can accept raw data from an STL file. This is mainly used for
 /// [`Reader::read_raw_into`].
@@ -734,187 +539,175 @@ where
     }
 }
 
-// /// Returned by [`Reader::read`].
-// #[derive(Debug, Clone)]
-// pub struct ReadResults<M> {
-//     /// The name of the solid, if stored in the file.
-//     pub solid_name: Option<String>,
 
-//     /// The mesh constructed from the file.
-//     pub mesh: M,
+// ===========================================================================
+// ===== `MeshSource` implementation and related stuff
+// ===========================================================================
 
-//     /// The vertex positions from the file. This is `None` if `read_positions`
-//     /// in the [`ReadOptions`] is `false`. Otherwise, this is `Some(_)`.
-//     pub vertex_positions: Option<VecMap<VertexHandle, Point3<f32>>>,
+/// STL files only store the position for each vertex.
+#[derive(Debug)]
+#[repr(C)]
+pub struct VertexInfo {
+    position: Point3<f32>,
+}
 
-//     /// The face normals from the file. This is `None` if `read_normals` in the
-//     /// [`ReadOptions`] is `false`. Otherwise, this is `Some(_)`.
-//     pub face_normals: Option<VecMap<FaceHandle, Vector3<f32>>>,
-// }
+/// STL files store only the normal for each face.
+#[derive(Debug)]
+#[repr(C)]
+pub struct FaceInfo {
+    pub normal: Vector3<f32>,
+}
 
-// /// Used to configure [`Reader::read`]. The common way to create an instance is
-// /// via [`Default::default`].
-// #[derive(Debug, Clone, Copy)]
-// pub struct ReadOptions {
-//     /// Specifies if vertices with the exact same position should be unified
-//     /// into one. *Default*: `true`.
-//     ///
-//     /// An STL file is a simple list of triangles. Each triangle specifies the
-//     /// position of its three vertices. This means that vertices of adjacent
-//     /// triangles are stored once per triangle. When reading the file, we only
-//     /// know the vertex positions and have no idea which vertices are actually
-//     /// the same one and which are two different vertices that have the same
-//     /// position.
-//     ///
-//     /// It's common to unify vertices of an STL file to get a real mesh and not
-//     /// just a collection of unconnected triangles. You only need to disable
-//     /// this in very special cases, mainly because:
-//     /// - Your mesh has vertices that have the exact same position but should
-//     ///   be treated as separate vertices (this is very rare)
-//     /// - Unifying the vertices is too slow for you (unifying makes the whole
-//     ///   read process around 2.5 times slower)
-//     ///
-//     /// But if any of this is a problem for you, you should rather use a better
-//     /// file format instead of STL.
-//     ///
-//     /// When vertices are unified, `NaN` values in vertices are not allowed. So
-//     /// in that case, if your file contains `NaN` values, `read` will panic.
-//     pub unify_vertices: bool,
+impl<R: io::Read + io::Seek, U: UnifyingMarker> MeshSource for Reader<R, U> {
+    type VertexInfo = VertexInfo;
+    type FaceInfo = FaceInfo;
+    type Error = Error;
 
-//     /// Specifies if the vertex positions in the file should be read (otherwise
-//     /// they are discarded). *Default*: `true`.
-//     pub read_positions: bool,
+    fn build<S>(self, sink: &mut S) -> Result<(), TransferError<Self::Error, S::Error>>
+    where
+        S: MeshSink<Self::VertexInfo, Self::FaceInfo>,
+    {
+        struct HelperSink<'a, S: MeshSink<VertexInfo, FaceInfo>, A: VertexAdder> {
+            sink: &'a mut S,
+            vertex_adder: A,
+        };
 
-//     /// Specifies if the face normals in the file should be read (otherwise
-//     /// they are discarded). *Default*: `true`.
-//     pub read_normals: bool,
-// }
+        impl<S: MeshSink<VertexInfo, FaceInfo>, A: VertexAdder> Sink for HelperSink<'_, S, A> {
+            type Error = S::Error;
 
-// impl ReadOptions {
-//     /// Like `Default::default()` but with `read_normals = false`.
-//     pub fn without_normals() -> Self {
-//         Self {
-//             read_normals: false,
-//             .. Default::default()
-//         }
-//     }
-// }
+            fn solid_name(&mut self, _: String) -> Result<(), Self::Error> { Ok(()) }
+            fn triangle_count(&mut self, _num: u32) -> Result<(), Self::Error> { Ok(()) } // TODO
 
-// impl Default for ReadOptions {
-//     fn default() -> Self {
-//         Self {
-//             unify_vertices: true,
-//             read_positions: true,
-//             read_normals: true,
-//         }
-//     }
-// }
+            fn triangle(&mut self, triangle: Triangle) -> Result<(), Self::Error> {
+                let [pa, pb, pc] = triangle.vertices;
+                let a = self.vertex_adder.add_vertex(self.sink, pa)?;
+                let b = self.vertex_adder.add_vertex(self.sink, pb)?;
+                let c = self.vertex_adder.add_vertex(self.sink, pc)?;
+
+                self.sink.add_face([a, b, c], FaceInfo {
+                    normal: triangle.normal.to_vector3(),
+                })?;
+
+                Ok(())
+            }
+        }
+
+
+        // Create helper sink and read into it
+        let mut sink = HelperSink {
+            sink,
+            vertex_adder: U::Adder::new(),
+        };
+        self.read_raw_into(&mut sink)?;
+        // Ok(sink.into_results())
+
+        Ok(())
+    }
+}
 
 
 // ===========================================================================
-// ===== Definition of unifying dummy types. None of these items is actually
-// ===== public.
+// ===== Definition of unifying dummy types. Not actually public.
 // ===========================================================================
 pub trait UnifyingMarker {
-    // type Adder: VertexAdder;
+    type Adder: VertexAdder;
 }
 
 #[derive(Debug)]
 pub enum UnifyVertices {}
 
 impl UnifyingMarker for UnifyVertices {
-    // type Adder = UnifyingAdder;
+    type Adder = UnifyingAdder;
 }
 
 #[derive(Debug)]
 pub enum VerbatimVertices {}
 
 impl UnifyingMarker for VerbatimVertices {
-    // type Adder = NonUnifyingAdder;
+    type Adder = NonUnifyingAdder;
 }
 
-// // ===========================================================================
-// // ===== VertexAdders: unify vertices or not. All these types are not actually
-// // ===== public.
-// // ===========================================================================
-// pub trait VertexAdder {
-//     fn new() -> Self;
-//     fn size_hint(&mut self, _num_vertices: u32) {}
-//     fn add_vertex(
-//         &mut self,
-//         mesh: &mut impl MeshSink<VertexInfo, FaceInfo>,
-//         pos: [f32; 3],
-//     ) -> Result<VertexHandle, ()>;
-// }
+// ===========================================================================
+// ===== VertexAdders: unify vertices or not. Not actually public.
+// ===========================================================================
+pub trait VertexAdder {
+    fn new() -> Self;
+    fn size_hint(&mut self, _num_vertices: u32) {}
+    fn add_vertex<S: MeshSink<VertexInfo, FaceInfo>>(
+        &mut self,
+        mesh: &mut S,
+        pos: [f32; 3],
+    ) -> Result<VertexHandle, S::Error>;
+}
 
-// /// Adds every incoming vertex as new unique vertex. No unifying is done.
-// #[derive(Debug)]
-// pub struct NonUnifyingAdder;
-// impl VertexAdder for NonUnifyingAdder {
-//     fn new() -> Self {
-//         NonUnifyingAdder
-//     }
+/// Adds every incoming vertex as new unique vertex. No unifying is done.
+#[derive(Debug)]
+pub struct NonUnifyingAdder;
+impl VertexAdder for NonUnifyingAdder {
+    fn new() -> Self {
+        NonUnifyingAdder
+    }
 
-//     fn add_vertex(
-//         &mut self,
-//         mesh: &mut impl MeshSink<VertexInfo, FaceInfo>,
-//         pos: [f32; 3],
-//     ) -> Result<VertexHandle, ()> {
-//         let info = VertexInfo { position: pos.to_point3() };
-//         mesh.add_vertex(info)
-//     }
-// }
+    fn add_vertex<S: MeshSink<VertexInfo, FaceInfo>>(
+        &mut self,
+        mesh: &mut S,
+        pos: [f32; 3],
+    ) -> Result<VertexHandle, S::Error> {
+        let info = VertexInfo { position: pos.to_point3() };
+        mesh.add_vertex(info)
+    }
+}
 
-// /// The key of the hashmap: three `f32`. Implementing this like this is
-// /// faster than using `[OrderedFloat<f32>; 3]`. The values inside must
-// /// not be NaN, because those values won't be normalized (i.e. there
-// /// are 2^23 different NaN values) which will confuse the hash map.
-// #[derive(Debug, PartialEq)]
-// struct PosKey([f32; 3]);
+/// The key of the hashmap: three `f32`. Implementing this like this is
+/// faster than using `[OrderedFloat<f32>; 3]`. The values inside must
+/// not be NaN, because those values won't be normalized (i.e. there
+/// are 2^23 different NaN values) which will confuse the hash map.
+#[derive(Debug, PartialEq)]
+struct PosKey([f32; 3]);
 
-// impl Eq for PosKey  {}
-// impl Hash for PosKey {
-//     fn hash<H: Hasher>(&self, state: &mut H) {
-//         self.0[0].to_bits().hash(state);
-//         self.0[1].to_bits().hash(state);
-//         self.0[2].to_bits().hash(state);
-//     }
-// }
+impl Eq for PosKey  {}
+impl Hash for PosKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0[0].to_bits().hash(state);
+        self.0[1].to_bits().hash(state);
+        self.0[2].to_bits().hash(state);
+    }
+}
 
-// /// Unifies incoming vertices with the exact same position into a single one.
-// #[derive(Debug)]
-// pub struct UnifyingAdder(HashMap<PosKey, VertexHandle>);
-// impl VertexAdder for UnifyingAdder {
-//     fn new() -> Self {
-//         UnifyingAdder(HashMap::default())
-//     }
+/// Unifies incoming vertices with the exact same position into a single one.
+#[derive(Debug)]
+pub struct UnifyingAdder(HashMap<PosKey, VertexHandle>);
+impl VertexAdder for UnifyingAdder {
+    fn new() -> Self {
+        UnifyingAdder(HashMap::default())
+    }
 
-//     fn size_hint(&mut self, num_vertices: u32) {
-//         self.0.reserve(num_vertices as usize);
-//     }
+    fn size_hint(&mut self, num_vertices: u32) {
+        self.0.reserve(num_vertices as usize);
+    }
 
-//     fn add_vertex(
-//         &mut self,
-//         mesh: &mut impl MeshSink<VertexInfo, FaceInfo>,
-//         pos: [f32; 3],
-//     ) -> Result<VertexHandle, ()> {
-//         // Make sure the positions are not `NaN`. In one test, this
-//         // assert didn't make any difference in speed.
-//         assert!(
-//             !(pos[0].is_nan() || pos[1].is_nan() || pos[2].is_nan()),
-//             "attempt to read file with vertex position containing NaN value",
-//         );
+    fn add_vertex<S: MeshSink<VertexInfo, FaceInfo>>(
+        &mut self,
+        mesh: &mut S,
+        pos: [f32; 3],
+    ) -> Result<VertexHandle, S::Error> {
+        // Make sure the positions are not `NaN`. In one test, this
+        // assert didn't make any difference in speed.
+        assert!(
+            !(pos[0].is_nan() || pos[1].is_nan() || pos[2].is_nan()),
+            "attempt to read file with vertex position containing NaN value",
+        );
 
-//         let handle = match self.0.entry(PosKey(pos)) {
-//             Entry::Occupied(entry) => *entry.get(),
-//             Entry::Vacant(entry) => {
-//                 let info = VertexInfo { position: pos.to_point3() };
-//                 let handle = mesh.add_vertex(info)?;
-//                 entry.insert(handle);
-//                 handle
-//             }
-//         };
+        let handle = match self.0.entry(PosKey(pos)) {
+            Entry::Occupied(entry) => *entry.get(),
+            Entry::Vacant(entry) => {
+                let info = VertexInfo { position: pos.to_point3() };
+                let handle = mesh.add_vertex(info)?;
+                entry.insert(handle);
+                handle
+            }
+        };
 
-//         Ok(handle)
-//     }
-// }
+        Ok(handle)
+    }
+}
