@@ -8,7 +8,7 @@ use crate::{
     ds::SharedVertexMesh,
     map::{ConstMap, FnMap, VecMap},
 };
-use super::{RawResult, Reader, WriterBuilder};
+use super::{RawResult, Reader, Config};
 
 
 // ===========================================================================
@@ -141,12 +141,12 @@ fn triangle_mesh() -> (
 fn triangle_ascii() -> Result<(), Error> {
     let (mesh, positions, face_normals) = triangle_mesh();
 
-    let res = WriterBuilder::ascii()
+    let res = Config::ascii()
         .into_writer(&mesh, &positions)
         .write_to_memory()?;
     assert_eq_file!(&res, "triangle_ascii.stl");
 
-    let res = WriterBuilder::ascii()
+    let res = Config::ascii()
         .into_writer(&mesh, &positions)
         .with_face_normals(&face_normals)
         .write_to_memory()?;
@@ -159,12 +159,12 @@ fn triangle_ascii() -> Result<(), Error> {
 fn triangle_binary() -> Result<(), Error> {
     let (mesh, positions, face_normals) = triangle_mesh();
 
-    let res = WriterBuilder::binary()
+    let res = Config::binary()
         .into_writer(&mesh, &positions)
         .write_to_memory()?;
     assert_eq_file!(&res, "triangle_binary.stl");
 
-    let res = WriterBuilder::binary()
+    let res = Config::binary()
         .into_writer(&mesh, &positions)
         .with_face_normals(&face_normals)
         .write_to_memory()?;

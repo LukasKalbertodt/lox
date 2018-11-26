@@ -44,9 +44,8 @@
 //! # Writing
 //!
 //! To write an STL file, you need a [`Writer`][stl::Writer]. To obtain one,
-//! create a [`WriterBuilder`][stl::WriterBuilder] first and call
-//! `into_mesh_writer` on it. Then you can use the writer via
-//! [`MeshWriter`][crate::io::MeshWriter].
+//! create a [`Config`][stl::Config] first and call `into_writer` on it.
+//! Then you can use the writer via [`MeshWriter`][crate::io::MeshWriter].
 //!
 //!
 //! ```no_run
@@ -56,7 +55,7 @@
 //!     mesh,
 //!     prelude::*,
 //!     ds::SharedVertexMesh,
-//!     io::stl::WriterBuilder,
+//!     io::stl::Config,
 //! };
 //!
 //!
@@ -73,7 +72,7 @@
 //! };
 //!
 //! // TODO remove unwrap once ? in doctest is stable
-//! WriterBuilder::binary()
+//! Config::binary()
 //!     .into_writer(&mesh, &positions)
 //!     .with_face_normals(&face_normals) // <-- this is optional
 //!     .write_to_file("mesh.stl").unwrap();
@@ -96,7 +95,7 @@ mod tests;
 
 // pub use self::read::{CountingSink, Reader, Sink, Triangle, RawResult, ReadResults, ReadOptions};
 pub use self::read::{FnSink, Reader, Sink, Triangle, RawResult};
-pub use self::write::{WriterBuilder, Writer};
+pub use self::write::{Config, Writer};
 
 
 /// The two different formats of STL files.

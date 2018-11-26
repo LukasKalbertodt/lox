@@ -19,7 +19,7 @@ type DummyMap = EmptyMap<[f32; 3]>;
 
 
 // ===============================================================================================
-// ===== STL WriterBuilder
+// ===== STL Config
 // ===============================================================================================
 
 /// Used to configure and create a [`Writer`].
@@ -28,14 +28,14 @@ type DummyMap = EmptyMap<[f32; 3]>;
 /// the [`IntoMeshWriter`][crate::io::IntoMeshWriter] implementation to obtain
 /// a writer.
 #[derive(Clone, Debug)]
-pub struct WriterBuilder {
+pub struct Config {
     solid_name: String,
     format: Format,
 }
 
-impl WriterBuilder {
+impl Config {
     /// Creates a new builder instance from the given format. For convenience,
-    /// you can use [`WriterBuilder::binary()`] or [`WriterBuilder::ascii()`]
+    /// you can use [`Config::binary()`] or [`Config::ascii()`]
     /// directly.
     fn new(format: Format) -> Self {
         Self {
@@ -66,7 +66,7 @@ impl WriterBuilder {
     }
 }
 
-impl<'a, MeshT, PosM> IntoMeshWriter<'a, MeshT, PosM> for WriterBuilder
+impl<'a, MeshT, PosM> IntoMeshWriter<'a, MeshT, PosM> for Config
 where
     MeshT: 'a + Mesh + MeshUnsorted + ExplicitFace,
     PosM: 'a + VertexPropMap,
@@ -90,11 +90,11 @@ where
 
 /// A writer able to write binary and ASCII STL files.
 ///
-/// To create a writer, you need to create a [`WriterBuilder`] first (probably
-/// via `WriterBuilder::binary()`) and call `into_writer(..)` on it. Once you
-/// have a writer, you can optionally add face normals to it. If you don't add
-/// your own face normals, normals are calculated from the vertex positions on
-/// the fly (this requires every face to have a non-zero area!).
+/// To create a writer, you need to create a [`Config`] first (probably via
+/// `Config::binary()`) and call `into_writer(..)` on it. Once you have a
+/// writer, you can optionally add face normals to it. If you don't add your
+/// own face normals, normals are calculated from the vertex positions on the
+/// fly (this requires every face to have a non-zero area!).
 ///
 /// You can then actually write data via the
 /// [`MeshWriter`][crate::io::MeshWriter] trait.
@@ -110,7 +110,7 @@ where
     NormalM: FacePropMap,
     NormalM::Target: Vec3Like<Scalar = f32>,
 {
-    config: WriterBuilder,
+    config: Config,
     mesh: &'a MeshT,
     vertex_positions: &'a PosM,
     face_normals: Option<&'a NormalM>,
