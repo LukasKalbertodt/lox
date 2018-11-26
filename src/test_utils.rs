@@ -4,11 +4,11 @@ pub(crate) fn file_failure(actual: &[u8], expected: &[u8], filename: &str) {
 
     let mut msg = String::new();
 
-    writeln!(msg, "===== Expected data ('{}')", filename);
+    writeln!(msg, "===== Expected data ('{}')", filename).unwrap();
     write_data(&mut msg, expected);
-    writeln!(msg);
+    writeln!(msg).unwrap();
 
-    writeln!(msg, "===== Actual data (written to 'dump.bin')");
+    writeln!(msg, "===== Actual data (written to 'dump.bin')").unwrap();
     std::fs::write("dump.bin", actual).expect("failed to dump actual data");
     write_data(&mut msg, actual);
 
@@ -19,12 +19,12 @@ pub(crate) fn file_failure(actual: &[u8], expected: &[u8], filename: &str) {
         if data.iter().any(|b| *b == 0) || s.is_err() {
             for chunk in data.chunks(32) {
                 for b in chunk {
-                    write!(msg, "{:02x} ", b);
+                    write!(msg, "{:02x} ", b).unwrap();
                 }
-                writeln!(msg);
+                writeln!(msg).unwrap();
             }
         } else {
-            writeln!(msg, "{}", s.unwrap());
+            writeln!(msg, "{}", s.unwrap()).unwrap();
         }
     }
 }
