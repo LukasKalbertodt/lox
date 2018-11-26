@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use failure::Fail;
 
 use crate::{
@@ -153,35 +155,46 @@ where
     where
         S: MeshSink<Self::VertexInfo, Self::FaceInfo>
     {
-        struct HelperSink<'a, S, F> {
-            sink: &'a mut S,
-            map: F,
-        }
+        self.source.build(&mut AdhocMeshSink {
+            state: (self.map, original_sink),
+            add_vertex: |(map, sink), info| sink.add_vertex(map(info)),
+            add_face: |(map, sink), vertices, info| sink.add_face(vertices, info),
+            _dummy: PhantomData,
+        })
+    }
+}
 
-        impl<S, F, FaceInfoT, InT, OutT> MeshSink<InT, FaceInfoT> for HelperSink<'_, S, F>
-        where
-            F: FnMut(InT) -> OutT,
-            S: MeshSink<OutT, FaceInfoT>,
-        {
-            type Error = S::Error;
+struct AdhocMeshSink<S, V, F, E, VertexT, FaceT>
+where
+    V: FnMut(&mut S, VertexT) -> Result<VertexHandle, E>,
+    F: FnMut(&mut S, [VertexHandle; 3], FaceT) -> Result<FaceHandle, E>,
+    E: Fail,
+{
+    state: S,
+    add_vertex: V,
+    add_face: F,
+    _dummy: PhantomData<(E, VertexT, FaceT)>,
+}
 
-            fn add_vertex(&mut self, info: InT) -> Result<VertexHandle, Self::Error> {
-                self.sink.add_vertex((self.map)(info))
-            }
-            fn add_face(
-                &mut self,
-                vertices: [VertexHandle; 3],
-                info: FaceInfoT,
-            ) -> Result<FaceHandle, Self::Error> {
-                self.sink.add_face(vertices, info)
-            }
-        }
+impl<S, V, F, E, VertexT, FaceT> MeshSink<VertexT, FaceT> for AdhocMeshSink<S, V, F, E, VertexT, FaceT>
+where
+    V: FnMut(&mut S, VertexT) -> Result<VertexHandle, E>,
+    F: FnMut(&mut S, [VertexHandle; 3], FaceT) -> Result<FaceHandle, E>,
+    E: Fail,
+{
+    type Error = E;
 
-        let mut sink = HelperSink {
-            sink: original_sink,
-            map: self.map,
-        };
-        self.source.build(&mut sink)
+    fn add_vertex(&mut self, info: VertexT) -> Result<VertexHandle, Self::Error> {
+        (self.add_vertex)(&mut self.state, info)
+    }
+
+    fn add_face(
+        &mut self,
+        vertices: [VertexHandle; 3],
+        info: FaceT,
+    ) -> Result<FaceHandle, Self::Error> {
+        (self.add_face)(&mut self.state, vertices, info)
+
     }
 }
 
