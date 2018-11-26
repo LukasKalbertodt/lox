@@ -111,6 +111,17 @@ pub trait MeshSource {
             map,
         }
     }
+
+    fn map_face<F, O>(self, map: F) -> MappedFaceSource<Self, F>
+    where
+        F: FnMut(Self::FaceInfo) -> O,
+        Self: Sized,
+    {
+        MappedFaceSource {
+            source: self,
+            map,
+        }
+    }
 }
 
 pub trait MeshSink<VertexInfoT, FaceInfoT> {
@@ -158,7 +169,35 @@ where
         self.source.build(&mut AdhocMeshSink {
             state: (self.map, original_sink),
             add_vertex: |(map, sink), info| sink.add_vertex(map(info)),
-            add_face: |(map, sink), vertices, info| sink.add_face(vertices, info),
+            add_face: |(_, sink), vertices, info| sink.add_face(vertices, info),
+            _dummy: PhantomData,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct MappedFaceSource<SrcT, F> {
+    source: SrcT,
+    map: F,
+}
+
+impl<SrcT, F, O> MeshSource for MappedFaceSource<SrcT, F>
+where
+    SrcT: MeshSource,
+    F: FnMut(SrcT::FaceInfo) -> O,
+{
+    type VertexInfo = SrcT::VertexInfo;
+    type FaceInfo = O;
+    type Error = SrcT::Error;
+
+    fn build<S>(self, original_sink: &mut S) -> Result<(), TransferError<Self::Error, S::Error>>
+    where
+        S: MeshSink<Self::VertexInfo, Self::FaceInfo>
+    {
+        self.source.build(&mut AdhocMeshSink {
+            state: (self.map, original_sink),
+            add_vertex: |(_, sink), info| sink.add_vertex(info),
+            add_face: |(map, sink), vertices, info| sink.add_face(vertices, map(info)),
             _dummy: PhantomData,
         })
     }
