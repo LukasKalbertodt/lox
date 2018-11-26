@@ -14,12 +14,13 @@ pub enum MeshElement {
     Vertex,
 }
 
-
-/// Some kind of polygon mesh.
-pub trait Mesh {
-    /// Returns an empty mesh instance.
+pub trait Empty {
+    /// Returns an empty value of this type.
     fn empty() -> Self;
 }
+
+/// Some kind of polygon mesh.
+pub trait Mesh: Empty {}
 
 /// A triangular mesh: all faces are triangles.
 pub trait TriMesh: Mesh {}
@@ -102,7 +103,6 @@ pub trait MeshSource {
 pub trait MeshSink<VertexInfoT, FaceInfoT> {
     type Error: Fail;
 
-    fn empty() -> Self;
     fn add_vertex(&mut self, info: VertexInfoT) -> Result<VertexHandle, Self::Error>;
     fn add_face(
         &mut self,
@@ -114,7 +114,7 @@ pub trait MeshSink<VertexInfoT, FaceInfoT> {
         source: SrcT,
     ) -> Result<Self, TransferError<SrcT::Error, Self::Error>>
     where
-        Self: Sized,
+        Self: Sized + Empty,
         SrcT: MeshSource<VertexInfo = VertexInfoT, FaceInfo = FaceInfoT>,
     {
         let mut out = Self::empty();
@@ -130,13 +130,10 @@ pub struct MeshWithProps<MeshT, VertexT, FaceT> {
     pub face_props: VecMap<FaceHandle, FaceT>,
 }
 
-
-impl<MeshT, VertexT, FaceT> MeshSink<VertexT, FaceT> for MeshWithProps<MeshT, VertexT, FaceT>
+impl<MeshT, VertexT, FaceT> Empty for MeshWithProps<MeshT, VertexT, FaceT>
 where
-    MeshT: Mesh + ExplicitVertex + ExplicitFace,
+    MeshT: Empty,
 {
-    type Error = !;
-
     fn empty() -> Self {
         Self {
             mesh: MeshT::empty(),
@@ -144,6 +141,14 @@ where
             face_props: VecMap::empty(),
         }
     }
+}
+
+
+impl<MeshT, VertexT, FaceT> MeshSink<VertexT, FaceT> for MeshWithProps<MeshT, VertexT, FaceT>
+where
+    MeshT: Mesh + ExplicitVertex + ExplicitFace,
+{
+    type Error = !;
 
     fn add_vertex(&mut self, info: VertexT) -> Result<VertexHandle, Self::Error> {
         let handle = self.mesh.add_vertex();

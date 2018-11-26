@@ -5,7 +5,7 @@ use std::fmt;
 use crate::{
     handle::{DefaultInt, FaceHandle, VertexHandle},
     map::{VecMap},
-    mesh::{ExplicitVertex, ExplicitFace, MeshUnsorted, Mesh},
+    mesh::{Empty, ExplicitVertex, ExplicitFace, MeshUnsorted, Mesh},
     refs::{FaceRef, VertexRef},
 };
 
@@ -27,11 +27,13 @@ impl SharedVertexMesh {
     }
 }
 
-impl Mesh for SharedVertexMesh {
+impl Empty for SharedVertexMesh {
     fn empty() -> Self {
         Self::new()
     }
 }
+
+impl Mesh for SharedVertexMesh {}
 
 impl MeshUnsorted for SharedVertexMesh {
     fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3] {
