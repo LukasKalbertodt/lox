@@ -548,7 +548,7 @@ where
 #[derive(Debug)]
 #[repr(C)]
 pub struct VertexInfo {
-    position: Point3<f32>,
+    pub position: Point3<f32>,
 }
 
 /// STL files store only the normal for each face.

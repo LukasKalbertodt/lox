@@ -98,6 +98,17 @@ pub trait MeshSource {
     fn build<S>(self, sink: &mut S) -> Result<(), TransferError<Self::Error, S::Error>>
     where
         S: MeshSink<Self::VertexInfo, Self::FaceInfo>;
+
+    fn map_vertex<F, O>(self, map: F) -> MappedVertexSource<Self, F>
+    where
+        F: FnMut(Self::VertexInfo) -> O,
+        Self: Sized,
+    {
+        MappedVertexSource {
+            source: self,
+            map,
+        }
+    }
 }
 
 pub trait MeshSink<VertexInfoT, FaceInfoT> {
@@ -120,6 +131,57 @@ pub trait MeshSink<VertexInfoT, FaceInfoT> {
         let mut out = Self::empty();
         source.build(&mut out)?;
         Ok(out)
+    }
+}
+
+#[derive(Debug)]
+pub struct MappedVertexSource<SrcT, F> {
+    source: SrcT,
+    map: F,
+}
+
+impl<SrcT, F, O> MeshSource for MappedVertexSource<SrcT, F>
+where
+    SrcT: MeshSource,
+    F: FnMut(SrcT::VertexInfo) -> O,
+{
+    type VertexInfo = O;
+    type FaceInfo = SrcT::FaceInfo;
+    type Error = SrcT::Error;
+
+    fn build<S>(self, original_sink: &mut S) -> Result<(), TransferError<Self::Error, S::Error>>
+    where
+        S: MeshSink<Self::VertexInfo, Self::FaceInfo>
+    {
+        struct HelperSink<'a, S, F> {
+            sink: &'a mut S,
+            map: F,
+        }
+
+        impl<S, F, FaceInfoT, InT, OutT> MeshSink<InT, FaceInfoT> for HelperSink<'_, S, F>
+        where
+            F: FnMut(InT) -> OutT,
+            S: MeshSink<OutT, FaceInfoT>,
+        {
+            type Error = S::Error;
+
+            fn add_vertex(&mut self, info: InT) -> Result<VertexHandle, Self::Error> {
+                self.sink.add_vertex((self.map)(info))
+            }
+            fn add_face(
+                &mut self,
+                vertices: [VertexHandle; 3],
+                info: FaceInfoT,
+            ) -> Result<FaceHandle, Self::Error> {
+                self.sink.add_face(vertices, info)
+            }
+        }
+
+        let mut sink = HelperSink {
+            sink: original_sink,
+            map: self.map,
+        };
+        self.source.build(&mut sink)
     }
 }
 
