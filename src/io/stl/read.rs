@@ -303,13 +303,13 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
         Ok(out)
     }
 
-    /// Reads the whole file into the given sink.
+    /// Reads the whole file into the given raw sink.
     ///
     /// This is a low level building block that you usually don't want to use
     /// directly. [`Reader::read`] is a more high level method suited for most
     /// purposes. In particular, this method itself never performs any vertex
     /// unification (regardless of the type parameter `U`).
-    pub fn read_raw_into<S: Sink>(
+    pub fn read_raw_into<S: RawSink>(
         self,
         sink: &mut S,
     ) -> Result<(), TransferError<Error, S::Error>> {
@@ -422,12 +422,12 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> fmt::Debug for Reader<R, U> {
 
 
 // ===========================================================================
-// ===== Definition of `Sink` and some sinks
+// ===== Definition of `RawSink` and some sinks
 // ===========================================================================
 
 /// A sink can accept raw data from an STL file. This is mainly used for
 /// [`Reader::read_raw_into`].
-pub trait Sink {
+pub trait RawSink {
     /// A custom error the sink can produce. If the sink never errors, set this
     /// to `!`.
     type Error: Fail;
@@ -450,7 +450,7 @@ pub trait Sink {
 
 /// One raw triangle in an STL file.
 ///
-/// This type is used in [`RawResult`] and [`Sink`]. If you don't use the low
+/// This type is used in [`RawResult`] and [`RawSink`]. If you don't use the low
 /// level `raw` methods, you probably don't care about this type.
 #[derive(Clone, Debug)]
 pub struct Triangle {
@@ -495,7 +495,7 @@ impl RawResult {
 
 /// For convenience, you can use [`Reader::into_raw_result`] instead of
 /// [`Reader::read_raw_into`] with `RawResult`.
-impl Sink for RawResult {
+impl RawSink for RawResult {
     type Error = !;
 
     fn solid_name(&mut self, name: String) -> Result<(), Self::Error> {
@@ -514,9 +514,9 @@ impl Sink for RawResult {
     }
 }
 
-/// A simple wrapper around a closure which implements [`Sink`].
+/// A simple wrapper around a closure which implements [`RawSink`].
 ///
-/// The closure is used to implement the `triangle` method of the `Sink` trait.
+/// The closure is used to implement the `triangle` method of the `RawSink` trait.
 /// The methods `solid_name` and `triangle_count` just don't do anything. This
 /// is just a quick way to create a sink.
 ///
@@ -525,7 +525,7 @@ impl Sink for RawResult {
 #[derive(Debug)]
 pub struct FnSink<F>(pub F);
 
-impl<F, E: Fail> Sink for FnSink<F>
+impl<F, E: Fail> RawSink for FnSink<F>
 where
     F: FnMut(Triangle) -> Result<(), E>
 {
@@ -572,7 +572,7 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> MeshSource for Reader<R, U> {
             vertex_adder: A,
         };
 
-        impl<S: MeshSink<VertexInfo, FaceInfo>, A: VertexAdder> Sink for HelperSink<'_, S, A> {
+        impl<S: MeshSink<VertexInfo, FaceInfo>, A: VertexAdder> RawSink for HelperSink<'_, S, A> {
             type Error = S::Error;
 
             fn solid_name(&mut self, _: String) -> Result<(), Self::Error> { Ok(()) }

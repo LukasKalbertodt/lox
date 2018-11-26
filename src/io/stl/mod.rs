@@ -94,7 +94,7 @@ mod write;
 mod tests;
 
 // pub use self::read::{CountingSink, Reader, Sink, Triangle, RawResult, ReadResults, ReadOptions};
-pub use self::read::{FnSink, Reader, Sink, Triangle, RawResult};
+pub use self::read::{FnSink, Reader, RawSink, Triangle, RawResult};
 pub use self::write::{Config, Writer};
 
 
