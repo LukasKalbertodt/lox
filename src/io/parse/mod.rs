@@ -32,7 +32,7 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
         Ok(())
     }
 
-    fn skip_until(&mut self, mut should_stop: impl FnMut(u8) -> bool) -> Result<(), Error> {
+    fn skip_until(&mut self, stopper: impl Stopper) -> Result<(), Error> {
         loop {
             if self.is_eof()? {
                 break;
@@ -42,7 +42,7 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
                 self.prepare(1)?;
             }
 
-            if should_stop(self[0]) {
+            if stopper.should_stop(self[0]) {
                 break;
             }
 
@@ -66,7 +66,7 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
     fn take_until<F, O>(
         &mut self,
         upper_limit: impl Into<Option<usize>>,
-        mut should_stop: impl FnMut(u8) -> bool,
+        stopper: impl Stopper,
         func: F,
     ) -> Result<O, Error>
     where
@@ -79,7 +79,7 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
                 self.prepare(pos + 1)?;
             }
 
-            if should_stop(self[pos]) {
+            if stopper.should_stop(self[pos]) {
                 break;
             }
 
@@ -225,5 +225,21 @@ pub fn debug_fmt_bytes(data: &[u8]) -> String {
         format!("{:?}", s)
     } else {
         format!("{:?}", data)
+    }
+}
+
+pub trait Stopper {
+    fn should_stop(&self, byte: u8) -> bool;
+}
+
+impl Stopper for u8 {
+    fn should_stop(&self, byte: u8) -> bool {
+        byte == *self
+    }
+}
+
+impl<F: Fn(u8) -> bool> Stopper for F {
+    fn should_stop(&self, byte: u8) -> bool {
+        self(byte)
     }
 }

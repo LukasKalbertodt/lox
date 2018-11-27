@@ -114,7 +114,7 @@ impl<R: io::Read> Reader<R> {
             comments: &mut Vec<String>,
         ) -> Result<(), parse::Error> {
             line(buf, |buf| {
-                buf.take_until(None, |b| b == b'\n', |line| {
+                buf.take_until(None, b'\n', |line| {
                     comments.push(line.assert_ascii()?[7..].trim_start().to_string());
                     Ok(())
                 })
@@ -152,7 +152,7 @@ impl<R: io::Read> Reader<R> {
 
             const MAX_FORMAT_LEN: usize = 20;
 
-            let format = buf.take_until(MAX_FORMAT_LEN, |b| b == b' ', |line| {
+            let format = buf.take_until(MAX_FORMAT_LEN, b' ', |line| {
                 match line.data {
                     b"ascii" => Ok(Format::Ascii),
                     b"binary_little_endian" => Ok(Format::BinaryLittleEndian),
@@ -184,11 +184,11 @@ impl<R: io::Read> Reader<R> {
             match () {
                 () if buf.is_next(b"comment ")? => add_comment(&mut buf, &mut comments)?,
                 () if buf.is_next(b"element ")? => {
-                    buf.skip_until(|b| b == b'\n')?;
+                    buf.skip_until(b'\n')?;
                     buf.consume(1);
                 }
                 () if buf.is_next(b"property ")? => {
-                    buf.skip_until(|b| b == b'\n')?;
+                    buf.skip_until(b'\n')?;
                     buf.consume(1);
                 }
                 () => {

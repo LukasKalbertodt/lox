@@ -210,11 +210,9 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
                     |sd| sd.assert_ascii().map(|name| name.trim().to_string()),
                 )?
             } else {
-                let name = buf.take_until(
-                    1024, // We won't allow names longer than 1KB
-                    |b| b == b'\n',
-                    |sd| sd.assert_ascii().map(|name| name.trim().to_string()),
-                )?;
+                let name = buf.take_until(None, b'\n', |sd| {
+                    sd.assert_ascii().map(|name| name.trim().to_string())
+                })?;
                 linebreak(&mut buf)?;
                 name
             };
