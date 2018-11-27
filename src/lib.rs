@@ -30,7 +30,7 @@ pub use self::{
     handle::{EdgeHandle, FaceHandle, VertexHandle},
     mesh::{
         Mesh, TriMesh, MeshElement, ExplicitFace, ExplicitVertex, MeshUnsorted,
-        MeshSource, MeshSink, MeshWithProps, TransferError,
+        MeshSource, MeshSink, MeshWithProps, TransferError, Empty,
     },
 };
 

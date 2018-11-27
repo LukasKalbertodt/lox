@@ -97,11 +97,11 @@ impl MeshInput {
         // Combine everything
         quote! {{
             use #crate_ident::{
-                Mesh, ExplicitFace, ExplicitVertex,
+                Mesh, ExplicitFace, ExplicitVertex, Empty,
                 map::{PropStoreMut, VecMap},
             };
 
-            let mut mesh = <#mesh_type as Mesh>::empty();
+            let mut mesh = <#mesh_type as Empty>::empty();
 
             #add_vertices
             #add_faces
