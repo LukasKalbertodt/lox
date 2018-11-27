@@ -24,21 +24,9 @@
 //!
 //! Reading an STL file is done via the [`Reader`][stl::Reader]. You can create
 //! one via [`Reader::open`][stl::Reader::open] or
-//! [`Reader::new`][stl::Reader::new]. Afterwards you need to use one of its
-//! `read*` methods.
+//! [`Reader::new`][stl::Reader::new].
 //!
-//! ```no_run
-//! use lox::{
-//!     prelude::*,
-//!     ds::SharedVertexMesh,
-//!     io::stl::{Reader, ReadOptions},
-//! };
-//!
-//! // TODO: remove `unwrap()`s once `?` in doctests is implemented
-//! let results = Reader::open("mesh.stl").unwrap()
-//!     .read::<SharedVertexMesh>(ReadOptions::default()).unwrap();
-//! println!("{:?}", results);
-//! ```
+//! TODO
 //!
 //!
 //! # Writing
