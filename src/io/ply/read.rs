@@ -7,6 +7,7 @@ use std::{
     marker::PhantomData,
     io,
     path::Path,
+    str::FromStr,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -121,6 +122,23 @@ impl<R: io::Read> Reader<R> {
             })
         }
 
+        /// Parses a scalar type delimited by whitespace (whitespace is not
+        /// read by this function).
+        fn parse_scalar_type(buf: &mut impl Input) -> Result<ScalarType, parse::Error> {
+            buf.take_until(None, b' ', |word| {
+                word.assert_ascii()?
+                    .parse::<ScalarType>()
+                    .map_err(|e| word.error(e.to_string()))
+            })
+        }
+
+        /// Parses a single word delimited by whitespace or newline.
+        fn parse_ident(buf: &mut impl Input) -> Result<String, parse::Error> {
+            buf.take_until(None, |b| b == b' ' || b == b'\n', |s| {
+                s.assert_ascii().map(|s| s.to_string())
+            })
+        }
+
         // Wrap reader into parse buffer.
         let mut buf = Buffer::new(reader)?;
 
@@ -183,14 +201,83 @@ impl<R: io::Read> Reader<R> {
         while !buf.is_next(b"end_header")? {
             match () {
                 () if buf.is_next(b"comment ")? => add_comment(&mut buf, &mut comments)?,
+
+                // Element definition, e.g. `element vertex 8`
                 () if buf.is_next(b"element ")? => {
-                    buf.skip_until(b'\n')?;
-                    buf.consume(1);
+                    buf.consume(b"element".len());
+                    whitespace(&mut buf)?;
+
+                    let name = parse_ident(&mut buf)?;
+                    whitespace(&mut buf)?;
+
+                    let count = buf.take_until(None, |b| b == b' ' || b == b'\n', |n| {
+                        match n.assert_ascii()?.parse::<u64>() {
+                            Ok(v) => Ok(v),
+                            Err(e) => {
+                                let msg = format!("invalid integer as element count ({})", e);
+                                Err(n.error(msg))
+                            }
+                        }
+                    })?;
+
+                    elements.push(Element {
+                        name,
+                        count,
+                        properties: vec![],
+                    });
+
+                    line(&mut buf, |buf| opt_whitespace(buf))?;
                 }
+
+                // Property definition, e.g. `property float x` or
+                // `property list uchar int vertex_index`
                 () if buf.is_next(b"property ")? => {
-                    buf.skip_until(b'\n')?;
-                    buf.consume(1);
+                    let line_start = buf.offset();
+
+                    // Get last element or error if there wasn't a preceeding
+                    // `element` line.
+                    let elem = elements.last_mut().ok_or_else(|| {
+                        buf.spanned_data(b"property".len())
+                            .error("property definition without preceding element definition")
+                    })?;
+
+                    buf.consume(b"property".len());
+                    whitespace(&mut buf)?;
+
+                    if buf.is_next(b"list")? {
+                        buf.consume(b"list".len());
+                        whitespace(&mut buf)?;
+
+                        let len_type = parse_scalar_type(&mut buf)?;
+                        whitespace(&mut buf)?;
+                        let scalar_type = parse_scalar_type(&mut buf)?;
+                        whitespace(&mut buf)?;
+                        let name = parse_ident(&mut buf)?;
+
+                        // We don't allow floating point types to specify the
+                        // length as they don't make a lot of sense.
+                        if len_type.is_floating_point() {
+                            return Err(parse::Error::Custom(
+                                format!("floating point types cannot be used to store list \
+                                    lengths (property '{}')", name),
+                                Span::new(line_start, buf.offset()),
+                            ).into());
+                        }
+
+                        let ty = PropertyType::List { len_type, scalar_type };
+                        elem.properties.push(Property { name, ty });
+                    } else {
+                        let ty = PropertyType::Scalar(parse_scalar_type(&mut buf)?);
+                        whitespace(&mut buf)?;
+                        let name = parse_ident(&mut buf)?;
+
+                        elem.properties.push(Property { name, ty });
+                    }
+
+                    line(&mut buf, |buf| opt_whitespace(buf))?;
                 }
+
+                // Something else...
                 () => {
                     let len = min(buf.len(), 10);
                     let start = buf.spanned_data(len);
@@ -217,5 +304,71 @@ impl<R: io::Read> Reader<R> {
 
 #[derive(Debug)]
 struct Element {
+    name: String,
+    count: u64,
+    properties: Vec<Property>,
+}
 
+#[derive(Debug)]
+struct Property {
+    ty: PropertyType,
+    name: String,
+}
+
+#[derive(Debug)]
+enum PropertyType {
+    Scalar(ScalarType),
+    List {
+        len_type: ScalarType,
+        scalar_type: ScalarType,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScalarType {
+    Char,
+    UChar,
+    Short,
+    UShort,
+    Int,
+    UInt,
+    Float,
+    Double,
+}
+
+impl ScalarType {
+    pub fn is_floating_point(&self) -> bool {
+        *self == ScalarType::Float || *self == ScalarType::Double
+    }
+}
+
+struct ScalarTypeParseError(String);
+
+impl fmt::Display for ScalarTypeParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "\"{}\" is not a valid PLY scalar type", self.0)
+    }
+}
+
+impl fmt::Debug for ScalarTypeParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl FromStr for ScalarType {
+    type Err = ScalarTypeParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "char" => Ok(ScalarType::Char),
+            "uchar" => Ok(ScalarType::UChar),
+            "short" => Ok(ScalarType::Short),
+            "ushort" => Ok(ScalarType::UShort),
+            "int" => Ok(ScalarType::Int),
+            "uint" => Ok(ScalarType::UInt),
+            "float" => Ok(ScalarType::Float),
+            "double" => Ok(ScalarType::Double),
+            other => Err(ScalarTypeParseError(other.to_string())),
+        }
+    }
 }
