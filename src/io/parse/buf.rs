@@ -19,7 +19,7 @@ const START_BUFFER_SIZE: usize = 8 * 1024;
 /// offer a byte slice for parsing one such entity. However, if a parser has a
 /// bug, it might try to request very large chunk of data. To avoid dying from
 /// OOM, we limit the buffer size.
-const MAX_BUFFER_SIZE: usize = 4 * 1024 * 1024;
+pub(crate) const MAX_BUFFER_SIZE: usize = 4 * 1024 * 1024;
 
 
 pub(crate) struct Buffer<R: Read> {

@@ -65,13 +65,14 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
 
     fn take_until<F, O>(
         &mut self,
-        upper_limit: usize,
+        upper_limit: impl Into<Option<usize>>,
         mut should_stop: impl FnMut(u8) -> bool,
         func: F,
     ) -> Result<O, Error>
     where
         F: FnOnce(SpannedData) -> Result<O, Error>
     {
+        let upper_limit = upper_limit.into().unwrap_or(buf::MAX_BUFFER_SIZE);
         let mut pos = 0;
         loop {
             if self.len() <= pos {
@@ -106,18 +107,10 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
     fn expect_tag(&mut self, tag: &[u8]) -> Result<(), Error> {
         self.with_bytes(tag.len(), |sd| {
             if sd.data != tag {
-                fn debug_fmt(data: &[u8]) -> String {
-                    if let Ok(s) = std::str::from_utf8(data) {
-                        format!("{:?}", s)
-                    } else {
-                        format!("{:?}", data)
-                    }
-                }
-
                 let msg = format!(
                     "expected {}, found {}",
-                    debug_fmt(tag),
-                    debug_fmt(sd.data),
+                    debug_fmt_bytes(tag),
+                    debug_fmt_bytes(sd.data),
                 );
                 return Err(sd.error(msg));
             }
@@ -225,3 +218,12 @@ gen_endian_parser!(u64_le, u64, read_u64, LittleEndian);
 
 gen_endian_parser!(f32_le, f32, read_f32, LittleEndian);
 gen_endian_parser!(f64_le, f64, read_f64, LittleEndian);
+
+
+pub fn debug_fmt_bytes(data: &[u8]) -> String {
+    if let Ok(s) = std::str::from_utf8(data) {
+        format!("{:?}", s)
+    } else {
+        format!("{:?}", data)
+    }
+}
