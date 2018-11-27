@@ -6,6 +6,7 @@
 #![feature(doc_cfg)]
 #![feature(proc_macro_hygiene)]
 #![feature(try_blocks)]
+#![feature(bind_by_move_pattern_guards)]
 
 #![deny(missing_debug_implementations)]
 

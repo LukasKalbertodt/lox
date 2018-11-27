@@ -74,16 +74,6 @@ where
     Ok(out)
 }
 
-fn with_line<I, F, O>(buf: &mut I, func: F) -> Result<O, parse::Error>
-where
-    I: Input,
-    F: FnOnce(SpannedData) -> Result<O, parse::Error>,
-{
-    let out = buf.take_until(None, |b| b == b'\n', |line| func(line))?;
-    buf.consume(1); // The '\n'
-    Ok(out)
-}
-
 
 // ===========================================================================
 // ===== Definition of `Reader`
@@ -117,13 +107,18 @@ impl<R: io::Read> Reader<R> {
     /// If you want to open a file, rather use [`Reader::open`].
     pub fn new(reader: R) -> Result<Self, Error> {
         /// Mini helper function to add the comment in the given line to the
-        /// list of comments.
+        /// list of comments. Assumes that `buf` is currently at the start of
+        /// 'comment'. Consumes the whole line including linebreak.
         fn add_comment(
+            buf: &mut impl Input,
             comments: &mut Vec<String>,
-            line: SpannedData,
         ) -> Result<(), parse::Error> {
-            comments.push(line.assert_ascii()?[7..].trim_start().to_string());
-            Ok(())
+            line(buf, |buf| {
+                buf.take_until(None, |b| b == b'\n', |line| {
+                    comments.push(line.assert_ascii()?[7..].trim_start().to_string());
+                    Ok(())
+                })
+            })
         }
 
         // Wrap reader into parse buffer.
@@ -146,7 +141,7 @@ impl<R: io::Read> Reader<R> {
 
         // Read any comment lines that might be here
         while buf.is_next(b"comment")? {
-            with_line(&mut buf, |line| add_comment(&mut comments, line))?;
+            add_comment(&mut buf, &mut comments)?;
         }
 
         // Parse format line. This is required to be before everything else in
@@ -155,13 +150,15 @@ impl<R: io::Read> Reader<R> {
             buf.expect_tag(b"format")?;
             whitespace(buf)?;
 
-            let format = buf.take_until(None, |b| b == b' ', |line| {
+            const MAX_FORMAT_LEN: usize = 20;
+
+            let format = buf.take_until(MAX_FORMAT_LEN, |b| b == b' ', |line| {
                 match line.data {
                     b"ascii" => Ok(Format::Ascii),
                     b"binary_little_endian" => Ok(Format::BinaryLittleEndian),
                     b"binary_big_endian" => Ok(Format::BinaryBigEndian),
                     other => {
-                        let len = min(other.len(), 20);
+                        let len = min(other.len(), MAX_FORMAT_LEN);
                         let msg = format!(
                             "expected \"ascii\", \"binary_little_endian\" or \
                                 \"binary_big_endian\", found '{}'",
@@ -184,22 +181,28 @@ impl<R: io::Read> Reader<R> {
 
         // Line by line until we reach the end of the header
         while !buf.is_next(b"end_header")? {
-            with_line(&mut buf, |line| {
-                match () {
-                    () if line.data.starts_with(b"comment ") => add_comment(&mut comments, line),
-                    () if line.data.starts_with(b"element ") => Ok(()),
-                    () if line.data.starts_with(b"property ") => Ok(()),
-                    () => {
-                        let len = min(line.data.len(), 10);
-                        let msg = format!(
-                            "expected line starting with \"comment \", \"element \" or \
-                                \"property \", found {}",
-                            debug_fmt_bytes(&line.data[..len]),
-                        );
-                        Err(line.error(msg))
-                    }
+            match () {
+                () if buf.is_next(b"comment ")? => add_comment(&mut buf, &mut comments)?,
+                () if buf.is_next(b"element ")? => {
+                    buf.skip_until(|b| b == b'\n')?;
+                    buf.consume(1);
                 }
-            })?;
+                () if buf.is_next(b"property ")? => {
+                    buf.skip_until(|b| b == b'\n')?;
+                    buf.consume(1);
+                }
+                () => {
+                    let len = min(buf.len(), 10);
+                    let start = buf.spanned_data(len);
+                    let msg = format!(
+                        "expected line starting with \"comment \", \"element \" or \
+                            \"property \", found {}",
+                        debug_fmt_bytes(start.data),
+                    );
+
+                    return Err(start.error(msg).into());
+                }
+            }
         }
 
         // Consume the remaining header
