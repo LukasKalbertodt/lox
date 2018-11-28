@@ -23,7 +23,7 @@ use crate::{
         },
     },
 };
-use super::{Error, Format};
+use super::{Error, Encoding};
 
 
 
@@ -87,7 +87,7 @@ where
 pub struct Reader<R: io::Read> {
     buf: Buffer<R>,
     comments: Vec<String>,
-    format: Format,
+    encoding: Encoding,
     elements: Vec<Element>,
 }
 
@@ -164,17 +164,17 @@ impl<R: io::Read> Reader<R> {
 
         // Parse format line. This is required to be before everything else in
         // the header (except the magic number and potential comments).
-        let format = line(&mut buf, |buf| {
+        let encoding = line(&mut buf, |buf| {
             buf.expect_tag(b"format")?;
             whitespace(buf)?;
 
             const MAX_FORMAT_LEN: usize = 20;
 
-            let format = buf.take_until(MAX_FORMAT_LEN, b' ', |line| {
+            let encoding = buf.take_until(MAX_FORMAT_LEN, b' ', |line| {
                 match line.data {
-                    b"ascii" => Ok(Format::Ascii),
-                    b"binary_little_endian" => Ok(Format::BinaryLittleEndian),
-                    b"binary_big_endian" => Ok(Format::BinaryBigEndian),
+                    b"ascii" => Ok(Encoding::Ascii),
+                    b"binary_little_endian" => Ok(Encoding::BinaryLittleEndian),
+                    b"binary_big_endian" => Ok(Encoding::BinaryBigEndian),
                     other => {
                         let len = min(other.len(), MAX_FORMAT_LEN);
                         let msg = format!(
@@ -190,7 +190,7 @@ impl<R: io::Read> Reader<R> {
             whitespace(buf)?;
             buf.expect_tag(b"1.0")?;
 
-            Ok(format)
+            Ok(encoding)
         })?;
 
 

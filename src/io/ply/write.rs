@@ -26,7 +26,7 @@ use crate::{
     math::{Pos3Like, Vec3Like},
     io::{IntoMeshWriter, MeshWriter},
 };
-use super::{Error, Format, Serialize, SingleSerialize, PropSerializer, PropType};
+use super::{Error, Encoding, Serialize, SingleSerialize, PropSerializer, PropType};
 
 
 
@@ -36,22 +36,22 @@ use super::{Error, Format, Serialize, SingleSerialize, PropSerializer, PropType}
 
 #[derive(Clone, Debug)]
 pub struct Serializer {
-    format: Format,
+    encoding: Encoding,
     comments: Vec<String>,
 }
 
 impl Serializer {
     pub fn ascii() -> Self {
-        Self::new(Format::Ascii)
+        Self::new(Encoding::Ascii)
     }
 
     pub fn binary() -> Self {
-        Self::new(Format::BinaryBigEndian)
+        Self::new(Encoding::BinaryBigEndian)
     }
 
-    pub fn new(format: Format) -> Self {
+    pub fn new(encoding: Encoding) -> Self {
         Self {
-            format,
+            encoding,
             comments: vec![],
         }
     }
@@ -234,10 +234,10 @@ where // TODO: remove once implied bounds land
         w.write_all(b"ply\n")?;
 
         // The line defining the format of the file
-        let format_line = match self.ser.format {
-            Format::Ascii => b"format ascii 1.0\n" as &[_],
-            Format::BinaryBigEndian => b"format binary_big_endian 1.0\n",
-            Format::BinaryLittleEndian => b"format binary_little_endian 1.0\n",
+        let format_line = match self.ser.encoding {
+            Encoding::Ascii => b"format ascii 1.0\n" as &[_],
+            Encoding::BinaryBigEndian => b"format binary_big_endian 1.0\n",
+            Encoding::BinaryLittleEndian => b"format binary_little_endian 1.0\n",
         };
         w.write_all(format_line)?;
 
@@ -286,10 +286,10 @@ where // TODO: remove once implied bounds land
             }}
         }
 
-        match self.ser.format {
-            Format::Ascii => do_with_block!(AsciiBlock),
-            Format::BinaryBigEndian => do_with_block!(BinaryBeBlock),
-            Format::BinaryLittleEndian => do_with_block!(BinaryLeBlock),
+        match self.ser.encoding {
+            Encoding::Ascii => do_with_block!(AsciiBlock),
+            Encoding::BinaryBigEndian => do_with_block!(BinaryBeBlock),
+            Encoding::BinaryLittleEndian => do_with_block!(BinaryLeBlock),
         }
 
         Ok(())

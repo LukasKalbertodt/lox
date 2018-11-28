@@ -27,18 +27,18 @@ pub use self::read::{Reader};
 pub use self::write::{Serializer, Writer};
 
 
-/// The format of a PLY file.
+/// The encoding of a PLY file.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Format {
+pub enum Encoding {
     /// Everything is stored as an ASCII string. You should usually not use
-    /// this as this format is very space-inefficient.
+    /// this as this encoding is very space-inefficient.
     Ascii,
 
-    /// Binary format where all numeric types are stored in big endian layout.
-    /// The header is still ASCII.
+    /// Binary encoding where all numeric types are stored in big endian
+    /// layout. The header is still ASCII.
     BinaryBigEndian,
 
-    /// Binary format where all numeric types are stored in little endian
+    /// Binary encoding where all numeric types are stored in little endian
     /// layout. The header is still ASCII.
     BinaryLittleEndian,
 }
