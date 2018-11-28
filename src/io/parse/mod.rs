@@ -212,12 +212,36 @@ macro_rules! gen_endian_parser {
     }
 }
 
+pub(crate) fn u8_we(input: &mut impl Input) -> Result<u8, Error> {
+    use byteorder::ReadBytesExt;
+    input.read_u8().map_err(|e| e.into())
+}
+pub(crate) fn i8_we(input: &mut impl Input) -> Result<i8, Error> {
+    use byteorder::ReadBytesExt;
+    input.read_i8().map_err(|e| e.into())
+}
+
 gen_endian_parser!(u16_le, u16, read_u16, LittleEndian);
 gen_endian_parser!(u32_le, u32, read_u32, LittleEndian);
 gen_endian_parser!(u64_le, u64, read_u64, LittleEndian);
 
+gen_endian_parser!(i16_le, i16, read_i16, LittleEndian);
+gen_endian_parser!(i32_le, i32, read_i32, LittleEndian);
+gen_endian_parser!(i64_le, i64, read_i64, LittleEndian);
+
 gen_endian_parser!(f32_le, f32, read_f32, LittleEndian);
 gen_endian_parser!(f64_le, f64, read_f64, LittleEndian);
+
+gen_endian_parser!(u16_be, u16, read_u16, BigEndian);
+gen_endian_parser!(u32_be, u32, read_u32, BigEndian);
+gen_endian_parser!(u64_be, u64, read_u64, BigEndian);
+
+gen_endian_parser!(i16_be, i16, read_i16, BigEndian);
+gen_endian_parser!(i32_be, i32, read_i32, BigEndian);
+gen_endian_parser!(i64_be, i64, read_i64, BigEndian);
+
+gen_endian_parser!(f32_be, f32, read_f32, BigEndian);
+gen_endian_parser!(f64_be, f64, read_f64, BigEndian);
 
 
 pub fn debug_fmt_bytes(data: &[u8]) -> String {
