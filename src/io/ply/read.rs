@@ -12,6 +12,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use failure::Fail;
+use smallvec::SmallVec;
 
 use crate::{
     TransferError,
@@ -88,7 +89,7 @@ pub struct Reader<R: io::Read> {
     buf: Buffer<R>,
     comments: Vec<String>,
     encoding: Encoding,
-    elements: Vec<Element>,
+    elements: Vec<ElementDef>,
 }
 
 impl Reader<File> {
@@ -220,10 +221,10 @@ impl<R: io::Read> Reader<R> {
                         }
                     })?;
 
-                    elements.push(Element {
+                    elements.push(ElementDef {
                         name,
                         count,
-                        properties: vec![],
+                        property_defs: vec![],
                     });
 
                     line(&mut buf, |buf| opt_whitespace(buf))?;
@@ -254,24 +255,25 @@ impl<R: io::Read> Reader<R> {
                         whitespace(&mut buf)?;
                         let name = parse_ident(&mut buf)?;
 
-                        // We don't allow floating point types to specify the
-                        // length as they don't make a lot of sense.
-                        if len_type.is_floating_point() {
+                        // We don't allow floating point or signed integer
+                        // types to specify the length as they don't make a lot
+                        // of sense.
+                        if !len_type.is_unsigned_integer()  {
                             return Err(parse::Error::Custom(
-                                format!("floating point types cannot be used to store list \
+                                format!("only unsigned integers can be used to store list \
                                     lengths (property '{}')", name),
                                 Span::new(line_start, buf.offset()),
                             ).into());
                         }
 
                         let ty = PropertyType::List { len_type, scalar_type };
-                        elem.properties.push(Property { name, ty });
+                        elem.property_defs.push(PropertyDef { name, ty });
                     } else {
                         let ty = PropertyType::Scalar(parse_scalar_type(&mut buf)?);
                         whitespace(&mut buf)?;
                         let name = parse_ident(&mut buf)?;
 
-                        elem.properties.push(Property { name, ty });
+                        elem.property_defs.push(PropertyDef { name, ty });
                     }
 
                     line(&mut buf, |buf| opt_whitespace(buf))?;
@@ -298,25 +300,120 @@ impl<R: io::Read> Reader<R> {
         linebreak(&mut buf)?;
 
 
-        Ok(Self { buf, comments, format, elements })
+        Ok(Self { buf, comments, encoding, elements })
+    }
+
+    pub fn read_raw_into(mut self, _sink: &mut impl RawSink) -> Result<(), Error> {
+        let buf = &mut self.buf;
+
+        let mut properties = Vec::new();
+        for element_def in &self.elements {
+            for _ in 0..element_def.count {
+                properties.clear();
+
+                match self.encoding {
+                    Encoding::Ascii => unimplemented!(),
+                    Encoding::BinaryBigEndian => {
+                        parse_be_element(buf, &element_def, &mut properties)?;
+                    }
+                    Encoding::BinaryLittleEndian => unimplemented!(),
+                }
+
+                println!("{:?}", properties);
+            }
+        }
+
+        Ok(())
     }
 }
 
+// ===========================================================================
+// ===== Helpers for body parsing
+// ===========================================================================
+fn parse_be_element(
+    buf: &mut impl Input,
+    def: &ElementDef,
+    out: &mut Vec<Property>,
+) -> Result<(), Error> {
+    fn read_single_value(buf: &mut impl Input, ty: ScalarType) -> Result<Property, Error> {
+        let p = match ty {
+            ScalarType::Char => Property::Char(parse::i8_we(buf)?),
+            ScalarType::UChar => Property::UChar(parse::u8_we(buf)?),
+            ScalarType::Short => Property::Short(parse::i16_be(buf)?),
+            ScalarType::UShort => Property::UShort(parse::u16_be(buf)?),
+            ScalarType::Int => Property::Int(parse::i32_be(buf)?),
+            ScalarType::UInt => Property::UInt(parse::u32_be(buf)?),
+            ScalarType::Float => Property::Float(parse::f32_be(buf)?),
+            ScalarType::Double => Property::Double(parse::f64_be(buf)?),
+        };
+
+        Ok(p)
+    }
+
+    fn read_list(
+        buf: &mut impl Input,
+        len: u32,
+        scalar_type: ScalarType,
+    ) -> Result<Property, Error> {
+        macro_rules! read_list {
+            ($variant:ident, $read_fun:ident) => {{
+                let mut list = SmallVec::new();
+                for _ in 0..len {
+                    list.push(parse::$read_fun(buf)?);
+                }
+
+                Ok(Property::$variant(list))
+            }}
+        }
+
+        match scalar_type {
+            ScalarType::Char => read_list!(CharList, i8_we),
+            ScalarType::UChar => read_list!(UCharList, u8_we),
+            ScalarType::Short => read_list!(ShortList, i16_be),
+            ScalarType::UShort => read_list!(UShortList, u16_be),
+            ScalarType::Int => read_list!(IntList, i32_be),
+            ScalarType::UInt => read_list!(UIntList, u32_be),
+            ScalarType::Float => read_list!(FloatList, f32_be),
+            ScalarType::Double => read_list!(DoubleList, f64_be),
+        }
+    }
+
+    for prop_def in &def.property_defs {
+        let property = match prop_def.ty {
+            PropertyType::Scalar(ty) => read_single_value(buf, ty)?,
+            PropertyType::List { len_type, scalar_type } => {
+                // We know that the `len_type` is an unsigned integer type,
+                // because it was checked while parsing the header.
+                let len = read_single_value(buf, len_type)?
+                    .as_unsigned_integer()
+                    .unwrap();
+
+                read_list(buf, len, scalar_type)?
+            }
+        };
+        out.push(property);
+    }
+
+    Ok(())
+}
+
+
+
 #[derive(Debug)]
-struct Element {
+pub struct ElementDef {
     name: String,
     count: u64,
-    properties: Vec<Property>,
+    property_defs: Vec<PropertyDef>,
 }
 
 #[derive(Debug)]
-struct Property {
+pub struct PropertyDef {
     ty: PropertyType,
     name: String,
 }
 
 #[derive(Debug)]
-enum PropertyType {
+pub enum PropertyType {
     Scalar(ScalarType),
     List {
         len_type: ScalarType,
@@ -325,7 +422,7 @@ enum PropertyType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ScalarType {
+pub enum ScalarType {
     Char,
     UChar,
     Short,
@@ -340,9 +437,36 @@ impl ScalarType {
     pub fn is_floating_point(&self) -> bool {
         *self == ScalarType::Float || *self == ScalarType::Double
     }
+
+    pub fn is_unsigned_integer(&self) -> bool {
+        match self {
+            ScalarType::UChar | ScalarType::UShort | ScalarType::UInt => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_signed_integer(&self) -> bool {
+        match self {
+            ScalarType::Char | ScalarType::Short | ScalarType::Int => true,
+            _ => false,
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        match self {
+            ScalarType::Char => 1,
+            ScalarType::UChar => 1,
+            ScalarType::Short => 2,
+            ScalarType::UShort => 2,
+            ScalarType::Int => 4,
+            ScalarType::UInt => 4,
+            ScalarType::Float => 4,
+            ScalarType::Double => 8,
+        }
+    }
 }
 
-struct ScalarTypeParseError(String);
+pub struct ScalarTypeParseError(String);
 
 impl fmt::Display for ScalarTypeParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -369,6 +493,88 @@ impl FromStr for ScalarType {
             "float" => Ok(ScalarType::Float),
             "double" => Ok(ScalarType::Double),
             other => Err(ScalarTypeParseError(other.to_string())),
+        }
+    }
+}
+
+pub trait RawSink {
+}
+
+impl RawSink for () {}
+
+#[derive(Debug)]
+pub struct RawResult {
+    elements: Vec<ElementGroup>
+}
+
+#[derive(Debug)]
+pub struct ElementGroup {
+    def: ElementDef,
+    elements: Vec<Element>,
+}
+
+#[derive(Debug)]
+pub struct Element {
+    // TODO: this is really not very space efficient...
+    properties: Vec<Property>,
+}
+
+#[derive(Debug)]
+pub enum Property {
+    Char(i8),
+    UChar(u8),
+    Short(i16),
+    UShort(u16),
+    Int(i32),
+    UInt(u32),
+    Float(f32),
+    Double(f64),
+    CharList(SmallVec<[i8; 16]>),
+    UCharList(SmallVec<[u8; 16]>),
+    ShortList(SmallVec<[i16; 8]>),
+    UShortList(SmallVec<[u16; 8]>),
+    IntList(SmallVec<[i32; 4]>),
+    UIntList(SmallVec<[u32; 4]>),
+    FloatList(SmallVec<[f32; 4]>),
+    DoubleList(SmallVec<[f64; 2]>),
+}
+
+impl Property {
+    pub fn as_integer(&self) -> Option<i64> {
+        match *self {
+            Property::Char(v) => Some(v.into()),
+            Property::UChar(v) => Some(v.into()),
+            Property::Short(v) => Some(v.into()),
+            Property::UShort(v) => Some(v.into()),
+            Property::Int(v) => Some(v.into()),
+            Property::UInt(v) => Some(v.into()),
+            _ => None,
+        }
+    }
+
+    pub fn as_unsigned_integer(&self) -> Option<u32> {
+        match *self {
+            Property::UChar(v) => Some(v.into()),
+            Property::UShort(v) => Some(v.into()),
+            Property::UInt(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn as_signed_integer(&self) -> Option<i32> {
+        match *self {
+            Property::Char(v) => Some(v.into()),
+            Property::Short(v) => Some(v.into()),
+            Property::Int(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn as_floating_point(&self) -> Option<f64> {
+        match *self {
+            Property::Float(v) => Some(v.into()),
+            Property::Double(v) => Some(v),
+            _ => None,
         }
     }
 }
