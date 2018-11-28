@@ -11,7 +11,7 @@
 COLS=100
 FOLDER="."
 FILES='.+\.\(rs\|toml\|sh\)'
-EXCLUDE='^\(\.\/\)?target\/.*'
+EXCLUDE='^\(\.\/\)?\(fuzz\/\)?target\/.*'
 
 
 # Exit script on the first error
