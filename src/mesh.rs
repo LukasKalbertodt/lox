@@ -215,7 +215,8 @@ where
     _dummy: PhantomData<(E, VertexT, FaceT)>,
 }
 
-impl<S, V, F, E, VertexT, FaceT> MeshSink<VertexT, FaceT> for AdhocMeshSink<S, V, F, E, VertexT, FaceT>
+impl<S, V, F, E, VertexT, FaceT> MeshSink<VertexT, FaceT>
+    for AdhocMeshSink<S, V, F, E, VertexT, FaceT>
 where
     V: FnMut(&mut S, VertexT) -> Result<VertexHandle, E>,
     F: FnMut(&mut S, [VertexHandle; 3], FaceT) -> Result<FaceHandle, E>,
