@@ -23,7 +23,10 @@ mod write;
 mod tests;
 
 
-pub use self::read::{Reader};
+pub use self::read::{
+    Reader, ElementDef, PropertyDef, PropertyType, ScalarType,
+    ScalarTypeParseError, Property, RawSink, RawResult, ElementGroup, Element
+};
 pub use self::write::{Serializer, Writer};
 
 

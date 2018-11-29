@@ -35,8 +35,9 @@ fn main() {
 
 fn run() -> Result<(), Error> {
     let reader = ply::Reader::open(std::env::args().nth(1).unwrap())?;
-    reader.read_raw_into(&mut ())?;
-    // println!("{:#?}", reader);
+    let mut res = ply::RawResult::new();
+    reader.read_raw_into(&mut res)?;
+    println!("{:#?}", res);
 
 
     Ok(())

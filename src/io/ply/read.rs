@@ -301,11 +301,23 @@ impl<R: io::Read> Reader<R> {
         Ok(Self { buf, comments, encoding, elements })
     }
 
-    pub fn read_raw_into(mut self, _sink: &mut impl RawSink) -> Result<(), Error> {
+    /// Reads the whole file into the given raw sink.
+    ///
+    /// This is a low level building block that you usually don't want to use
+    /// directly.
+    pub fn read_raw_into(mut self, sink: &mut impl RawSink) -> Result<(), Error> {
         let buf = &mut self.buf;
 
+        // Keep this vector on the outside to retain allocations
         let mut properties = Vec::new();
+
+        // Iterate through each element group
         for element_def in &self.elements {
+            sink.element_group_start(&element_def);
+
+            // Just read as many elements as specfied in the header. A faulty
+            // number in the header won't lead to any DOS dangerous things. We
+            // time and memory we use here is still limited by the file size.
             for _ in 0..element_def.count {
                 properties.clear();
 
@@ -321,7 +333,8 @@ impl<R: io::Read> Reader<R> {
                     }
                 }
 
-                println!("{:?}", properties);
+                // Send read properties to the sink.
+                sink.element(&properties);
             }
         }
 
@@ -345,13 +358,13 @@ trait EncodingReader {
 
     /// Skips a seperator between two values. Only relevant for ASCII
     /// (whitespace), therefore this empty implementation is provided.
-    fn skip_separator(buf: &mut impl Input) -> Result<(), parse::Error> {
+    fn skip_separator(_buf: &mut impl Input) -> Result<(), parse::Error> {
         Ok(())
     }
 
     /// Finish reading one element. Only relevant for ASCII (where a linebreak
     /// needs to be skipped), therefore this empty implementation is provided.
-    fn finish_element(buf: &mut impl Input) -> Result<(), parse::Error> {
+    fn finish_element(_buf: &mut impl Input) -> Result<(), parse::Error> {
         Ok(())
     }
 }
@@ -708,13 +721,48 @@ impl Property {
 // ===========================================================================
 // ===== RawSink
 // ===========================================================================
-
+/// A type that can accept raw data from an PLY file. This is mainly used for
+/// [`Reader::read_raw_into`].
 pub trait RawSink {
+    /// Is called when a new element group begins. `def` describes the layout
+    /// of all elements in this group. This method is *always* called before
+    /// `element` is called.
+    fn element_group_start(&mut self, def: &ElementDef);
+
+    /// Is called for each element that is read. When called, the element
+    /// belongs to the last element group (the last `element_group_start`
+    /// call).
+    fn element(&mut self, properties: &[Property]);
+}
+
+impl RawSink for RawResult {
+    fn element_group_start(&mut self, def: &ElementDef) {
+        self.element_groups.push(ElementGroup {
+            def: def.clone(),
+            elements: vec![],
+        });
+    }
+    fn element(&mut self, properties: &[Property]) {
+        self.element_groups
+            .last_mut()
+            .unwrap()
+            .elements
+            .push(Element { properties: properties.to_vec() });
+    }
 }
 
 #[derive(Debug)]
 pub struct RawResult {
-    elements: Vec<ElementGroup>
+    element_groups: Vec<ElementGroup>,
+}
+
+impl RawResult {
+    /// Creates an instance with no name and no triangles.
+    pub fn new() -> Self {
+        Self {
+            element_groups: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug)]
