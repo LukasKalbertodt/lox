@@ -78,7 +78,6 @@ where
 /// or '\n'.
 parser!(float = |buf| -> f32 {
     buf.take_until(
-        100, // every float as ASCII fits in 100 bytes
         |b| b == b' ' || b == b'\n',
         |sd| sd.assert_ascii()?
             .parse::<f32>()
@@ -210,7 +209,7 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
                     |sd| sd.assert_ascii().map(|name| name.trim().to_string()),
                 )?
             } else {
-                let name = buf.take_until(None, b'\n', |sd| {
+                let name = buf.take_until(b'\n', |sd| {
                     sd.assert_ascii().map(|name| name.trim().to_string())
                 })?;
                 linebreak(&mut buf)?;

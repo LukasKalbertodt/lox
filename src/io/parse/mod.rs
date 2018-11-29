@@ -65,14 +65,12 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
 
     fn take_until<F, O>(
         &mut self,
-        upper_limit: impl Into<Option<usize>>,
         stopper: impl Stopper,
         func: F,
     ) -> Result<O, Error>
     where
         F: FnOnce(SpannedData) -> Result<O, Error>
     {
-        let upper_limit = upper_limit.into().unwrap_or(buf::MAX_BUFFER_SIZE);
         let mut pos = 0;
         loop {
             if self.len() <= pos {
@@ -84,10 +82,6 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
             }
 
             pos += 1;
-
-            if pos >= upper_limit {
-                return Err(Error::LookAheadTooBig);
-            }
         }
 
         let out = func(self.spanned_data(pos))?;

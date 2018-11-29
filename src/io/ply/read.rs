@@ -116,7 +116,7 @@ impl<R: io::Read> Reader<R> {
             comments: &mut Vec<String>,
         ) -> Result<(), parse::Error> {
             line(buf, |buf| {
-                buf.take_until(None, b'\n', |line| {
+                buf.take_until(b'\n', |line| {
                     comments.push(line.assert_ascii()?[7..].trim_start().to_string());
                     Ok(())
                 })
@@ -126,7 +126,7 @@ impl<R: io::Read> Reader<R> {
         /// Parses a scalar type delimited by whitespace (whitespace is not
         /// read by this function).
         fn parse_scalar_type(buf: &mut impl Input) -> Result<ScalarType, parse::Error> {
-            buf.take_until(None, b' ', |word| {
+            buf.take_until(b' ', |word| {
                 word.assert_ascii()?
                     .parse::<ScalarType>()
                     .map_err(|e| word.error(e.to_string()))
@@ -135,7 +135,7 @@ impl<R: io::Read> Reader<R> {
 
         /// Parses a single word delimited by whitespace or newline.
         fn parse_ident(buf: &mut impl Input) -> Result<String, parse::Error> {
-            buf.take_until(None, |b| b == b' ' || b == b'\n', |s| {
+            buf.take_until(|b| b == b' ' || b == b'\n', |s| {
                 s.assert_ascii().map(|s| s.to_string())
             })
         }
@@ -169,15 +169,13 @@ impl<R: io::Read> Reader<R> {
             buf.expect_tag(b"format")?;
             whitespace(buf)?;
 
-            const MAX_FORMAT_LEN: usize = 20;
-
-            let encoding = buf.take_until(MAX_FORMAT_LEN, b' ', |line| {
+            let encoding = buf.take_until(b' ', |line| {
                 match line.data {
                     b"ascii" => Ok(Encoding::Ascii),
                     b"binary_little_endian" => Ok(Encoding::BinaryLittleEndian),
                     b"binary_big_endian" => Ok(Encoding::BinaryBigEndian),
                     other => {
-                        let len = min(other.len(), MAX_FORMAT_LEN);
+                        let len = min(other.len(), 50); // limit size of error string
                         let msg = format!(
                             "expected \"ascii\", \"binary_little_endian\" or \
                                 \"binary_big_endian\", found '{}'",
@@ -211,7 +209,7 @@ impl<R: io::Read> Reader<R> {
                     let name = parse_ident(&mut buf)?;
                     whitespace(&mut buf)?;
 
-                    let count = buf.take_until(None, |b| b == b' ' || b == b'\n', |n| {
+                    let count = buf.take_until(|b| b == b' ' || b == b'\n', |n| {
                         match n.assert_ascii()?.parse::<u64>() {
                             Ok(v) => Ok(v),
                             Err(e) => {
