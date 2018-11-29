@@ -516,22 +516,29 @@ fn parse_element<E: EncodingReader, I: Input>(
     Ok(())
 }
 
-
-
-#[derive(Debug)]
+// ===========================================================================
+// ===== Data structures to hold header and body data of a PLY file
+// ===========================================================================
+/// The header definition of one element group.
+#[derive(Debug, Clone)]
 pub struct ElementDef {
     name: String,
+
+    /// Number of elements in this group.
     count: u64,
+
+    /// Definitions for all properties of elements in this group.
     property_defs: Vec<PropertyDef>,
 }
 
-#[derive(Debug)]
+/// Te header definition of one property of an element.
+#[derive(Debug, Clone)]
 pub struct PropertyDef {
     ty: PropertyType,
     name: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy,)]
 pub enum PropertyType {
     Scalar(ScalarType),
     List {
@@ -553,10 +560,13 @@ pub enum ScalarType {
 }
 
 impl ScalarType {
+    /// Returns `true` if and only if the type is either `float` or `double`.
     pub fn is_floating_point(&self) -> bool {
         *self == ScalarType::Float || *self == ScalarType::Double
     }
 
+    /// Returns `true` if and only if the type is one of `uchar`, `ushort` or
+    /// `uint`.
     pub fn is_unsigned_integer(&self) -> bool {
         match self {
             ScalarType::UChar | ScalarType::UShort | ScalarType::UInt => true,
@@ -564,6 +574,8 @@ impl ScalarType {
         }
     }
 
+    /// Returns `true` if and only if the type is one of `char`, `short` or
+    /// `int`.
     pub fn is_signed_integer(&self) -> bool {
         match self {
             ScalarType::Char | ScalarType::Short | ScalarType::Int => true,
@@ -571,6 +583,7 @@ impl ScalarType {
         }
     }
 
+    /// Returns the number of bytes this type occupies.
     pub fn size(&self) -> usize {
         match self {
             ScalarType::Char => 1,
@@ -585,8 +598,6 @@ impl ScalarType {
     }
 }
 
-pub struct ScalarTypeParseError(String);
-
 impl fmt::Display for ScalarTypeParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "\"{}\" is not a valid PLY scalar type", self.0)
@@ -598,6 +609,10 @@ impl fmt::Debug for ScalarTypeParseError {
         fmt::Display::fmt(self, f)
     }
 }
+
+/// The error emitted when the `FromStr` implementation for `ScalarType` cannot
+/// parse the given string.
+pub struct ScalarTypeParseError(String);
 
 impl FromStr for ScalarType {
     type Err = ScalarTypeParseError;
@@ -616,29 +631,12 @@ impl FromStr for ScalarType {
     }
 }
 
-pub trait RawSink {
-}
-
-impl RawSink for () {}
-
-#[derive(Debug)]
-pub struct RawResult {
-    elements: Vec<ElementGroup>
-}
-
-#[derive(Debug)]
-pub struct ElementGroup {
-    def: ElementDef,
-    elements: Vec<Element>,
-}
-
-#[derive(Debug)]
-pub struct Element {
-    // TODO: this is really not very space efficient...
-    properties: Vec<Property>,
-}
-
-#[derive(Debug)]
+/// One property value of some PLY type.
+///
+/// The sizes of the smallvecs are choosen so that the inline variant won't
+/// inflict a size overhead (on x64). This still means that the most common
+/// form of list, the three-tuple `vertex_indices`, will fit inline.
+#[derive(Debug, Clone)]
 pub enum Property {
     Char(i8),
     UChar(u8),
@@ -659,6 +657,8 @@ pub enum Property {
 }
 
 impl Property {
+    /// Returns the value as integer, or `None` if the property does not have
+    /// an integer type.
     pub fn as_integer(&self) -> Option<i64> {
         match *self {
             Property::Char(v) => Some(v.into()),
@@ -671,6 +671,8 @@ impl Property {
         }
     }
 
+    /// Returns the value as unsigned integer, or `None` if the property does
+    /// not have an unsigned integer type.
     pub fn as_unsigned_integer(&self) -> Option<u32> {
         match *self {
             Property::UChar(v) => Some(v.into()),
@@ -680,6 +682,8 @@ impl Property {
         }
     }
 
+    /// Returns the value as signed integer, or `None` if the property does
+    /// not have a signed integer type.
     pub fn as_signed_integer(&self) -> Option<i32> {
         match *self {
             Property::Char(v) => Some(v.into()),
@@ -689,6 +693,8 @@ impl Property {
         }
     }
 
+    /// Returns the value as float, or `None` if the property does not have a
+    /// float type.
     pub fn as_floating_point(&self) -> Option<f64> {
         match *self {
             Property::Float(v) => Some(v.into()),
@@ -696,4 +702,29 @@ impl Property {
             _ => None,
         }
     }
+}
+
+
+// ===========================================================================
+// ===== RawSink
+// ===========================================================================
+
+pub trait RawSink {
+}
+
+#[derive(Debug)]
+pub struct RawResult {
+    elements: Vec<ElementGroup>
+}
+
+#[derive(Debug)]
+pub struct ElementGroup {
+    def: ElementDef,
+    elements: Vec<Element>,
+}
+
+#[derive(Debug)]
+pub struct Element {
+    // TODO: this is really not very space efficient...
+    properties: Vec<Property>,
 }
