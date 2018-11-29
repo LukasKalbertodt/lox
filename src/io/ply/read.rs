@@ -312,9 +312,11 @@ impl<R: io::Read> Reader<R> {
                 match self.encoding {
                     Encoding::Ascii => unimplemented!(),
                     Encoding::BinaryBigEndian => {
-                        parse_be_element(buf, &element_def, &mut properties)?;
+                        parse_element::<BbeEncoding, _>(buf, &element_def, &mut properties)?;
                     }
-                    Encoding::BinaryLittleEndian => unimplemented!(),
+                    Encoding::BinaryLittleEndian => {
+                        parse_element::<BleEncoding, _>(buf, &element_def, &mut properties)?;
+                    }
                 }
 
                 println!("{:?}", properties);
@@ -328,65 +330,98 @@ impl<R: io::Read> Reader<R> {
 // ===========================================================================
 // ===== Helpers for body parsing
 // ===========================================================================
-fn parse_be_element(
-    buf: &mut impl Input,
+trait EncodingReader {
+    fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error>;
+    fn read_u8(buf: &mut impl Input) -> Result<u8, parse::Error>;
+    fn read_i16(buf: &mut impl Input) -> Result<i16, parse::Error>;
+    fn read_u16(buf: &mut impl Input) -> Result<u16, parse::Error>;
+    fn read_i32(buf: &mut impl Input) -> Result<i32, parse::Error>;
+    fn read_u32(buf: &mut impl Input) -> Result<u32, parse::Error>;
+    fn read_f32(buf: &mut impl Input) -> Result<f32, parse::Error>;
+    fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error>;
+}
+
+enum BbeEncoding {}
+impl EncodingReader for BbeEncoding {
+    fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error> { parse::i8_we(buf) }
+    fn read_u8(buf: &mut impl Input) -> Result<u8, parse::Error> { parse::u8_we(buf) }
+    fn read_i16(buf: &mut impl Input) -> Result<i16, parse::Error> { parse::i16_be(buf) }
+    fn read_u16(buf: &mut impl Input) -> Result<u16, parse::Error> { parse::u16_be(buf) }
+    fn read_i32(buf: &mut impl Input) -> Result<i32, parse::Error> { parse::i32_be(buf) }
+    fn read_u32(buf: &mut impl Input) -> Result<u32, parse::Error> { parse::u32_be(buf) }
+    fn read_f32(buf: &mut impl Input) -> Result<f32, parse::Error> { parse::f32_be(buf) }
+    fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error> { parse::f64_be(buf) }
+}
+
+enum BleEncoding {}
+impl EncodingReader for BleEncoding {
+    fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error> { parse::i8_we(buf) }
+    fn read_u8(buf: &mut impl Input) -> Result<u8, parse::Error> { parse::u8_we(buf) }
+    fn read_i16(buf: &mut impl Input) -> Result<i16, parse::Error> { parse::i16_le(buf) }
+    fn read_u16(buf: &mut impl Input) -> Result<u16, parse::Error> { parse::u16_le(buf) }
+    fn read_i32(buf: &mut impl Input) -> Result<i32, parse::Error> { parse::i32_le(buf) }
+    fn read_u32(buf: &mut impl Input) -> Result<u32, parse::Error> { parse::u32_le(buf) }
+    fn read_f32(buf: &mut impl Input) -> Result<f32, parse::Error> { parse::f32_le(buf) }
+    fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error> { parse::f64_le(buf) }
+}
+
+fn parse_element<E: EncodingReader, I: Input>(
+    buf: &mut I,
     def: &ElementDef,
     out: &mut Vec<Property>,
 ) -> Result<(), Error> {
-    fn read_single_value(buf: &mut impl Input, ty: ScalarType) -> Result<Property, Error> {
+    /// Reads a single value of type `ty` and returns it as `Property`. The
+    /// returned `Property` is one of the scalar variants, i.e. not one of the
+    /// `*List` variants!
+    fn read_scalar<E: EncodingReader, I: Input>(
+        buf: &mut I,
+        ty: ScalarType,
+    ) -> Result<Property, Error> {
         let p = match ty {
-            ScalarType::Char => Property::Char(parse::i8_we(buf)?),
-            ScalarType::UChar => Property::UChar(parse::u8_we(buf)?),
-            ScalarType::Short => Property::Short(parse::i16_be(buf)?),
-            ScalarType::UShort => Property::UShort(parse::u16_be(buf)?),
-            ScalarType::Int => Property::Int(parse::i32_be(buf)?),
-            ScalarType::UInt => Property::UInt(parse::u32_be(buf)?),
-            ScalarType::Float => Property::Float(parse::f32_be(buf)?),
-            ScalarType::Double => Property::Double(parse::f64_be(buf)?),
+            ScalarType::Char => Property::Char(E::read_i8(buf)?),
+            ScalarType::UChar => Property::UChar(E::read_u8(buf)?),
+            ScalarType::Short => Property::Short(E::read_i16(buf)?),
+            ScalarType::UShort => Property::UShort(E::read_u16(buf)?),
+            ScalarType::Int => Property::Int(E::read_i32(buf)?),
+            ScalarType::UInt => Property::UInt(E::read_u32(buf)?),
+            ScalarType::Float => Property::Float(E::read_f32(buf)?),
+            ScalarType::Double => Property::Double(E::read_f64(buf)?),
         };
 
         Ok(p)
     }
 
-    fn read_list(
-        buf: &mut impl Input,
-        len: u32,
-        scalar_type: ScalarType,
-    ) -> Result<Property, Error> {
-        macro_rules! read_list {
-            ($variant:ident, $read_fun:ident) => {{
-                let mut list = SmallVec::new();
-                for _ in 0..len {
-                    list.push(parse::$read_fun(buf)?);
-                }
-
-                Ok(Property::$variant(list))
-            }}
-        }
-
-        match scalar_type {
-            ScalarType::Char => read_list!(CharList, i8_we),
-            ScalarType::UChar => read_list!(UCharList, u8_we),
-            ScalarType::Short => read_list!(ShortList, i16_be),
-            ScalarType::UShort => read_list!(UShortList, u16_be),
-            ScalarType::Int => read_list!(IntList, i32_be),
-            ScalarType::UInt => read_list!(UIntList, u32_be),
-            ScalarType::Float => read_list!(FloatList, f32_be),
-            ScalarType::Double => read_list!(DoubleList, f64_be),
-        }
-    }
-
     for prop_def in &def.property_defs {
         let property = match prop_def.ty {
-            PropertyType::Scalar(ty) => read_single_value(buf, ty)?,
+            PropertyType::Scalar(ty) => read_scalar::<E, _>(buf, ty)?,
             PropertyType::List { len_type, scalar_type } => {
                 // We know that the `len_type` is an unsigned integer type,
                 // because it was checked while parsing the header.
-                let len = read_single_value(buf, len_type)?
+                let len = read_scalar::<E, _>(buf, len_type)?
                     .as_unsigned_integer()
                     .unwrap();
 
-                read_list(buf, len, scalar_type)?
+                macro_rules! read_list {
+                    ($variant:ident, $read_fun:ident) => {{
+                        let mut list = SmallVec::new();
+                        for _ in 0..len {
+                            list.push(E::$read_fun(buf)?);
+                        }
+
+                        Property::$variant(list)
+                    }}
+                }
+
+                match scalar_type {
+                    ScalarType::Char => read_list!(CharList, read_i8),
+                    ScalarType::UChar => read_list!(UCharList, read_u8),
+                    ScalarType::Short => read_list!(ShortList, read_i16),
+                    ScalarType::UShort => read_list!(UShortList, read_u16),
+                    ScalarType::Int => read_list!(IntList, read_i32),
+                    ScalarType::UInt => read_list!(UIntList, read_u32),
+                    ScalarType::Float => read_list!(FloatList, read_f32),
+                    ScalarType::Double => read_list!(DoubleList, read_f64),
+                }
             }
         };
         out.push(property);
