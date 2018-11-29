@@ -310,7 +310,9 @@ impl<R: io::Read> Reader<R> {
                 properties.clear();
 
                 match self.encoding {
-                    Encoding::Ascii => unimplemented!(),
+                    Encoding::Ascii => {
+                        parse_element::<AsciiEncoding, _>(buf, &element_def, &mut properties)?;
+                    }
                     Encoding::BinaryBigEndian => {
                         parse_element::<BbeEncoding, _>(buf, &element_def, &mut properties)?;
                     }
@@ -330,6 +332,7 @@ impl<R: io::Read> Reader<R> {
 // ===========================================================================
 // ===== Helpers for body parsing
 // ===========================================================================
+/// Helper trait to abstract the three different encodings.
 trait EncodingReader {
     fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error>;
     fn read_u8(buf: &mut impl Input) -> Result<u8, parse::Error>;
@@ -339,8 +342,21 @@ trait EncodingReader {
     fn read_u32(buf: &mut impl Input) -> Result<u32, parse::Error>;
     fn read_f32(buf: &mut impl Input) -> Result<f32, parse::Error>;
     fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error>;
+
+    /// Skips a seperator between two values. Only relevant for ASCII
+    /// (whitespace), therefore this empty implementation is provided.
+    fn skip_separator(buf: &mut impl Input) -> Result<(), parse::Error> {
+        Ok(())
+    }
+
+    /// Finish reading one element. Only relevant for ASCII (where a linebreak
+    /// needs to be skipped), therefore this empty implementation is provided.
+    fn finish_element(buf: &mut impl Input) -> Result<(), parse::Error> {
+        Ok(())
+    }
 }
 
+/// Binary big endian encoding.
 enum BbeEncoding {}
 impl EncodingReader for BbeEncoding {
     fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error> { parse::i8_we(buf) }
@@ -353,6 +369,7 @@ impl EncodingReader for BbeEncoding {
     fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error> { parse::f64_be(buf) }
 }
 
+/// Binary little endian encoding.
 enum BleEncoding {}
 impl EncodingReader for BleEncoding {
     fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error> { parse::i8_we(buf) }
@@ -365,6 +382,66 @@ impl EncodingReader for BleEncoding {
     fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error> { parse::f64_le(buf) }
 }
 
+// Reads until the next whitespace or linebreak and tries to parse the string
+// as `$ty`.
+macro_rules! ascii_parser {
+    ($buf:ident, $ty:ident) => {
+        $buf.take_until(
+            |b| b == b' ' || b == b'\n',
+            |sd| {
+                sd.assert_ascii()?
+                    .parse::<$ty>()
+                    .map_err(|e| {
+                        let msg = format!(
+                            concat!("invalid '", stringify!($ty), "' literal: {}"),
+                            e,
+                        );
+                        sd.error(msg)
+                    })
+            }
+        )
+    }
+}
+
+/// ASCII encoding.
+enum AsciiEncoding {}
+impl EncodingReader for AsciiEncoding {
+    fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error> {
+        ascii_parser!(buf, i8)
+    }
+    fn read_u8(buf: &mut impl Input) -> Result<u8, parse::Error> {
+        ascii_parser!(buf, u8)
+    }
+    fn read_i16(buf: &mut impl Input) -> Result<i16, parse::Error> {
+        ascii_parser!(buf, i16)
+    }
+    fn read_u16(buf: &mut impl Input) -> Result<u16, parse::Error> {
+        ascii_parser!(buf, u16)
+    }
+    fn read_i32(buf: &mut impl Input) -> Result<i32, parse::Error> {
+        ascii_parser!(buf, i32)
+    }
+    fn read_u32(buf: &mut impl Input) -> Result<u32, parse::Error> {
+        ascii_parser!(buf, u32)
+    }
+    fn read_f32(buf: &mut impl Input) -> Result<f32, parse::Error> {
+        ascii_parser!(buf, f32)
+    }
+    fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error> {
+        ascii_parser!(buf, f64)
+    }
+
+    fn skip_separator(buf: &mut impl Input) -> Result<(), parse::Error> {
+        whitespace(buf)
+    }
+    fn finish_element(buf: &mut impl Input) -> Result<(), parse::Error> {
+        linebreak(buf)
+    }
+}
+
+/// Parses one element with all its properties as described by `def`.
+/// Properties are written into `out`. The type parameter `E` is used to
+/// actually read values.
 fn parse_element<E: EncodingReader, I: Input>(
     buf: &mut I,
     def: &ElementDef,
@@ -391,7 +468,7 @@ fn parse_element<E: EncodingReader, I: Input>(
         Ok(p)
     }
 
-    for prop_def in &def.property_defs {
+    for (i, prop_def) in def.property_defs.iter().enumerate() {
         let property = match prop_def.ty {
             PropertyType::Scalar(ty) => read_scalar::<E, _>(buf, ty)?,
             PropertyType::List { len_type, scalar_type } => {
@@ -405,6 +482,7 @@ fn parse_element<E: EncodingReader, I: Input>(
                     ($variant:ident, $read_fun:ident) => {{
                         let mut list = SmallVec::new();
                         for _ in 0..len {
+                            E::skip_separator(buf)?;
                             list.push(E::$read_fun(buf)?);
                         }
 
@@ -425,6 +503,14 @@ fn parse_element<E: EncodingReader, I: Input>(
             }
         };
         out.push(property);
+
+        // If this was the last property, finish the element, otherwise skip a
+        // separator.
+        if i == def.property_defs.len() - 1 {
+            E::finish_element(buf)?;
+        } else {
+            E::skip_separator(buf)?;
+        }
     }
 
     Ok(())
