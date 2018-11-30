@@ -11,7 +11,7 @@ use crate::{
     math::{Pos3Like, Vec3Like},
     io::{IntoMeshWriter, MeshWriter},
 };
-use super::{Error, Format};
+use super::{Error, Encoding};
 
 
 const DEFAULT_SOLID_NAME: &str = "mesh";
@@ -30,31 +30,32 @@ type DummyMap = EmptyMap<[f32; 3]>;
 #[derive(Clone, Debug)]
 pub struct Config {
     solid_name: String,
-    format: Format,
+    encoding: Encoding,
 }
 
 impl Config {
     /// Creates a new builder instance from the given format. For convenience,
     /// you can use [`Config::binary()`] or [`Config::ascii()`]
     /// directly.
-    fn new(format: Format) -> Self {
+    fn new(encoding: Encoding) -> Self {
         Self {
             solid_name: DEFAULT_SOLID_NAME.into(),
-            format,
+            encoding,
         }
     }
 
     /// Creates a new builder instance for a binary STL file.
     pub fn binary() -> Self {
-        Self::new(Format::Binary)
+        Self::new(Encoding::Binary)
     }
 
-    /// Creates a new builder instance for an ASCII STL file. **Note**: please
-    /// don't use this. STL ASCII files are even more space inefficient than
-    /// binary STL files. If you can avoid it, never use ASCII STL. In fact,
-    /// consider not using STL at all.
+    /// Creates a new builder instance for an ASCII STL file.
+    ///
+    /// **Note**: please don't use this. STL ASCII files are even more space
+    /// inefficient than binary STL files. If you can avoid it, never use ASCII
+    /// STL. In fact, consider not using STL at all.
     pub fn ascii() -> Self {
-        Self::new(Format::Ascii)
+        Self::new(Encoding::Ascii)
     }
 
     /// Sets the solid name for this file. This is only used for ASCII files!
@@ -189,7 +190,7 @@ where // TODO: remove once implied bounds land
             (positions, normal)
         };
 
-        if self.config.format == Format::Ascii {
+        if self.config.encoding == Encoding::Ascii {
             // ===============================================================
             // ===== STL ASCII
             // ===============================================================
@@ -264,7 +265,8 @@ where // TODO: remove once implied bounds land
 // ===== Helper functions for number encoding
 // ===============================================================================================
 
-/// Writes the three values of the given vector (in STL ASCII format, separated
+/// Writes the three values of the given vector (in STL ASCII encoding,
+/// separated
 /// by ' ') into the writer.
 fn write_ascii_vector(w: &mut impl Write, [x, y, z]: [f32; 3]) -> Result<(), io::Error> {
     write_ascii_f32(w, x)?;

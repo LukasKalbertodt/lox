@@ -2,7 +2,7 @@
 //!
 //! STL is a pretty old and inflexible file format. It simply stores a list of
 //! triangles where each triangle specifies its normal and the position of its
-//! three vertices (plus a strange *attribute byte count* in binary format).
+//! three vertices (plus a strange *attribute byte count* in binary encoding).
 //! The normal and positions are always three 32 bit IEEE floats (`f32`). Due
 //! to just storing a list of triangles, many vertices are stored multiple
 //! times, making the format fairly space inefficient.
@@ -86,9 +86,9 @@ pub use self::read::{FnSink, Reader, RawSink, Triangle, RawResult};
 pub use self::write::{Config, Writer};
 
 
-/// The two different formats of STL files.
+/// The two different encodings of STL files.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Format {
+pub enum Encoding {
     /// Everything is ASCII and very space inefficient.
     Ascii,
 

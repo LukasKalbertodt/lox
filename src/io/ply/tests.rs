@@ -6,7 +6,7 @@ use crate::{
     ds::SharedVertexMesh,
     map::{ConstMap, FnMap, VecMap},
 };
-use super::{Serializer, Format};
+use super::{Serializer, Encoding};
 
 
 
@@ -83,7 +83,7 @@ fn triangle_with_extra_props_ascii() -> Result<(), Error> {
 fn triangle_bbe() -> Result<(), Error> {
     let (mesh, positions) = triangle_mesh();
 
-    let res = Serializer::new(Format::BinaryBigEndian)
+    let res = Serializer::new(Encoding::BinaryBigEndian)
         .into_writer(&mesh, &positions)
         .write_to_memory()?;
 
@@ -95,7 +95,7 @@ fn triangle_bbe() -> Result<(), Error> {
 fn triangle_with_comments_bbe() -> Result<(), Error> {
     let (mesh, positions) = triangle_mesh();
 
-    let res = Serializer::new(Format::BinaryBigEndian)
+    let res = Serializer::new(Encoding::BinaryBigEndian)
         .add_comment("My name is Tom")
         .add_comment("Yes we can have multiple comments :)")
         .add_comment(
@@ -122,7 +122,7 @@ fn triangle_with_extra_props_bbe() -> Result<(), Error> {
         ],
     };
 
-    let res = Serializer::new(Format::BinaryBigEndian)
+    let res = Serializer::new(Encoding::BinaryBigEndian)
         .into_writer(&mesh, &positions)
         .add_vertex_prop("foo", &ConstMap([0.93f64, 0.2, 0.3]))
         .add_vertex_prop("bar", &FnMap(|h| bar.get(h).map(|v| v.into_inner().as_slice())))
@@ -148,7 +148,7 @@ fn triangle_with_extra_props_ble() -> Result<(), Error> {
         ],
     };
 
-    let res = Serializer::new(Format::BinaryLittleEndian)
+    let res = Serializer::new(Encoding::BinaryLittleEndian)
         .into_writer(&mesh, &positions)
         .add_vertex_prop("foo", &ConstMap([0.93f64, 0.2, 0.3]))
         .add_vertex_prop("bar", &FnMap(|h| bar.get(h).map(|v| v.into_inner().as_slice())))
