@@ -61,3 +61,24 @@ pub trait MeshWriter {
         Ok(w.into_inner())
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+pub enum FileFormat {
+    Ply,
+    Stl,
+}
+
+impl FileFormat {
+    pub fn from_extension(path: impl AsRef<Path>) -> Option<Self> {
+        path.as_ref()
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .and_then(|ext| {
+                match ext {
+                    "ply" => Some(FileFormat::Ply),
+                    "stl" => Some(FileFormat::Stl),
+                    _ => None,
+                }
+            })
+    }
+}
