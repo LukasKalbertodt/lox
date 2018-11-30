@@ -1,9 +1,0 @@
-[workspace]
-
-members = [
-    "fev",
-    "fev-core",
-    "fev-impls",
-    "fev-io",
-    "fev-map",
-]
