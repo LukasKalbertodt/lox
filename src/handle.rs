@@ -132,7 +132,7 @@ impl HandleId for DefaultInt {
 ///
 /// This trait basically represents types that can be created from and
 /// converted to an ID type. So handles are just strongly typed IDs.
-pub trait Handle: Copy + fmt::Debug + Eq {
+pub trait Handle: 'static + Copy + fmt::Debug + Eq {
     /// Create a handle from the given ID.
     fn from_id(id: DefaultInt) -> Self;
 
