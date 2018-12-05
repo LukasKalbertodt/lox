@@ -67,6 +67,6 @@ impl MemSink for Dummy {
         v: VertexHandle,
         position: Point3<N>,
     ) {
-        println!("set_vertex_position({:?}, {:?}", v, position);
+        println!("set_vertex_position({:?}, {:?})", v, position);
     }
 }

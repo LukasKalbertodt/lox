@@ -96,7 +96,7 @@ pub trait MemSink {
 
     fn set_vertex_position<N: PrimitiveNum>(
         &mut self,
-        v: VertexHandle,
-        position: Point3<N>,
+        _: VertexHandle,
+        _position: Point3<N>,
     ) {}
 }

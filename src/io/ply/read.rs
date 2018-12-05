@@ -10,12 +10,14 @@ use std::{
     str::FromStr,
 };
 
-use byteorder::{ByteOrder, LittleEndian, NativeEndian, ReadBytesExt};
+use byteorder::{ByteOrder, LittleEndian, NativeEndian, ReadBytesExt, WriteBytesExt};
+use cgmath::Point3;
 use failure::Fail;
 use smallvec::SmallVec;
 
 use crate::{
     TransferError,
+    math::PrimitiveNum,
     prelude::*,
     io::{
         StreamingSource, MemSink,
@@ -345,8 +347,16 @@ impl<R: io::Read> Reader<R> {
 
 impl<R: io::Read, S: MemSink> StreamingSource<S> for Reader<R> {
     fn transfer_to(&mut self, sink: &mut S) {
-        fn read_pos<T>() {
-
+        fn read_pos<T: FromBytes + PrimitiveNum, S: MemSink>(
+            sink: &mut S,
+            raw: &[u8],
+            handle: VertexHandle,
+            offsets: &[u32; 3],
+        ) {
+            let x = T::from_bytes_ne(&raw[offsets[0] as usize..]);
+            let y = T::from_bytes_ne(&raw[offsets[1] as usize..]);
+            let z = T::from_bytes_ne(&raw[offsets[2] as usize..]);
+            sink.set_vertex_position(handle, Point3::new(x, y, z));
         }
 
 
@@ -360,28 +370,172 @@ impl<R: io::Read, S: MemSink> StreamingSource<S> for Reader<R> {
             Encoding::Ascii => AsciiEncoding::read_element::<Buffer<R>>,
         };
 
+
+
         // Iterate through each element group
-        let mut elem_data = Vec::new();
+        let mut raw = Vec::new();
+        let mut starts = Vec::new();
         for element_def in &self.elements {
             let index = IndexedProperties::new(element_def);
 
-            for _ in 0..element_def.count {
-                elem_data.clear();
-                read_element(buf, element_def, &index, &mut elem_data).expect("fucki wucki");
-                println!("{:02x?}", elem_data);
+            macro_rules! read_elem {
+                () => {{
+                    raw.clear();
+                    starts.clear();
+                    read_element(buf, element_def, &index, &mut raw, &mut starts)
+                        .expect("fucki wucki");
+                }}
+            }
 
-                match &*element_def.name {
-                    "vertex" => {
+            match &*element_def.name {
+                "vertex" => {
+                    // Preparations for vertex parsing
+                    let pos_type = element_def.property_defs.iter()
+                        .find(|def| def.name == "x")
+                        .expect("no position data in PLY") // TODO
+                        .ty;
+
+                    let x_index = element_def.property_defs.iter()
+                        .position(|def| def.name == "x")
+                        .expect("no position data in PLY"); // TODO
+                    let y_index = element_def.property_defs.iter()
+                        .position(|def| def.name == "y")
+                        .expect("no position data in PLY"); // TODO
+                    let z_index = element_def.property_defs.iter()
+                        .position(|def| def.name == "z")
+                        .expect("no position data in PLY"); // TODO
+
+
+                    let pos_type = match pos_type {
+                        PropertyType::Scalar(ty) => ty,
+                        PropertyType::List { .. } => panic!("bad position type") // TODO
+                    };
+                    let read_pos = match pos_type {
+                        ScalarType::Char => read_pos::<i8, S>,
+                        ScalarType::UChar => read_pos::<u8, S>,
+                        ScalarType::Short => read_pos::<i16, S>,
+                        ScalarType::UShort => read_pos::<u16, S>,
+                        ScalarType::Int => read_pos::<i32, S>,
+                        ScalarType::UInt => read_pos::<u32, S>,
+                        ScalarType::Float => read_pos::<f32, S>,
+                        ScalarType::Double => read_pos::<f64, S>,
+                    };
+
+                    for _ in 0..element_def.count {
+                        read_elem!();
+                        // println!("{:02x?}", raw);
+                        // println!("{:?}", starts);
 
                         let handle = sink.add_vertex();
                         vertex_handles.push(handle);
+                        read_pos(
+                            sink,
+                            &raw,
+                            handle,
+                            &[starts[x_index], starts[y_index], starts[z_index]],
+                        );
                     }
-                    "face" => {
-                    }
-                    _ => {}
                 }
+                "face" => {
+                    // println!("----");
+                    // TODO: check "vertex" came before
+
+                    let vi_index = element_def.property_defs.iter()
+                        .position(|def| def.name == "vertex_indices")
+                        .expect("no vertex indices data in PLY"); // TODO
+
+                    let (vi_len_type, vi_scalar_type)
+                        = match element_def.property_defs[vi_index].ty {
+                        PropertyType::Scalar(_) => unreachable!(), // TODO: check this above!!
+                        PropertyType::List { len_type, scalar_type } => (len_type, scalar_type),
+                    };
+
+                    fn read_vertex_handles<T: FromBytes + Into<u32>>(
+                        raw: &[u8],
+                    ) -> [u32; 3] {
+                        let a = T::from_bytes_ne(&raw[0 * T::SIZE..]).into();
+                        let b = T::from_bytes_ne(&raw[1 * T::SIZE..]).into();
+                        let c = T::from_bytes_ne(&raw[2 * T::SIZE..]).into();
+                        [a, b, c]
+                    }
+
+
+                    let read_vertex_handles = match vi_scalar_type {
+                        ScalarType::Char | ScalarType::UChar => read_vertex_handles::<u8>,
+                        ScalarType::Short | ScalarType::UShort => read_vertex_handles::<u16>,
+                        ScalarType::Int | ScalarType::UInt => read_vertex_handles::<u32>,
+                        _ => unreachable!(), // TODO: actually check above
+                    };
+
+                    for _ in 0..element_def.count {
+                        read_elem!();
+                        // println!("{:02x?}", raw);
+                        // println!("{:?}", starts);
+
+                        let offset = starts[vi_index] as usize;
+
+                        let len = match vi_len_type {
+                            ScalarType::UChar => raw[offset] as u32,
+                            ScalarType::UShort => NativeEndian::read_u16(&raw[offset..]) as u32,
+                            ScalarType::UInt => NativeEndian::read_u32(&raw[offset..]),
+                            _ => unreachable!(),
+                        };
+
+                        if len != 3 {
+                            panic!("fucki wucki no triangle");
+                        }
+
+                        let start_list_data = offset + vi_len_type.size().as_usize();
+                        let vis = read_vertex_handles(&raw[start_list_data..]);
+                        // println!("{:?}", vis);
+
+                        let handles = [
+                            // TODO: error handling
+                            *vertex_handles.get(vis[0] as usize)
+                                .expect("fucki wucki incorrect index"),
+                            *vertex_handles.get(vis[1] as usize)
+                                .expect("fucki wucki incorrect index"),
+                            *vertex_handles.get(vis[2] as usize)
+                                .expect("fucki wucki incorrect index"),
+                        ];
+
+                        sink.add_face(handles);
+
+
+                        // let handle = sink.add_vertex();
+                        // vertex_handles.push(handle);
+                        // read_pos(
+                        //     sink,
+                        //     &raw,
+                        //     handle,
+                        //     &[starts[x_index], starts[y_index], starts[z_index]],
+                        // );
+                    }
+                }
+                _ => unimplemented!()
             }
         }
+    }
+}
+
+// Reads until the next whitespace or linebreak and tries to parse the string
+// as `$ty`.
+macro_rules! ascii_parser {
+    ($buf:ident, $ty:ident) => {
+        $buf.take_until(
+            |b| b == b' ' || b == b'\n',
+            |sd| {
+                sd.assert_ascii()?
+                    .parse::<$ty>()
+                    .map_err(|e| {
+                        let msg = format!(
+                            concat!("invalid '", stringify!($ty), "' literal: {}"),
+                            e,
+                        );
+                        sd.error(msg)
+                    })
+            }
+        )
     }
 }
 
@@ -391,6 +545,7 @@ trait EncodingFoo {
         def: &ElementDef,
         index: &IndexedProperties,
         out: &mut Vec<u8>,
+        starts: &mut Vec<u32>,
     ) -> Result<(), parse::Error>;
 }
 
@@ -400,15 +555,16 @@ impl EncodingFoo for BbeEncoding {
         def: &ElementDef,
         index: &IndexedProperties,
         out: &mut Vec<u8>,
+        starts: &mut Vec<u32>,
     ) -> Result<(), parse::Error> {
         #[cfg(target_endian = "big")]
         {
-            read_binary_native(buf, def, index, out)
+            read_binary_native(buf, def, index, out, starts)
         }
 
         #[cfg(target_endian = "little")]
         {
-            read_binary_swapped(buf, def, index, out)
+            read_binary_swapped(buf, def, index, out, starts)
         }
     }
 }
@@ -419,15 +575,16 @@ impl EncodingFoo for BleEncoding {
         def: &ElementDef,
         index: &IndexedProperties,
         out: &mut Vec<u8>,
+        starts: &mut Vec<u32>,
     ) -> Result<(), parse::Error> {
         #[cfg(target_endian = "big")]
         {
-            read_binary_swapped(buf, def, index, out)
+            read_binary_swapped(buf, def, index, out, starts)
         }
 
         #[cfg(target_endian = "little")]
         {
-            read_binary_native(buf, def, index, out)
+            read_binary_native(buf, def, index, out, starts)
         }
     }
 }
@@ -436,13 +593,83 @@ impl EncodingFoo for AsciiEncoding {
     fn read_element<I: Input>(
         buf: &mut I,
         def: &ElementDef,
-        index: &IndexedProperties,
+        _: &IndexedProperties,
         out: &mut Vec<u8>,
+        starts: &mut Vec<u32>,
     ) -> Result<(), parse::Error> {
-        unimplemented!()
+        let mut offset = 0;
+        let mut first = true;
+
+        for prop in &def.property_defs {
+            if first {
+                opt_whitespace(buf)?;
+                first = false;
+            } else {
+                whitespace(buf)?;
+            }
+
+            let len = match prop.ty {
+                PropertyType::Scalar(ty) => {
+                    read_ascii_value(buf, ty, out)?;
+                    ty.size().as_usize()
+                }
+                PropertyType::List { len_type, scalar_type } => {
+                    let len = match len_type {
+                        ScalarType::UChar => {
+                            let len = ascii_parser!(buf, u8)?;
+                            len.encode_ne(out);
+                            len as u32
+                        }
+                        ScalarType::UShort => {
+                            let len = ascii_parser!(buf, u16)?;
+                            len.encode_ne(out);
+                            len as u32
+                        }
+                        ScalarType::UInt => {
+                            let len = ascii_parser!(buf, u32)?;
+                            len.encode_ne(out);
+                            len
+                        }
+                        _ => unreachable!(), // TODO: check this above
+                    };
+
+                    for _ in 0..len {
+                        whitespace(buf)?;
+                        read_ascii_value(buf, scalar_type, out)?;
+                    }
+
+                    len_type.size().as_usize() + len as usize * scalar_type.size().as_usize()
+                }
+            };
+
+            starts.push(offset);
+            offset += len as u32;
+        }
+
+        linebreak(buf)?;
+
+        Ok(())
     }
 }
 
+fn read_ascii_value(
+    buf: &mut impl Input,
+    ty: ScalarType,
+    out: &mut Vec<u8>,
+) -> Result<(), parse::Error> {
+    match ty {
+        ScalarType::Char => ascii_parser!(buf, i8)?.encode_ne(out),
+        ScalarType::UChar => ascii_parser!(buf, u8)?.encode_ne(out),
+        ScalarType::Short => ascii_parser!(buf, i16)?.encode_ne(out),
+        ScalarType::UShort => ascii_parser!(buf, u16)?.encode_ne(out),
+        ScalarType::Int => ascii_parser!(buf, i32)?.encode_ne(out),
+        ScalarType::UInt => ascii_parser!(buf, u32)?.encode_ne(out),
+        ScalarType::Float => ascii_parser!(buf, f32)?.encode_ne(out),
+        ScalarType::Double => ascii_parser!(buf, f64)?.encode_ne(out),
+    }
+
+    Ok(())
+}
 
 
 #[derive(Debug, Clone, Copy)]
@@ -497,7 +724,7 @@ fn read_binary_list_len<E: ByteOrder, I: Input>(
     match len_type {
         ScalarType::UChar => Ok(buf.spanned_data(1).data[0] as usize),
         ScalarType::UShort => Ok(E::read_u16(&buf.spanned_data(2).data) as usize),
-        ScalarType::UShort => Ok(E::read_u32(&buf.spanned_data(4).data) as usize),
+        ScalarType::UInt => Ok(E::read_u32(&buf.spanned_data(4).data) as usize),
         _ => unreachable!(),
     }
 }
@@ -507,7 +734,10 @@ fn read_binary_native(
     _: &ElementDef,
     index: &IndexedProperties,
     out: &mut Vec<u8>,
+    starts: &mut Vec<u32>,
 ) -> Result<(), parse::Error> {
+    let mut offset = 0;
+
     for prop in &index.props {
         let len = match prop {
             PropIndex::Single { size } => size.as_usize(),
@@ -521,6 +751,8 @@ fn read_binary_native(
             out.extend_from_slice(&b.data);
             Ok(())
         })?;
+        starts.push(offset);
+        offset += len as u32;
     }
 
     Ok(())
@@ -531,22 +763,27 @@ fn read_binary_swapped(
     _: &ElementDef,
     index: &IndexedProperties,
     out: &mut Vec<u8>,
+    starts: &mut Vec<u32>,
 ) -> Result<(), parse::Error> {
+    let mut offset = 0;
+
     for prop in &index.props {
         let mut start = out.len();
-        match prop {
+        let len = match prop {
             PropIndex::Single { size } => {
                 buf.with_bytes(size.as_usize(), |b| {
                     out.extend_from_slice(&b.data);
                     Ok(())
                 })?;
                 out[start..].reverse();
+                size.as_usize()
             }
             PropIndex::List { len_type, elem_size } => {
                 let len = read_binary_list_len::<NativeEndian, _>(buf, *len_type)?;
                 let len_len = len_type.size().as_usize();
 
-                buf.with_bytes(len_len + len * elem_size.as_usize(), |b| {
+                let total_len = len_len + len * elem_size.as_usize();
+                buf.with_bytes(total_len, |b| {
                     out.extend_from_slice(&b.data);
                     Ok(())
                 })?;
@@ -559,12 +796,64 @@ fn read_binary_swapped(
                     out[start..end].reverse();
                     start = end;
                 }
+
+                total_len
             }
-        }
+        };
+
+        starts.push(offset);
+        offset += len as u32;
     }
 
     Ok(())
 }
+
+trait FromBytes {
+    const SIZE: usize;
+    fn from_bytes_ne(bytes: &[u8]) -> Self;
+    fn encode_ne(&self, out: &mut Vec<u8>);
+}
+
+macro_rules! impl_from_bytes {
+    ($ty:ident, $read_fun:ident, $write_fun:ident, $size:expr) => {
+        impl FromBytes for $ty {
+            const SIZE: usize = $size;
+            fn from_bytes_ne(bytes: &[u8]) -> Self {
+                NativeEndian::$read_fun(bytes)
+            }
+            fn encode_ne(&self, out: &mut Vec<u8>) {
+                out.$write_fun::<NativeEndian>(*self).unwrap();
+            }
+        }
+    }
+}
+
+impl FromBytes for i8 {
+    const SIZE: usize = 1;
+    fn from_bytes_ne(bytes: &[u8]) -> Self {
+        bytes[0] as i8
+    }
+    fn encode_ne(&self, out: &mut Vec<u8>) {
+        out.push(*self as u8);
+    }
+}
+
+impl FromBytes for u8 {
+    const SIZE: usize = 1;
+    fn from_bytes_ne(bytes: &[u8]) -> Self {
+        bytes[0]
+    }
+    fn encode_ne(&self, out: &mut Vec<u8>) {
+        out.push(*self);
+    }
+}
+
+impl_from_bytes!(u16, read_u16, write_u16, 2);
+impl_from_bytes!(u32, read_u32, write_u32, 4);
+impl_from_bytes!(i16, read_i16, write_i16, 2);
+impl_from_bytes!(i32, read_i32, write_i32, 4);
+impl_from_bytes!(f32, read_f32, write_f32, 4);
+impl_from_bytes!(f64, read_f64, write_f64, 8);
 
 // ===========================================================================
 // ===== Helpers for body parsing
@@ -617,27 +906,6 @@ impl EncodingReader for BleEncoding {
     fn read_u32(buf: &mut impl Input) -> Result<u32, parse::Error> { parse::u32_le(buf) }
     fn read_f32(buf: &mut impl Input) -> Result<f32, parse::Error> { parse::f32_le(buf) }
     fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error> { parse::f64_le(buf) }
-}
-
-// Reads until the next whitespace or linebreak and tries to parse the string
-// as `$ty`.
-macro_rules! ascii_parser {
-    ($buf:ident, $ty:ident) => {
-        $buf.take_until(
-            |b| b == b' ' || b == b'\n',
-            |sd| {
-                sd.assert_ascii()?
-                    .parse::<$ty>()
-                    .map_err(|e| {
-                        let msg = format!(
-                            concat!("invalid '", stringify!($ty), "' literal: {}"),
-                            e,
-                        );
-                        sd.error(msg)
-                    })
-            }
-        )
-    }
 }
 
 /// ASCII encoding.
