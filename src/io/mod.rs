@@ -4,10 +4,13 @@ use std::{
     path::Path,
 };
 
+use cgmath::Point3;
+
 use crate::{
     Mesh, MeshUnsorted, ExplicitFace,
+    handle::{VertexHandle, FaceHandle},
     map::VertexPropMap,
-    math::Pos3Like,
+    math::{Pos3Like, PrimitiveNum},
 };
 
 
@@ -81,4 +84,19 @@ impl FileFormat {
                 }
             })
     }
+}
+
+pub trait StreamingSource<S: MemSink> {
+    fn transfer_to(&mut self, sink: &mut S);
+}
+
+pub trait MemSink {
+    fn add_vertex(&mut self) -> VertexHandle;
+    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
+
+    fn set_vertex_position<N: PrimitiveNum>(
+        &mut self,
+        v: VertexHandle,
+        position: Point3<N>,
+    ) {}
 }

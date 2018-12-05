@@ -7,8 +7,9 @@ use failure::{Error, ResultExt};
 use lox::{
     MeshWithProps,
     ds::SharedVertexMesh,
-    io::{stl, ply},
+    io::{stl, ply, MemSink, StreamingSource},
     map::{ConstMap, FnMap},
+    math::PrimitiveNum,
     mesh,
     prelude::*,
     shape,
@@ -34,11 +35,38 @@ fn main() {
 }
 
 fn run() -> Result<(), Error> {
-    let reader = ply::Reader::open(std::env::args().nth(1).unwrap())?;
-    let mut res = ply::RawResult::new();
-    reader.read_raw_into(&mut res)?;
-    println!("{:#?}", res);
+    let mut reader = ply::Reader::open(std::env::args().nth(1).unwrap())?;
+    let mut dummy = Dummy { mesh: SharedVertexMesh::empty() };
+    reader.transfer_to(&mut dummy);
+    // let mut res = ply::RawResult::new();
+    // reader.read_raw_into(&mut res)?;
+    // println!("{:#?}", res);
 
 
     Ok(())
+}
+
+struct Dummy {
+    mesh: SharedVertexMesh,
+}
+
+impl MemSink for Dummy {
+    fn add_vertex(&mut self) -> VertexHandle {
+        let h = self.mesh.add_vertex();
+        println!("add_vertex() -> {:?}", h);
+        h
+    }
+    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
+        let h = self.mesh.add_face(vertices);
+        println!("add_face({:?}) -> {:?}", vertices, h);
+        h
+    }
+
+    fn set_vertex_position<N: PrimitiveNum>(
+        &mut self,
+        v: VertexHandle,
+        position: Point3<N>,
+    ) {
+        println!("set_vertex_position({:?}, {:?}", v, position);
+    }
 }
