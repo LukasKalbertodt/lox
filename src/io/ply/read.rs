@@ -10,7 +10,7 @@ use std::{
     str::FromStr,
 };
 
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder::{ByteOrder, LittleEndian, NativeEndian, ReadBytesExt};
 use failure::Fail;
 use smallvec::SmallVec;
 
@@ -18,6 +18,7 @@ use crate::{
     TransferError,
     prelude::*,
     io::{
+        StreamingSource, MemSink,
         parse::{
             self, Input, Span, debug_fmt_bytes, SpannedData,
             buf::{Buffer},
@@ -342,6 +343,229 @@ impl<R: io::Read> Reader<R> {
     }
 }
 
+impl<R: io::Read, S: MemSink> StreamingSource<S> for Reader<R> {
+    fn transfer_to(&mut self, sink: &mut S) {
+        fn read_pos<T>() {
+
+        }
+
+
+        let buf = &mut self.buf;
+
+        let mut vertex_handles = Vec::new();
+
+        let read_element = match self.encoding {
+            Encoding::BinaryBigEndian => BbeEncoding::read_element::<Buffer<R>>,
+            Encoding::BinaryLittleEndian => BleEncoding::read_element::<Buffer<R>>,
+            Encoding::Ascii => AsciiEncoding::read_element::<Buffer<R>>,
+        };
+
+        // Iterate through each element group
+        let mut elem_data = Vec::new();
+        for element_def in &self.elements {
+            let index = IndexedProperties::new(element_def);
+
+            for _ in 0..element_def.count {
+                elem_data.clear();
+                read_element(buf, element_def, &index, &mut elem_data).expect("fucki wucki");
+                println!("{:02x?}", elem_data);
+
+                match &*element_def.name {
+                    "vertex" => {
+
+                        let handle = sink.add_vertex();
+                        vertex_handles.push(handle);
+                    }
+                    "face" => {
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+trait EncodingFoo {
+    fn read_element<I: Input>(
+        buf: &mut I,
+        def: &ElementDef,
+        index: &IndexedProperties,
+        out: &mut Vec<u8>,
+    ) -> Result<(), parse::Error>;
+}
+
+impl EncodingFoo for BbeEncoding {
+    fn read_element<I: Input>(
+        buf: &mut I,
+        def: &ElementDef,
+        index: &IndexedProperties,
+        out: &mut Vec<u8>,
+    ) -> Result<(), parse::Error> {
+        #[cfg(target_endian = "big")]
+        {
+            read_binary_native(buf, def, index, out)
+        }
+
+        #[cfg(target_endian = "little")]
+        {
+            read_binary_swapped(buf, def, index, out)
+        }
+    }
+}
+
+impl EncodingFoo for BleEncoding {
+    fn read_element<I: Input>(
+        buf: &mut I,
+        def: &ElementDef,
+        index: &IndexedProperties,
+        out: &mut Vec<u8>,
+    ) -> Result<(), parse::Error> {
+        #[cfg(target_endian = "big")]
+        {
+            read_binary_swapped(buf, def, index, out)
+        }
+
+        #[cfg(target_endian = "little")]
+        {
+            read_binary_native(buf, def, index, out)
+        }
+    }
+}
+
+impl EncodingFoo for AsciiEncoding {
+    fn read_element<I: Input>(
+        buf: &mut I,
+        def: &ElementDef,
+        index: &IndexedProperties,
+        out: &mut Vec<u8>,
+    ) -> Result<(), parse::Error> {
+        unimplemented!()
+    }
+}
+
+
+
+#[derive(Debug, Clone, Copy)]
+pub enum PropSize {
+    One = 1,
+    Two = 2,
+    Four = 4,
+    Eight = 8,
+}
+
+impl PropSize {
+    fn as_usize(&self) -> usize {
+        *self as u8 as usize
+    }
+}
+
+#[derive(Debug, Clone)]
+enum PropIndex {
+    Single {
+        size: PropSize,
+    },
+    List {
+        len_type: ScalarType,
+        elem_size: PropSize,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct IndexedProperties {
+    props: Vec<PropIndex>,
+}
+
+impl IndexedProperties {
+    fn new(element_def: &ElementDef) -> Self {
+        let props = element_def.property_defs.iter().map(|def| {
+            match def.ty {
+                PropertyType::Scalar(ty) => PropIndex::Single { size: ty.size() },
+                PropertyType::List { len_type, scalar_type } => {
+                    PropIndex::List { len_type, elem_size: scalar_type.size() }
+                }
+            }
+        }).collect();
+
+        Self { props }
+    }
+}
+
+fn read_binary_list_len<E: ByteOrder, I: Input>(
+    buf: &mut I,
+    len_type: ScalarType,
+) -> Result<usize, parse::Error> {
+    match len_type {
+        ScalarType::UChar => Ok(buf.spanned_data(1).data[0] as usize),
+        ScalarType::UShort => Ok(E::read_u16(&buf.spanned_data(2).data) as usize),
+        ScalarType::UShort => Ok(E::read_u32(&buf.spanned_data(4).data) as usize),
+        _ => unreachable!(),
+    }
+}
+
+fn read_binary_native(
+    buf: &mut impl Input,
+    _: &ElementDef,
+    index: &IndexedProperties,
+    out: &mut Vec<u8>,
+) -> Result<(), parse::Error> {
+    for prop in &index.props {
+        let len = match prop {
+            PropIndex::Single { size } => size.as_usize(),
+            PropIndex::List { len_type, elem_size } => {
+                let len = read_binary_list_len::<NativeEndian, _>(buf, *len_type)?;
+                len_type.size().as_usize() + len * elem_size.as_usize()
+            }
+        };
+
+        buf.with_bytes(len, |b| {
+            out.extend_from_slice(&b.data);
+            Ok(())
+        })?;
+    }
+
+    Ok(())
+}
+
+fn read_binary_swapped(
+    buf: &mut impl Input,
+    _: &ElementDef,
+    index: &IndexedProperties,
+    out: &mut Vec<u8>,
+) -> Result<(), parse::Error> {
+    for prop in &index.props {
+        let mut start = out.len();
+        match prop {
+            PropIndex::Single { size } => {
+                buf.with_bytes(size.as_usize(), |b| {
+                    out.extend_from_slice(&b.data);
+                    Ok(())
+                })?;
+                out[start..].reverse();
+            }
+            PropIndex::List { len_type, elem_size } => {
+                let len = read_binary_list_len::<NativeEndian, _>(buf, *len_type)?;
+                let len_len = len_type.size().as_usize();
+
+                buf.with_bytes(len_len + len * elem_size.as_usize(), |b| {
+                    out.extend_from_slice(&b.data);
+                    Ok(())
+                })?;
+
+                out[start..start + len_len].reverse();
+                start += len_len;
+
+                for _ in 0..len {
+                    let end = start + elem_size.as_usize();
+                    out[start..end].reverse();
+                    start = end;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 // ===========================================================================
 // ===== Helpers for body parsing
 // ===========================================================================
@@ -551,7 +775,7 @@ pub struct PropertyDef {
     name: String,
 }
 
-#[derive(Debug, Clone, Copy,)]
+#[derive(Debug, Clone, Copy)]
 pub enum PropertyType {
     Scalar(ScalarType),
     List {
@@ -597,16 +821,16 @@ impl ScalarType {
     }
 
     /// Returns the number of bytes this type occupies.
-    pub fn size(&self) -> usize {
+    pub fn size(&self) -> PropSize {
         match self {
-            ScalarType::Char => 1,
-            ScalarType::UChar => 1,
-            ScalarType::Short => 2,
-            ScalarType::UShort => 2,
-            ScalarType::Int => 4,
-            ScalarType::UInt => 4,
-            ScalarType::Float => 4,
-            ScalarType::Double => 8,
+            ScalarType::Char => PropSize::One,
+            ScalarType::UChar => PropSize::One,
+            ScalarType::Short => PropSize::Two,
+            ScalarType::UShort => PropSize::Two,
+            ScalarType::Int => PropSize::Four,
+            ScalarType::UInt => PropSize::Four,
+            ScalarType::Float => PropSize::Four,
+            ScalarType::Double => PropSize::Eight,
         }
     }
 }
