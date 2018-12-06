@@ -206,10 +206,12 @@ macro_rules! gen_endian_parser {
     }
 }
 
+#[allow(dead_code)] // TODO
 pub(crate) fn u8_we(input: &mut impl Input) -> Result<u8, Error> {
     use byteorder::ReadBytesExt;
     input.read_u8().map_err(|e| e.into())
 }
+#[allow(dead_code)] // TODO
 pub(crate) fn i8_we(input: &mut impl Input) -> Result<i8, Error> {
     use byteorder::ReadBytesExt;
     input.read_i8().map_err(|e| e.into())

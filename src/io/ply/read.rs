@@ -475,12 +475,6 @@ impl<R: io::Read, S: MemSink> StreamingSource<S> for Reader<R> {
                     // TODO: build a nice structure to find index
                     let vi_index = PropIndex::from(vi_index as u8);
 
-                    let (vi_len_type, vi_scalar_type)
-                        = match element_def.property_defs[vi_index].ty {
-                        PropertyType::Scalar(_) => unreachable!(), // TODO: check this above!!
-                        PropertyType::List { len_type, scalar_type } => (len_type, scalar_type),
-                    };
-
                     fn read_vertex_handles<T: FromBytes + Into<u32>>(
                         raw: &[u8],
                     ) -> [u32; 3] {
@@ -491,6 +485,7 @@ impl<R: io::Read, S: MemSink> StreamingSource<S> for Reader<R> {
                     }
 
 
+                    let vi_scalar_type = element_def.property_defs[vi_index].ty.scalar_type();
                     let read_vertex_handles = match vi_scalar_type {
                         ScalarType::Char | ScalarType::UChar => read_vertex_handles::<u8>,
                         ScalarType::Short | ScalarType::UShort => read_vertex_handles::<u16>,
@@ -597,18 +592,22 @@ impl RawElement {
 }
 
 
-
-
 struct RawListInfo {
-    list_len: u32,
-    len_offset: RawOffset,
-    data_offset: RawOffset,
-    len_type: ListLenType,
-    scalar_type: ScalarType,
+    pub list_len: u32,
+    pub len_offset: RawOffset,
+    pub data_offset: RawOffset,
+    pub len_type: ListLenType,
+    pub scalar_type: ScalarType,
 }
 
+
+// ===========================================================================
+// ===== Strongly typed wrapper for certain things
+// ===========================================================================
+
+/// A byte offset into the raw data of one element.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Add, Sub, AddAssign, SubAssign, From)]
-struct RawOffset(u32);
+pub struct RawOffset(u32);
 
 impl RawOffset {
     fn as_usize(&self) -> usize {
@@ -635,6 +634,7 @@ impl ops::AddAssign<ScalarLen> for RawOffset {
     }
 }
 
+/// Length of an STL scalar value in bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScalarLen {
     One = 1,
@@ -649,6 +649,8 @@ impl ScalarLen {
     }
 }
 
+/// Index of a specific property in the ordered list of properties of one
+/// element group.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, From)]
 struct PropIndex(u8);
 
@@ -658,6 +660,7 @@ impl PropIndex {
     }
 }
 
+/// Raw data of one element. Can be indexed by `RawOffset`.
 #[derive(Debug, Clone, From)]
 pub struct RawData(Vec<u8>);
 
@@ -693,7 +696,7 @@ impl ops::Index<ops::RangeTo<RawOffset>> for RawData {
 
 impl ops::Index<ops::RangeFull> for RawData {
     type Output = [u8];
-    fn index(&self, range: ops::RangeFull) -> &Self::Output {
+    fn index(&self, _: ops::RangeFull) -> &Self::Output {
         &self.0[..]
     }
 }
@@ -723,7 +726,7 @@ impl ops::IndexMut<ops::RangeTo<RawOffset>> for RawData {
 }
 
 impl ops::IndexMut<ops::RangeFull> for RawData {
-    fn index_mut(&mut self, range: ops::RangeFull) -> &mut Self::Output {
+    fn index_mut(&mut self, _: ops::RangeFull) -> &mut Self::Output {
         &mut self.0[..]
     }
 }
@@ -741,7 +744,7 @@ impl ops::DerefMut for RawData {
     }
 }
 
-
+/// A vector that holds data for each property. Can be indexed by `PropIndex`.
 #[derive(Debug, Clone, From)]
 pub struct PropVec<T>(Vec<T>);
 
@@ -762,28 +765,6 @@ impl<T> ops::Deref for PropVec<T> {
 impl<T> ops::DerefMut for PropVec<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
-    }
-}
-
-
-// Reads until the next whitespace or linebreak and tries to parse the string
-// as `$ty`.
-macro_rules! ascii_parser {
-    ($buf:ident, $ty:ident) => {
-        $buf.take_until(
-            |b| b == b' ' || b == b'\n',
-            |sd| {
-                sd.assert_ascii()?
-                    .parse::<$ty>()
-                    .map_err(|e| {
-                        let msg = format!(
-                            concat!("invalid '", stringify!($ty), "' literal: {}"),
-                            e,
-                        );
-                        sd.error(msg)
-                    })
-            }
-        )
     }
 }
 
@@ -852,18 +833,6 @@ fn read_bytes_into(
     })
 }
 
-fn read_binary_list_len<E: ByteOrder, I: Input>(
-    buf: &mut I,
-    len_type: ScalarType,
-) -> Result<usize, parse::Error> {
-    match len_type {
-        ScalarType::UChar => Ok(buf.spanned_data(1).data[0] as usize),
-        ScalarType::UShort => Ok(E::read_u16(&buf.spanned_data(2).data) as usize),
-        ScalarType::UInt => Ok(E::read_u32(&buf.spanned_data(4).data) as usize),
-        _ => unreachable!(),
-    }
-}
-
 fn read_element_binary_native(
     buf: &mut impl Input,
     index: &[TypeLen],
@@ -904,8 +873,6 @@ fn read_element_binary_swapped(
     index: &[TypeLen],
     raw_elem: &mut RawElement,
 ) -> Result<(), parse::Error> {
-    let mut offset = 0;
-
     for (prop_info, prop_len) in raw_elem.prop_infos.iter_mut().zip(index) {
         // Starting offset of the data we are about to push
         prop_info.offset = RawOffset::from(raw_elem.data.len() as u32);
@@ -951,6 +918,27 @@ fn read_element_binary_swapped(
     }
 
     Ok(())
+}
+
+// Reads until the next whitespace or linebreak and tries to parse the string
+// as `$ty`.
+macro_rules! ascii_parser {
+    ($buf:ident, $ty:ident) => {
+        $buf.take_until(
+            |b| b == b' ' || b == b'\n',
+            |sd| {
+                sd.assert_ascii()?
+                    .parse::<$ty>()
+                    .map_err(|e| {
+                        let msg = format!(
+                            concat!("invalid '", stringify!($ty), "' literal: {}"),
+                            e,
+                        );
+                        sd.error(msg)
+                    })
+            }
+        )
+    }
 }
 
 fn read_element_ascii<I: Input>(
@@ -1029,21 +1017,6 @@ fn read_ascii_value(
     }
 
     Ok(())
-}
-
-
-#[derive(Debug, Clone, Copy)]
-pub enum PropSize {
-    One = 1,
-    Two = 2,
-    Four = 4,
-    Eight = 8,
-}
-
-impl PropSize {
-    fn as_usize(&self) -> usize {
-        *self as u8 as usize
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -1339,7 +1312,7 @@ pub enum ListLenType {
 }
 
 impl ListLenType {
-    fn from_scalar_type(ty: ScalarType) -> Option<Self> {
+    pub fn from_scalar_type(ty: ScalarType) -> Option<Self> {
         match ty {
             ScalarType::UChar => Some(ListLenType::UChar),
             ScalarType::UShort => Some(ListLenType::UShort),
@@ -1348,7 +1321,7 @@ impl ListLenType {
         }
     }
 
-    fn to_scalar_type(self) -> ScalarType {
+    pub fn to_scalar_type(self) -> ScalarType {
         match self {
             ListLenType::UChar => ScalarType::UChar,
             ListLenType::UShort => ScalarType::UShort,
