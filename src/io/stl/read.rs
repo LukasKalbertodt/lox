@@ -8,12 +8,9 @@ use std::{
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};
-use cgmath::{Point3, Vector3};
-use failure::Fail;
 use hashbrown::{HashMap, hash_map::Entry};
 
 use crate::{
-    TransferError,
     prelude::*,
     math::PrimitiveNum,
     io::{
@@ -298,7 +295,7 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
     /// storage ([`RawResult`]).
     pub fn into_raw_result(self) -> Result<RawResult, Error> {
         let mut out = RawResult::new();
-        self.read_raw_into(&mut out).map_err(TransferError::into_source)?;
+        self.read_raw_into(&mut out)?;
         Ok(out)
     }
 
@@ -311,24 +308,18 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
     pub fn read_raw_into<S: RawSink>(
         self,
         sink: &mut S,
-    ) -> Result<(), TransferError<Error, S::Error>> {
-        /// Tiny helper function to convert a parse error into the expected
-        /// error type.
-        fn from_parse_err<T: Fail>(e: parse::Error) -> TransferError<Error, T> {
-            TransferError::Source(Error::Parse(e))
-        }
-
+    ) -> Result<(), Error> {
         let mut buf = self.buf;
 
         // Forward metadata to the sink
         if let Some(solid_name) = self.solid_name {
-            sink.solid_name(solid_name).map_err(TransferError::Sink)?;
+            sink.solid_name(solid_name);
         }
 
         // ===== Parse body ==================================================
         if let Some(triangle_count) = self.triangle_count {
             // ===== BINARY ==================================================
-            sink.triangle_count(triangle_count).map_err(TransferError::Sink)?;
+            sink.triangle_count(triangle_count);
 
             // We attempt to read as many triangles as specified. If the
             // specified number was too high and we reach EOF early, we will
@@ -355,14 +346,14 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
                         ],
                         attribute_byte_count: LittleEndian::read_u16(&sd.data[48..]),
                     })
-                }).map_err(from_parse_err)?;
+                })?;
 
-                sink.triangle(triangle).map_err(TransferError::Sink)?;
+                sink.triangle(triangle);
             }
 
             // If the specified number of triangles was too small and there is
             // still data left, we also error.
-            buf.assert_eof().map_err(from_parse_err)?;
+            buf.assert_eof()?;
         } else {
             // ===== ASCII ===================================================
             // Parse facets
@@ -372,31 +363,31 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
                     buf.expect_tag(b"facet normal")?;
                     whitespace(buf)?;
                     vec3(buf)
-                }).map_err(from_parse_err)?;
+                })?;
 
                 // Parse vertices
-                line(&mut buf, |buf| buf.expect_tag(b"outer loop")).map_err(from_parse_err)?;
+                line(&mut buf, |buf| buf.expect_tag(b"outer loop"))?;
                 let vertices = [
-                    vertex(&mut buf).map_err(from_parse_err)?,
-                    vertex(&mut buf).map_err(from_parse_err)?,
-                    vertex(&mut buf).map_err(from_parse_err)?,
+                    vertex(&mut buf)?,
+                    vertex(&mut buf)?,
+                    vertex(&mut buf)?,
                 ];
-                line(&mut buf, |buf| buf.expect_tag(b"endloop")).map_err(from_parse_err)?;
+                line(&mut buf, |buf| buf.expect_tag(b"endloop"))?;
 
                 // Pass parsed triangle to sink
                 sink.triangle(Triangle {
                     normal,
                     vertices,
                     attribute_byte_count: 0,
-                }).map_err(TransferError::Sink)?;
+                });
 
                 // Parse last line (`endfacet`)
-                line(&mut buf, |buf| buf.expect_tag(b"endfacet")).map_err(from_parse_err)?;
+                line(&mut buf, |buf| buf.expect_tag(b"endfacet"))?;
 
                 // Check if the next line starts with `endsolid` and break loop
                 // in that case.
-                opt_whitespace(&mut buf).map_err(from_parse_err)?;
-                if buf.is_next(b"endsolid").map_err(from_parse_err)? {
+                opt_whitespace(&mut buf)?;
+                if buf.is_next(b"endsolid")? {
                     // We've seen `endsolid`: we just stop here. There could be
                     // junk afterwards, but we don't care.
                     break;
@@ -427,24 +418,20 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> fmt::Debug for Reader<R, U> {
 /// A sink can accept raw data from an STL file. This is mainly used for
 /// [`Reader::read_raw_into`].
 pub trait RawSink {
-    /// A custom error the sink can produce. If the sink never errors, set this
-    /// to `!`.
-    type Error: Fail;
-
     /// Is called once in the beginning if the file starts with `solid`.
     ///
     /// If the file is guessed to be binary, the `name` is the 75 character
     /// header after `solid` with whitespace trimmed from both sites. If the
     /// file is ASCII, `name` is the first line (without `solid`). If the file
     /// doesn't start with `solid`, this method is not called.
-    fn solid_name(&mut self, name: String) -> Result<(), Self::Error>;
+    fn solid_name(&mut self, name: String);
 
     /// If the file is binary, this method is called once in the beginning. The
     /// number of triangles as stored in the file is passed into this method.
-    fn triangle_count(&mut self, num: u32) -> Result<(), Self::Error>;
+    fn triangle_count(&mut self, num: u32);
 
     /// Is called for each triangle that is read from the file.
-    fn triangle(&mut self, triangle: Triangle) -> Result<(), Self::Error>;
+    fn triangle(&mut self, triangle: Triangle);
 }
 
 /// One raw triangle in an STL file.
@@ -495,21 +482,16 @@ impl RawResult {
 /// For convenience, you can use [`Reader::into_raw_result`] instead of
 /// [`Reader::read_raw_into`] with `RawResult`.
 impl RawSink for RawResult {
-    type Error = !;
-
-    fn solid_name(&mut self, name: String) -> Result<(), Self::Error> {
+    fn solid_name(&mut self, name: String) {
         self.solid_name = Some(name);
-        Ok(())
     }
 
-    fn triangle_count(&mut self, num: u32) -> Result<(), Self::Error>  {
+    fn triangle_count(&mut self, num: u32) {
         self.triangles.reserve(num as usize);
-        Ok(())
     }
 
-    fn triangle(&mut self, triangle: Triangle) -> Result<(), Self::Error>  {
+    fn triangle(&mut self, triangle: Triangle) {
         self.triangles.push(triangle);
-        Ok(())
     }
 }
 
@@ -524,16 +506,11 @@ impl RawSink for RawResult {
 #[derive(Debug)]
 pub struct FnSink<F>(pub F);
 
-impl<F, E: Fail> RawSink for FnSink<F>
-where
-    F: FnMut(Triangle) -> Result<(), E>
-{
-    type Error = E;
+impl<F: FnMut(Triangle)> RawSink for FnSink<F> {
+    fn solid_name(&mut self, _: String) {}
+    fn triangle_count(&mut self, _: u32) {}
 
-    fn solid_name(&mut self, _: String) -> Result<(), Self::Error> { Ok(()) }
-    fn triangle_count(&mut self, _: u32) -> Result<(), Self::Error> { Ok(()) }
-
-    fn triangle(&mut self, triangle: Triangle) -> Result<(), Self::Error> {
+    fn triangle(&mut self, triangle: Triangle) {
         (self.0)(triangle)
     }
 }
@@ -659,20 +636,16 @@ where
         };
 
         impl<S: MemSink, A: VertexAdder> RawSink for HelperSink<'_, S, A> {
-            type Error = !;
+            fn solid_name(&mut self, _: String) {}
+            fn triangle_count(&mut self, _num: u32) {} // TODO
 
-            fn solid_name(&mut self, _: String) -> Result<(), Self::Error> { Ok(()) }
-            fn triangle_count(&mut self, _num: u32) -> Result<(), Self::Error> { Ok(()) } // TODO
-
-            fn triangle(&mut self, triangle: Triangle) -> Result<(), Self::Error> {
+            fn triangle(&mut self, triangle: Triangle) {
                 let [pa, pb, pc] = triangle.vertices;
                 let a = self.vertex_adder.add_vertex(self.sink, pa);
                 let b = self.vertex_adder.add_vertex(self.sink, pb);
                 let c = self.vertex_adder.add_vertex(self.sink, pc);
 
                 self.sink.add_face([a, b, c]);
-
-                Ok(())
             }
         }
 
