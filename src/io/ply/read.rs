@@ -370,7 +370,8 @@ impl<R: io::Read> Reader<R> {
 }
 
 impl<R: io::Read> StreamingSource for Reader<R> {
-    fn transfer_to<S: MemSink>(mut self, sink: &mut S) {
+    type Error = Error;
+    fn transfer_to<S: MemSink>(mut self, sink: &mut S) -> Result<(), Self::Error> {
         fn read_pos<T: FromBytes + PrimitiveNum, S: MemSink>(
             sink: &mut S,
             raw: &[u8],
@@ -545,6 +546,7 @@ impl<R: io::Read> StreamingSource for Reader<R> {
                 _ => unimplemented!()
             }
         }
+        Ok(())
     }
 }
 

@@ -5,6 +5,7 @@ use std::{
 };
 
 use cgmath::Point3;
+use failure::Fail;
 
 use crate::{
     Mesh, MeshUnsorted, ExplicitFace,
@@ -87,7 +88,8 @@ impl FileFormat {
 }
 
 pub trait StreamingSource {
-    fn transfer_to<S: MemSink>(self, sink: &mut S);
+    type Error: Fail;
+    fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Self::Error>;
 }
 
 pub trait MemSink {

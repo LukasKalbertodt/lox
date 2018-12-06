@@ -12,7 +12,6 @@ use hashbrown::{HashMap, hash_map::Entry};
 
 use crate::{
     prelude::*,
-    math::PrimitiveNum,
     io::{
         StreamingSource, MemSink,
         parse::{
@@ -602,11 +601,12 @@ impl VertexAdder for UnifyingAdder {
         sink: &mut S,
         pos: [f32; 3],
     ) -> VertexHandle {
-        // Make sure the positions are not `NaN`. In one test, this
-        // assert didn't make any difference in speed.
+        // Make sure the positions are not `NaN`. This assert apparently
+        // doesn't have a measurable effect on execution speed, so it's
+        // `assert` and not `debug_assert!`.
         assert!(
             !(pos[0].is_nan() || pos[1].is_nan() || pos[2].is_nan()),
-            "attempt to read file with vertex position containing NaN value",
+            "attempt to read STL file with vertex position containing NaN value",
         );
 
         let handle = match self.0.entry(PosKey(pos)) {
@@ -629,7 +629,9 @@ where
     R: io::Read + io::Seek,
     U: UnifyingMarker,
 {
-    fn transfer_to<S: MemSink>(self, sink: &mut S) {
+    type Error = Error;
+
+    fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Self::Error> {
         struct HelperSink<'a, S: MemSink, A: VertexAdder> {
             sink: &'a mut S,
             vertex_adder: A,
@@ -649,11 +651,10 @@ where
             }
         }
 
-        // Create helper sink and read into it
-        let mut sink = HelperSink {
+        // Read into helper sink
+        self.read_raw_into(&mut HelperSink {
             sink,
             vertex_adder: U::Adder::new(),
-        };
-        self.read_raw_into(&mut sink);
+        })
     }
 }
