@@ -953,7 +953,7 @@ fn read_element_binary_native(
                     |_| {}, // no byte swapping
                 )?;
 
-                RawOffset::from(list_len * (scalar_len.as_u8() as u32)) + len_len
+                RawOffset::from(list_len * (scalar_len.as_u8() as u32))
             }
         };
 
