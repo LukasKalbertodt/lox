@@ -6,12 +6,14 @@ use std::{
     fs::File,
     marker::PhantomData,
     io,
+    ops,
     path::Path,
     str::FromStr,
 };
 
 use byteorder::{ByteOrder, LittleEndian, NativeEndian, ReadBytesExt, WriteBytesExt};
 use cgmath::Point3;
+use derive_more::{Add, AddAssign, Deref, DerefMut, From, Sub, SubAssign};
 use failure::Fail;
 use smallvec::SmallVec;
 
@@ -225,7 +227,7 @@ impl<R: io::Read> Reader<R> {
                     elements.push(ElementDef {
                         name,
                         count,
-                        property_defs: vec![],
+                        property_defs: Vec::new().into(),
                     });
 
                     line(&mut buf, |buf| opt_whitespace(buf))?;
@@ -259,13 +261,16 @@ impl<R: io::Read> Reader<R> {
                         // We don't allow floating point or signed integer
                         // types to specify the length as they don't make a lot
                         // of sense.
-                        if !len_type.is_unsigned_integer()  {
-                            return Err(parse::Error::Custom(
-                                format!("only unsigned integers can be used to store list \
-                                    lengths (property '{}')", name),
-                                Span::new(line_start, buf.offset()),
-                            ).into());
-                        }
+                        let len_type = ListLenType::from_scalar_type(len_type).ok_or_else(|| {
+                            let span = Span::new(line_start, buf.offset());
+                            let msg = format!(
+                                "only unsigned integers can be used to store list lengths \
+                                    (property '{}')",
+                                name
+                            );
+
+                            parse::Error::Custom(msg, span)
+                        })?;
 
                         let ty = PropertyType::List { len_type, scalar_type };
                         elem.property_defs.push(PropertyDef { name, ty });
@@ -311,8 +316,15 @@ impl<R: io::Read> Reader<R> {
     pub fn read_raw_into(mut self, sink: &mut impl RawSink) -> Result<(), Error> {
         let buf = &mut self.buf;
 
-        // Keep this vector on the outside to retain allocations
-        let mut properties = Vec::new();
+        // // Keep this vector on the outside to retain allocations
+        // let mut properties = Vec::new();
+
+
+        // let read_element = match self.encoding {
+        //     Encoding::BinaryBigEndian => BbeEncoding::read_element::<Buffer<R>>,
+        //     Encoding::BinaryLittleEndian => BleEncoding::read_element::<Buffer<R>>,
+        //     Encoding::Ascii => AsciiEncoding::read_element::<Buffer<R>>,
+        // };
 
         // Iterate through each element group
         for element_def in &self.elements {
@@ -322,22 +334,22 @@ impl<R: io::Read> Reader<R> {
             // number in the header won't lead to any DOS dangerous things. We
             // time and memory we use here is still limited by the file size.
             for _ in 0..element_def.count {
-                properties.clear();
+                // properties.clear();
 
-                match self.encoding {
-                    Encoding::Ascii => {
-                        parse_element::<AsciiEncoding, _>(buf, &element_def, &mut properties)?;
-                    }
-                    Encoding::BinaryBigEndian => {
-                        parse_element::<BbeEncoding, _>(buf, &element_def, &mut properties)?;
-                    }
-                    Encoding::BinaryLittleEndian => {
-                        parse_element::<BleEncoding, _>(buf, &element_def, &mut properties)?;
-                    }
-                }
+                // match self.encoding {
+                //     Encoding::Ascii => {
+                //         parse_element::<AsciiEncoding, _>(buf, &element_def, &mut properties)?;
+                //     }
+                //     Encoding::BinaryBigEndian => {
+                //         parse_element::<BbeEncoding, _>(buf, &element_def, &mut properties)?;
+                //     }
+                //     Encoding::BinaryLittleEndian => {
+                //         parse_element::<BleEncoding, _>(buf, &element_def, &mut properties)?;
+                //     }
+                // }
 
-                // Send read properties to the sink.
-                sink.element(&properties);
+                // // Send read properties to the sink.
+                // sink.element(&properties);
             }
         }
 
@@ -351,11 +363,11 @@ impl<R: io::Read, S: MemSink> StreamingSource<S> for Reader<R> {
             sink: &mut S,
             raw: &[u8],
             handle: VertexHandle,
-            offsets: &[u32; 3],
+            offsets: &[RawOffset; 3],
         ) {
-            let x = T::from_bytes_ne(&raw[offsets[0] as usize..]);
-            let y = T::from_bytes_ne(&raw[offsets[1] as usize..]);
-            let z = T::from_bytes_ne(&raw[offsets[2] as usize..]);
+            let x = T::from_bytes_ne(&raw[offsets[0].as_usize()..]);
+            let y = T::from_bytes_ne(&raw[offsets[1].as_usize()..]);
+            let z = T::from_bytes_ne(&raw[offsets[2].as_usize()..]);
             sink.set_vertex_position(handle, Point3::new(x, y, z));
         }
 
@@ -365,24 +377,36 @@ impl<R: io::Read, S: MemSink> StreamingSource<S> for Reader<R> {
         let mut vertex_handles = Vec::new();
 
         let read_element = match self.encoding {
-            Encoding::BinaryBigEndian => BbeEncoding::read_element::<Buffer<R>>,
-            Encoding::BinaryLittleEndian => BleEncoding::read_element::<Buffer<R>>,
-            Encoding::Ascii => AsciiEncoding::read_element::<Buffer<R>>,
+            Encoding::BinaryBigEndian => read_element_bbe::<Buffer<R>>,
+            Encoding::BinaryLittleEndian => read_element_ble::<Buffer<R>>,
+            Encoding::Ascii => read_element_ascii::<Buffer<R>>,
         };
 
 
 
         // Iterate through each element group
-        let mut raw = Vec::new();
-        let mut starts = Vec::new();
+        // let mut raw = Vec::new();
+        // let mut starts = Vec::new();
         for element_def in &self.elements {
-            let index = IndexedProperties::new(element_def);
+            let mut elem = RawElement {
+                data: Vec::new().into(),
+                prop_infos: element_def.property_defs
+                    .iter()
+                    .map(|def| RawPropertyInfo {
+                        offset: 0.into(),
+                        ty: def.ty,
+                        name: def.name.clone(),
+                    })
+                    .collect::<Vec<_>>()
+                    .into(),
+            };
+
+            let index = get_type_lens(element_def);
 
             macro_rules! read_elem {
                 () => {{
-                    raw.clear();
-                    starts.clear();
-                    read_element(buf, element_def, &index, &mut raw, &mut starts)
+                    elem.data.clear();
+                    read_element(buf, &index, &mut elem)
                         .expect("fucki wucki");
                 }}
             }
@@ -404,6 +428,11 @@ impl<R: io::Read, S: MemSink> StreamingSource<S> for Reader<R> {
                     let z_index = element_def.property_defs.iter()
                         .position(|def| def.name == "z")
                         .expect("no position data in PLY"); // TODO
+
+                    // TODO: make data structure to nicely get indices
+                    let x_index = PropIndex::from(x_index as u8);
+                    let y_index = PropIndex::from(y_index as u8);
+                    let z_index = PropIndex::from(z_index as u8);
 
 
                     let pos_type = match pos_type {
@@ -428,12 +457,12 @@ impl<R: io::Read, S: MemSink> StreamingSource<S> for Reader<R> {
 
                         let handle = sink.add_vertex();
                         vertex_handles.push(handle);
-                        read_pos(
-                            sink,
-                            &raw,
-                            handle,
-                            &[starts[x_index], starts[y_index], starts[z_index]],
-                        );
+                        let pos_offsets = [
+                            elem.prop_infos[x_index].offset,
+                            elem.prop_infos[y_index].offset,
+                            elem.prop_infos[z_index].offset,
+                        ];
+                        read_pos(sink, &elem.data, handle, &pos_offsets);
                     }
                 }
                 "face" => {
@@ -443,6 +472,8 @@ impl<R: io::Read, S: MemSink> StreamingSource<S> for Reader<R> {
                     let vi_index = element_def.property_defs.iter()
                         .position(|def| def.name == "vertex_indices")
                         .expect("no vertex indices data in PLY"); // TODO
+                    // TODO: build a nice structure to find index
+                    let vi_index = PropIndex::from(vi_index as u8);
 
                     let (vi_len_type, vi_scalar_type)
                         = match element_def.property_defs[vi_index].ty {
@@ -471,22 +502,14 @@ impl<R: io::Read, S: MemSink> StreamingSource<S> for Reader<R> {
                         read_elem!();
                         // println!("{:02x?}", raw);
                         // println!("{:?}", starts);
+                        let vi_list = elem.list_at(vi_index)
+                            .expect("fucki wucki `vertex_indices` has to be list");
 
-                        let offset = starts[vi_index] as usize;
-
-                        let len = match vi_len_type {
-                            ScalarType::UChar => raw[offset] as u32,
-                            ScalarType::UShort => NativeEndian::read_u16(&raw[offset..]) as u32,
-                            ScalarType::UInt => NativeEndian::read_u32(&raw[offset..]),
-                            _ => unreachable!(),
-                        };
-
-                        if len != 3 {
+                        if vi_list.list_len != 3 {
                             panic!("fucki wucki no triangle");
                         }
 
-                        let start_list_data = offset + vi_len_type.size().as_usize();
-                        let vis = read_vertex_handles(&raw[start_list_data..]);
+                        let vis = read_vertex_handles(&elem.data[vi_list.data_offset..]);
                         // println!("{:?}", vis);
 
                         let handles = [
@@ -518,6 +541,231 @@ impl<R: io::Read, S: MemSink> StreamingSource<S> for Reader<R> {
     }
 }
 
+
+// ===========================================================================
+// ===== `RawElement` definitions
+// ===========================================================================
+
+#[derive(Debug, Clone)]
+pub struct RawElement {
+    /// The packed data of all properties in native endianess.
+    ///
+    /// For PLY files stored in native endianess, this is an exact chunk from
+    /// the file. For ASCII files and files in non-native endianess, the
+    /// properties are first converted to this format.
+    pub data: RawData,
+
+    /// Some information about each property in this element.
+    pub prop_infos: PropVec<RawPropertyInfo>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RawPropertyInfo {
+    /// The byte offset in the packed, native-endian data at which this
+    /// property starts.
+    offset: RawOffset,
+
+    /// The type of this property.
+    ty: PropertyType,
+
+    /// Name of this property.
+    name: String,
+}
+
+impl RawElement {
+    fn list_at(&self, idx: PropIndex) -> Option<RawListInfo> {
+        match self.prop_infos[idx].ty {
+            PropertyType::Scalar(_) => None,
+            PropertyType::List { len_type, scalar_type } => {
+                let len_offset = self.prop_infos[idx].offset;
+                let list_len = match len_type {
+                    ListLenType::UChar => self.data[len_offset] as u32,
+                    ListLenType::UShort => NativeEndian::read_u16(&self.data[len_offset..]) as u32,
+                    ListLenType::UInt => NativeEndian::read_u32(&self.data[len_offset..]),
+                };
+
+                Some(RawListInfo {
+                    list_len,
+                    len_offset,
+                    data_offset: len_offset + len_type.len(),
+                    len_type,
+                    scalar_type,
+                })
+            }
+        }
+    }
+}
+
+
+
+
+struct RawListInfo {
+    list_len: u32,
+    len_offset: RawOffset,
+    data_offset: RawOffset,
+    len_type: ListLenType,
+    scalar_type: ScalarType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Add, Sub, AddAssign, SubAssign, From)]
+struct RawOffset(u32);
+
+impl RawOffset {
+    fn as_usize(&self) -> usize {
+        self.0 as usize
+    }
+}
+
+impl From<ScalarLen> for RawOffset {
+    fn from(src: ScalarLen) -> Self {
+        (src.as_u8() as u32).into()
+    }
+}
+
+impl ops::Add<ScalarLen> for RawOffset {
+    type Output = RawOffset;
+    fn add(self, len: ScalarLen) -> Self::Output {
+        (self.0 + len.as_u8() as u32).into()
+    }
+}
+
+impl ops::AddAssign<ScalarLen> for RawOffset {
+    fn add_assign(&mut self, rhs: ScalarLen) {
+        *self = *self + rhs;
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScalarLen {
+    One = 1,
+    Two = 2,
+    Four = 4,
+    Eight = 8,
+}
+
+impl ScalarLen {
+    fn as_u8(&self) -> u8 {
+        *self as u8
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, From)]
+struct PropIndex(u8);
+
+impl PropIndex {
+    fn as_usize(&self) -> usize {
+        self.0 as usize
+    }
+}
+
+#[derive(Debug, Clone, From)]
+pub struct RawData(Vec<u8>);
+
+// ----- Index impls for `RawData`
+
+impl ops::Index<RawOffset> for RawData {
+    type Output = u8;
+    fn index(&self, idx: RawOffset) -> &Self::Output {
+        &self.0[idx.as_usize()]
+    }
+}
+
+impl ops::Index<ops::Range<RawOffset>> for RawData {
+    type Output = [u8];
+    fn index(&self, range: ops::Range<RawOffset>) -> &Self::Output {
+        &self.0[range.start.as_usize()..range.end.as_usize()]
+    }
+}
+
+impl ops::Index<ops::RangeFrom<RawOffset>> for RawData {
+    type Output = [u8];
+    fn index(&self, range: ops::RangeFrom<RawOffset>) -> &Self::Output {
+        &self.0[range.start.as_usize()..]
+    }
+}
+
+impl ops::Index<ops::RangeTo<RawOffset>> for RawData {
+    type Output = [u8];
+    fn index(&self, range: ops::RangeTo<RawOffset>) -> &Self::Output {
+        &self.0[..range.end.as_usize()]
+    }
+}
+
+impl ops::Index<ops::RangeFull> for RawData {
+    type Output = [u8];
+    fn index(&self, range: ops::RangeFull) -> &Self::Output {
+        &self.0[..]
+    }
+}
+
+impl ops::IndexMut<RawOffset> for RawData {
+    fn index_mut(&mut self, idx: RawOffset) -> &mut Self::Output {
+        &mut self.0[idx.as_usize()]
+    }
+}
+
+impl ops::IndexMut<ops::Range<RawOffset>> for RawData {
+    fn index_mut(&mut self, range: ops::Range<RawOffset>) -> &mut Self::Output {
+        &mut self.0[range.start.as_usize()..range.end.as_usize()]
+    }
+}
+
+impl ops::IndexMut<ops::RangeFrom<RawOffset>> for RawData {
+    fn index_mut(&mut self, range: ops::RangeFrom<RawOffset>) -> &mut Self::Output {
+        &mut self.0[range.start.as_usize()..]
+    }
+}
+
+impl ops::IndexMut<ops::RangeTo<RawOffset>> for RawData {
+    fn index_mut(&mut self, range: ops::RangeTo<RawOffset>) -> &mut Self::Output {
+        &mut self.0[..range.end.as_usize()]
+    }
+}
+
+impl ops::IndexMut<ops::RangeFull> for RawData {
+    fn index_mut(&mut self, range: ops::RangeFull) -> &mut Self::Output {
+        &mut self.0[..]
+    }
+}
+
+impl ops::Deref for RawData {
+    type Target = Vec<u8>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl ops::DerefMut for RawData {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+
+#[derive(Debug, Clone, From)]
+pub struct PropVec<T>(Vec<T>);
+
+impl<T> ops::Index<PropIndex> for PropVec<T> {
+    type Output = T;
+    fn index(&self, idx: PropIndex) -> &Self::Output {
+        &self.0[idx.as_usize()]
+    }
+}
+
+impl<T> ops::Deref for PropVec<T> {
+    type Target = Vec<T>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> ops::DerefMut for PropVec<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+
 // Reads until the next whitespace or linebreak and tries to parse the string
 // as `$ty`.
 macro_rules! ascii_parser {
@@ -539,119 +787,231 @@ macro_rules! ascii_parser {
     }
 }
 
-trait EncodingFoo {
-    fn read_element<I: Input>(
-        buf: &mut I,
-        def: &ElementDef,
-        index: &IndexedProperties,
-        out: &mut Vec<u8>,
-        starts: &mut Vec<u32>,
-    ) -> Result<(), parse::Error>;
-}
+// ===========================================================================
+// ===== Body parsing: `read_element_*` implementations
+// ===========================================================================
 
-impl EncodingFoo for BbeEncoding {
-    fn read_element<I: Input>(
-        buf: &mut I,
-        def: &ElementDef,
-        index: &IndexedProperties,
-        out: &mut Vec<u8>,
-        starts: &mut Vec<u32>,
-    ) -> Result<(), parse::Error> {
-        #[cfg(target_endian = "big")]
-        {
-            read_binary_native(buf, def, index, out, starts)
-        }
+// All three `read_element_*` functions have a specific function contract in
+// particular regarding the passed `raw_elem`:
+//
+// - `raw_elem.data` is always cleared when `read_elem` is called. It has to be
+//   filled with the native-endian, packed representation of all property data
+//   (in the same order as the property are specified in the file header).
+// - The length of the vector `raw_elem.prop_infos` must not be modified.
+//   Furthermore, regarding its elements:
+//     - The `info.offset` values are unspecified when `read_element_*` is
+//       called. All values must be overwritten with the correct offset value
+//       by `read_element_*`.
+//     - `info.ty` and `info.name` must not be modified by `read_element_*`,
+//       but can be observed.
+//
+// This is not a very nice API, but this way we can avoid some moving data
+// around in other functions. Gotta go fast.
 
-        #[cfg(target_endian = "little")]
-        {
-            read_binary_swapped(buf, def, index, out, starts)
-        }
+fn read_element_bbe<I: Input>(
+    buf: &mut I,
+    index: &[TypeLen],
+    raw_elem: &mut RawElement,
+) -> Result<(), parse::Error> {
+    #[cfg(target_endian = "big")]
+    {
+        read_element_binary_native(buf, index, raw_elem)
+    }
+
+    #[cfg(target_endian = "little")]
+    {
+        read_element_binary_swapped(buf, index, raw_elem)
     }
 }
 
-impl EncodingFoo for BleEncoding {
-    fn read_element<I: Input>(
-        buf: &mut I,
-        def: &ElementDef,
-        index: &IndexedProperties,
-        out: &mut Vec<u8>,
-        starts: &mut Vec<u32>,
-    ) -> Result<(), parse::Error> {
-        #[cfg(target_endian = "big")]
-        {
-            read_binary_swapped(buf, def, index, out, starts)
-        }
+fn read_element_ble<I: Input>(
+    buf: &mut I,
+    index: &[TypeLen],
+    raw_elem: &mut RawElement,
+) -> Result<(), parse::Error> {
+    #[cfg(target_endian = "big")]
+    {
+        read_element_binary_swapped(buf, index, raw_elem)
+    }
 
-        #[cfg(target_endian = "little")]
-        {
-            read_binary_native(buf, def, index, out, starts)
-        }
+    #[cfg(target_endian = "little")]
+    {
+        read_element_binary_native(buf, index, raw_elem)
     }
 }
 
-impl EncodingFoo for AsciiEncoding {
-    fn read_element<I: Input>(
-        buf: &mut I,
-        def: &ElementDef,
-        _: &IndexedProperties,
-        out: &mut Vec<u8>,
-        starts: &mut Vec<u32>,
-    ) -> Result<(), parse::Error> {
-        let mut offset = 0;
-        let mut first = true;
-
-        for prop in &def.property_defs {
-            if first {
-                opt_whitespace(buf)?;
-                first = false;
-            } else {
-                whitespace(buf)?;
-            }
-
-            let len = match prop.ty {
-                PropertyType::Scalar(ty) => {
-                    read_ascii_value(buf, ty, out)?;
-                    ty.size().as_usize()
-                }
-                PropertyType::List { len_type, scalar_type } => {
-                    let len = match len_type {
-                        ScalarType::UChar => {
-                            let len = ascii_parser!(buf, u8)?;
-                            len.encode_ne(out);
-                            len as u32
-                        }
-                        ScalarType::UShort => {
-                            let len = ascii_parser!(buf, u16)?;
-                            len.encode_ne(out);
-                            len as u32
-                        }
-                        ScalarType::UInt => {
-                            let len = ascii_parser!(buf, u32)?;
-                            len.encode_ne(out);
-                            len
-                        }
-                        _ => unreachable!(), // TODO: check this above
-                    };
-
-                    for _ in 0..len {
-                        whitespace(buf)?;
-                        read_ascii_value(buf, scalar_type, out)?;
-                    }
-
-                    len_type.size().as_usize() + len as usize * scalar_type.size().as_usize()
-                }
-            };
-
-            starts.push(offset);
-            offset += len as u32;
-        }
-
-        linebreak(buf)?;
-
+#[inline(always)]
+fn read_bytes_into(
+    buf: &mut impl Input,
+    count: usize,
+    out: &mut Vec<u8>,
+) -> Result<(), parse::Error> {
+    buf.with_bytes(count, |b| {
+        out.extend_from_slice(&b.data);
         Ok(())
+    })
+}
+
+fn read_binary_list_len<E: ByteOrder, I: Input>(
+    buf: &mut I,
+    len_type: ScalarType,
+) -> Result<usize, parse::Error> {
+    match len_type {
+        ScalarType::UChar => Ok(buf.spanned_data(1).data[0] as usize),
+        ScalarType::UShort => Ok(E::read_u16(&buf.spanned_data(2).data) as usize),
+        ScalarType::UInt => Ok(E::read_u32(&buf.spanned_data(4).data) as usize),
+        _ => unreachable!(),
     }
 }
 
+fn read_element_binary_native(
+    buf: &mut impl Input,
+    index: &[TypeLen],
+    raw_elem: &mut RawElement,
+) -> Result<(), parse::Error> {
+    let mut offset = RawOffset::from(0);
+
+    for (prop_info, prop_len) in raw_elem.prop_infos.iter_mut().zip(index) {
+        let len: RawOffset = match *prop_len {
+            TypeLen::Scalar(len) => len.into(),
+            TypeLen::List { len_len, scalar_len } => {
+                // Read the list lenght. The type of this property is a list
+                // (the index says so), so we can unwrap here.
+                let list_len = match prop_info.ty.len_type().unwrap() {
+                    ListLenType::UChar => buf.with_bytes(1, |b| Ok(b.data[0] as u32))?,
+                    ListLenType::UShort => buf.with_bytes(2, |b| {
+                        Ok(NativeEndian::read_u16(b.data) as u32)
+                    })?,
+                    ListLenType::UInt => buf.with_bytes(4, |b| {
+                        Ok(NativeEndian::read_u32(b.data) as u32)
+                    })?,
+                };
+
+                RawOffset::from(list_len * (scalar_len.as_u8() as u32)) + len_len
+            }
+        };
+
+        read_bytes_into(buf, len.as_usize(), &mut raw_elem.data)?;
+        prop_info.offset = offset;
+        offset += len;
+    }
+
+    Ok(())
+}
+
+fn read_element_binary_swapped(
+    buf: &mut impl Input,
+    index: &[TypeLen],
+    raw_elem: &mut RawElement,
+) -> Result<(), parse::Error> {
+    let mut offset = 0;
+
+    for (prop_info, prop_len) in raw_elem.prop_infos.iter_mut().zip(index) {
+        // Starting offset of the data we are about to push
+        prop_info.offset = RawOffset::from(raw_elem.data.len() as u32);
+        let mut start = prop_info.offset;
+
+        match *prop_len {
+            TypeLen::Scalar(size) => {
+                read_bytes_into(buf, size.as_u8().into(), &mut raw_elem.data)?;
+                raw_elem.data[start..].reverse();
+            }
+            TypeLen::List { len_len, scalar_len } => {
+                // Read the list lenght. The type of this property is a list
+                // (the index says so), so we can unwrap here.
+                let list_len = match prop_info.ty.len_type().unwrap() {
+                    ListLenType::UChar => buf.with_bytes(1, |b| Ok(b.data[0] as u32))?,
+                    ListLenType::UShort => buf.with_bytes(2, |b| {
+                        let swapped = &[b.data[1], b.data[0]];
+                        Ok(NativeEndian::read_u16(swapped) as u32)
+                    })?,
+                    ListLenType::UInt => buf.with_bytes(4, |b| {
+                        let swapped = &[b.data[3], b.data[2], b.data[1], b.data[0]];
+                        Ok(NativeEndian::read_u32(swapped) as u32)
+                    })?,
+                };
+
+                // Calculate the total list length and load the raw data (still
+                // in non-native endianess).
+                let total_len = (len_len as u32) + list_len * (scalar_len as u32);
+                read_bytes_into(buf, total_len as usize, &mut raw_elem.data)?;
+
+                // Swap bytes of the list length
+                raw_elem.data[start..start + len_len].reverse();
+                start += len_len;
+
+                // Swap bytes of list elements
+                for _ in 0..list_len {
+                    let end = start + scalar_len;
+                    raw_elem.data[start..end].reverse();
+                    start = end;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn read_element_ascii<I: Input>(
+    buf: &mut I,
+    _: &[TypeLen],
+    raw_elem: &mut RawElement,
+) -> Result<(), parse::Error> {
+    let mut offset = RawOffset::from(0);
+    let mut first = true;
+
+    for prop_info in raw_elem.prop_infos.iter_mut() {
+        if first {
+            opt_whitespace(buf)?;
+            first = false;
+        } else {
+            whitespace(buf)?;
+        }
+
+        let len: RawOffset = match prop_info.ty {
+            PropertyType::Scalar(ty) => {
+                read_ascii_value(buf, ty, &mut raw_elem.data)?;
+                ty.len().into()
+            }
+            PropertyType::List { len_type, scalar_type } => {
+                let list_len = match len_type {
+                    ListLenType::UChar => {
+                        let len = ascii_parser!(buf, u8)?;
+                        len.encode_ne(&mut raw_elem.data);
+                        len as u32
+                    }
+                    ListLenType::UShort => {
+                        let len = ascii_parser!(buf, u16)?;
+                        len.encode_ne(&mut raw_elem.data);
+                        len as u32
+                    }
+                    ListLenType::UInt => {
+                        let len = ascii_parser!(buf, u32)?;
+                        len.encode_ne(&mut raw_elem.data);
+                        len
+                    }
+                };
+
+                for _ in 0..list_len {
+                    whitespace(buf)?;
+                    read_ascii_value(buf, scalar_type, &mut raw_elem.data)?;
+                }
+
+                RawOffset::from(list_len * scalar_type.len() as u32) + len_type.len()
+            }
+        };
+
+        prop_info.offset = offset;
+        offset += RawOffset::from(len);
+    }
+
+    linebreak(buf)?;
+
+    Ok(())
+}
+
+/// Read a single ASCII value of type `ty` into `out`.
 fn read_ascii_value(
     buf: &mut impl Input,
     ty: ScalarType,
@@ -687,125 +1047,28 @@ impl PropSize {
 }
 
 #[derive(Debug, Clone)]
-enum PropIndex {
-    Single {
-        size: PropSize,
-    },
+enum TypeLen {
+    Scalar(ScalarLen),
     List {
-        len_type: ScalarType,
-        elem_size: PropSize,
+        len_len: ScalarLen,
+        scalar_len: ScalarLen,
     },
 }
 
-#[derive(Debug, Clone)]
-pub struct IndexedProperties {
-    props: Vec<PropIndex>,
-}
-
-impl IndexedProperties {
-    fn new(element_def: &ElementDef) -> Self {
-        let props = element_def.property_defs.iter().map(|def| {
+fn get_type_lens(element_def: &ElementDef) -> Vec<TypeLen> {
+    element_def
+        .property_defs
+        .iter()
+        .map(|def| {
             match def.ty {
-                PropertyType::Scalar(ty) => PropIndex::Single { size: ty.size() },
-                PropertyType::List { len_type, scalar_type } => {
-                    PropIndex::List { len_type, elem_size: scalar_type.size() }
+                PropertyType::Scalar(ty) => TypeLen::Scalar(ty.len()),
+                PropertyType::List { len_type, scalar_type } => TypeLen::List {
+                    len_len: len_type.len(),
+                    scalar_len: scalar_type.len(),
                 }
             }
-        }).collect();
-
-        Self { props }
-    }
-}
-
-fn read_binary_list_len<E: ByteOrder, I: Input>(
-    buf: &mut I,
-    len_type: ScalarType,
-) -> Result<usize, parse::Error> {
-    match len_type {
-        ScalarType::UChar => Ok(buf.spanned_data(1).data[0] as usize),
-        ScalarType::UShort => Ok(E::read_u16(&buf.spanned_data(2).data) as usize),
-        ScalarType::UInt => Ok(E::read_u32(&buf.spanned_data(4).data) as usize),
-        _ => unreachable!(),
-    }
-}
-
-fn read_binary_native(
-    buf: &mut impl Input,
-    _: &ElementDef,
-    index: &IndexedProperties,
-    out: &mut Vec<u8>,
-    starts: &mut Vec<u32>,
-) -> Result<(), parse::Error> {
-    let mut offset = 0;
-
-    for prop in &index.props {
-        let len = match prop {
-            PropIndex::Single { size } => size.as_usize(),
-            PropIndex::List { len_type, elem_size } => {
-                let len = read_binary_list_len::<NativeEndian, _>(buf, *len_type)?;
-                len_type.size().as_usize() + len * elem_size.as_usize()
-            }
-        };
-
-        buf.with_bytes(len, |b| {
-            out.extend_from_slice(&b.data);
-            Ok(())
-        })?;
-        starts.push(offset);
-        offset += len as u32;
-    }
-
-    Ok(())
-}
-
-fn read_binary_swapped(
-    buf: &mut impl Input,
-    _: &ElementDef,
-    index: &IndexedProperties,
-    out: &mut Vec<u8>,
-    starts: &mut Vec<u32>,
-) -> Result<(), parse::Error> {
-    let mut offset = 0;
-
-    for prop in &index.props {
-        let mut start = out.len();
-        let len = match prop {
-            PropIndex::Single { size } => {
-                buf.with_bytes(size.as_usize(), |b| {
-                    out.extend_from_slice(&b.data);
-                    Ok(())
-                })?;
-                out[start..].reverse();
-                size.as_usize()
-            }
-            PropIndex::List { len_type, elem_size } => {
-                let len = read_binary_list_len::<NativeEndian, _>(buf, *len_type)?;
-                let len_len = len_type.size().as_usize();
-
-                let total_len = len_len + len * elem_size.as_usize();
-                buf.with_bytes(total_len, |b| {
-                    out.extend_from_slice(&b.data);
-                    Ok(())
-                })?;
-
-                out[start..start + len_len].reverse();
-                start += len_len;
-
-                for _ in 0..len {
-                    let end = start + elem_size.as_usize();
-                    out[start..end].reverse();
-                    start = end;
-                }
-
-                total_len
-            }
-        };
-
-        starts.push(offset);
-        offset += len as u32;
-    }
-
-    Ok(())
+        })
+        .collect()
 }
 
 trait FromBytes {
@@ -855,171 +1118,171 @@ impl_from_bytes!(i32, read_i32, write_i32, 4);
 impl_from_bytes!(f32, read_f32, write_f32, 4);
 impl_from_bytes!(f64, read_f64, write_f64, 8);
 
-// ===========================================================================
-// ===== Helpers for body parsing
-// ===========================================================================
-/// Helper trait to abstract the three different encodings.
-trait EncodingReader {
-    fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error>;
-    fn read_u8(buf: &mut impl Input) -> Result<u8, parse::Error>;
-    fn read_i16(buf: &mut impl Input) -> Result<i16, parse::Error>;
-    fn read_u16(buf: &mut impl Input) -> Result<u16, parse::Error>;
-    fn read_i32(buf: &mut impl Input) -> Result<i32, parse::Error>;
-    fn read_u32(buf: &mut impl Input) -> Result<u32, parse::Error>;
-    fn read_f32(buf: &mut impl Input) -> Result<f32, parse::Error>;
-    fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error>;
+// // ===========================================================================
+// // ===== Helpers for body parsing
+// // ===========================================================================
+// /// Helper trait to abstract the three different encodings.
+// trait EncodingReader {
+//     fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error>;
+//     fn read_u8(buf: &mut impl Input) -> Result<u8, parse::Error>;
+//     fn read_i16(buf: &mut impl Input) -> Result<i16, parse::Error>;
+//     fn read_u16(buf: &mut impl Input) -> Result<u16, parse::Error>;
+//     fn read_i32(buf: &mut impl Input) -> Result<i32, parse::Error>;
+//     fn read_u32(buf: &mut impl Input) -> Result<u32, parse::Error>;
+//     fn read_f32(buf: &mut impl Input) -> Result<f32, parse::Error>;
+//     fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error>;
 
-    /// Skips a seperator between two values. Only relevant for ASCII
-    /// (whitespace), therefore this empty implementation is provided.
-    fn skip_separator(_buf: &mut impl Input) -> Result<(), parse::Error> {
-        Ok(())
-    }
+//     /// Skips a seperator between two values. Only relevant for ASCII
+//     /// (whitespace), therefore this empty implementation is provided.
+//     fn skip_separator(_buf: &mut impl Input) -> Result<(), parse::Error> {
+//         Ok(())
+//     }
 
-    /// Finish reading one element. Only relevant for ASCII (where a linebreak
-    /// needs to be skipped), therefore this empty implementation is provided.
-    fn finish_element(_buf: &mut impl Input) -> Result<(), parse::Error> {
-        Ok(())
-    }
-}
+//     /// Finish reading one element. Only relevant for ASCII (where a linebreak
+//     /// needs to be skipped), therefore this empty implementation is provided.
+//     fn finish_element(_buf: &mut impl Input) -> Result<(), parse::Error> {
+//         Ok(())
+//     }
+// }
 
-/// Binary big endian encoding.
-enum BbeEncoding {}
-impl EncodingReader for BbeEncoding {
-    fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error> { parse::i8_we(buf) }
-    fn read_u8(buf: &mut impl Input) -> Result<u8, parse::Error> { parse::u8_we(buf) }
-    fn read_i16(buf: &mut impl Input) -> Result<i16, parse::Error> { parse::i16_be(buf) }
-    fn read_u16(buf: &mut impl Input) -> Result<u16, parse::Error> { parse::u16_be(buf) }
-    fn read_i32(buf: &mut impl Input) -> Result<i32, parse::Error> { parse::i32_be(buf) }
-    fn read_u32(buf: &mut impl Input) -> Result<u32, parse::Error> { parse::u32_be(buf) }
-    fn read_f32(buf: &mut impl Input) -> Result<f32, parse::Error> { parse::f32_be(buf) }
-    fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error> { parse::f64_be(buf) }
-}
+// /// Binary big endian encoding.
+// enum BbeEncoding {}
+// impl EncodingReader for BbeEncoding {
+//     fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error> { parse::i8_we(buf) }
+//     fn read_u8(buf: &mut impl Input) -> Result<u8, parse::Error> { parse::u8_we(buf) }
+//     fn read_i16(buf: &mut impl Input) -> Result<i16, parse::Error> { parse::i16_be(buf) }
+//     fn read_u16(buf: &mut impl Input) -> Result<u16, parse::Error> { parse::u16_be(buf) }
+//     fn read_i32(buf: &mut impl Input) -> Result<i32, parse::Error> { parse::i32_be(buf) }
+//     fn read_u32(buf: &mut impl Input) -> Result<u32, parse::Error> { parse::u32_be(buf) }
+//     fn read_f32(buf: &mut impl Input) -> Result<f32, parse::Error> { parse::f32_be(buf) }
+//     fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error> { parse::f64_be(buf) }
+// }
 
-/// Binary little endian encoding.
-enum BleEncoding {}
-impl EncodingReader for BleEncoding {
-    fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error> { parse::i8_we(buf) }
-    fn read_u8(buf: &mut impl Input) -> Result<u8, parse::Error> { parse::u8_we(buf) }
-    fn read_i16(buf: &mut impl Input) -> Result<i16, parse::Error> { parse::i16_le(buf) }
-    fn read_u16(buf: &mut impl Input) -> Result<u16, parse::Error> { parse::u16_le(buf) }
-    fn read_i32(buf: &mut impl Input) -> Result<i32, parse::Error> { parse::i32_le(buf) }
-    fn read_u32(buf: &mut impl Input) -> Result<u32, parse::Error> { parse::u32_le(buf) }
-    fn read_f32(buf: &mut impl Input) -> Result<f32, parse::Error> { parse::f32_le(buf) }
-    fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error> { parse::f64_le(buf) }
-}
+// /// Binary little endian encoding.
+// enum BleEncoding {}
+// impl EncodingReader for BleEncoding {
+//     fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error> { parse::i8_we(buf) }
+//     fn read_u8(buf: &mut impl Input) -> Result<u8, parse::Error> { parse::u8_we(buf) }
+//     fn read_i16(buf: &mut impl Input) -> Result<i16, parse::Error> { parse::i16_le(buf) }
+//     fn read_u16(buf: &mut impl Input) -> Result<u16, parse::Error> { parse::u16_le(buf) }
+//     fn read_i32(buf: &mut impl Input) -> Result<i32, parse::Error> { parse::i32_le(buf) }
+//     fn read_u32(buf: &mut impl Input) -> Result<u32, parse::Error> { parse::u32_le(buf) }
+//     fn read_f32(buf: &mut impl Input) -> Result<f32, parse::Error> { parse::f32_le(buf) }
+//     fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error> { parse::f64_le(buf) }
+// }
 
-/// ASCII encoding.
-enum AsciiEncoding {}
-impl EncodingReader for AsciiEncoding {
-    fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error> {
-        ascii_parser!(buf, i8)
-    }
-    fn read_u8(buf: &mut impl Input) -> Result<u8, parse::Error> {
-        ascii_parser!(buf, u8)
-    }
-    fn read_i16(buf: &mut impl Input) -> Result<i16, parse::Error> {
-        ascii_parser!(buf, i16)
-    }
-    fn read_u16(buf: &mut impl Input) -> Result<u16, parse::Error> {
-        ascii_parser!(buf, u16)
-    }
-    fn read_i32(buf: &mut impl Input) -> Result<i32, parse::Error> {
-        ascii_parser!(buf, i32)
-    }
-    fn read_u32(buf: &mut impl Input) -> Result<u32, parse::Error> {
-        ascii_parser!(buf, u32)
-    }
-    fn read_f32(buf: &mut impl Input) -> Result<f32, parse::Error> {
-        ascii_parser!(buf, f32)
-    }
-    fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error> {
-        ascii_parser!(buf, f64)
-    }
+// /// ASCII encoding.
+// enum AsciiEncoding {}
+// impl EncodingReader for AsciiEncoding {
+//     fn read_i8(buf: &mut impl Input) -> Result<i8, parse::Error> {
+//         ascii_parser!(buf, i8)
+//     }
+//     fn read_u8(buf: &mut impl Input) -> Result<u8, parse::Error> {
+//         ascii_parser!(buf, u8)
+//     }
+//     fn read_i16(buf: &mut impl Input) -> Result<i16, parse::Error> {
+//         ascii_parser!(buf, i16)
+//     }
+//     fn read_u16(buf: &mut impl Input) -> Result<u16, parse::Error> {
+//         ascii_parser!(buf, u16)
+//     }
+//     fn read_i32(buf: &mut impl Input) -> Result<i32, parse::Error> {
+//         ascii_parser!(buf, i32)
+//     }
+//     fn read_u32(buf: &mut impl Input) -> Result<u32, parse::Error> {
+//         ascii_parser!(buf, u32)
+//     }
+//     fn read_f32(buf: &mut impl Input) -> Result<f32, parse::Error> {
+//         ascii_parser!(buf, f32)
+//     }
+//     fn read_f64(buf: &mut impl Input) -> Result<f64, parse::Error> {
+//         ascii_parser!(buf, f64)
+//     }
 
-    fn skip_separator(buf: &mut impl Input) -> Result<(), parse::Error> {
-        whitespace(buf)
-    }
-    fn finish_element(buf: &mut impl Input) -> Result<(), parse::Error> {
-        linebreak(buf)
-    }
-}
+//     fn skip_separator(buf: &mut impl Input) -> Result<(), parse::Error> {
+//         whitespace(buf)
+//     }
+//     fn finish_element(buf: &mut impl Input) -> Result<(), parse::Error> {
+//         linebreak(buf)
+//     }
+// }
 
-/// Parses one element with all its properties as described by `def`.
-/// Properties are written into `out`. The type parameter `E` is used to
-/// actually read values.
-fn parse_element<E: EncodingReader, I: Input>(
-    buf: &mut I,
-    def: &ElementDef,
-    out: &mut Vec<Property>,
-) -> Result<(), Error> {
-    /// Reads a single value of type `ty` and returns it as `Property`. The
-    /// returned `Property` is one of the scalar variants, i.e. not one of the
-    /// `*List` variants!
-    fn read_scalar<E: EncodingReader, I: Input>(
-        buf: &mut I,
-        ty: ScalarType,
-    ) -> Result<Property, Error> {
-        let p = match ty {
-            ScalarType::Char => Property::Char(E::read_i8(buf)?),
-            ScalarType::UChar => Property::UChar(E::read_u8(buf)?),
-            ScalarType::Short => Property::Short(E::read_i16(buf)?),
-            ScalarType::UShort => Property::UShort(E::read_u16(buf)?),
-            ScalarType::Int => Property::Int(E::read_i32(buf)?),
-            ScalarType::UInt => Property::UInt(E::read_u32(buf)?),
-            ScalarType::Float => Property::Float(E::read_f32(buf)?),
-            ScalarType::Double => Property::Double(E::read_f64(buf)?),
-        };
+// /// Parses one element with all its properties as described by `def`.
+// /// Properties are written into `out`. The type parameter `E` is used to
+// /// actually read values.
+// fn parse_element<E: EncodingReader, I: Input>(
+//     buf: &mut I,
+//     def: &ElementDef,
+//     out: &mut Vec<Property>,
+// ) -> Result<(), Error> {
+//     /// Reads a single value of type `ty` and returns it as `Property`. The
+//     /// returned `Property` is one of the scalar variants, i.e. not one of the
+//     /// `*List` variants!
+//     fn read_scalar<E: EncodingReader, I: Input>(
+//         buf: &mut I,
+//         ty: ScalarType,
+//     ) -> Result<Property, Error> {
+//         let p = match ty {
+//             ScalarType::Char => Property::Char(E::read_i8(buf)?),
+//             ScalarType::UChar => Property::UChar(E::read_u8(buf)?),
+//             ScalarType::Short => Property::Short(E::read_i16(buf)?),
+//             ScalarType::UShort => Property::UShort(E::read_u16(buf)?),
+//             ScalarType::Int => Property::Int(E::read_i32(buf)?),
+//             ScalarType::UInt => Property::UInt(E::read_u32(buf)?),
+//             ScalarType::Float => Property::Float(E::read_f32(buf)?),
+//             ScalarType::Double => Property::Double(E::read_f64(buf)?),
+//         };
 
-        Ok(p)
-    }
+//         Ok(p)
+//     }
 
-    for (i, prop_def) in def.property_defs.iter().enumerate() {
-        let property = match prop_def.ty {
-            PropertyType::Scalar(ty) => read_scalar::<E, _>(buf, ty)?,
-            PropertyType::List { len_type, scalar_type } => {
-                // We know that the `len_type` is an unsigned integer type,
-                // because it was checked while parsing the header.
-                let len = read_scalar::<E, _>(buf, len_type)?
-                    .as_unsigned_integer()
-                    .unwrap();
+//     for (i, prop_def) in def.property_defs.iter().enumerate() {
+//         let property = match prop_def.ty {
+//             PropertyType::Scalar(ty) => read_scalar::<E, _>(buf, ty)?,
+//             PropertyType::List { len_type, scalar_type } => {
+//                 // We know that the `len_type` is an unsigned integer type,
+//                 // because it was checked while parsing the header.
+//                 let len = read_scalar::<E, _>(buf, len_type)?
+//                     .as_unsigned_integer()
+//                     .unwrap();
 
-                macro_rules! read_list {
-                    ($variant:ident, $read_fun:ident) => {{
-                        let mut list = SmallVec::new();
-                        for _ in 0..len {
-                            E::skip_separator(buf)?;
-                            list.push(E::$read_fun(buf)?);
-                        }
+//                 macro_rules! read_list {
+//                     ($variant:ident, $read_fun:ident) => {{
+//                         let mut list = SmallVec::new();
+//                         for _ in 0..len {
+//                             E::skip_separator(buf)?;
+//                             list.push(E::$read_fun(buf)?);
+//                         }
 
-                        Property::$variant(list)
-                    }}
-                }
+//                         Property::$variant(list)
+//                     }}
+//                 }
 
-                match scalar_type {
-                    ScalarType::Char => read_list!(CharList, read_i8),
-                    ScalarType::UChar => read_list!(UCharList, read_u8),
-                    ScalarType::Short => read_list!(ShortList, read_i16),
-                    ScalarType::UShort => read_list!(UShortList, read_u16),
-                    ScalarType::Int => read_list!(IntList, read_i32),
-                    ScalarType::UInt => read_list!(UIntList, read_u32),
-                    ScalarType::Float => read_list!(FloatList, read_f32),
-                    ScalarType::Double => read_list!(DoubleList, read_f64),
-                }
-            }
-        };
-        out.push(property);
+//                 match scalar_type {
+//                     ScalarType::Char => read_list!(CharList, read_i8),
+//                     ScalarType::UChar => read_list!(UCharList, read_u8),
+//                     ScalarType::Short => read_list!(ShortList, read_i16),
+//                     ScalarType::UShort => read_list!(UShortList, read_u16),
+//                     ScalarType::Int => read_list!(IntList, read_i32),
+//                     ScalarType::UInt => read_list!(UIntList, read_u32),
+//                     ScalarType::Float => read_list!(FloatList, read_f32),
+//                     ScalarType::Double => read_list!(DoubleList, read_f64),
+//                 }
+//             }
+//         };
+//         out.push(property);
 
-        // If this was the last property, finish the element, otherwise skip a
-        // separator.
-        if i == def.property_defs.len() - 1 {
-            E::finish_element(buf)?;
-        } else {
-            E::skip_separator(buf)?;
-        }
-    }
+//         // If this was the last property, finish the element, otherwise skip a
+//         // separator.
+//         if i == def.property_defs.len() - 1 {
+//             E::finish_element(buf)?;
+//         } else {
+//             E::skip_separator(buf)?;
+//         }
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 // ===========================================================================
 // ===== Data structures to hold header and body data of a PLY file
@@ -1033,7 +1296,7 @@ pub struct ElementDef {
     count: u64,
 
     /// Definitions for all properties of elements in this group.
-    property_defs: Vec<PropertyDef>,
+    property_defs: PropVec<PropertyDef>,
 }
 
 /// Te header definition of one property of an element.
@@ -1047,8 +1310,59 @@ pub struct PropertyDef {
 pub enum PropertyType {
     Scalar(ScalarType),
     List {
-        len_type: ScalarType,
+        len_type: ListLenType,
         scalar_type: ScalarType,
+    }
+}
+
+impl PropertyType {
+    fn len_type(&self) -> Option<ListLenType> {
+        match self {
+            PropertyType::Scalar(_) => None,
+            PropertyType::List { len_type, .. } => Some(*len_type),
+        }
+    }
+
+    fn scalar_type(&self) -> ScalarType {
+        match *self {
+            PropertyType::Scalar(scalar_type) => scalar_type,
+            PropertyType::List { scalar_type, .. } => scalar_type,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListLenType {
+    UChar,
+    UShort,
+    UInt,
+}
+
+impl ListLenType {
+    fn from_scalar_type(ty: ScalarType) -> Option<Self> {
+        match ty {
+            ScalarType::UChar => Some(ListLenType::UChar),
+            ScalarType::UShort => Some(ListLenType::UShort),
+            ScalarType::UInt => Some(ListLenType::UInt),
+            _ => None,
+        }
+    }
+
+    fn to_scalar_type(self) -> ScalarType {
+        match self {
+            ListLenType::UChar => ScalarType::UChar,
+            ListLenType::UShort => ScalarType::UShort,
+            ListLenType::UInt => ScalarType::UInt,
+        }
+    }
+
+    /// Returns the number of bytes this type occupies.
+    pub fn len(&self) -> ScalarLen {
+        match self {
+            ListLenType::UChar => ScalarLen::One,
+            ListLenType::UShort => ScalarLen::Two,
+            ListLenType::UInt => ScalarLen::Four,
+        }
     }
 }
 
@@ -1089,16 +1403,16 @@ impl ScalarType {
     }
 
     /// Returns the number of bytes this type occupies.
-    pub fn size(&self) -> PropSize {
+    pub fn len(&self) -> ScalarLen {
         match self {
-            ScalarType::Char => PropSize::One,
-            ScalarType::UChar => PropSize::One,
-            ScalarType::Short => PropSize::Two,
-            ScalarType::UShort => PropSize::Two,
-            ScalarType::Int => PropSize::Four,
-            ScalarType::UInt => PropSize::Four,
-            ScalarType::Float => PropSize::Four,
-            ScalarType::Double => PropSize::Eight,
+            ScalarType::Char => ScalarLen::One,
+            ScalarType::UChar => ScalarLen::One,
+            ScalarType::Short => ScalarLen::Two,
+            ScalarType::UShort => ScalarLen::Two,
+            ScalarType::Int => ScalarLen::Four,
+            ScalarType::UInt => ScalarLen::Four,
+            ScalarType::Float => ScalarLen::Four,
+            ScalarType::Double => ScalarLen::Eight,
         }
     }
 }
@@ -1213,7 +1527,7 @@ impl Property {
 // ===========================================================================
 // ===== RawSink
 // ===========================================================================
-/// A type that can accept raw data from an PLY file. This is mainly used for
+/// A type that can accept raw data from a PLY file. This is mainly used for
 /// [`Reader::read_raw_into`].
 pub trait RawSink {
     /// Is called when a new element group begins. `def` describes the layout
@@ -1224,47 +1538,47 @@ pub trait RawSink {
     /// Is called for each element that is read. When called, the element
     /// belongs to the last element group (the last `element_group_start`
     /// call).
-    fn element(&mut self, properties: &[Property]);
+    fn element(&mut self, elem: &RawElement);
 }
 
-impl RawSink for RawResult {
-    fn element_group_start(&mut self, def: &ElementDef) {
-        self.element_groups.push(ElementGroup {
-            def: def.clone(),
-            elements: vec![],
-        });
-    }
-    fn element(&mut self, properties: &[Property]) {
-        self.element_groups
-            .last_mut()
-            .unwrap()
-            .elements
-            .push(Element { properties: properties.to_vec() });
-    }
-}
+// impl RawSink for RawResult {
+//     fn element_group_start(&mut self, def: &ElementDef) {
+//         self.element_groups.push(ElementGroup {
+//             def: def.clone(),
+//             elements: vec![],
+//         });
+//     }
+//     fn element(&mut self, properties: &[Property]) {
+//         self.element_groups
+//             .last_mut()
+//             .unwrap()
+//             .elements
+//             .push(Element { properties: properties.to_vec() });
+//     }
+// }
 
-#[derive(Debug)]
-pub struct RawResult {
-    element_groups: Vec<ElementGroup>,
-}
+// #[derive(Debug)]
+// pub struct RawResult {
+//     element_groups: Vec<ElementGroup>,
+// }
 
-impl RawResult {
-    /// Creates an instance with no name and no triangles.
-    pub fn new() -> Self {
-        Self {
-            element_groups: Vec::new(),
-        }
-    }
-}
+// impl RawResult {
+//     /// Creates an instance with no name and no triangles.
+//     pub fn new() -> Self {
+//         Self {
+//             element_groups: Vec::new(),
+//         }
+//     }
+// }
 
-#[derive(Debug)]
-pub struct ElementGroup {
-    def: ElementDef,
-    elements: Vec<Element>,
-}
+// #[derive(Debug)]
+// pub struct ElementGroup {
+//     def: ElementDef,
+//     elements: Vec<Element>,
+// }
 
-#[derive(Debug)]
-pub struct Element {
-    // TODO: this is really not very space efficient...
-    properties: Vec<Property>,
-}
+// #[derive(Debug)]
+// pub struct Element {
+//     // TODO: this is really not very space efficient...
+//     properties: Vec<Property>,
+// }
