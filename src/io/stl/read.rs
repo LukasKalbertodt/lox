@@ -647,13 +647,12 @@ impl VertexAdder for UnifyingAdder {
 }
 
 
-impl<R, U, S> StreamingSource<S> for Reader<R, U>
+impl<R, U> StreamingSource for Reader<R, U>
 where
     R: io::Read + io::Seek,
     U: UnifyingMarker,
-    S: MemSink,
 {
-    fn transfer_to(self, sink: &mut S) {
+    fn transfer_to<S: MemSink>(self, sink: &mut S) {
         struct HelperSink<'a, S: MemSink, A: VertexAdder> {
             sink: &'a mut S,
             vertex_adder: A,

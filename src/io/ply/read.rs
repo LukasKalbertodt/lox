@@ -369,8 +369,8 @@ impl<R: io::Read> Reader<R> {
     }
 }
 
-impl<R: io::Read, S: MemSink> StreamingSource<S> for Reader<R> {
-    fn transfer_to(mut self, sink: &mut S) {
+impl<R: io::Read> StreamingSource for Reader<R> {
+    fn transfer_to<S: MemSink>(mut self, sink: &mut S) {
         fn read_pos<T: FromBytes + PrimitiveNum, S: MemSink>(
             sink: &mut S,
             raw: &[u8],
