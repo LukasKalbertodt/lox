@@ -15,7 +15,9 @@ use hashbrown::{HashMap, hash_map::Entry};
 use crate::{
     TransferError,
     prelude::*,
+    math::PrimitiveNum,
     io::{
+        StreamingSource, MemSink,
         parse::{
             self, Input,
             buf::{Buffer},
@@ -538,72 +540,6 @@ where
 
 
 // ===========================================================================
-// ===== `MeshSource` implementation and related stuff
-// ===========================================================================
-
-/// STL files only store the position for each vertex.
-#[derive(Debug)]
-#[repr(C)]
-pub struct VertexInfo {
-    pub position: Point3<f32>,
-}
-
-/// STL files store only the normal for each face.
-#[derive(Debug)]
-#[repr(C)]
-pub struct FaceInfo {
-    pub normal: Vector3<f32>,
-}
-
-impl<R: io::Read + io::Seek, U: UnifyingMarker> MeshSource for Reader<R, U> {
-    type VertexInfo = VertexInfo;
-    type FaceInfo = FaceInfo;
-    type Error = Error;
-
-    fn build<S>(self, sink: &mut S) -> Result<(), TransferError<Self::Error, S::Error>>
-    where
-        S: MeshSink<Self::VertexInfo, Self::FaceInfo>,
-    {
-        struct HelperSink<'a, S: MeshSink<VertexInfo, FaceInfo>, A: VertexAdder> {
-            sink: &'a mut S,
-            vertex_adder: A,
-        };
-
-        impl<S: MeshSink<VertexInfo, FaceInfo>, A: VertexAdder> RawSink for HelperSink<'_, S, A> {
-            type Error = S::Error;
-
-            fn solid_name(&mut self, _: String) -> Result<(), Self::Error> { Ok(()) }
-            fn triangle_count(&mut self, _num: u32) -> Result<(), Self::Error> { Ok(()) } // TODO
-
-            fn triangle(&mut self, triangle: Triangle) -> Result<(), Self::Error> {
-                let [pa, pb, pc] = triangle.vertices;
-                let a = self.vertex_adder.add_vertex(self.sink, pa)?;
-                let b = self.vertex_adder.add_vertex(self.sink, pb)?;
-                let c = self.vertex_adder.add_vertex(self.sink, pc)?;
-
-                self.sink.add_face([a, b, c], FaceInfo {
-                    normal: triangle.normal.to_vector3(),
-                })?;
-
-                Ok(())
-            }
-        }
-
-
-        // Create helper sink and read into it
-        let mut sink = HelperSink {
-            sink,
-            vertex_adder: U::Adder::new(),
-        };
-        self.read_raw_into(&mut sink)?;
-        // Ok(sink.into_results())
-
-        Ok(())
-    }
-}
-
-
-// ===========================================================================
 // ===== Definition of unifying dummy types. Not actually public.
 // ===========================================================================
 pub trait UnifyingMarker {
@@ -630,11 +566,11 @@ impl UnifyingMarker for VerbatimVertices {
 pub trait VertexAdder {
     fn new() -> Self;
     fn size_hint(&mut self, _num_vertices: u32) {}
-    fn add_vertex<S: MeshSink<VertexInfo, FaceInfo>>(
+    fn add_vertex<S: MemSink>(
         &mut self,
-        mesh: &mut S,
+        sink: &mut S,
         pos: [f32; 3],
-    ) -> Result<VertexHandle, S::Error>;
+    ) -> VertexHandle;
 }
 
 /// Adds every incoming vertex as new unique vertex. No unifying is done.
@@ -645,13 +581,14 @@ impl VertexAdder for NonUnifyingAdder {
         NonUnifyingAdder
     }
 
-    fn add_vertex<S: MeshSink<VertexInfo, FaceInfo>>(
+    fn add_vertex<S: MemSink>(
         &mut self,
-        mesh: &mut S,
+        sink: &mut S,
         pos: [f32; 3],
-    ) -> Result<VertexHandle, S::Error> {
-        let info = VertexInfo { position: pos.to_point3() };
-        mesh.add_vertex(info)
+    ) -> VertexHandle {
+        let handle = sink.add_vertex();
+        sink.set_vertex_position(handle, pos.to_point3());
+        handle
     }
 }
 
@@ -683,11 +620,11 @@ impl VertexAdder for UnifyingAdder {
         self.0.reserve(num_vertices as usize);
     }
 
-    fn add_vertex<S: MeshSink<VertexInfo, FaceInfo>>(
+    fn add_vertex<S: MemSink>(
         &mut self,
-        mesh: &mut S,
+        sink: &mut S,
         pos: [f32; 3],
-    ) -> Result<VertexHandle, S::Error> {
+    ) -> VertexHandle {
         // Make sure the positions are not `NaN`. In one test, this
         // assert didn't make any difference in speed.
         assert!(
@@ -698,13 +635,53 @@ impl VertexAdder for UnifyingAdder {
         let handle = match self.0.entry(PosKey(pos)) {
             Entry::Occupied(entry) => *entry.get(),
             Entry::Vacant(entry) => {
-                let info = VertexInfo { position: pos.to_point3() };
-                let handle = mesh.add_vertex(info)?;
+                let handle = sink.add_vertex();
+                sink.set_vertex_position(handle, pos.to_point3());
                 entry.insert(handle);
                 handle
             }
         };
 
-        Ok(handle)
+        handle
+    }
+}
+
+
+impl<R, U, S> StreamingSource<S> for Reader<R, U>
+where
+    R: io::Read + io::Seek,
+    U: UnifyingMarker,
+    S: MemSink,
+{
+    fn transfer_to(self, sink: &mut S) {
+        struct HelperSink<'a, S: MemSink, A: VertexAdder> {
+            sink: &'a mut S,
+            vertex_adder: A,
+        };
+
+        impl<S: MemSink, A: VertexAdder> RawSink for HelperSink<'_, S, A> {
+            type Error = !;
+
+            fn solid_name(&mut self, _: String) -> Result<(), Self::Error> { Ok(()) }
+            fn triangle_count(&mut self, _num: u32) -> Result<(), Self::Error> { Ok(()) } // TODO
+
+            fn triangle(&mut self, triangle: Triangle) -> Result<(), Self::Error> {
+                let [pa, pb, pc] = triangle.vertices;
+                let a = self.vertex_adder.add_vertex(self.sink, pa);
+                let b = self.vertex_adder.add_vertex(self.sink, pb);
+                let c = self.vertex_adder.add_vertex(self.sink, pc);
+
+                self.sink.add_face([a, b, c]);
+
+                Ok(())
+            }
+        }
+
+        // Create helper sink and read into it
+        let mut sink = HelperSink {
+            sink,
+            vertex_adder: U::Adder::new(),
+        };
+        self.read_raw_into(&mut sink);
     }
 }

@@ -87,7 +87,7 @@ impl FileFormat {
 }
 
 pub trait StreamingSource<S: MemSink> {
-    fn transfer_to(&mut self, sink: &mut S);
+    fn transfer_to(self, sink: &mut S);
 }
 
 pub trait MemSink {
