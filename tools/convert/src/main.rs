@@ -4,6 +4,7 @@ extern crate structopt;
 use std::{
     fs::File,
     io::{Seek, SeekFrom, Read},
+    time::Instant,
 };
 
 use failure::{err_msg, Error, ResultExt};
@@ -44,12 +45,21 @@ fn main() {
 
 fn run() -> Result<(), Error> {
     let opt = Opt::from_args();
-    println!("{:?}", opt);
+    // println!("{:?}", opt);
+
+    let start_time = Instant::now();
 
     // Load file
     let mesh_data = load_file(&opt).context("could not read source file")?;
 
-    println!("{:#?}", mesh_data);
+    // println!("{:#?}", mesh_data);
+    println!(
+        "vertices: {}, faces: {}",
+        mesh_data.mesh.num_vertices(),
+        mesh_data.mesh.num_faces(),
+    );
+
+    println!("Processing time: {:.2?}", start_time.elapsed());
 
     Ok(())
 }
