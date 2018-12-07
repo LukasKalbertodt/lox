@@ -12,6 +12,8 @@
 
 #![deny(missing_debug_implementations)]
 
+pub extern crate cgmath;
+
 
 #[cfg(test)]
 #[macro_use]
