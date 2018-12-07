@@ -19,10 +19,9 @@ use smallvec::SmallVec;
 
 use crate::{
     TransferError,
-    math::PrimitiveNum,
     prelude::*,
     io::{
-        StreamingSource, MemSink,
+        StreamingSource, MemSink, Primitive,
         parse::{
             self, Input, Span, debug_fmt_bytes, SpannedData,
             buf::{Buffer},
@@ -372,7 +371,7 @@ impl<R: io::Read> Reader<R> {
 impl<R: io::Read> StreamingSource for Reader<R> {
     type Error = Error;
     fn transfer_to<S: MemSink>(mut self, sink: &mut S) -> Result<(), Self::Error> {
-        fn read_pos<T: FromBytes + PrimitiveNum, S: MemSink>(
+        fn read_pos<T: FromBytes + Primitive, S: MemSink>(
             sink: &mut S,
             raw: &[u8],
             handle: VertexHandle,

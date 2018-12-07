@@ -168,7 +168,7 @@ pub trait MemSink {
     fn add_vertex(&mut self) -> VertexHandle;
     fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
 
-    fn set_vertex_position<N: PrimitiveNum>(
+    fn set_vertex_position<N: Primitive>(
         &mut self,
         _: VertexHandle,
         _position: Point3<N>,
