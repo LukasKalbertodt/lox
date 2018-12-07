@@ -87,6 +87,78 @@ impl FileFormat {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrimitiveType {
+    Uint8,
+    Int8,
+    Uint16,
+    Int16,
+    Uint32,
+    Int32,
+    Float32,
+    Float64,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum PrimitiveValue {
+    Uint8(u8),
+    Int8(i8),
+    Uint16(u16),
+    Int16(i16),
+    Uint32(u32),
+    Int32(i32),
+    Float32(f32),
+    Float64(f64),
+}
+
+macro_rules! make_convert_method {
+    ($name:ident, $ty:ident, $variant:ident) => {
+        pub fn $name(&self) -> Option<$ty> {
+            match self {
+                PrimitiveValue::$variant(x) => Some(*x),
+                _ => None,
+            }
+        }
+    }
+}
+
+impl PrimitiveValue {
+    make_convert_method!(to_u8, u8, Uint8);
+    make_convert_method!(to_i8, i8, Int8);
+    make_convert_method!(to_u16, u16, Uint16);
+    make_convert_method!(to_i16, i16, Int16);
+    make_convert_method!(to_u32, u32, Uint32);
+    make_convert_method!(to_i32, i32, Int32);
+    make_convert_method!(to_f32, f32, Float32);
+    make_convert_method!(to_f64, f64, Float64);
+}
+
+pub trait Primitive: PrimitiveNum {
+    const TY: PrimitiveType;
+    fn value(&self) -> PrimitiveValue;
+}
+
+macro_rules! impl_primitive {
+    ($ty:ident, $variant:ident) => {
+        impl Primitive for $ty {
+            const TY: PrimitiveType = PrimitiveType::$variant;
+            fn value(&self) -> PrimitiveValue {
+                PrimitiveValue::$variant(*self)
+            }
+        }
+    }
+}
+
+impl_primitive!(u8,  Uint8);
+impl_primitive!(i8,  Int8);
+impl_primitive!(u16, Uint16);
+impl_primitive!(i16, Int16);
+impl_primitive!(u32, Uint32);
+impl_primitive!(i32, Int32);
+impl_primitive!(f32, Float32);
+impl_primitive!(f64, Float64);
+
+
 pub trait StreamingSource {
     type Error: Fail;
     fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Self::Error>;
