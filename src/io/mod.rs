@@ -9,7 +9,7 @@ use failure::Fail;
 
 use crate::{
     Mesh, MeshUnsorted, ExplicitFace,
-    handle::{VertexHandle, FaceHandle},
+    handle::{VertexHandle, FaceHandle, DefaultInt},
     map::VertexPropMap,
     math::{Pos3Like, PrimitiveNum},
 };
@@ -203,4 +203,26 @@ pub trait MemSink {
         _: VertexHandle,
         _position: Point3<N>,
     ) {}
+}
+
+pub trait StreamingSink {
+    type Error: Fail;
+    fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Self::Error>;
+}
+
+pub trait MemSource {
+    fn vertices(&self) -> Box<dyn Iterator<Item = VertexHandle> + '_>;
+    fn faces(&self) -> Box<dyn Iterator<Item = FaceHandle> + '_>;
+
+    fn num_vertices(&self) -> DefaultInt;
+    fn num_faces(&self) -> DefaultInt;
+
+    fn vertices_of_face(&self, f: FaceHandle) -> [VertexHandle; 3];
+
+    fn vertex_position_type(&self) -> Option<PrimitiveType> {
+        None
+    }
+    fn vertex_position<T: Primitive>(&self, _: VertexHandle) -> Point3<T> {
+        panic!("requested non-existent vertex position from `MemSource`");
+    }
 }
