@@ -46,7 +46,7 @@ pub use self::{
 
 // Sadly, rustdoc is a bit buggy when it comes to reexporting proc macros. So
 // when rustdoc runs, we use a dummy macro. When the crate is compiled as
-// usual, we will reexport the proc macro.
+// usual, we will reexport the proc macro. TODO: check if fixed
 #[cfg(not(rustdoc))]
 pub use lox_macros::mesh as mesh;
 

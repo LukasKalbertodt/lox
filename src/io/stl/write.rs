@@ -23,11 +23,11 @@ type DummyMap = EmptyMap<[f32; 3]>;
 // ===== STL Config
 // ===============================================================================================
 
-/// Used to configure and create a [`Writer`].
+/// Used to configure and create a [`Writer`] or [`Sink`].
 ///
 /// This is used to configure basic settings for the file to be written. Use
 /// the [`IntoMeshWriter`][crate::io::IntoMeshWriter] implementation to obtain
-/// a writer.
+/// a writer or the [`Config::into_sink`] method to create a streaming sink.
 #[derive(Clone, Debug)]
 pub struct Config {
     solid_name: String,
@@ -67,6 +67,7 @@ impl Config {
         }
     }
 
+    /// Creates a streaming sink.
     pub fn into_sink<W: io::Write>(self, writer: W) -> Sink<W> {
         Sink {
             config: self,
@@ -97,6 +98,7 @@ where
 // ===== STL Sink
 // ===============================================================================================
 
+/// The [`StreamingSink`] for STL files. Is created via [`Config::into_sink`].
 #[derive(Debug)]
 pub struct Sink<W: io::Write> {
     config: Config,

@@ -275,6 +275,8 @@ pub trait StreamingSink {
     fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Self::Error>;
 }
 
+// TODO: probably use mesh traits as supertrait instead of repeating many of
+// the relevant methods here.
 pub trait MemSource {
     fn vertices(&self) -> Box<dyn Iterator<Item = VertexHandle> + '_>;
     fn faces(&self) -> Box<dyn Iterator<Item = FaceHandle> + '_>;

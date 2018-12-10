@@ -455,7 +455,7 @@ pub struct RawTriangle {
     pub attribute_byte_count: u16,
 }
 
-/// Holds the raw data from a STL file.
+/// Holds the raw data from an STL file.
 ///
 /// To obtain a `RawResult`, call [`Reader::into_raw_result`]. See its
 /// documentation for more information.
@@ -503,9 +503,9 @@ impl RawSink for RawResult {
 /// Since the closure can return an error, you usually have to annotate the
 /// error type `!` manually if you are not actually returning an error.
 #[derive(Debug)]
-pub struct FnSink<F>(pub F);
+pub struct FnRawSink<F>(pub F);
 
-impl<F: FnMut(RawTriangle)> RawSink for FnSink<F> {
+impl<F: FnMut(RawTriangle)> RawSink for FnRawSink<F> {
     fn solid_name(&mut self, _: String) {}
     fn triangle_count(&mut self, _: u32) {}
 

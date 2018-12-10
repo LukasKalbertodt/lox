@@ -81,7 +81,7 @@ mod write;
 #[cfg(test)]
 mod tests;
 
-pub use self::read::{FnSink, Reader, RawSink, RawTriangle, RawResult};
+pub use self::read::{FnRawSink, Reader, RawSink, RawTriangle, RawResult};
 pub use self::write::{Config, Writer, Sink};
 
 
@@ -95,6 +95,7 @@ pub enum Encoding {
     Binary,
 }
 
+/// Errors that can potentially happen when reading or writing an STL file.
 #[derive(Debug, Fail)]
 pub enum Error {
     #[fail(display = "Parsing error: {}", _0)]
