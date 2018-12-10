@@ -173,6 +173,39 @@ impl<H: Handle> AnyPointMap<H> {
         }
     }
 
+    fn get<T: Primitive>(&self, handle: H) -> Option<Point3<T>> {
+        macro_rules! get {
+            ($map:ident) => {{
+                $map.get(handle).map(|p| {
+                    p.map(|s| as_primitive::<T, _>(s).unwrap())
+                })
+            }}
+        }
+
+        // Make sure the inserted type matches the type of the map
+        if T::TY != self.primitive_type() {
+            panic!(
+                "type mismatch requesting '{:?}' from an AnyPointMap with type '{:?}'",
+                T::TY,
+                self.primitive_type(),
+            )
+        }
+
+        // Since we know here that the types match, all those `to_*` convert
+        // functions won't ever return `None`. In fact, the compiler can
+        // probably prove that since it has static type information about `T`.
+        match self {
+            AnyPointMap::Uint8(map) => get!(map),
+            AnyPointMap::Int8(map) => get!(map),
+            AnyPointMap::Uint16(map) => get!(map),
+            AnyPointMap::Int16(map) => get!(map),
+            AnyPointMap::Uint32(map) => get!(map),
+            AnyPointMap::Int32(map) => get!(map),
+            AnyPointMap::Float32(map) => get!(map),
+            AnyPointMap::Float64(map) => get!(map),
+        }
+    }
+
     fn insert<T: Primitive>(&mut self, handle: H, pos: Point3<T>) {
         // This function optimizes very well! As seen [here][godbolt], it is
         // just one check of our discriminant against a constant. If the check
@@ -183,14 +216,14 @@ impl<H: Handle> AnyPointMap<H> {
 
         macro_rules! insert {
             ($map:ident, $convert:ident) => {{
-                $map.insert(handle, pos.map(|s| s.value().$convert().unwrap()));
+                $map.insert(handle, pos.map(|s| s.to_primitive_value().$convert().unwrap()));
             }}
         }
 
         // Make sure the inserted type matches the type of the map
         if T::TY != self.primitive_type() {
             panic!(
-                "type mismatch inserting '{:?}' into a AnyPointMap with type '{:?}'",
+                "type mismatch inserting '{:?}' into an AnyPointMap with type '{:?}'",
                 T::TY,
                 self.primitive_type(),
             )
