@@ -321,16 +321,6 @@ impl<R: io::Read> Reader<R> {
             Encoding::Ascii => read_element_ascii::<Buffer<R>>,
         };
 
-        // // Keep this vector on the outside to retain allocations
-        // let mut properties = Vec::new();
-
-
-        // let read_element = match self.encoding {
-        //     Encoding::BinaryBigEndian => BbeEncoding::read_element::<Buffer<R>>,
-        //     Encoding::BinaryLittleEndian => BleEncoding::read_element::<Buffer<R>>,
-        //     Encoding::Ascii => AsciiEncoding::read_element::<Buffer<R>>,
-        // };
-
         // Iterate through each element group
         for element_def in &self.elements {
             sink.element_group_start(&element_def);
@@ -509,7 +499,7 @@ impl<R: io::Read> StreamingSource for Reader<R> {
                         read_elem!();
                         // println!("{:02x?}", raw);
                         // println!("{:?}", starts);
-                        let vi_list = elem.list_at(vi_index)
+                        let vi_list = elem.decode_list_at(vi_index)
                             .expect("fucki wucki `vertex_indices` has to be list");
 
                         if vi_list.list_len != 3 {
@@ -554,19 +544,21 @@ impl<R: io::Read> StreamingSource for Reader<R> {
 // ===== `RawElement` definitions
 // ===========================================================================
 
+/// Represents on element with all its property values.
+///
+/// The property values are encoded as a densely packed byte array. This type
+/// also includes meta data about the properties. These metadata are mostly the
+/// same for all elements of one element group.
 #[derive(Clone)]
 pub struct RawElement {
     /// The packed data of all properties in native endianess.
-    ///
-    /// For PLY files stored in native endianess, this is an exact chunk from
-    /// the file. For ASCII files and files in non-native endianess, the
-    /// properties are first converted to this format.
     pub data: RawData,
 
-    /// Some information about each property in this element.
+    /// Some meta information about each property in this element.
     pub prop_infos: PropVec<RawPropertyInfo>,
 }
 
+/// Metadata about a property.
 #[derive(Debug, Clone)]
 pub struct RawPropertyInfo {
     /// The byte offset in the packed, native-endian data at which this
@@ -581,7 +573,10 @@ pub struct RawPropertyInfo {
 }
 
 impl RawElement {
-    fn list_at(&self, idx: PropIndex) -> Option<RawListInfo> {
+    /// Decodes the list at the given property index and returns information
+    /// about that list. Returns `None` if there is a scalar value at the given
+    /// position. Panics if `idx` is invalid.
+    fn decode_list_at(&self, idx: PropIndex) -> Option<RawListInfo> {
         match self.prop_infos[idx].ty {
             PropertyType::Scalar(_) => None,
             PropertyType::List { len_type, scalar_type } => {
@@ -603,6 +598,8 @@ impl RawElement {
         }
     }
 
+    /// Decodes the property at the given index and returns it as dynamically
+    /// typed `Property` value.
     fn prop_at(&self, idx: PropIndex) -> Property {
         fn read_scalar(buf: &[u8], ty: ScalarType) -> Property {
             match ty {
@@ -622,7 +619,7 @@ impl RawElement {
         match info.ty {
             PropertyType::Scalar(ty) => read_scalar(&self.data[..], ty),
             PropertyType::List { scalar_type, .. } => {
-                let list_info = self.list_at(idx).unwrap();
+                let list_info = self.decode_list_at(idx).unwrap();
 
                 macro_rules! list {
                     ($variant:ident, |$buf:ident| $e:expr) => {{
@@ -652,6 +649,7 @@ impl RawElement {
         }
     }
 
+    /// Returns an iterator over all properties of this element.
     fn iter(&self) -> RawElementIter<'_> {
         RawElementIter {
             elem: self,
@@ -673,6 +671,8 @@ impl fmt::Debug for RawElement {
     }
 }
 
+/// Iterator over the property values of a [`RawElement`]. Can be obtained via
+/// [`RawElement::iter`].
 struct RawElementIter<'a> {
     elem: &'a RawElement,
     idx: PropIndex,
@@ -691,12 +691,23 @@ impl Iterator for RawElementIter<'_> {
     }
 }
 
-
+/// Meta data about a decoded list.
 struct RawListInfo {
+    /// Number of elements in the list.
     pub list_len: u32,
+
+    /// The byte offset of the length field in the [`RawElement`] this list is
+    /// stored in.
     pub len_offset: RawOffset,
+
+    /// The byte offset of the first list element in the [`RawElement`] this
+    /// list is stored in.
     pub data_offset: RawOffset,
+
+    /// The type in which the list length is stored.
     pub len_type: ListLenType,
+
+    /// The type of the list's elements.
     pub scalar_type: ScalarType,
 }
 
@@ -750,7 +761,7 @@ impl ScalarLen {
 }
 
 /// Index of a specific property in the ordered list of properties of one
-/// element group.
+/// element group. Can be used to index a [`PropVec`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, From, Add, Sub, AddAssign, SubAssign)]
 struct PropIndex(u8);
 
@@ -760,11 +771,13 @@ impl PropIndex {
     }
 }
 
-/// Raw data of one element. Can be indexed by `RawOffset`.
+/// Raw data of one element in native endianess. Can be indexed by `RawOffset`.
+///
+/// For PLY files stored in native endianess, this is an exact chunk from
+/// the file. For ASCII files and files in non-native endianess, the
+/// properties are first converted to this format.
 #[derive(Debug, Clone, From)]
 pub struct RawData(Vec<u8>);
-
-// ----- Index impls for `RawData`
 
 impl ops::Index<RawOffset> for RawData {
     type Output = u8;
@@ -844,7 +857,11 @@ impl ops::DerefMut for RawData {
     }
 }
 
-/// A vector that holds data for each property. Can be indexed by `PropIndex`.
+/// A vector that holds data for each property. Can be indexed by
+/// [`PropIndex`].
+///
+/// This is simply a wrapper around a `Vec` to use strong typing. This should
+/// only be indexed with `PropIndex`.
 #[derive(Debug, Clone, From)]
 pub struct PropVec<T>(Vec<T>);
 
@@ -921,6 +938,7 @@ fn read_element_ble<I: Input>(
     }
 }
 
+/// Reads `count` bytes from `buf` into `out`.
 #[inline(always)]
 fn read_bytes_into(
     buf: &mut impl Input,
@@ -933,6 +951,37 @@ fn read_bytes_into(
     })
 }
 
+/// Reads the length of a list (as type `ty`) from `buf`. The length is
+/// returned as `u32` and the bytes of the length are appended to `out`.
+///
+/// The `swap` closure is used to swap bytes for non-native endianess. For
+/// native endianess, a no-op closure should be passed.
+fn read_binary_len(
+    buf: &mut impl Input,
+    ty: ListLenType,
+    out: &mut Vec<u8>,
+    swap: impl FnOnce(&mut [u8]),
+) -> Result<u32, parse::Error> {
+    let offset = out.len();
+    match ty {
+        ListLenType::UChar => buf.with_bytes(1, |b| {
+            out.extend_from_slice(&b.data);
+            Ok(b.data[offset] as u32)
+        }),
+        ListLenType::UShort => buf.with_bytes(2, |b| {
+            out.extend_from_slice(&b.data);
+            swap(&mut out[offset..]);
+            Ok(NativeEndian::read_u16(&out[offset..]) as u32)
+        }),
+        ListLenType::UInt => buf.with_bytes(4, |b| {
+            out.extend_from_slice(&b.data);
+            swap(&mut out[offset..]);
+            Ok(NativeEndian::read_u32(&out[offset..]) as u32)
+        }),
+    }
+}
+
+/// Reads one element in native endianess from `buf` into `raw_elem`.
 fn read_element_binary_native(
     buf: &mut impl Input,
     index: &[TypeLen],
@@ -941,6 +990,7 @@ fn read_element_binary_native(
     let mut offset = RawOffset::from(0);
 
     for (prop_info, prop_len) in raw_elem.prop_infos.iter_mut().zip(index) {
+        // Just calculate the length of this property.
         let len: RawOffset = match *prop_len {
             TypeLen::Scalar(len) => len.into(),
             TypeLen::List { scalar_len, .. } => {
@@ -949,7 +999,6 @@ fn read_element_binary_native(
                 let list_len = read_binary_len(
                     buf,
                     prop_info.ty.len_type().unwrap(),
-                    offset.as_usize(),
                     &mut raw_elem.data,
                     |_| {}, // no byte swapping
                 )?;
@@ -966,31 +1015,7 @@ fn read_element_binary_native(
     Ok(())
 }
 
-fn read_binary_len(
-    buf: &mut impl Input,
-    ty: ListLenType,
-    offset: usize,
-    out: &mut Vec<u8>,
-    swap: impl FnOnce(&mut [u8]),
-) -> Result<u32, parse::Error> {
-    match ty {
-        ListLenType::UChar => buf.with_bytes(1, |b| {
-            out.extend_from_slice(&b.data);
-            Ok(b.data[0] as u32)
-        }),
-        ListLenType::UShort => buf.with_bytes(2, |b| {
-            out.extend_from_slice(&b.data);
-            swap(&mut out[offset..]);
-            Ok(NativeEndian::read_u16(&out[offset..]) as u32)
-        }),
-        ListLenType::UInt => buf.with_bytes(4, |b| {
-            out.extend_from_slice(&b.data);
-            swap(&mut out[offset..]);
-            Ok(NativeEndian::read_u32(&out[offset..]) as u32)
-        }),
-    }
-}
-
+/// Reads one element in non-native endianess from `buf` into `raw_elem`.
 fn read_element_binary_swapped(
     buf: &mut impl Input,
     index: &[TypeLen],
@@ -1012,7 +1037,6 @@ fn read_element_binary_swapped(
                 let list_len = read_binary_len(
                     buf,
                     prop_info.ty.len_type().unwrap(),
-                    start.as_usize(),
                     &mut raw_elem.data,
                     |s| s.reverse(),
                 )?;
@@ -1057,6 +1081,7 @@ macro_rules! ascii_parser {
     }
 }
 
+/// Reads one element in ASCII representation from `buf` into `raw_elem`.
 fn read_element_ascii<I: Input>(
     buf: &mut I,
     _: &[TypeLen],
