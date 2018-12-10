@@ -624,7 +624,7 @@ impl RawElement {
         let info = &self.prop_infos[idx];
 
         match info.ty {
-            PropertyType::Scalar(ty) => read_scalar(&self.data[..], ty),
+            PropertyType::Scalar(ty) => read_scalar(&self.data[info.offset..], ty),
             PropertyType::List { scalar_type, .. } => {
                 let list_info = self.decode_list_at(idx).unwrap();
 
