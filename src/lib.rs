@@ -7,7 +7,6 @@
 #![feature(proc_macro_hygiene)]
 #![feature(try_blocks)]
 #![feature(bind_by_move_pattern_guards)]
-#![feature(int_to_from_bytes)]
 #![feature(try_from)]
 #![feature(specialization)]
 
