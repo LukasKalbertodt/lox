@@ -24,8 +24,9 @@ mod tests;
 
 
 pub use self::read::{
-    Reader, ElementDef, PropertyDef, PropertyType, ScalarType,
-    ScalarTypeParseError, Property, RawSink, RawElement,//RawResult, ElementGroup, Element
+    ElementDef, Property, PropertyDef, PropertyType, PropIndex, RawElement,
+    RawElementGroup, RawElementIter, RawResult, RawSink, Reader, ScalarType,
+    ScalarTypeParseError, ListLenType, RawOffset,
 };
 pub use self::write::{Serializer, Writer};
 

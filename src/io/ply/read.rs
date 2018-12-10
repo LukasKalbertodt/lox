@@ -570,13 +570,13 @@ pub struct RawElement {
 pub struct RawPropertyInfo {
     /// The byte offset in the packed, native-endian data at which this
     /// property starts.
-    offset: RawOffset,
+    pub offset: RawOffset,
 
     /// The type of this property.
-    ty: PropertyType,
+    pub ty: PropertyType,
 
     /// Name of this property.
-    name: String,
+    pub name: String,
 }
 
 impl RawElement {
@@ -657,7 +657,7 @@ impl RawElement {
     }
 
     /// Returns an iterator over all properties of this element.
-    fn iter(&self) -> RawElementIter<'_> {
+    pub fn iter(&self) -> RawElementIter<'_> {
         RawElementIter {
             elem: self,
             idx: 0.into(),
@@ -680,7 +680,8 @@ impl fmt::Debug for RawElement {
 
 /// Iterator over the property values of a [`RawElement`]. Can be obtained via
 /// [`RawElement::iter`].
-struct RawElementIter<'a> {
+#[derive(Debug)]
+pub struct RawElementIter<'a> {
     elem: &'a RawElement,
     idx: PropIndex,
 }
@@ -725,7 +726,7 @@ struct RawListInfo {
 
 /// A byte offset into the raw data of one element.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Add, Sub, AddAssign, SubAssign, From)]
-pub struct RawOffset(u32);
+pub struct RawOffset(pub u32);
 
 impl RawOffset {
     fn as_usize(&self) -> usize {
@@ -770,7 +771,7 @@ impl ScalarLen {
 /// Index of a specific property in the ordered list of properties of one
 /// element group. Can be used to index a [`PropVec`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, From, Add, Sub, AddAssign, SubAssign)]
-struct PropIndex(u8);
+pub struct PropIndex(pub u8);
 
 impl PropIndex {
     fn as_usize(&self) -> usize {
@@ -1246,23 +1247,23 @@ impl_from_bytes!(f64, read_f64, write_f64, 8);
 /// The header definition of one element group.
 #[derive(Debug, Clone)]
 pub struct ElementDef {
-    name: String,
+    pub name: String,
 
     /// Number of elements in this group.
-    count: u64,
+    pub count: u64,
 
     /// Definitions for all properties of elements in this group.
-    property_defs: PropVec<PropertyDef>,
+    pub property_defs: PropVec<PropertyDef>,
 }
 
 /// Te header definition of one property of an element.
 #[derive(Debug, Clone)]
 pub struct PropertyDef {
-    ty: PropertyType,
-    name: String,
+    pub ty: PropertyType,
+    pub name: String,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PropertyType {
     Scalar(ScalarType),
     List {
@@ -1411,7 +1412,7 @@ impl FromStr for ScalarType {
 /// The sizes of the smallvecs are choosen so that the inline variant won't
 /// inflict a size overhead (on x64). This still means that the most common
 /// form of list, the three-tuple `vertex_indices`, will fit inline.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Property {
     Char(i8),
     UChar(u8),
