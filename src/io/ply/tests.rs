@@ -44,6 +44,31 @@ fn write_triangle_ascii() -> Result<(), Error> {
 }
 
 #[test]
+fn write_triangle_bbe() -> Result<(), Error> {
+    let (mesh, positions) = triangle_mesh();
+
+    let res = Serializer::new(Encoding::BinaryBigEndian)
+        .into_writer(&mesh, &positions)
+        .write_to_memory()?;
+
+    assert_eq_file!(&res, "triangle_bbe.ply");
+    Ok(())
+}
+
+#[test]
+fn write_triangle_ble() -> Result<(), Error> {
+    let (mesh, positions) = triangle_mesh();
+
+    let res = Serializer::new(Encoding::BinaryLittleEndian)
+        .into_writer(&mesh, &positions)
+        .write_to_memory()?;
+
+    assert_eq_file!(&res, "triangle_ble.ply");
+    Ok(())
+}
+
+
+#[test]
 fn write_triangle_with_comments_ascii() -> Result<(), Error> {
     let (mesh, positions) = triangle_mesh();
 
@@ -83,18 +108,6 @@ fn write_triangle_with_extra_props_ascii() -> Result<(), Error> {
         .write_to_memory()?;
 
     assert_eq_file!(&res, "triangle_with_extra_props_ascii.ply");
-    Ok(())
-}
-
-#[test]
-fn write_triangle_bbe() -> Result<(), Error> {
-    let (mesh, positions) = triangle_mesh();
-
-    let res = Serializer::new(Encoding::BinaryBigEndian)
-        .into_writer(&mesh, &positions)
-        .write_to_memory()?;
-
-    assert_eq_file!(&res, "triangle_bbe.ply");
     Ok(())
 }
 
@@ -225,6 +238,16 @@ fn check_triangle(res: &RawResult) {
 #[test]
 fn read_raw_triangle_bbe() -> Result<(), Error> {
     let input = include_test_file!("triangle_bbe.ply");
+    let res = Reader::new(input)?.into_raw_result()?;
+
+    check_triangle(&res);
+
+    Ok(())
+}
+
+#[test]
+fn read_raw_triangle_ble() -> Result<(), Error> {
+    let input = include_test_file!("triangle_ble.ply");
     let res = Reader::new(input)?.into_raw_result()?;
 
     check_triangle(&res);
