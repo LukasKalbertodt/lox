@@ -13,8 +13,14 @@ use structopt::StructOpt;
 use lox::{
     cgmath::Point3,
     ds::SharedVertexMesh,
+    handle::DefaultInt,
     map::VecMap,
-    io::{FileFormat, StreamingSource, MemSink, Primitive, PrimitiveType, stl, ply},
+    io::{
+        FileFormat, StreamingSource, MemSink, MemSource, StreamingSink,
+        Primitive, PrimitiveType, AsPrimitive, as_primitive,
+        stl,
+        ply,
+    },
     prelude::*,
 };
 
@@ -131,6 +137,38 @@ impl MemSink for MeshData {
         self.vertex_positions
             .get_or_insert_with(|| AnyPointMap::new::<N>())
             .insert(handle, position);
+    }
+}
+
+
+impl MemSource for MeshData {
+    fn vertices(&self) -> Box<dyn Iterator<Item = VertexHandle> + '_> {
+        Box::new(self.mesh.vertices().map(|v| v.handle()))  // TODO: avoid double box
+    }
+    fn faces(&self) -> Box<dyn Iterator<Item = FaceHandle> + '_> {
+        Box::new(self.mesh.faces().map(|f| f.handle())) // TODO: avoid double box
+    }
+
+    fn num_vertices(&self) -> DefaultInt {
+        self.mesh.num_vertices()
+    }
+    fn num_faces(&self) -> DefaultInt {
+        self.mesh.num_faces()
+    }
+
+    fn vertices_of_face(&self, f: FaceHandle) -> [VertexHandle; 3] {
+        self.mesh.vertices_of_face(f)
+    }
+
+    fn vertex_position_type(&self) -> Option<PrimitiveType> {
+        self.vertex_positions.as_ref().map(|m| m.primitive_type())
+    }
+    fn vertex_position<T: Primitive>(&self, v: VertexHandle) -> Point3<T> {
+        self.vertex_positions
+            .as_ref()
+            .expect("requested non-existent vertex position from `MemSource`")
+            .get(v)
+            .unwrap_or_else(|| panic!("missing vertex position for {:?}", v))
     }
 }
 
