@@ -10,7 +10,7 @@ use crate::{
     handle::{FaceHandle, VertexHandle},
     map::{EmptyMap, FacePropMap, VertexPropMap},
     math::{Pos3Like, Vec3Like},
-    io::{IntoMeshWriter, MeshWriter},
+    io::{IntoMeshWriter, MeshWriter, StreamingSink, MemSource, PrimitiveType},
 };
 use super::{Error, Encoding};
 
@@ -66,6 +66,13 @@ impl Config {
             .. self
         }
     }
+
+    pub fn into_sink<W: io::Write>(self, writer: W) -> Sink<W> {
+        Sink {
+            config: self,
+            writer,
+        }
+    }
 }
 
 impl<'a, MeshT, PosM> IntoMeshWriter<'a, MeshT, PosM> for Config
@@ -82,6 +89,57 @@ where
             vertex_positions,
             face_normals: None,
         }
+    }
+}
+
+
+// ===============================================================================================
+// ===== STL Sink
+// ===============================================================================================
+
+#[derive(Debug)]
+pub struct Sink<W: io::Write> {
+    config: Config,
+    writer: W,
+}
+
+impl<W: io::Write> StreamingSink for Sink<W> {
+    type Error = Error;
+    fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Self::Error> {
+        macro_rules! pos_fn {
+            ($orig_type:ident) => {{
+                let fun = |vh| {
+                    src.vertex_position::<$orig_type>(vh)
+                        .map(|s| s as f32)
+                        .convert()
+                };
+                Box::new(fun) as Box<dyn Fn(VertexHandle) -> [f32; 3]>
+            }}
+        }
+
+        let pos_type = src.vertex_position_type().expect("fucky wucky"); // TODO
+        let vertex_positions = match pos_type {
+            PrimitiveType::Uint8 => pos_fn!(u8),
+            PrimitiveType::Int8 => pos_fn!(i8),
+            PrimitiveType::Uint16 => pos_fn!(u16),
+            PrimitiveType::Int16 => pos_fn!(i16),
+            PrimitiveType::Uint32 => pos_fn!(u32),
+            PrimitiveType::Int32 => pos_fn!(i32),
+            PrimitiveType::Float32 => pos_fn!(f32),
+            PrimitiveType::Float64 => pos_fn!(f64),
+        };
+
+        write(
+            self.writer,
+            &self.config,
+            src.num_faces(),
+            src.faces(),
+            |fh| src.vertices_of_face(fh),
+            |vh| Some(vertex_positions(vh)),
+
+            // TODO: use real normals once `MemSource` provides them
+            |_, positions| Some(calc_normal(positions)),
+        )
     }
 }
 
