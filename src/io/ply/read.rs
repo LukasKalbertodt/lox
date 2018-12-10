@@ -308,6 +308,13 @@ impl<R: io::Read> Reader<R> {
         Ok(Self { buf, comments, encoding, elements })
     }
 
+    /// Reads the whole file into a [`RawResult`].
+    pub fn into_raw_result(self) -> Result<RawResult, Error> {
+        let mut out = RawResult::new();
+        self.read_raw_into(&mut out)?;
+        Ok(out)
+    }
+
     /// Reads the whole file into the given raw sink.
     ///
     /// This is a low level building block that you usually don't want to use
@@ -1490,44 +1497,39 @@ pub trait RawSink {
     fn element(&mut self, elem: &RawElement);
 }
 
-// impl RawSink for RawResult {
-//     fn element_group_start(&mut self, def: &ElementDef) {
-//         self.element_groups.push(ElementGroup {
-//             def: def.clone(),
-//             elements: vec![],
-//         });
-//     }
-//     fn element(&mut self, properties: &[Property]) {
-//         self.element_groups
-//             .last_mut()
-//             .unwrap()
-//             .elements
-//             .push(Element { properties: properties.to_vec() });
-//     }
-// }
+impl RawSink for RawResult {
+    fn element_group_start(&mut self, def: &ElementDef) {
+        self.element_groups.push(RawElementGroup {
+            def: def.clone(),
+            elements: vec![],
+        });
+    }
 
-// #[derive(Debug)]
-// pub struct RawResult {
-//     element_groups: Vec<ElementGroup>,
-// }
+    fn element(&mut self, elem: &RawElement) {
+        self.element_groups
+            .last_mut()
+            .unwrap()
+            .elements
+            .push(elem.clone());
+    }
+}
 
-// impl RawResult {
-//     /// Creates an instance with no name and no triangles.
-//     pub fn new() -> Self {
-//         Self {
-//             element_groups: Vec::new(),
-//         }
-//     }
-// }
+#[derive(Debug)]
+pub struct RawResult {
+    pub element_groups: Vec<RawElementGroup>,
+}
 
-// #[derive(Debug)]
-// pub struct ElementGroup {
-//     def: ElementDef,
-//     elements: Vec<Element>,
-// }
+impl RawResult {
+    /// Creates an instance with no name and no triangles.
+    pub fn new() -> Self {
+        Self {
+            element_groups: Vec::new(),
+        }
+    }
+}
 
-// #[derive(Debug)]
-// pub struct Element {
-//     // TODO: this is really not very space efficient...
-//     properties: Vec<Property>,
-// }
+#[derive(Debug)]
+pub struct RawElementGroup {
+    pub def: ElementDef,
+    pub elements: Vec<RawElement>,
+}
