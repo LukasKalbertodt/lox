@@ -65,6 +65,8 @@ fn run() -> Result<(), Error> {
         mesh_data.mesh.num_faces(),
     );
 
+    write_file(&opt, &mesh_data)?;
+
     println!("Processing time: {:.2?}", start_time.elapsed());
 
     Ok(())
@@ -105,6 +107,27 @@ fn load_file(opt: &Opt) -> Result<MeshData, Error> {
     Ok(mesh_data)
 }
 
+fn write_file(opt: &Opt, data: &MeshData) -> Result<(), Error> {
+    let file_format = opt.source_format
+        .or_else(|| FileFormat::from_extension(&opt.source))
+        .ok_or_else(|| err_msg(
+            "couldn't determine target file format, please specify it explicitly using \
+                '--target-format'"
+        ))?;
+
+    match file_format {
+        FileFormat::Ply => {
+            unimplemented!()
+        }
+        FileFormat::Stl => {
+            stl::Config::binary()
+                .into_sink(File::create(&opt.target)?)
+                .transfer_from(data)?;
+        }
+    }
+
+    Ok(())
+}
 
 #[derive(Debug)]
 struct MeshData {
