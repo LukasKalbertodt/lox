@@ -998,10 +998,12 @@ fn read_element_binary_native(
     let mut offset = RawOffset::from(0);
 
     for (prop_info, prop_len) in raw_elem.prop_infos.iter_mut().zip(index) {
+        prop_info.offset = offset;
+
         // Just calculate the length of this property.
         let len: RawOffset = match *prop_len {
             TypeLen::Scalar(len) => len.into(),
-            TypeLen::List { scalar_len, .. } => {
+            TypeLen::List { len_len, scalar_len } => {
                 // Read the list lenght. The type of this property is a list
                 // (the index says so), so we can unwrap here.
                 let list_len = read_binary_len(
@@ -1010,13 +1012,13 @@ fn read_element_binary_native(
                     &mut raw_elem.data,
                     |_| {}, // no byte swapping
                 )?;
+                offset += len_len;
 
                 RawOffset::from(list_len * (scalar_len.as_u8() as u32))
             }
         };
 
         read_bytes_into(buf, len.as_usize(), &mut raw_elem.data)?;
-        prop_info.offset = offset;
         offset += len;
     }
 
