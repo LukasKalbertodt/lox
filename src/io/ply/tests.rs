@@ -25,7 +25,7 @@ fn triangle_mesh() -> (SharedVertexMesh, VecMap<VertexHandle, [f32; 3]>) {
 }
 
 #[test]
-fn triangle_ascii() -> Result<(), Error> {
+fn write_triangle_ascii() -> Result<(), Error> {
     let (mesh, positions) = triangle_mesh();
 
     let res = Serializer::ascii()
@@ -37,7 +37,7 @@ fn triangle_ascii() -> Result<(), Error> {
 }
 
 #[test]
-fn triangle_with_comments_ascii() -> Result<(), Error> {
+fn write_triangle_with_comments_ascii() -> Result<(), Error> {
     let (mesh, positions) = triangle_mesh();
 
     let res = Serializer::ascii()
@@ -54,7 +54,7 @@ fn triangle_with_comments_ascii() -> Result<(), Error> {
 }
 
 #[test]
-fn triangle_with_extra_props_ascii() -> Result<(), Error> {
+fn write_triangle_with_extra_props_ascii() -> Result<(), Error> {
     let (mesh, positions, bar) = mesh! {*
         type: SharedVertexMesh,
         vertices: [
@@ -80,7 +80,7 @@ fn triangle_with_extra_props_ascii() -> Result<(), Error> {
 }
 
 #[test]
-fn triangle_bbe() -> Result<(), Error> {
+fn write_triangle_bbe() -> Result<(), Error> {
     let (mesh, positions) = triangle_mesh();
 
     let res = Serializer::new(Encoding::BinaryBigEndian)
@@ -92,7 +92,7 @@ fn triangle_bbe() -> Result<(), Error> {
 }
 
 #[test]
-fn triangle_with_comments_bbe() -> Result<(), Error> {
+fn write_triangle_with_comments_bbe() -> Result<(), Error> {
     let (mesh, positions) = triangle_mesh();
 
     let res = Serializer::new(Encoding::BinaryBigEndian)
@@ -109,7 +109,7 @@ fn triangle_with_comments_bbe() -> Result<(), Error> {
 }
 
 #[test]
-fn triangle_with_extra_props_bbe() -> Result<(), Error> {
+fn write_triangle_with_extra_props_bbe() -> Result<(), Error> {
     let (mesh, positions, bar) = mesh! {*
         type: SharedVertexMesh,
         vertices: [
@@ -135,7 +135,7 @@ fn triangle_with_extra_props_bbe() -> Result<(), Error> {
 }
 
 #[test]
-fn triangle_with_extra_props_ble() -> Result<(), Error> {
+fn write_triangle_with_extra_props_ble() -> Result<(), Error> {
     let (mesh, positions, bar) = mesh! {*
         type: SharedVertexMesh,
         vertices: [
