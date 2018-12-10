@@ -7,6 +7,7 @@ use cgmath::prelude::*;
 
 use crate::{
     Mesh, MeshUnsorted, ExplicitFace,
+    handle::{FaceHandle, VertexHandle},
     map::{EmptyMap, FacePropMap, VertexPropMap},
     math::{Pos3Like, Vec3Like},
     io::{IntoMeshWriter, MeshWriter},
@@ -154,116 +155,134 @@ where // TODO: remove once implied bounds land
 {
     type Error = Error;
 
-    fn write_to(&self, mut w: impl Write) -> Result<(), Self::Error> {
-        // Retrieves the positions and normal of the given face. Captures
-        // `self`.
-        let get_pos_and_normal = |face_handle| -> ([[f32; 3]; 3], [f32; 3]) {
-            let [va, vb, vc] = self.mesh.vertices_of_face(face_handle);
-
-            // Get positions from map and convert them to array
-            let get = |h| -> [f32; 3] {
-                self.vertex_positions
-                    .get(h)
-                    .unwrap_or_else(|| panic!("no position for {:?} in map while writing STL", h))
-                    .convert()
-            };
-            let positions = [get(va), get(vb), get(vc)];
-
-            // If a normal map was specified, retrieve the normal from there,
-            // otherwise calculate it via cross product.
-            let normal = if let Some(normals) = self.face_normals {
-                normals.get(face_handle)
-                    .unwrap_or_else(|| panic!(
-                        "no normal for {:?} in map while writing STL",
-                        face_handle,
-                    ))
-                    .convert()
-            } else {
-                let pos_a = positions[0].to_point3();
-                let pos_b = positions[1].to_point3();
-                let pos_c = positions[2].to_point3();
-
-                let normal = (pos_b - pos_a).cross(pos_c - pos_a).normalize();
-                [normal.x, normal.y, normal.z]
-            };
-
-            (positions, normal)
-        };
-
-        if self.config.encoding == Encoding::Ascii {
-            // ===============================================================
-            // ===== STL ASCII
-            // ===============================================================
-            writeln!(w, "solid {}", self.config.solid_name)?;
-
-            for face in self.mesh.faces() {
-                let (positions, normal) = get_pos_and_normal(face.handle());
-
-                // Write face normal
-                write!(w, "  facet normal ")?;
-                write_ascii_vector(&mut w, normal)?;
-                writeln!(w, "")?;
-
-                // Write all vertex positions
-                writeln!(w, "    outer loop")?;
-                for &vertex_pos in &positions {
-
-                    write!(w, "      vertex ")?;
-                    write_ascii_vector(&mut w, vertex_pos)?;
-                    writeln!(w, "")?;
-                }
-
-                writeln!(w, "    endloop")?;
-                writeln!(w, "  endfacet")?;
-            }
-
-            writeln!(w, "endsolid {}", self.config.solid_name)?;
-        } else {
-            // ===============================================================
-            // ===== STL binary
-            // ===============================================================
-            // First, a 80 bytes useless header that must not begin with
-            // "solid"!
-            let signature = b"LOX   ... PLY specs are terrible ...";
-            let padding = vec![b' '; 80 - signature.len()];
-            w.write_all(signature)?;
-            w.write_all(&padding)?;
-
-            // Next, number of triangles
-            w.write_u32::<LittleEndian>(self.mesh.num_faces())?;
-
-            for face in self.mesh.faces() {
-                let (positions, [nx, ny, nz]) = get_pos_and_normal(face.handle());
-
-                // Write face normal
-                w.write_f32::<LittleEndian>(nx)?;
-                w.write_f32::<LittleEndian>(ny)?;
-                w.write_f32::<LittleEndian>(nz)?;
-
-                // Write all vertex positions
-                for &[x, y, z] in &positions {
-                    w.write_f32::<LittleEndian>(x)?;
-                    w.write_f32::<LittleEndian>(y)?;
-                    w.write_f32::<LittleEndian>(z)?;
-                }
-
-                // Write "attribute byte count". As Wikipedia beautifully put
-                // it: "this should be zero because most software does not
-                // understand anything else." Great. Some people abuse this to
-                // store color or other information. This is terrible, we won't
-                // do that.
-                w.write_u16::<LittleEndian>(0)?;
-            }
-        }
-
-        Ok(())
+    fn write_to(&self, w: impl Write) -> Result<(), Self::Error> {
+        write(
+            w,
+            &self.config,
+            self.mesh.num_faces(),
+            self.mesh.faces().map(|face| face.handle()),
+            |fh| self.mesh.vertices_of_face(fh),
+            |vh| self.vertex_positions.get(vh).map(|p| p.convert()),
+            |fh, positions| {
+                self.face_normals
+                    .map(|normals| normals.get(fh).map(|n| n.convert()))
+                    .unwrap_or_else(|| Some(calc_normal(positions)))
+            },
+        )
     }
 }
 
 
 // ===============================================================================================
-// ===== Helper functions for number encoding
+// ===== Functions for body writing
 // ===============================================================================================
+
+/// Actual writing implementation.
+fn write(
+    mut w: impl Write,
+    config: &Config,
+    num_faces: u32,
+    faces: impl Iterator<Item = FaceHandle>,
+    vertices_of_face: impl Fn(FaceHandle) -> [VertexHandle; 3],
+    positions: impl Fn(VertexHandle) -> Option<[f32; 3]>,
+    normals: impl Fn(FaceHandle, &[[f32; 3]; 3]) -> Option<[f32; 3]>,
+) -> Result<(), Error> {
+    // Retrieves the positions and normal of the given face.
+    let get_pos_and_normal = |face_handle| -> ([[f32; 3]; 3], [f32; 3]) {
+        let [va, vb, vc] = vertices_of_face(face_handle);
+
+        // Get positions from map and convert them to array
+        let get = |h| -> [f32; 3] {
+            positions(h)
+                .unwrap_or_else(|| panic!("no position for {:?} while writing STL", h))
+        };
+        let positions = [get(va), get(vb), get(vc)];
+
+        // If a normal map was specified, retrieve the normal from there,
+        // otherwise calculate it via cross product.
+        let normal = normals(face_handle, &positions)
+            .unwrap_or_else(|| panic!("no normal for {:?} while writing STL", face_handle));
+
+        (positions, normal)
+    };
+
+    if config.encoding == Encoding::Ascii {
+        // ===============================================================
+        // ===== STL ASCII
+        // ===============================================================
+        writeln!(w, "solid {}", config.solid_name)?;
+
+        for face_handle in faces {
+            let (positions, normal) = get_pos_and_normal(face_handle);
+
+            // Write face normal
+            write!(w, "  facet normal ")?;
+            write_ascii_vector(&mut w, normal)?;
+            writeln!(w, "")?;
+
+            // Write all vertex positions
+            writeln!(w, "    outer loop")?;
+            for &vertex_pos in &positions {
+
+                write!(w, "      vertex ")?;
+                write_ascii_vector(&mut w, vertex_pos)?;
+                writeln!(w, "")?;
+            }
+
+            writeln!(w, "    endloop")?;
+            writeln!(w, "  endfacet")?;
+        }
+
+        writeln!(w, "endsolid {}", config.solid_name)?;
+    } else {
+        // ===============================================================
+        // ===== STL binary
+        // ===============================================================
+        // First, a 80 bytes useless header that must not begin with
+        // "solid"!
+        let signature = b"LOX   ... PLY specs are terrible ...";
+        let padding = vec![b' '; 80 - signature.len()];
+        w.write_all(signature)?;
+        w.write_all(&padding)?;
+
+        // Next, number of triangles
+        w.write_u32::<LittleEndian>(num_faces)?;
+
+        for face_handle in faces {
+            let (positions, [nx, ny, nz]) = get_pos_and_normal(face_handle);
+
+            // Write face normal
+            w.write_f32::<LittleEndian>(nx)?;
+            w.write_f32::<LittleEndian>(ny)?;
+            w.write_f32::<LittleEndian>(nz)?;
+
+            // Write all vertex positions
+            for &[x, y, z] in &positions {
+                w.write_f32::<LittleEndian>(x)?;
+                w.write_f32::<LittleEndian>(y)?;
+                w.write_f32::<LittleEndian>(z)?;
+            }
+
+            // Write "attribute byte count". As Wikipedia beautifully put
+            // it: "this should be zero because most software does not
+            // understand anything else." Great. Some people abuse this to
+            // store color or other information. This is terrible, we won't
+            // do that.
+            w.write_u16::<LittleEndian>(0)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn calc_normal(positions: &[[f32; 3]; 3]) -> [f32; 3] {
+        let pos_a = positions[0].to_point3();
+        let pos_b = positions[1].to_point3();
+        let pos_c = positions[2].to_point3();
+
+        let normal = (pos_b - pos_a).cross(pos_c - pos_a).normalize();
+        [normal.x, normal.y, normal.z]
+}
 
 /// Writes the three values of the given vector (in STL ASCII encoding,
 /// separated
