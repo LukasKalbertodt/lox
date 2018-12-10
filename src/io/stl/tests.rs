@@ -138,7 +138,7 @@ fn triangle_mesh() -> (
 }
 
 #[test]
-fn triangle_ascii() -> Result<(), Error> {
+fn write_triangle_ascii() -> Result<(), Error> {
     let (mesh, positions, face_normals) = triangle_mesh();
 
     let res = Config::ascii()
@@ -156,7 +156,7 @@ fn triangle_ascii() -> Result<(), Error> {
 }
 
 #[test]
-fn triangle_binary() -> Result<(), Error> {
+fn write_triangle_binary() -> Result<(), Error> {
     let (mesh, positions, face_normals) = triangle_mesh();
 
     let res = Config::binary()
