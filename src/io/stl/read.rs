@@ -336,7 +336,7 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
                         ]
                     }
 
-                    Ok(Triangle {
+                    Ok(RawTriangle {
                         normal: vec3(&sd.data[0..]),
                         vertices: [
                             vec3(&sd.data[12..]),
@@ -374,7 +374,7 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
                 line(&mut buf, |buf| buf.expect_tag(b"endloop"))?;
 
                 // Pass parsed triangle to sink
-                sink.triangle(Triangle {
+                sink.triangle(RawTriangle {
                     normal,
                     vertices,
                     attribute_byte_count: 0,
@@ -430,15 +430,15 @@ pub trait RawSink {
     fn triangle_count(&mut self, num: u32);
 
     /// Is called for each triangle that is read from the file.
-    fn triangle(&mut self, triangle: Triangle);
+    fn triangle(&mut self, triangle: RawTriangle);
 }
 
 /// One raw triangle in an STL file.
 ///
 /// This type is used in [`RawResult`] and [`RawSink`]. If you don't use the low
 /// level `raw` methods, you probably don't care about this type.
-#[derive(Clone, Debug)]
-pub struct Triangle {
+#[derive(Debug, Clone, Copy)]
+pub struct RawTriangle {
     /// Face normal.
     pub normal: [f32; 3],
 
@@ -465,7 +465,7 @@ pub struct RawResult {
     pub solid_name: Option<String>,
 
     /// All triangles from the file.
-    pub triangles: Vec<Triangle>,
+    pub triangles: Vec<RawTriangle>,
 }
 
 impl RawResult {
@@ -489,7 +489,7 @@ impl RawSink for RawResult {
         self.triangles.reserve(num as usize);
     }
 
-    fn triangle(&mut self, triangle: Triangle) {
+    fn triangle(&mut self, triangle: RawTriangle) {
         self.triangles.push(triangle);
     }
 }
@@ -505,11 +505,11 @@ impl RawSink for RawResult {
 #[derive(Debug)]
 pub struct FnSink<F>(pub F);
 
-impl<F: FnMut(Triangle)> RawSink for FnSink<F> {
+impl<F: FnMut(RawTriangle)> RawSink for FnSink<F> {
     fn solid_name(&mut self, _: String) {}
     fn triangle_count(&mut self, _: u32) {}
 
-    fn triangle(&mut self, triangle: Triangle) {
+    fn triangle(&mut self, triangle: RawTriangle) {
         (self.0)(triangle)
     }
 }
@@ -641,7 +641,7 @@ where
             fn solid_name(&mut self, _: String) {}
             fn triangle_count(&mut self, _num: u32) {} // TODO
 
-            fn triangle(&mut self, triangle: Triangle) {
+            fn triangle(&mut self, triangle: RawTriangle) {
                 let [pa, pb, pc] = triangle.vertices;
                 let a = self.vertex_adder.add_vertex(self.sink, pa);
                 let b = self.vertex_adder.add_vertex(self.sink, pb);
