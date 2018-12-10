@@ -133,17 +133,33 @@ impl PrimitiveValue {
     make_convert_method!(to_f64, f64, Float64);
 }
 
-pub trait Primitive: PrimitiveNum {
+pub trait Primitive:
+    PrimitiveNum +
+    AsPrimitive<u8> +
+    AsPrimitive<i8> +
+    AsPrimitive<u16> +
+    AsPrimitive<i16> +
+    AsPrimitive<u32> +
+    AsPrimitive<i32> +
+    AsPrimitive<f32> +
+    AsPrimitive<f64>
+{
     const TY: PrimitiveType;
-    fn value(&self) -> PrimitiveValue;
+    fn to_primitive_value(&self) -> PrimitiveValue;
 }
 
 macro_rules! impl_primitive {
     ($ty:ident, $variant:ident) => {
         impl Primitive for $ty {
             const TY: PrimitiveType = PrimitiveType::$variant;
-            fn value(&self) -> PrimitiveValue {
+            fn to_primitive_value(&self) -> PrimitiveValue {
                 PrimitiveValue::$variant(*self)
+            }
+        }
+
+        impl AsPrimitive<$ty> for $ty {
+            fn as_primitive(self) -> Option<$ty> {
+                Some(self)
             }
         }
     }
@@ -157,6 +173,20 @@ impl_primitive!(u32, Uint32);
 impl_primitive!(i32, Int32);
 impl_primitive!(f32, Float32);
 impl_primitive!(f64, Float64);
+
+pub trait AsPrimitive<Target: Primitive> {
+    fn as_primitive(self) -> Option<Target>;
+}
+
+impl<Source: Primitive, Target: Primitive> AsPrimitive<Target> for Source {
+    default fn as_primitive(self) -> Option<Target> {
+        None
+    }
+}
+
+pub fn as_primitive<Target: Primitive, Source: AsPrimitive<Target>>(src: Source) -> Option<Target> {
+    src.as_primitive()
+}
 
 
 pub trait StreamingSource {
