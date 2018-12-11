@@ -1,7 +1,7 @@
 //! Defines `Opt` which is used to parse command line arguments.
 
 use lox::{
-    io::{FileFormat},
+    io::{FileEncoding, FileFormat},
 };
 
 
@@ -18,11 +18,22 @@ pub struct Opt {
     /// Explicitly specify the target file format (otherwise it's guessed from
     /// the extension). Valid values: ply, stl.
     #[structopt(
-        short = "-t",
+        short = "-f",
         long = "--target-format",
         parse(try_from_str = "parse_file_format"),
     )]
     pub target_format: Option<FileFormat>,
+
+    /// Specify the target file encoding. Valid values: 'binary' (native
+    /// endianess), 'bbe' (binary big endian), 'ble' (binary little endian) and
+    /// 'ascii'.
+    #[structopt(
+        short = "-e",
+        long = "--target-encoding",
+        default_value = "binary",
+        parse(try_from_str = "parse_file_encoding"),
+    )]
+    pub target_encoding: FileEncoding,
 
     /// Path to the source mesh file.
     pub source: String,
@@ -37,5 +48,15 @@ fn parse_file_format(src: &str) -> Result<FileFormat, String> {
         "ply" => Ok(FileFormat::Ply),
         "stl" => Ok(FileFormat::Stl),
         other => Err(format!("'{}' is currently not an accepted file format", other)),
+    }
+}
+
+fn parse_file_encoding(src: &str) -> Result<FileEncoding, String> {
+    match src {
+        "binary" => Ok(FileEncoding::binary_native()),
+        "bbe" => Ok(FileEncoding::BinaryBigEndian),
+        "ble" => Ok(FileEncoding::BinaryLittleEndian),
+        "ascii" => Ok(FileEncoding::Ascii),
+        other => Err(format!("'{}' is not a valid file encoding", other)),
     }
 }
