@@ -113,6 +113,16 @@ pub enum FileEncoding {
     BinaryLittleEndian,
 }
 
+impl FileEncoding {
+    pub fn binary_native() -> Self {
+        #[cfg(target_endian = "big")]
+        { FileEncoding::BinaryBigEndian }
+
+        #[cfg(target_endian = "little")]
+        { FileEncoding::BinaryLittleEndian }
+    }
+}
+
 /// A simple unit-like error type that is used for `TryFrom<FileEncoding>`
 /// impls of format specific `Encoding` types.
 #[derive(Debug, Clone, Copy)]
