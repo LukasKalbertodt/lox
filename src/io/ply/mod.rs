@@ -57,6 +57,16 @@ impl From<FileEncoding> for Encoding {
     }
 }
 
+impl From<Encoding> for FileEncoding {
+    fn from(src: Encoding) -> Self {
+        match src {
+            Encoding::Ascii => FileEncoding::Ascii,
+            Encoding::BinaryBigEndian => FileEncoding::BinaryBigEndian,
+            Encoding::BinaryLittleEndian => FileEncoding::BinaryLittleEndian,
+        }
+    }
+}
+
 /// Everything that can go wrong when writing or reading PLY files.
 #[derive(Debug, Fail)]
 pub enum Error {

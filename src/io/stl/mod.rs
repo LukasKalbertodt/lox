@@ -109,6 +109,15 @@ impl TryFrom<FileEncoding> for Encoding {
     }
 }
 
+impl From<Encoding> for FileEncoding {
+    fn from(src: Encoding) -> Self {
+        match src {
+            Encoding::Ascii => FileEncoding::Ascii,
+            Encoding::Binary => FileEncoding::BinaryLittleEndian,
+        }
+    }
+}
+
 /// Errors that can potentially happen when reading or writing an STL file.
 #[derive(Debug, Fail)]
 pub enum Error {
