@@ -67,7 +67,7 @@ pub trait MeshWriter {
 }
 
 /// Represents one of the supported file formats.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileFormat {
     Ply,
     Stl,
@@ -93,6 +93,31 @@ impl FileFormat {
             })
     }
 }
+
+/// Describes the encoding of the main data of a mesh file.
+///
+/// Not every format has to support all of these encodings (in fact, many
+/// formats only support one encoding).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileEncoding {
+    /// Everything is stored as an ASCII string. Generally, ASCII encodings are
+    /// fairly space-inefficient.
+    Ascii,
+
+    /// Binary encoding where all numeric types are stored in big endian
+    /// layout.
+    BinaryBigEndian,
+
+    /// Binary encoding where all numeric types are stored in little endian
+    /// layout.
+    BinaryLittleEndian,
+}
+
+/// A simple unit-like error type that is used for `TryFrom<FileEncoding>`
+/// impls of format specific `Encoding` types.
+#[derive(Debug, Clone, Copy)]
+pub struct EncodingNotSupported;
+
 
 // ==========================================================================
 // ===== Primitives

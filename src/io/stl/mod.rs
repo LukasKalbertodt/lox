@@ -66,12 +66,15 @@
 //!     .write_to_file("mesh.stl").unwrap();
 //! ```
 
-use std::io;
+use std::{
+    convert::TryFrom,
+    io,
+};
 
 use failure::Fail;
 
 use crate::{
-    io::parse,
+    io::{FileEncoding, EncodingNotSupported, parse},
 };
 
 
@@ -93,6 +96,17 @@ pub enum Encoding {
 
     /// Everything is stored as binary, in little endian encoding.
     Binary,
+}
+
+impl TryFrom<FileEncoding> for Encoding {
+    type Error = EncodingNotSupported;
+    fn try_from(src: FileEncoding) -> Result<Self, Self::Error> {
+        match src {
+            FileEncoding::Ascii => Ok(Encoding::Ascii),
+            FileEncoding::BinaryLittleEndian => Ok(Encoding::Binary),
+            FileEncoding::BinaryBigEndian => Err(EncodingNotSupported),
+        }
+    }
 }
 
 /// Errors that can potentially happen when reading or writing an STL file.

@@ -13,7 +13,7 @@ use std::{
 use failure::Fail;
 
 use crate::{
-    io::parse,
+    io::{FileEncoding, parse},
 };
 
 mod read;
@@ -45,6 +45,16 @@ pub enum Encoding {
     /// Binary encoding where all numeric types are stored in little endian
     /// layout. The header is still ASCII.
     BinaryLittleEndian,
+}
+
+impl From<FileEncoding> for Encoding {
+    fn from(src: FileEncoding) -> Self {
+        match src {
+            FileEncoding::Ascii => Encoding::Ascii,
+            FileEncoding::BinaryBigEndian => Encoding::BinaryBigEndian,
+            FileEncoding::BinaryLittleEndian => Encoding::BinaryLittleEndian,
+        }
+    }
 }
 
 /// Everything that can go wrong when writing or reading PLY files.
