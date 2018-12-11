@@ -166,8 +166,8 @@ fn load_file(opt: &Opt) -> Result<MeshData, Error> {
 }
 
 fn write_file(opt: &Opt, data: &MeshData) -> Result<(), Error> {
-    let file_format = opt.source_format
-        .or_else(|| FileFormat::from_extension(&opt.source))
+    let file_format = opt.target_format
+        .or_else(|| FileFormat::from_extension(&opt.target))
         .ok_or_else(|| err_msg(
             "couldn't determine target file format, please specify it explicitly using \
                 '--target-format'"
