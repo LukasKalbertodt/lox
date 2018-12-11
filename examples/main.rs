@@ -35,8 +35,8 @@ fn main() {
 }
 
 fn run() -> Result<(), Error> {
-    let mut reader = ply::Reader::open(std::env::args().nth(1).unwrap())?;
-    let mut dummy = Dummy { mesh: SharedVertexMesh::empty() };
+    let reader = ply::Reader::open(std::env::args().nth(1).unwrap())?;
+    // let mut dummy = Dummy { mesh: SharedVertexMesh::empty() };
     // reader.transfer_to(&mut dummy);
     // let mut res = ply::RawResult::new();
     reader.read_raw_into(&mut Printer)?;
@@ -60,6 +60,7 @@ impl ply::RawSink for Printer {
 }
 
 
+#[allow(dead_code)]
 struct Dummy {
     mesh: SharedVertexMesh,
 }
