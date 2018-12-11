@@ -1,14 +1,17 @@
+#![feature(try_from)]
+
 #[macro_use]
 extern crate structopt;
 
 use std::{
+    convert::TryFrom,
     fs::File,
-    io::{Seek, SeekFrom, Read},
     time::Instant,
 };
 
-use failure::{err_msg, Error, ResultExt};
+use failure::{err_msg, format_err, Error, ResultExt};
 use structopt::StructOpt;
+use term_painter::{ToStyle, Color};
 
 use lox::{
     cgmath::Point3,
@@ -16,8 +19,8 @@ use lox::{
     handle::DefaultInt,
     map::VecMap,
     io::{
-        FileFormat, StreamingSource, MemSink, MemSource, StreamingSink,
-        Primitive, PrimitiveType,
+        FileEncoding, FileFormat, StreamingSource, MemSink, MemSource,
+        StreamingSink, Primitive, PrimitiveType,
         stl,
         ply,
     },
@@ -29,6 +32,16 @@ mod opt;
 
 use crate::opt::Opt;
 
+
+macro_rules! print {
+    ($($t:tt)*) => {{
+        use std::io::{self, Write};
+
+        std::print!($($t)*);
+        // If an error occurs here... oh well.
+        let _ = io::stdout().flush();
+    }}
+}
 
 /// We just catch potential errors here and pretty print them. The actual
 /// useful code is in `run()`.
@@ -51,56 +64,101 @@ fn main() {
 
 fn run() -> Result<(), Error> {
     let opt = Opt::from_args();
-    // println!("{:?}", opt);
 
     let start_time = Instant::now();
 
-    // Load file
     let mesh_data = load_file(&opt).context("could not read source file")?;
+    print_mesh_info(&mesh_data);
+    write_file(&opt, &mesh_data).context("could not write target file")?;
 
-    // println!("{:#?}", mesh_data);
     println!(
-        "vertices: {}, faces: {}",
-        mesh_data.mesh.num_vertices(),
-        mesh_data.mesh.num_faces(),
+        "{}: {:.2?}",
+        Color::Blue.bold().paint("⟨ℹ⟩ Processing time"),
+        start_time.elapsed(),
     );
-
-    write_file(&opt, &mesh_data)?;
-
-    println!("Processing time: {:.2?}", start_time.elapsed());
 
     Ok(())
 }
 
-fn load_file(opt: &Opt) -> Result<MeshData, Error> {
-    let mut file = File::open(&opt.source).context("failed to open file")?;
-    let _file_start = {
-        let mut v = Vec::new();
-        file.by_ref().take(1024).read_to_end(&mut v)?;
-        file.seek(SeekFrom::Start(0))?;
-        v
+fn print_mesh_info(mesh_data: &MeshData) {
+    println!("{}", Color::Green.bold().paint("⟨ℹ⟩ Mesh information:"));
+
+    // ===== Vertex Infos ====================================================
+    // Collect vertex properties
+    let mut vertex_props = vec![];
+    if mesh_data.vertex_positions.is_some() {
+        vertex_props.push("position");
+    }
+
+    let vertex_props = if vertex_props.is_empty() {
+        "none".to_string()
+    } else {
+        let mut out = vertex_props[0].to_string();
+        for prop in &vertex_props[1..] {
+            out += ", ";
+            out += prop;
+        }
+        out
     };
+
+    println!(
+        "    {} vertices (properties: {})",
+        mesh_data.mesh.num_vertices(),
+        vertex_props,
+    );
+
+
+    // ===== Face Infos ======================================================
+    println!(
+        "    {} faces (properties: none)",
+        mesh_data.mesh.num_faces(),
+    );
+}
+
+fn load_file(opt: &Opt) -> Result<MeshData, Error> {
+    let file = File::open(&opt.source).context("failed to open file")?;
+
+    // TODO: guess from first 1024 bytes
+    // let _file_start = {
+    //     let mut v = Vec::new();
+    //     file.by_ref().take(1024).read_to_end(&mut v)?;
+    //     file.seek(SeekFrom::Start(0))?;
+    //     v
+    // };
 
     let file_format = opt.source_format
         .or_else(|| FileFormat::from_extension(&opt.source))
-        // .or_else(|| None)  // TODO: guess from first 1024 bytes
         .ok_or_else(|| err_msg(
             "couldn't determine source file format, please specify it explicitly using \
                 '--source-format'"
         ))?;
 
-    println!("source format: {:?}", file_format);
 
+    let print_info = |encoding: FileEncoding| {
+        println!(
+            "{}: {} ({} encoding)",
+            Color::Blue.bold().paint("⟨ℹ⟩ Source format"),
+            file_format,
+            encoding_str(encoding),
+        );
+    };
+
+    // TODO: there is still quite some duplicate code below. Fix that.
     let mut mesh_data = MeshData::new();
     match file_format {
         FileFormat::Ply => {
             let reader = ply::Reader::new(file).context("failed to read PLY header")?;
+            print_info(reader.encoding().into());
+            print!("⟨￫⟩ Reading source ...");
             reader.transfer_to(&mut mesh_data).context("failed to read PLY body")?;
-
+            println!(" done");
         }
         FileFormat::Stl => {
             let reader = stl::Reader::new(file).context("failed to read STL header")?;
+            print_info(reader.encoding().into());
+            print!("⟨￫⟩ Reading source ...");
             reader.transfer_to(&mut mesh_data).context("failed to read STL body")?;
+            println!(" done");
         }
     }
 
@@ -115,18 +173,46 @@ fn write_file(opt: &Opt, data: &MeshData) -> Result<(), Error> {
                 '--target-format'"
         ))?;
 
+
+    println!(
+        "{}: {} ({} encoding)",
+        Color::Blue.bold().paint("⟨ℹ⟩ Target format"),
+        file_format,
+        encoding_str(opt.target_encoding),
+    );
+
     match file_format {
         FileFormat::Ply => {
             unimplemented!()
         }
         FileFormat::Stl => {
-            stl::Config::binary()
+            // TODO: check this earlier, before even reading the source file
+            let encoding = stl::Encoding::try_from(opt.target_encoding).map_err(|_| {
+                format_err!(
+                    "the encoding {:?} is not supported by the STL format",
+                    opt.target_encoding
+                )
+            })?;
+
+            print!("⟨￩⟩ Writing mesh ...");
+
+            stl::Config::new(encoding)
                 .into_sink(File::create(&opt.target)?)
                 .transfer_from(data)?;
+
+            println!(" done");
         }
     }
 
     Ok(())
+}
+
+fn encoding_str(e: FileEncoding) -> &'static str {
+    match e {
+        FileEncoding::Ascii => "ASCII",
+        FileEncoding::BinaryBigEndian => "binary big endian",
+        FileEncoding::BinaryLittleEndian => "binary little endian",
+    }
 }
 
 #[derive(Debug)]

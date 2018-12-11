@@ -9,3 +9,4 @@ publish = false
 failure = "0.1"
 lox = { path = "../../" }
 structopt = "0.2"
+term-painter = "0.2"
