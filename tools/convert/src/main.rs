@@ -6,6 +6,7 @@ extern crate structopt;
 use std::{
     convert::TryFrom,
     fs::File,
+    io::BufWriter,
     time::Instant,
 };
 
@@ -181,6 +182,8 @@ fn write_file(opt: &Opt, data: &MeshData) -> Result<(), Error> {
         encoding_str(opt.target_encoding),
     );
 
+    let file = BufWriter::new(File::create(&opt.target)?);
+
     match file_format {
         FileFormat::Ply => {
             unimplemented!()
@@ -197,7 +200,7 @@ fn write_file(opt: &Opt, data: &MeshData) -> Result<(), Error> {
             print!("⟨￩⟩ Writing mesh ...");
 
             stl::Config::new(encoding)
-                .into_sink(File::create(&opt.target)?)
+                .into_sink(file)
                 .transfer_from(data)?;
 
             println!(" done");
