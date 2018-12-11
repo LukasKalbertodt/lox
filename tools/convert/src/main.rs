@@ -17,7 +17,7 @@ use lox::{
     map::VecMap,
     io::{
         FileFormat, StreamingSource, MemSink, MemSource, StreamingSink,
-        Primitive, PrimitiveType, AsPrimitive, as_primitive,
+        Primitive, PrimitiveType,
         stl,
         ply,
     },
@@ -238,7 +238,7 @@ impl<H: Handle> AnyPointMap<H> {
         macro_rules! get {
             ($map:ident) => {{
                 $map.get(handle).map(|p| {
-                    p.map(|s| as_primitive::<T, _>(s).unwrap())
+                    p.map(|s| s.downcast_as().unwrap())
                 })
             }}
         }
@@ -277,7 +277,7 @@ impl<H: Handle> AnyPointMap<H> {
 
         macro_rules! insert {
             ($map:ident, $convert:ident) => {{
-                $map.insert(handle, pos.map(|s| s.to_primitive_value().$convert().unwrap()));
+                $map.insert(handle, pos.map(|s| s.downcast_as().unwrap()));
             }}
         }
 
