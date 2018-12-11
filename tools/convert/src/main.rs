@@ -68,14 +68,22 @@ fn run() -> Result<(), Error> {
 
     let start_time = Instant::now();
 
+    let before_load = Instant::now();
     let mesh_data = load_file(&opt).context("could not read source file")?;
+    let load_time = before_load.elapsed();
+
     print_mesh_info(&mesh_data);
+
+    let before_write = Instant::now();
     write_file(&opt, &mesh_data).context("could not write target file")?;
+    let write_time = before_write.elapsed();
 
     println!(
-        "{}: {:.2?}",
+        "{}: {:.2?} ({:.2?} loading, {:.2?} writing)",
         Color::Blue.bold().paint("⟨ℹ⟩ Processing time"),
         start_time.elapsed(),
+        load_time,
+        write_time,
     );
 
     Ok(())
