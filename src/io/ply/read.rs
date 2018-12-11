@@ -308,6 +308,17 @@ impl<R: io::Read> Reader<R> {
         Ok(Self { buf, comments, encoding, elements })
     }
 
+    /// Returns the encoding of this PLY file.
+    pub fn encoding(&self) -> Encoding {
+        self.encoding
+    }
+
+    /// Returns all comments in the PLY file (in the order as they appear in
+    /// the file).
+    pub fn comments(&self) -> &[String] {
+        &self.comments
+    }
+
     /// Reads the whole file into a [`RawResult`].
     pub fn into_raw_result(self) -> Result<RawResult, Error> {
         let mut out = RawResult::new();

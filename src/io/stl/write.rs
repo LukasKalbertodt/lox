@@ -35,10 +35,10 @@ pub struct Config {
 }
 
 impl Config {
-    /// Creates a new builder instance from the given format. For convenience,
-    /// you can use [`Config::binary()`] or [`Config::ascii()`]
+    /// Creates a new builder instance from the given encoding. For
+    /// convenience, you can use [`Config::binary()`] or [`Config::ascii()`]
     /// directly.
-    fn new(encoding: Encoding) -> Self {
+    pub fn new(encoding: Encoding) -> Self {
         Self {
             solid_name: DEFAULT_SOLID_NAME.into(),
             encoding,

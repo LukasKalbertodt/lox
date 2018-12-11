@@ -20,7 +20,7 @@ use crate::{
         },
     },
 };
-use super::Error;
+use super::{Encoding, Error};
 
 
 
@@ -278,6 +278,15 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
     /// ASCII).
     pub fn is_binary(&self) -> bool {
         self.triangle_count.is_some()
+    }
+
+    /// Returns the encoding of this STL file.
+    pub fn encoding(&self) -> Encoding {
+        if self.is_binary() {
+            Encoding::Binary
+        } else {
+            Encoding::Ascii
+        }
     }
 
     /// Returns the triangle count stored in the file. That number is stored if
