@@ -6,7 +6,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use cgmath::prelude::*;
 
 use crate::{
-    Mesh, MeshUnsorted, ExplicitFace,
+    MeshUnsorted, TriMesh,
     handle::{FaceHandle, VertexHandle},
     map::{EmptyMap, FacePropMap, VertexPropMap},
     math::{Pos3Like, Vec3Like},
@@ -78,7 +78,7 @@ impl Config {
 
 impl<'a, MeshT, PosM> IntoMeshWriter<'a, MeshT, PosM> for Config
 where
-    MeshT: 'a + Mesh + MeshUnsorted + ExplicitFace,
+    MeshT: 'a + TriMesh + MeshUnsorted,
     PosM: 'a + VertexPropMap,
     PosM::Target: Pos3Like<Scalar = f32>,
 {
@@ -166,7 +166,7 @@ impl<W: io::Write> StreamingSink for Sink<W> {
 #[derive(Debug)]
 pub struct Writer<'a, MeshT, PosM, NormalM>
 where
-    MeshT: Mesh + MeshUnsorted + ExplicitFace,
+    MeshT: TriMesh + MeshUnsorted,
     PosM: VertexPropMap,
     PosM::Target: Pos3Like<Scalar = f32>,
     NormalM: FacePropMap,
@@ -180,7 +180,7 @@ where
 
 impl<'a, MeshT, PosM> Writer<'a, MeshT, PosM, DummyMap>
 where // TODO: remove once implied bounds land
-    MeshT: Mesh + MeshUnsorted + ExplicitFace,
+    MeshT: TriMesh + MeshUnsorted,
     PosM: VertexPropMap,
     PosM::Target: Pos3Like<Scalar = f32>,
 {
@@ -207,7 +207,7 @@ where // TODO: remove once implied bounds land
 
 impl<MeshT, PosM, NormalM> MeshWriter for Writer<'_, MeshT, PosM, NormalM>
 where // TODO: remove once implied bounds land
-    MeshT: Mesh + MeshUnsorted + ExplicitFace,
+    MeshT: TriMesh + MeshUnsorted,
     PosM: VertexPropMap,
     PosM::Target: Pos3Like<Scalar = f32>,
     NormalM: FacePropMap,

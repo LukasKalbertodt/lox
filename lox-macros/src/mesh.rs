@@ -55,7 +55,7 @@ impl MeshInput {
             .collect::<TokenStream>();
         for (name, values) in vertices {
             add_vertices.extend(quote! {
-                let #name = ExplicitVertex::add_vertex(&mut mesh);
+                let #name = MeshMut::add_vertex(&mut mesh);
             });
 
             for (value, map_ident) in values.into_iter().zip(&vertex_maps) {
@@ -78,7 +78,7 @@ impl MeshInput {
             .collect::<TokenStream>();
         for ([va, vb, vc], values) in faces {
             add_faces.extend(quote! {
-                let face = ExplicitFace::add_face(&mut mesh, [#va, #vb, #vc]);
+                let face = TriMeshMut::add_face(&mut mesh, [#va, #vb, #vc]);
             });
 
             for (value, map_ident) in values.into_iter().zip(&face_maps) {
@@ -97,7 +97,7 @@ impl MeshInput {
         // Combine everything
         quote! {{
             use #crate_ident::{
-                Mesh, ExplicitFace, ExplicitVertex, Empty,
+                MeshMut, TriMeshMut, Empty,
                 map::{PropStoreMut, VecMap},
             };
 

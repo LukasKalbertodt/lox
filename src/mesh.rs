@@ -22,46 +22,42 @@ pub trait Empty {
 }
 
 /// Some kind of polygon mesh.
-pub trait Mesh: Empty {}
-
-/// A triangular mesh: all faces are triangles.
-pub trait TriMesh: Mesh {}
-
-
-// Alternative names:
-// - HasVertices
-// - ExplicitVertex
-// - ContainsVertices
-// - VertexIndex
-// - WithVerts
-pub trait ExplicitVertex {
+pub trait Mesh: Empty {
+    // ===== Vertices ========================================================
     fn num_vertices(&self) -> DefaultInt;
-
-    fn add_vertex(&mut self) -> VertexHandle;
-
     fn vertices<'s>(&'s self) -> Box<dyn Iterator<Item = VertexRef<'s, Self>> + 's>;
+
     // TODO: visit_mut
     // TODO: iterator over handles
     // TODO: mutable iterator?
-}
 
-pub trait ExplicitFace {
+
+    // ===== Faces ===========================================================
     fn num_faces(&self) -> DefaultInt;
-
-    // CCW!
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
-
     fn faces<'s>(&'s self) -> Box<dyn Iterator<Item = FaceRef<'s, Self>> + 's>;
     // TODO: visit_mut
     // TODO: iterator over handles
     // TODO: mutable iterator?
 }
 
+pub trait MeshMut: Mesh {
+    fn add_vertex(&mut self) -> VertexHandle;
+}
+
+/// A triangular mesh: all faces are triangles.
+pub trait TriMesh: Mesh {}
+
+pub trait TriMeshMut: TriMesh {
+    // CCW!
+    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
+
+}
 
 pub trait MeshUnsorted {
     /// Maybe we should return vertex refs? CCW!
     fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3];
 }
+
 
 /// Errors that can happen when transfering data from a mesh source to a mesh
 /// sink. This is either a source error or a sink error.

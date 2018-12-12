@@ -5,7 +5,7 @@ use std::fmt;
 use crate::{
     handle::{DefaultInt, FaceHandle, VertexHandle},
     map::{VecMap},
-    mesh::{Empty, ExplicitVertex, ExplicitFace, MeshUnsorted, Mesh},
+    mesh::{Empty, MeshUnsorted, Mesh, TriMesh, TriMeshMut, MeshMut},
     refs::{FaceRef, VertexRef},
 };
 
@@ -33,21 +33,9 @@ impl Empty for SharedVertexMesh {
     }
 }
 
-impl Mesh for SharedVertexMesh {}
-
-impl MeshUnsorted for SharedVertexMesh {
-    fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3] {
-        self.faces[face]
-    }
-}
-
-impl ExplicitVertex for SharedVertexMesh {
+impl Mesh for SharedVertexMesh {
     fn num_vertices(&self) -> DefaultInt {
         self.vertices.num_elements()
-    }
-
-    fn add_vertex(&mut self) -> VertexHandle {
-        self.vertices.push(())
     }
 
     fn vertices<'s>(&'s self) -> Box<Iterator<Item = VertexRef<Self>> + 's> {
@@ -55,17 +43,9 @@ impl ExplicitVertex for SharedVertexMesh {
             VertexRef::new(self, handle)
         }))
     }
-}
 
-
-
-impl ExplicitFace for SharedVertexMesh {
     fn num_faces(&self) -> DefaultInt {
         self.faces.num_elements()
-    }
-
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
-        self.faces.push(vertices)
     }
 
     fn faces<'s>(&'s self) -> Box<Iterator<Item = FaceRef<Self>> + 's> {
@@ -74,6 +54,28 @@ impl ExplicitFace for SharedVertexMesh {
         }))
     }
 }
+
+impl MeshMut for SharedVertexMesh {
+    fn add_vertex(&mut self) -> VertexHandle {
+        self.vertices.push(())
+    }
+}
+
+
+impl TriMesh for SharedVertexMesh {}
+
+impl TriMeshMut for SharedVertexMesh {
+    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
+        self.faces.push(vertices)
+    }
+}
+
+impl MeshUnsorted for SharedVertexMesh {
+    fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3] {
+        self.faces[face]
+    }
+}
+
 
 impl fmt::Debug for SharedVertexMesh {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

@@ -20,7 +20,7 @@ use std::{
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 
 use crate::{
-    Mesh, MeshUnsorted, ExplicitFace, ExplicitVertex,
+    MeshUnsorted, TriMesh,
     handle::{FaceHandle, Handle, VertexHandle},
     map::{PropMap, FacePropMap, VertexPropMap},
     math::{Pos3Like, Vec3Like},
@@ -70,7 +70,7 @@ impl Serializer {
 
 impl<'a, MeshT, PosM> IntoMeshWriter<'a, MeshT, PosM> for Serializer
 where
-    MeshT: 'a + Mesh + MeshUnsorted + ExplicitFace + ExplicitVertex,
+    MeshT: 'a + TriMesh + MeshUnsorted,
     PosM: 'a + VertexPropMap,
     PosM::Target: Pos3Like,
     <PosM::Target as Pos3Like>::Scalar: SingleSerialize,
@@ -99,7 +99,7 @@ where
 #[derive(Debug)]
 pub struct Writer<'a, MeshT, VertexPropsT, FacePropsT>
 where
-    MeshT: Mesh + MeshUnsorted + ExplicitFace + ExplicitVertex,
+    MeshT: TriMesh + MeshUnsorted,
     VertexPropsT: PropList<VertexHandle>,
     FacePropsT: PropList<FaceHandle>,
 {
@@ -113,7 +113,7 @@ where
 
 impl<'a, MeshT, VertexPropsT, FacePropsT> Writer<'a, MeshT, VertexPropsT, FacePropsT>
 where
-    MeshT: Mesh + MeshUnsorted + ExplicitFace + ExplicitVertex,
+    MeshT: TriMesh + MeshUnsorted,
     VertexPropsT: 'a + PropList<VertexHandle>,
     FacePropsT: 'a + PropList<FaceHandle>,
 {
@@ -220,7 +220,7 @@ where
 
 impl<MeshT, VertexPropsT, FacePropsT> MeshWriter for Writer<'_, MeshT, VertexPropsT, FacePropsT>
 where // TODO: remove once implied bounds land
-    MeshT: Mesh + MeshUnsorted + ExplicitFace + ExplicitVertex,
+    MeshT: TriMesh + MeshUnsorted,
     VertexPropsT: PropList<VertexHandle>,
     FacePropsT: PropList<FaceHandle>,
 {
