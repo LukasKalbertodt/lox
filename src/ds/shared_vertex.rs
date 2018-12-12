@@ -5,7 +5,7 @@ use std::fmt;
 use crate::{
     handle::{DefaultInt, FaceHandle, VertexHandle},
     map::{VecMap},
-    mesh::{Empty, MeshUnsorted, Mesh, TriMesh, TriMeshMut, MeshMut},
+    traits::{Empty, MeshUnsorted, Mesh, TriMesh, TriMeshMut, MeshMut},
     refs::{FaceRef, VertexRef},
 };
 

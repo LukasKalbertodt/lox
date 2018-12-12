@@ -25,14 +25,14 @@ pub mod io;
 pub mod macros;
 pub mod map;
 pub mod math;
-mod mesh;
+mod traits;
 pub mod prelude;
 pub mod refs;
 pub mod shape;
 
 pub use self::{
     handle::{EdgeHandle, FaceHandle, VertexHandle},
-    mesh::{
+    traits::{
         Mesh, TriMesh, MeshElement, MeshMut, TriMeshMut, MeshUnsorted,
         Empty,
     },
