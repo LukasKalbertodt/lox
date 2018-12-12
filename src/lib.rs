@@ -34,7 +34,7 @@ pub use self::{
     handle::{EdgeHandle, FaceHandle, VertexHandle},
     mesh::{
         Mesh, TriMesh, MeshElement, MeshMut, TriMeshMut, MeshUnsorted,
-        MeshSource, MeshSink, MeshWithProps, TransferError, Empty,
+        Empty,
     },
 };
 

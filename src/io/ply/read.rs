@@ -18,7 +18,6 @@ use failure::Fail;
 use smallvec::SmallVec;
 
 use crate::{
-    TransferError,
     prelude::*,
     io::{
         StreamingSource, MemSink, Primitive,
