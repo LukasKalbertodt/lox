@@ -108,6 +108,114 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_order!(m.vertices_of_face(f_ca), [vc, va, v_top]);
             });
         }
+
+        #[test]
+        fn triangle_strip_build() {
+            //
+            //    (A)---(D)
+            //     | \ Y | \
+            //     |  \  |  \
+            //     | X \ | Z \
+            //     |    \|    \
+            //    (B)---(C)---(E)
+            //
+            let mut m = $name::empty();
+            let va = m.add_vertex();
+            let vb = m.add_vertex();
+            let vc = m.add_vertex();
+            let fx = m.add_face([va, vb, vc]);
+            // Everything is correct now, this is checked by `single_triangle`
+
+            // ----- Add second face
+            let vd = m.add_vertex();
+            let fy = m.add_face([va, vc, vd]);
+
+            assert_eq!(m.num_faces(), 2);
+            assert_eq!(m.num_vertices(), 4);
+
+            assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy]);
+            assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd]);
+
+            gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
+                assert_eq_order!(m.vertices_of_face(fx), [va, vb, vc]);
+                assert_eq_order!(m.vertices_of_face(fy), [va, vc, vd]);
+            });
+
+            // ----- Add third face
+            let ve = m.add_vertex();
+            let fz = m.add_face([vd, vc, ve]);
+
+            assert_eq!(m.num_faces(), 3);
+            assert_eq!(m.num_vertices(), 5);
+
+            assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy, fz]);
+            assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve]);
+
+            gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
+                assert_eq_order!(m.vertices_of_face(fx), [va, vb, vc]);
+                assert_eq_order!(m.vertices_of_face(fy), [va, vc, vd]);
+                assert_eq_order!(m.vertices_of_face(fz), [vd, vc, ve]);
+            });
+        }
+
+        #[test]
+        fn simple_2d_hole() {
+            // There are only six faces. The triangle in the middle is empty.
+            //
+            //                       (a)
+            //                      / | \
+            //     (b--c)          /  |  \        (b--e)
+            //   u: [a, c, b]     /  (b)  \     w: [a, b, e]
+            //   v: [b, c, d]    /  /   \  \    x: [b, f, e]
+            //                  /  /     \  \
+            //                 /  /       \  \
+            //                /  (d)-----(f)  \
+            //               / ⟋            ⟍ \
+            //              (c)_______________(e)
+            //
+            //                    (c--f)
+            //                  y: [c, f, d]
+            //                  z: [c, e, f]
+            //
+
+            let mut m = $name::empty();
+            let va = m.add_vertex();
+            let vb = m.add_vertex();
+            let vc = m.add_vertex();
+            let vd = m.add_vertex();
+            let ve = m.add_vertex();
+            let vf = m.add_vertex();
+
+            let fu = m.add_face([va, vc, vb]);
+            let fv = m.add_face([vb, vc, vd]);
+
+            let fw = m.add_face([va, vb, ve]);
+            let fx = m.add_face([vb, vf, ve]);
+
+            let fy = m.add_face([vc, vf, vd]);
+            let fz = m.add_face([vc, ve, vf]);
+
+
+            // ----- Check stuff
+            assert_eq!(m.num_faces(), 6);
+            assert_eq!(m.num_vertices(), 6);
+
+            assert_eq_set!(m.faces().map(|x| x.handle()), [fu, fv, fw, fx, fy, fz]);
+            assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve, vf]);
+
+            gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
+                assert_eq_order!(m.vertices_of_face(fu), [va, vc, vb]);
+                assert_eq_order!(m.vertices_of_face(fv), [vb, vc, vd]);
+                assert_eq_order!(m.vertices_of_face(fw), [va, vb, ve]);
+                assert_eq_order!(m.vertices_of_face(fx), [vb, vf, ve]);
+                assert_eq_order!(m.vertices_of_face(fy), [vc, vf, vd]);
+                assert_eq_order!(m.vertices_of_face(fz), [vc, ve, vf]);
+            });
+        }
+
+        // TODO: Double Sided triangle
+        // TODO: Möbius strip
+        // TODO: incomplete triangle fan |><|
     };
 
     // These two arms are used to conditionally expand to a given body.
