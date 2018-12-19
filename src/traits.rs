@@ -48,7 +48,7 @@ pub trait TriMeshMut: TriMesh {
 
 }
 
-pub trait MeshUnsorted {
+pub trait TriVerticesOfFace: TriMesh {
     /// Maybe we should return vertex refs? CCW!
     fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3];
 }

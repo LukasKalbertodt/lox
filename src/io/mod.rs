@@ -9,7 +9,7 @@ use cgmath::Point3;
 use failure::Fail;
 
 use crate::{
-    Mesh, MeshUnsorted,
+    Mesh, TriVerticesOfFace,
     handle::{VertexHandle, FaceHandle, DefaultInt},
     map::VertexPropMap,
     math::{Pos3Like, PrimitiveNum},
@@ -23,7 +23,7 @@ pub mod stl;
 /// Types that can be transformed into a [`MeshWriter`].
 pub trait IntoMeshWriter<'a, MeshT, PosM>
 where
-    MeshT: 'a + Mesh + MeshUnsorted,
+    MeshT: 'a + Mesh + TriVerticesOfFace,
     PosM: 'a + VertexPropMap,
     PosM::Target: Pos3Like,
 {

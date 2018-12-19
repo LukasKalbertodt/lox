@@ -33,7 +33,7 @@ pub mod shape;
 pub use self::{
     handle::{EdgeHandle, FaceHandle, VertexHandle},
     traits::{
-        Mesh, TriMesh, MeshElement, MeshMut, TriMeshMut, MeshUnsorted,
+        Mesh, TriMesh, MeshElement, MeshMut, TriMeshMut, TriVerticesOfFace,
         Empty,
     },
 };

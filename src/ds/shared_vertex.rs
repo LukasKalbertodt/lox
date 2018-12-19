@@ -5,13 +5,12 @@ use std::fmt;
 use crate::{
     handle::{DefaultInt, FaceHandle, VertexHandle},
     map::{VecMap},
-    traits::{Empty, MeshUnsorted, Mesh, TriMesh, TriMeshMut, MeshMut},
+    traits::{Empty, TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut},
     refs::{FaceRef, VertexRef},
 };
 
 
 
-// TODO: Manual debug impl
 #[derive(Clone)]
 pub struct SharedVertexMesh {
     vertices: VecMap<VertexHandle, ()>,
@@ -70,7 +69,7 @@ impl TriMeshMut for SharedVertexMesh {
     }
 }
 
-impl MeshUnsorted for SharedVertexMesh {
+impl TriVerticesOfFace for SharedVertexMesh {
     fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3] {
         self.faces[face]
     }
