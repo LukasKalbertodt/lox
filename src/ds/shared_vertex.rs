@@ -96,29 +96,5 @@ impl fmt::Debug for SharedVertexMesh {
 mod test {
     use super::*;
 
-    #[test]
-    fn empty() {
-        let m = SharedVertexMesh::empty();
-        assert_eq!(m.num_faces(), 0);
-        assert_eq!(m.num_vertices(), 0);
-    }
-
-    #[test]
-    fn single_triangle() {
-        let mut m = SharedVertexMesh::empty();
-        let va = m.add_vertex();
-        let vb = m.add_vertex();
-        let vc = m.add_vertex();
-        let f = m.add_face([va, vb, vc]);
-
-        assert_eq!(m.num_faces(), 1);
-        assert_eq!(m.num_vertices(), 3);
-
-        let vertices = m.vertices_of_face(f);
-        assert!(vertices.contains(&va));
-        assert!(vertices.contains(&vb));
-        assert!(vertices.contains(&vc));
-    }
-
-    // TODO: more tests
+    gen_tri_mesh_tests!(SharedVertexMesh: [TriVerticesOfFace]);
 }

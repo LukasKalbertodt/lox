@@ -7,6 +7,10 @@
 //! - list all implementations
 //! - explain advantages and disadvantages of data structures
 
+#[cfg(test)]
+#[macro_use]
+mod tests;
+
 mod shared_vertex;
 
 pub use self::{
