@@ -5,7 +5,6 @@ use cgmath::{Point3, Vector3};
 use failure::{Error, ResultExt};
 
 use lox::{
-    MeshWithProps,
     ds::SharedVertexMesh,
     io::{stl, ply, MemSink, StreamingSource},
     map::{ConstMap, FnMap},
