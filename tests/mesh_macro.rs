@@ -111,7 +111,7 @@ fn rectangle_multi_props() {
     }
 }
 
-fn check_vertices_of_face_are_unique(mesh: &(impl MeshUnsorted + ExplicitFace)) {
+fn check_vertices_of_face_are_unique(mesh: &(impl TriVerticesOfFace)) {
     for face in mesh.faces() {
         let [va, vb, vc] = mesh.vertices_of_face(face.handle());
         assert_ne!(va, vb);
