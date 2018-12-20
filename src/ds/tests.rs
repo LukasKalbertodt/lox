@@ -69,6 +69,29 @@ macro_rules! gen_tri_mesh_tests {
         }
 
         #[test]
+        fn single_vertex() {
+            let mut m = $name::empty();
+            let v = m.add_vertex();
+
+            assert_eq!(m.num_faces(), 0);
+            assert_eq!(m.num_vertices(), 1);
+
+            assert!(m.faces().next().is_none());
+            assert_eq_set!(m.vertices().map(|x| x.handle()), [v]);
+
+            assert!(m.contains_vertex(v));
+            assert!(!m.contains_vertex(VertexHandle::from_id(v.id().next())));
+
+            gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
+                assert_eq_order!(m.faces_around_vertex(v).into_vec(), []);
+            });
+
+            gen_tri_mesh_tests!(@if VerticesAroundVertex in [$($extra),*] => {
+                assert_eq_order!(m.vertices_around_vertex(v).into_vec(), []);
+            });
+        }
+
+        #[test]
         fn single_triangle() {
             //
             //         (C)
