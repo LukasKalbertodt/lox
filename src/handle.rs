@@ -133,7 +133,8 @@ impl HandleId for DefaultInt {
 /// This trait basically represents types that can be created from and
 /// converted to an ID type. So handles are just strongly typed IDs.
 pub trait Handle: 'static + Copy + fmt::Debug + Eq {
-    /// Create a handle from the given ID.
+    /// Create a handle from the given ID. The ID must not be
+    /// `DefaultInt::max_value()` as this value is reserved!
     fn from_id(id: DefaultInt) -> Self;
 
     /// Return the ID of the current handle.
@@ -156,7 +157,7 @@ macro_rules! make_handle_type {
     ($(#[$attr:meta])* $name:ident = $short:expr;) => {
         $(#[$attr])*
         #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-        pub struct $name(pub DefaultInt);
+        pub struct $name(DefaultInt);
 
         impl Handle for $name {
             fn from_id(id: DefaultInt) -> Self {
@@ -187,4 +188,70 @@ make_handle_type!{
 make_handle_type!{
     /// A handle that is associated with a vertex.
     VertexHandle = "V";
+}
+
+/// An optional handle, semantically equivalent to `Option<H>`.
+///
+/// Sadly, it's not too easy to make `Option<H>` the same size as `H`. So we
+/// need our own optional-type to store space efficient optional handles. We
+/// use `u32::max_value` as `None` value.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Opt<H: Handle>(H);
+
+impl<H: Handle> Opt<H> {
+    /// Returns a `None` instance of this optional handle.
+    pub fn none() -> Self {
+        Opt(H::from_id(u32::max_value()))
+    }
+
+    /// Creates a `Some` instance with the given handle.
+    pub fn some(handle: H) -> Self {
+        Opt(handle)
+    }
+
+    /// Converts `self` to `Option<H>`.
+    pub fn to_option(&self) -> Option<H> {
+        if self.is_none() {
+            None
+        } else {
+            Some(self.0)
+        }
+    }
+
+    /// Returns `true` if there is no handle inside.
+    pub fn is_none(&self) -> bool {
+        self.0.id() == u32::max_value()
+    }
+
+    /// Returns `true` if there is a handle inside.
+    pub fn is_some(&self) -> bool {
+        !self.is_none()
+    }
+}
+
+impl<H: Handle> fmt::Debug for Opt<H> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // We don't just forward it because we want to stay in one line, even
+        // with `#` pretty printing activated.
+        match self.to_option() {
+            Some(h) => write!(f, "Some({:?})", h),
+            None => write!(f, "None"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    /// This could/should be a compile time check, but there is no easy,
+    /// built-in `static_assert` yet, so this has to be sufficient.
+    #[test]
+    fn opt_small_size() {
+        use std::mem::size_of;
+
+        assert_eq!(size_of::<FaceHandle>(), size_of::<Opt<FaceHandle>>());
+        assert_eq!(size_of::<VertexHandle>(), size_of::<Opt<VertexHandle>>());
+        assert_eq!(size_of::<EdgeHandle>(), size_of::<Opt<EdgeHandle>>());
+    }
 }
