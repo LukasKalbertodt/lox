@@ -46,7 +46,9 @@ macro_rules! gen_tri_mesh_tests {
             gen_tri_mesh_tests!(@is_valid_extra_trait $extra);
         )*
 
+        #[allow(unused_imports)]
         use crate::{
+            prelude::*,
             handle::{Handle, HandleId},
         };
 
@@ -89,6 +91,12 @@ macro_rules! gen_tri_mesh_tests {
             gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
                 assert_eq_order!(m.vertices_of_face(f), [va, vb, vc]);
             });
+
+            gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
+                assert_eq_order!(m.faces_around_vertex(va).into_vec(), [f]);
+                assert_eq_order!(m.faces_around_vertex(vb).into_vec(), [f]);
+                assert_eq_order!(m.faces_around_vertex(vc).into_vec(), [f]);
+            });
         }
 
         #[test]
@@ -125,6 +133,13 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_order!(m.vertices_of_face(f_bc), [vb, vc, v_top]);
                 assert_eq_order!(m.vertices_of_face(f_ca), [vc, va, v_top]);
             });
+
+            gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
+                assert_eq_order!(m.faces_around_vertex(va).into_vec(), [f_bottom, f_ca, f_ab]);
+                assert_eq_order!(m.faces_around_vertex(vb).into_vec(), [f_bottom, f_ab, f_bc]);
+                assert_eq_order!(m.faces_around_vertex(vc).into_vec(), [f_bottom, f_bc, f_ca]);
+                assert_eq_order!(m.faces_around_vertex(v_top).into_vec(), [f_ca, f_bc, f_ab]);
+            });
         }
 
         #[test]
@@ -159,6 +174,13 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_order!(m.vertices_of_face(fy), [va, vc, vd]);
             });
 
+            gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
+                assert_eq_order!(m.faces_around_vertex(va).into_vec(), [fy, fx]);
+                assert_eq_order!(m.faces_around_vertex(vb).into_vec(), [fx]);
+                assert_eq_order!(m.faces_around_vertex(vc).into_vec(), [fx, fy]);
+                assert_eq_order!(m.faces_around_vertex(vd).into_vec(), [fy]);
+            });
+
             // ----- Add third face
             let ve = m.add_vertex();
             let fz = m.add_face([vd, vc, ve]);
@@ -173,6 +195,14 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_order!(m.vertices_of_face(fx), [va, vb, vc]);
                 assert_eq_order!(m.vertices_of_face(fy), [va, vc, vd]);
                 assert_eq_order!(m.vertices_of_face(fz), [vd, vc, ve]);
+            });
+
+            gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
+                assert_eq_order!(m.faces_around_vertex(va).into_vec(), [fy, fx]);
+                assert_eq_order!(m.faces_around_vertex(vb).into_vec(), [fx]);
+                assert_eq_order!(m.faces_around_vertex(vc).into_vec(), [fx, fy, fz]);
+                assert_eq_order!(m.faces_around_vertex(vd).into_vec(), [fz, fy]);
+                assert_eq_order!(m.faces_around_vertex(ve).into_vec(), [fz]);
             });
         }
 
@@ -229,6 +259,15 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_order!(m.vertices_of_face(fy), [vc, vf, vd]);
                 assert_eq_order!(m.vertices_of_face(fz), [vc, ve, vf]);
             });
+
+            gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
+                assert_eq_order!(m.faces_around_vertex(va).into_vec(), [fu, fw]);
+                assert_eq_order!(m.faces_around_vertex(vb).into_vec(), [fw, fx, fv, fu]);
+                assert_eq_order!(m.faces_around_vertex(vc).into_vec(), [fu, fv, fy, fz]);
+                assert_eq_order!(m.faces_around_vertex(vd).into_vec(), [fv, fy]);
+                assert_eq_order!(m.faces_around_vertex(ve).into_vec(), [fz, fx, fw]);
+                assert_eq_order!(m.faces_around_vertex(ve).into_vec(), [fx, fz, fy]);
+            });
         }
 
         // TODO: Double Sided triangle
@@ -260,6 +299,7 @@ macro_rules! gen_tri_mesh_tests {
     // (include the ones used in the definition of the macro) are valid.
     // Otherwise it's too easy to make a typo.
     (@is_valid_extra_trait TriVerticesOfFace) => {};
+    (@is_valid_extra_trait FacesAroundVertex) => {};
     (@is_valid_extra_trait $other:ident) => {
         compile_error!(concat!(
             "`",
