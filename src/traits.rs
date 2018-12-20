@@ -1,6 +1,7 @@
 use crate::{
     handle::{DefaultInt, FaceHandle, VertexHandle},
     refs::{FaceRef, VertexRef},
+    util::DynList,
 };
 
 
@@ -97,4 +98,25 @@ pub trait TriVerticesOfFace: TriMesh {
     fn is_vertex_of_face(&self, vertex: VertexHandle, face: FaceHandle) -> bool {
         self.vertices_of_face(face).contains(&vertex)
     }
+}
+/// Meshes with *O*(1) vertex-to-face neighorhood information.
+pub trait FacesAroundVertex: Mesh {
+    /// Returns a list of all faces adjacent to the given vertex.
+    ///
+    /// The faces are listed in front-face CW (clockwise) order.
+    fn faces_around_vertex(
+        &self,
+        vertex: VertexHandle,
+    ) -> Box<dyn DynList<Item = FaceHandle> + '_>;
+}
+
+/// Meshes with *O*(1) vertex-to-vertex neighorhood information.
+pub trait VerticesAroundVertex: Mesh {
+    /// Returns a list of all faces adjacent to the given vertex.
+    ///
+    /// The faces are listed in front-face CW (clockwise) order.
+    fn vertices_around_vertex(
+        &self,
+        vertex: VertexHandle,
+    ) -> Box<dyn DynList<Item = VertexHandle> + '_>;
 }

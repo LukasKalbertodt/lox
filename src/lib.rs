@@ -34,7 +34,7 @@ pub use self::{
     handle::{EdgeHandle, FaceHandle, VertexHandle},
     traits::{
         Mesh, TriMesh, MeshMut, TriMeshMut, TriVerticesOfFace,
-        Empty,
+        Empty, FacesAroundVertex, VerticesAroundVertex,
     },
 };
 
