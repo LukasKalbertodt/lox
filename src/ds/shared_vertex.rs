@@ -4,7 +4,7 @@ use std::fmt;
 
 use crate::{
     handle::{DefaultInt, FaceHandle, VertexHandle},
-    map::{VecMap},
+    map::{VecMap, PropMap},
     traits::{Empty, TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut},
     refs::{FaceRef, VertexRef},
 };
@@ -43,6 +43,10 @@ impl Mesh for SharedVertexMesh {
         }))
     }
 
+    fn contains_vertex(&self, vertex: VertexHandle) -> bool {
+        self.vertices.contains_handle(vertex)
+    }
+
     fn num_faces(&self) -> DefaultInt {
         self.faces.num_elements()
     }
@@ -51,6 +55,10 @@ impl Mesh for SharedVertexMesh {
         Box::new(self.faces.handles().map(move |handle| {
             FaceRef::new(self, handle)
         }))
+    }
+
+    fn contains_face(&self, face: FaceHandle) -> bool {
+        self.faces.contains_handle(face)
     }
 }
 

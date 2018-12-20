@@ -27,6 +27,10 @@ pub trait Mesh: Empty {
     /// exactly once.
     fn vertices(&self) -> Box<dyn Iterator<Item = VertexRef<'_, Self>> + '_>;
 
+    /// Checks if the given vertex handle refers to a valid vertex of this
+    /// mesh.
+    fn contains_vertex(&self, vertex: VertexHandle) -> bool;
+
     // TODO: visit_mut
     // TODO: iterator over handles
     // TODO: mutable iterator?
@@ -40,6 +44,9 @@ pub trait Mesh: Empty {
     /// faces is unspecified, but each vertex is yielded by the iterator
     /// exactly once.
     fn faces(&self) -> Box<dyn Iterator<Item = FaceRef<'_, Self>> + '_>;
+
+    /// Checks if the given face handle refers to a valid face of this mesh.
+    fn contains_face(&self, face: FaceHandle) -> bool;
 
     // TODO: visit_mut
     // TODO: iterator over handles

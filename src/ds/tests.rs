@@ -43,6 +43,10 @@ macro_rules! gen_tri_mesh_tests {
             gen_tri_mesh_tests!(@is_valid_extra_trait $extra);
         )*
 
+        use crate::{
+            handle::{Handle, HandleId},
+        };
+
         #[test]
         fn empty() {
             let m = $name::empty();
@@ -52,6 +56,11 @@ macro_rules! gen_tri_mesh_tests {
 
             assert!(m.faces().next().is_none());
             assert!(m.vertices().next().is_none());
+
+            assert!(!m.contains_vertex(VertexHandle::from_id(0)));
+            assert!(!m.contains_vertex(VertexHandle::from_id(27)));
+            assert!(!m.contains_face(FaceHandle::from_id(0)));
+            assert!(!m.contains_face(FaceHandle::from_id(27)));
         }
 
         #[test]
@@ -67,6 +76,12 @@ macro_rules! gen_tri_mesh_tests {
 
             assert_eq_set!(m.faces().map(|x| x.handle()), [f]);
             assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc]);
+
+            assert!(m.contains_vertex(va));
+            assert!(m.contains_vertex(vb));
+            assert!(m.contains_vertex(vc));
+            assert!(m.contains_face(f));
+            assert!(!m.contains_face(FaceHandle::from_id(f.id().next())));
 
             gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
                 assert_eq_order!(m.vertices_of_face(f), [va, vb, vc]);
