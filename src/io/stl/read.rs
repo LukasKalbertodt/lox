@@ -110,9 +110,8 @@ parser!(vertex = |buf| -> [f32; 3] {
 
 /// A reader able to read binary and ASCII STL files.
 ///
-/// You can create a reader with [`Reader::open`] or [`Reader::new`]. To
-/// actually read data, you need to use one of the `read*` methods. You usually
-/// want to use [`Reader::read`] to read the data into a proper mesh.
+/// You can create a reader with [`Reader::open`] or [`Reader::new`]. TODO: how
+/// to actually read data.
 ///
 /// The type parameter `U` is just used to configure the vertex-unifying
 /// behavior at compile time. See TODO add method
@@ -297,10 +296,9 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
 
     /// Reads the whole file into a [`RawResult`].
     ///
-    /// Usually you either want to use a higher level function (like
-    /// [`Reader::read`]) or [`Reader::read_raw_into`]. The latter is the
-    /// streaming version of this method which doesn't require a temporary
-    /// storage ([`RawResult`]).
+    /// Usually you either want to use a higher level function (like TODO) or
+    /// [`Reader::read_raw_into`]. The latter is the streaming version of this
+    /// method which doesn't require a temporary storage ([`RawResult`]).
     pub fn into_raw_result(self) -> Result<RawResult, Error> {
         let mut out = RawResult::new();
         self.read_raw_into(&mut out)?;
@@ -310,9 +308,8 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
     /// Reads the whole file into the given raw sink.
     ///
     /// This is a low level building block that you usually don't want to use
-    /// directly. [`Reader::read`] is a more high level method suited for most
-    /// purposes. In particular, this method itself never performs any vertex
-    /// unification (regardless of the type parameter `U`).
+    /// directly. TODO: High level? In particular, this method itself never
+    /// performs any vertex unification (regardless of the type parameter `U`).
     pub fn read_raw_into<S: RawSink>(
         self,
         sink: &mut S,
