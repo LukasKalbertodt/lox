@@ -29,6 +29,7 @@ mod traits;
 pub mod prelude;
 pub mod refs;
 pub mod shape;
+pub mod util;
 
 pub use self::{
     handle::{EdgeHandle, FaceHandle, VertexHandle},
