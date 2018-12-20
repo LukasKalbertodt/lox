@@ -1,10 +1,15 @@
+//! This module contains macros to generate unit tests for mesh data
+//! structures.
 
+/// Creates a hashset from all elements passed to this macro.
 macro_rules! set {
     ($($item:expr),* $(,)*) => {
         vec![$($item),*].into_iter().collect::<::std::collections::HashSet<_>>()
     }
 }
 
+/// Takes an iterator and a list of elements. Collects both into sets and
+/// compares those sets for equality via `assert_eq`.
 macro_rules! assert_eq_set {
     ($iter:expr, [$($item:expr),* $(,)*]) => {
         assert_eq!(
@@ -14,6 +19,17 @@ macro_rules! assert_eq_set {
     }
 }
 
+/// Takes something slice-like and a list of elements. Asserts that the
+/// elements occur in the slice exactly in the specified order (but potentially
+/// shifted).
+///
+/// So `assert_eq_order(v, [a, b, c])` would be fine if `v` is any of this:
+/// - `[a, b, c]`
+/// - `[b, c, a]`
+/// - `[c, a, b]`
+///
+/// This check is a stricter version of `assert_eq_set`. For <= 2 elements,
+/// it's more or less equivalent to `assert_eq_set`.
 macro_rules! assert_eq_order {
     ($list:expr, []) => {{
         assert!($list.is_empty());
@@ -45,6 +61,8 @@ macro_rules! assert_eq_order {
 /// These traits need to be specified in the brackets and will generate
 /// additional asserts:
 /// - `TriVerticesOfFace`
+/// - `FacesAroundVertex`
+/// - `VerticesAroundVertex`
 macro_rules! gen_tri_mesh_tests {
     ($name:ident : [$($extra:ident),*]) => {
         $(
