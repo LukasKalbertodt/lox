@@ -22,7 +22,6 @@ mod test_utils;
 pub mod ds;
 pub mod handle;
 pub mod io;
-pub mod macros;
 pub mod map;
 pub mod math;
 mod traits;
