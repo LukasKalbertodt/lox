@@ -15,17 +15,22 @@ macro_rules! assert_eq_set {
 }
 
 macro_rules! assert_eq_order {
+    ($list:expr, []) => {{
+        assert!($list.is_empty());
+    }};
     ($list:expr, [$a:ident $(, $tail:ident)*]) => {{
-        let a = $list;
+        let slice = $list;
         #[allow(unused_mut, unused_variables)]
-        let mut pos = a.iter().position(|&e| e == $a)
+        let mut pos = slice.iter().position(|&e| e == $a)
             .expect(concat!(stringify!($a), " not found in ", stringify!($list)));
 
+        assert_eq!(slice.len(), [$a $(, $tail)*].len());
+
         $(
-            pos = (pos + 1) % a.len();
-            assert_eq!(a[pos], $tail);
+            pos = (pos + 1) % slice.len();
+            assert_eq!(slice[pos], $tail);
         )*
-    }}
+    }};
 }
 
 /// Generates unit tests for the mesh data structure `$name`.
