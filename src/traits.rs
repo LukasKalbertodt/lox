@@ -42,7 +42,7 @@ pub trait MeshMut: Mesh {
 /// A triangular mesh: all faces are triangles.
 pub trait TriMesh: Mesh {}
 
-pub trait TriMeshMut: TriMesh {
+pub trait TriMeshMut: TriMesh + MeshMut {
     // CCW!
     fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
 
