@@ -15,13 +15,16 @@ macro_rules! assert_eq_set {
 }
 
 macro_rules! assert_eq_order {
-    ($arr:expr, [$a:ident, $b:ident, $c:ident]) => {{
-        let a = $arr;
-        let pos = a.iter().position(|&e| e == $a)
-            .expect(concat!(stringify!($a), " not found in ", stringify!($arr)));
+    ($list:expr, [$a:ident $(, $tail:ident)*]) => {{
+        let a = $list;
+        #[allow(unused_mut, unused_variables)]
+        let mut pos = a.iter().position(|&e| e == $a)
+            .expect(concat!(stringify!($a), " not found in ", stringify!($list)));
 
-        assert_eq!(a[(pos + 1) % 3], $b);
-        assert_eq!(a[(pos + 2) % 3], $c);
+        $(
+            pos = (pos + 1) % a.len();
+            assert_eq!(a[pos], $tail);
+        )*
     }}
 }
 
