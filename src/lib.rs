@@ -33,10 +33,20 @@ pub mod util;
 pub use self::{
     handle::{EdgeHandle, FaceHandle, VertexHandle},
     traits::{
-        Mesh, TriMesh, MeshElement, MeshMut, TriMeshMut, TriVerticesOfFace,
+        Mesh, TriMesh, MeshMut, TriMeshMut, TriVerticesOfFace,
         Empty,
     },
 };
+
+
+
+/// The three basic elements in a polygon mesh.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MeshElement {
+    Edge,
+    Face,
+    Vertex,
+}
 
 
 // ===========================================================================

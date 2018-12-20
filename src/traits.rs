@@ -3,13 +3,6 @@ use crate::{
     refs::{FaceRef, VertexRef},
 };
 
-/// The three basic elements in a polygon mesh.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MeshElement {
-    Edge,
-    Face,
-    Vertex,
-}
 
 pub trait Empty {
     /// Returns an empty value of this type.
