@@ -93,6 +93,10 @@ impl<H: Handle, T> VecMap<H, T> {
         H::from_usize(self.vec.push(elem))
     }
 
+    pub(crate) fn next_push_handle(&self) -> H {
+        H::from_usize(self.vec.next_index())
+    }
+
     pub fn num_elements(&self) -> DefaultInt {
         self.vec.num_elements() as DefaultInt
     }
