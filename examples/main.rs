@@ -5,7 +5,7 @@ use cgmath::{Point3, Vector3};
 use failure::{Error, ResultExt};
 
 use lox::{
-    ds::SharedVertexMesh,
+    ds::{LinkedFaceMesh, SharedVertexMesh},
     io::{stl, ply, MemSink, StreamingSource},
     map::{ConstMap, FnMap},
     math::PrimitiveNum,
@@ -34,53 +34,31 @@ fn main() {
 }
 
 fn run() -> Result<(), Error> {
-    let reader = ply::Reader::open(std::env::args().nth(1).unwrap())?;
-    // let mut dummy = Dummy { mesh: SharedVertexMesh::empty() };
-    // reader.transfer_to(&mut dummy);
-    // let mut res = ply::RawResult::new();
-    reader.read_raw_into(&mut Printer)?;
-    // println!("{:#?}", res);
+    let mesh = mesh! {
+        type: LinkedFaceMesh,
+        vertices: [
+            v0,
+            v1,
+            v2,
+            v3,
+            v4,
+            v5,
+            v6,
+        ],
+        faces: [
+            [v0, v2, v1],
+            [v3, v1, v2],
+            [v2, v4, v5],
+            [v2, v5, v6],
+            [v3, v2, v6],
+        ],
+    };
 
+    // println!("{:#?}", mesh);
+
+    for vh in mesh.vertices().map(|v| v.handle()) {
+        println!("around {:?}: {:?}", vh, mesh.faces_around_vertex(vh).into_vec());
+    }
 
     Ok(())
-}
-
-struct Printer;
-
-impl ply::RawSink for Printer {
-    fn element_group_start(&mut self, def: &ply::ElementDef) {
-        println!();
-        println!("=====> {:#?}", def);
-    }
-
-    fn element(&mut self, elem: &ply::RawElement) {
-        println!("{:?}", elem);
-    }
-}
-
-
-#[allow(dead_code)]
-struct Dummy {
-    mesh: SharedVertexMesh,
-}
-
-impl MemSink for Dummy {
-    fn add_vertex(&mut self) -> VertexHandle {
-        let h = self.mesh.add_vertex();
-        println!("add_vertex() -> {:?}", h);
-        h
-    }
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
-        let h = self.mesh.add_face(vertices);
-        println!("add_face({:?}) -> {:?}", vertices, h);
-        h
-    }
-
-    fn set_vertex_position<N: PrimitiveNum>(
-        &mut self,
-        v: VertexHandle,
-        position: Point3<N>,
-    ) {
-        println!("set_vertex_position({:?}, {:?})", v, position);
-    }
 }

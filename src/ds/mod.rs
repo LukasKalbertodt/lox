@@ -11,8 +11,10 @@
 #[macro_use]
 mod tests;
 
+mod linked_face;
 mod shared_vertex;
 
 pub use self::{
+    linked_face::LinkedFaceMesh,
     shared_vertex::SharedVertexMesh,
 };
