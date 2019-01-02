@@ -511,11 +511,12 @@ impl TriMeshMut for LinkedFaceMesh {
     }
 }
 
-// impl TriVerticesOfFace for LinkedFaceMesh {
-//     fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3] {
-//         self.faces[face].vertices
-//     }
-// }
+impl TriVerticesOfFace for LinkedFaceMesh {
+    fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3] {
+        let d = &self.faces[face].vertex_data;
+        [d[0].handle, d[1].handle, d[2].handle]
+    }
+}
 
 impl FacesAroundVertex for LinkedFaceMesh {
     fn faces_around_vertex(
@@ -679,6 +680,10 @@ impl<'a> Iterator for Circulator<'a> {
 mod test {
     use super::*;
 
-    gen_tri_mesh_tests!(LinkedFaceMesh: [FacesAroundVertex, VerticesAroundVertex, Manifold]);
-    // gen_tri_mesh_tests!(LinkedFaceMesh: [TriVerticesOfFace, FacesAroundVertex]);
+    gen_tri_mesh_tests!(LinkedFaceMesh: [
+        FacesAroundVertex,
+        VerticesAroundVertex,
+        TriVerticesOfFace,
+        Manifold
+    ]);
 }
