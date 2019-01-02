@@ -606,7 +606,7 @@ macro_rules! gen_tri_mesh_tests {
                 gen_tri_mesh_tests!(@if VerticesAroundVertex in [$($extra),*] => {
                     assert_eq_order!(m.vertices_around_vertex(va).into_vec(), [vb, vc, vf, vg, vd, ve]);
                     assert_eq_order!(m.vertices_around_vertex(vb).into_vec(), [vc, va]);
-                    assert_eq_order!(m.vertices_around_vertex(vc).into_vec(), [vd, va, vb]);
+                    assert_eq_order!(m.vertices_around_vertex(vc).into_vec(), [vf, va, vb]);
                     assert_eq_order!(m.vertices_around_vertex(vd).into_vec(), [ve, va]);
                     assert_eq_order!(m.vertices_around_vertex(ve).into_vec(), [vd, va]);
                     assert_eq_order!(m.vertices_around_vertex(vf).into_vec(), [vg, va, vc]);
