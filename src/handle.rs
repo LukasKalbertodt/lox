@@ -229,6 +229,12 @@ impl<H: Handle> Opt<H> {
     }
 }
 
+impl<H: Handle> From<H> for Opt<H> {
+    fn from(src: H) -> Self {
+        Self::some(src)
+    }
+}
+
 impl<H: Handle> fmt::Debug for Opt<H> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // We don't just forward it because we want to stay in one line, even
