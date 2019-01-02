@@ -523,6 +523,6 @@ impl<'a> Iterator for Circulator<'a> {
 mod test {
     use super::*;
 
-    gen_tri_mesh_tests!(LinkedFaceMesh: [FacesAroundVertex]);
+    gen_tri_mesh_tests!(LinkedFaceMesh: [FacesAroundVertex, Manifold]);
     // gen_tri_mesh_tests!(LinkedFaceMesh: [TriVerticesOfFace, FacesAroundVertex]);
 }

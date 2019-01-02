@@ -622,6 +622,70 @@ macro_rules! gen_tri_mesh_tests {
             m.clone().add_face([ve, va, vf]);
         }
 
+        gen_tri_mesh_tests!(@if_item Manifold in [$($extra),*] => {
+            #[test]
+            #[should_panic]
+            fn non_manifold_triple_edge() {
+                // This creates a non-manifold mesh by connecting three faces to a
+                // single edge. This is never allowed by mesh data structures. So
+                // we expect them to panic.
+                //
+                //
+                //            (a)⟍
+                //           / | \ ⟍
+                //          /  |  \  ⟍
+                //         /   |   \   ⟍
+                //       (c)   |   (d)  (e)
+                //         \   |   /   ⟋
+                //          \  |  /  ⟋
+                //           \ | / ⟋
+                //            (b)⟋
+                //
+                let mut m = $name::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                let ve = m.add_vertex();
+
+                m.add_face([va, vc, vb]);
+                m.add_face([va, vb, vd]);
+
+                // This should panic
+                m.add_face([va, vb, ve]);
+            }
+
+            #[test]
+            #[should_panic]
+            fn non_manifold_add_to_closed_fan() {
+                // This creates a non-manifold mesh by first creating a vertex
+                // (A) that has a closed fan around itself. Then we try to add
+                // another face to that vertex (the one with E and F).
+                //
+                //             (B)          (E)
+                //            / | \       ⟋  |
+                //           /  |  \    ⟋    |
+                //          /  (A)  \  A -- (F)
+                //         / ⟋    ⟍ \
+                //        (C) ----- (D)
+                //
+                let mut m = $name::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                let ve = m.add_vertex();
+                let vf = m.add_vertex();
+
+                m.add_face([va, vb, vc]);
+                m.add_face([va, vc, vd]);
+                m.add_face([va, vd, vb]);
+
+                // This should panic
+                m.add_face([va, vf, ve]);
+            }
+        });
+
         // TODO: Double Sided triangle
         // TODO: Möbius strip
     };
@@ -646,12 +710,33 @@ macro_rules! gen_tri_mesh_tests {
         __inner_helper!($needle $head)
     }};
 
+    // This is the same as above but for bodies which expand to items (instead
+    // of expressions).
+    (@if_item $needle:ident in [] => { $($body:tt)* }) => {
+        // The needle was not found in the extra traits. To make sure there
+        // wasn't a typo bug in this macro definition, we check that `$needle`
+        // is a valid extra trait to begin with. We know that all idents in the
+        // list are valid, because we checked it above.
+        gen_tri_mesh_tests!(@is_valid_extra_trait $needle);
+    };
+    (@if_item $needle:ident in [$head:ident $(, $tail:ident)*] => { $($body:tt)* }) => {
+        macro_rules! __inner_helper {
+            ($needle $needle) => { $($body)* };
+            ($needle $head) => {
+                gen_tri_mesh_tests!(@if_item $needle in [$($tail),*] => { $($body)* });
+            }
+        }
+
+        __inner_helper!($needle $head);
+    };
+
     // These arms are used to make sure all traits passed into the macro
     // (include the ones used in the definition of the macro) are valid.
     // Otherwise it's too easy to make a typo.
     (@is_valid_extra_trait TriVerticesOfFace) => {};
     (@is_valid_extra_trait FacesAroundVertex) => {};
     (@is_valid_extra_trait VerticesAroundVertex) => {};
+    (@is_valid_extra_trait Manifold) => {}; // this is not a real trait yet...
     (@is_valid_extra_trait $other:ident) => {
         compile_error!(concat!(
             "`",
