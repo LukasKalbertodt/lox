@@ -4,7 +4,10 @@
 use crate::{
     handle::{DefaultInt, FaceHandle, VertexHandle, Opt},
     map::{VecMap, PropMap},
-    traits::{Empty, TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut, FacesAroundVertex},
+    traits::{
+        Empty, TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut,
+        FacesAroundVertex, VerticesAroundVertex,
+    },
     refs::{FaceRef, VertexRef},
     util::DynList,
 };
@@ -540,6 +543,70 @@ impl Iterator for FaceCirculator<'_> {
         self.it.next().map(|item| item.face)
     }
 }
+
+impl VerticesAroundVertex for LinkedFaceMesh {
+    fn vertices_around_vertex(
+        &self,
+        vh: VertexHandle,
+    ) -> Box<dyn DynList<Item = VertexHandle> + '_> {
+        Box::new(VertexCirculator {
+            it: self.circulate_around(vh, self.vertices[vh].face),
+            queue: None,
+        })
+    }
+}
+
+/// Iterator over all neighbor vertices of a vertex. Is returned by
+/// `vertices_around_vertex`.
+struct VertexCirculator<'a> {
+    it: Circulator<'a>,
+    queue: Option<VertexHandle>,
+}
+
+impl DynList for VertexCirculator<'_> {}
+impl Iterator for VertexCirculator<'_> {
+    type Item = VertexHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // This is a bit more complicated than `FaceCirculator`: the number of
+        // vertices around a vertex might be different from the number of
+        // faces.
+
+        // If a vertex is stored in `queue`, we emit it before doing anything
+        // else.
+        if let Some(vh) = self.queue.take() {
+            return Some(vh);
+        }
+
+        // Else, we pull a new face from the underlying circulator.
+        let item = match self.it.next() {
+            None => return None,
+            Some(item) => item,
+        };
+
+        let face_data = &self.it.mesh.faces[item.face];
+
+        // We will first emit the vertex of the current face that is not
+        // shared with the next face.
+        let out = face_data.vertex_data[(item.vertex_idx as usize + 2) % 3].handle;
+
+        // If the face is the last face in its blade, we store the other vertex
+        // of that face in `queue` to emit it in the next iteration.
+        let next_vertex = face_data.vertex_data[(item.vertex_idx as usize + 1) % 3].handle;
+        let next_face = item.vertex_data.next_face;
+
+        // If the next face does not share that vertex with us (or the special
+        // case when the next face is the current face), we have found a hole
+        // and need to queue the `next_vertex`.
+        if !self.it.mesh.faces[next_face].is_adjacent_to(next_vertex) || item.face == next_face {
+            self.queue = Some(next_vertex);
+        }
+
+        Some(out)
+    }
+}
+
+
 /// References the data of a specific vertex stored in a face. Only stores face
 /// handle and index, meaning: the struct has no lifetime.
 #[derive(Clone, Copy)]
@@ -606,12 +673,6 @@ impl<'a> Iterator for Circulator<'a> {
     }
 }
 
-// impl VerticesAroundVertex for LinkedFaceMesh {
-//     fn vertices_around_vertex(
-//         &self,
-//         vertex: VertexHandle,
-//     ) -> Box<dyn DynList<Item = VertexHandle> + '_>;
-// }
 
 
 #[cfg(test)]
