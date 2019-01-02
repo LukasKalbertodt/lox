@@ -67,7 +67,7 @@ impl Face {
             () if self.vertex_data[0].handle == vh => 0,
             () if self.vertex_data[1].handle == vh => 1,
             _ => {
-                debug_assert!(self.vertex_data[2].handle == vh, "fucky wucky");
+                debug_assert!(self.vertex_data[2].handle == vh, "internal `LinkedFaceMesh` bug");
                 2
             }
         }
@@ -91,19 +91,26 @@ impl Face {
 }
 
 impl LinkedFaceMesh {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             vertices: VecMap::new(),
             faces: VecMap::new(),
         }
     }
 
-    fn circulate_around(&self, center: VertexHandle, start_face: FaceHandle) -> Circulator<'_> {
+    /// Creates a circulator iterator around `center` starting at `start_face`.
+    fn circulate_around(
+        &self,
+        center: VertexHandle,
+        start_face: impl Into<Opt<FaceHandle>>,
+    ) -> Circulator<'_> {
+        let start_face = start_face.into();
+
         Circulator {
             mesh: self,
             center,
-            start_face: Opt::some(start_face),
-            current_face: Opt::some(start_face),
+            start_face,
+            current_face: start_face,
         }
     }
 
@@ -512,18 +519,27 @@ impl FacesAroundVertex for LinkedFaceMesh {
         &self,
         vh: VertexHandle,
     ) -> Box<dyn DynList<Item = FaceHandle> + '_> {
-        // TODO: make nicer and use `circulate_around`
         Box::new(FaceCirculator {
-            it: Circulator {
-                mesh: self,
-                center: vh,
-                start_face: self.vertices[vh].face,
-                current_face: self.vertices[vh].face,
-            },
+            it: self.circulate_around(vh, self.vertices[vh].face),
         })
     }
 }
 
+/// Iterator over all faces of a vertex. Is returned by `faces_around_vertex`.
+///
+/// This is basically just a `Circulator {...}.map(|item| item.face)`.
+struct FaceCirculator<'a> {
+    it: Circulator<'a>,
+}
+
+impl DynList for FaceCirculator<'_> {}
+impl Iterator for FaceCirculator<'_> {
+    type Item = FaceHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.it.next().map(|item| item.face)
+    }
+}
 /// References the data of a specific vertex stored in a face. Only stores face
 /// handle and index, meaning: the struct has no lifetime.
 #[derive(Clone, Copy)]
@@ -541,18 +557,6 @@ impl<'a> From<CirculatorItem<'a>> for VertexDataRef {
     }
 }
 
-struct FaceCirculator<'a> {
-    it: Circulator<'a>,
-}
-
-impl DynList for FaceCirculator<'_> {}
-impl Iterator for FaceCirculator<'_> {
-    type Item = FaceHandle;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.it.next().map(|item| item.face)
-    }
-}
 
 struct Circulator<'a> {
     mesh: &'a LinkedFaceMesh,
