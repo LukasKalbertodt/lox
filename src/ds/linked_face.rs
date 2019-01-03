@@ -34,6 +34,14 @@ struct Vertex {
 struct Face {
     /// The adjacent vertices in face-front CCW order.
     vertex_data: [VertexDataInFace; 3],
+
+    // Ideas about what else to put here:
+    // - Indices for each `next_face` reference. Meaning: for a specific
+    //   vertex, where does the `next_face` for that vertex store the vertex
+    //   information in the array? These are just 0, 1 or 2 so we only need 2
+    //   bits. All three of these indices can be tightly packed.
+    // - Store whether the `next_face` is adjacent to the current face. Three
+    //   bools, three bits.
 }
 
 /// Each face stores some data for its three vertices. This struct defines
