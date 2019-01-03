@@ -95,7 +95,7 @@ pub trait TriMeshMut: TriMesh + MeshMut {
     fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
 }
 
-/// Meshes with *O*(1) face-to-vertex neighorhood information.
+/// Meshes with *O*(1) face-to-vertex neighborhood information.
 pub trait TriVerticesOfFace: TriMesh {
     /// Returns the vertices of the given triangular face in face-front CCW
     /// order.
@@ -106,7 +106,7 @@ pub trait TriVerticesOfFace: TriMesh {
         self.vertices_of_face(face).contains(&vertex)
     }
 }
-/// Meshes with *O*(1) vertex-to-face neighorhood information.
+/// Meshes with *O*(1) vertex-to-face neighborhood information.
 pub trait FacesAroundVertex: Mesh {
     /// Returns a list of all faces adjacent to the given vertex.
     ///
@@ -117,7 +117,7 @@ pub trait FacesAroundVertex: Mesh {
     ) -> Box<dyn DynList<Item = FaceHandle> + '_>;
 }
 
-/// Meshes with *O*(1) vertex-to-vertex neighorhood information.
+/// Meshes with *O*(1) vertex-to-vertex neighborhood information.
 pub trait VerticesAroundVertex: Mesh {
     /// Returns a list of all faces adjacent to the given vertex.
     ///
