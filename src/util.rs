@@ -1,4 +1,44 @@
 
+/// An extension traits with useful methods for arrays of size 3.
+///
+/// Ideally, those methods would exist for all arrays, but as Rust doesn't
+/// offer const generics yet, this is impossible. To avoid duplicate code in
+/// several places, it's still useful to have this extension trait for the most
+/// common array length in this library.
+pub trait TriArrayExt {
+    type Item;
+
+    /// Maps each element of the array and returns a new array with the
+    /// results.
+    fn map<F, OutT>(self, mapping: F) -> [OutT; 3]
+    where
+        F: FnMut(Self::Item) -> OutT;
+}
+
+impl<T> TriArrayExt for [T; 3] {
+    type Item = T;
+
+    fn map<F, OutT>(self, mut mapping: F) -> [OutT; 3]
+    where
+        F: FnMut(Self::Item) -> OutT,
+    {
+        let [a, b, c] = self;
+        [mapping(a), mapping(b), mapping(c)]
+    }
+}
+
+impl<'a, T> TriArrayExt for &'a [T; 3] {
+    type Item = &'a T;
+
+    fn map<F, OutT>(self, mut mapping: F) -> [OutT; 3]
+    where
+        F: FnMut(Self::Item) -> OutT,
+    {
+        let [a, b, c] = self;
+        [mapping(a), mapping(b), mapping(c)]
+    }
+}
+
 /// A list with a dynamic length (semantically equivalent to `Vec<_>`).
 ///
 /// Several methods of mesh traits need to return a list of handles where the

@@ -25,6 +25,7 @@ use crate::{
     map::{PropMap, FacePropMap, VertexPropMap},
     math::{Pos3Like, Vec3Like},
     io::{IntoMeshWriter, MeshWriter},
+    util::TriArrayExt,
 };
 use super::{Error, Encoding, Serialize, SingleSerialize, PropSerializer, PropType};
 
@@ -276,7 +277,7 @@ where // TODO: remove once implied bounds land
                     // Write special `vertex_indices` data
                     let indices = self.mesh.vertices_of_face(f.handle());
                     block.add(&3u8)?;
-                    block.add(&[indices[0].id(), indices[1].id(), indices[2].id()])?;
+                    block.add(&indices.map(|i| i.id()))?;
 
                     // Write all properties
                     self.face_props.write_block(f.handle(), &mut block)?;

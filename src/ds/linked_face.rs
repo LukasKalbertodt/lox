@@ -9,7 +9,7 @@ use crate::{
         FacesAroundVertex, VerticesAroundVertex,
     },
     refs::{FaceRef, VertexRef},
-    util::DynList,
+    util::{DynList, TriArrayExt},
 };
 
 
@@ -56,6 +56,8 @@ struct VertexDataInFace {
 
 impl Face {
     fn is_adjacent_to(&self, vh: VertexHandle) -> bool {
+        // Sadly, the `.iter().any()` version doesn't get optimized very well:
+        // https://rust.godbolt.org/z/gxohHY
         self.vertex_data[0].handle == vh
             || self.vertex_data[1].handle == vh
             || self.vertex_data[2].handle == vh
@@ -481,11 +483,10 @@ impl TriMeshMut for LinkedFaceMesh {
 
         // Create the array of vertex data stored in the face. The `next_face`
         // is only preliminary and might be changed below.
-        let mut vertex_data = [
-            VertexDataInFace { handle: vertex_handles[0], next_face: new_fh },
-            VertexDataInFace { handle: vertex_handles[1], next_face: new_fh },
-            VertexDataInFace { handle: vertex_handles[2], next_face: new_fh },
-        ];
+        let mut vertex_data = vertex_handles.map(|handle| VertexDataInFace {
+            handle,
+            next_face: new_fh,
+        });
 
         for i in 0..3 {
             let vh = vertex_handles[i];
@@ -513,8 +514,7 @@ impl TriMeshMut for LinkedFaceMesh {
 
 impl TriVerticesOfFace for LinkedFaceMesh {
     fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3] {
-        let d = &self.faces[face].vertex_data;
-        [d[0].handle, d[1].handle, d[2].handle]
+        self.faces[face].vertex_data.map(|d| d.handle)
     }
 }
 
