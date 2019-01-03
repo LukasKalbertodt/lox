@@ -1,7 +1,7 @@
 use crate::{
     handle::{DefaultInt, FaceHandle, VertexHandle},
     refs::{FaceRef, VertexRef},
-    util::DynList,
+    util::{DynList, TriList},
 };
 
 
@@ -97,7 +97,7 @@ pub trait TriMeshMut: TriMesh + MeshMut {
 
 /// Meshes with *O*(1) face-to-vertex neighborhood information.
 pub trait TriVerticesOfFace: TriMesh {
-    /// Returns the vertices of the given triangular face in face-front CCW
+    /// Returns the vertices of the given triangular face in front-face CCW
     /// order.
     fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3];
 
@@ -106,6 +106,14 @@ pub trait TriVerticesOfFace: TriMesh {
         self.vertices_of_face(face).contains(&vertex)
     }
 }
+
+/// Meshes with *O*(1) face-to-face neighborhood information.
+pub trait TriFacesAroundFace: TriMesh {
+    /// Returns the faces around the given triangular face in front-face CCW
+    /// order.
+    fn faces_around_face(&self, face: FaceHandle) -> TriList<FaceHandle>;
+}
+
 /// Meshes with *O*(1) vertex-to-face neighborhood information.
 pub trait FacesAroundVertex: Mesh {
     /// Returns a list of all faces adjacent to the given vertex.
