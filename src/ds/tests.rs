@@ -32,20 +32,49 @@ macro_rules! assert_eq_set {
 /// it's more or less equivalent to `assert_eq_set`.
 macro_rules! assert_eq_order {
     ($list:expr, []) => {{
-        assert!($list.is_empty());
+        assert_eq!($list, []);
     }};
-    ($list:expr, [$a:ident $(, $tail:ident)*]) => {{
-        let slice = $list;
-        #[allow(unused_mut, unused_variables)]
-        let mut pos = slice.iter().position(|&e| e == $a)
-            .expect(concat!(stringify!($a), " not found in ", stringify!($list)));
+    ($list:expr, [$a:expr $(, $tail:expr)*]) => {{
+        let actual = $list;
+        let expected = [$a $(, $tail)*];
 
-        assert_eq!(slice.len(), [$a $(, $tail)*].len());
+        if actual.len() != expected.len() {
+            panic!(
+                "assert_eq_order failed (length mismatch): \n  \
+                    left: `{:?}` (`{}`),\n \
+                    right: `{:?}`",
+                actual,
+                stringify!($list),
+                expected,
+            );
+        }
 
-        $(
-            pos = (pos + 1) % slice.len();
-            assert_eq!(slice[pos], $tail);
-        )*
+        let pos = actual.iter().position(|&e| e == $a).expect(concat!(
+            "assert_eq_order failed: ",
+            stringify!($a),
+            " not found in ",
+            stringify!($list),
+            " (expected `[",
+            stringify!($a),
+            $(", ", stringify!($tail),)*
+            "]`)",
+        ));
+
+        let mut rotated = expected;
+        rotated.rotate_right(pos);
+
+
+        if actual != rotated {
+            panic!(
+                "assert_eq_order failed: \n  \
+                    left: `{:?}` (`{}`),\n \
+                    right: `{:?}` (original `{:?}`)",
+                actual,
+                stringify!($list),
+                rotated,
+                expected,
+            );
+        }
     }};
 }
 
