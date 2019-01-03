@@ -6,10 +6,10 @@ use crate::{
     map::{VecMap, PropMap},
     traits::{
         Empty, TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut,
-        FacesAroundVertex, VerticesAroundVertex,
+        FacesAroundVertex, VerticesAroundVertex, TriFacesAroundFace,
     },
     refs::{FaceRef, VertexRef},
-    util::{DynList, TriArrayExt},
+    util::{DynList, TriList, TriArrayExt},
 };
 
 
@@ -526,6 +526,25 @@ impl TriVerticesOfFace for LinkedFaceMesh {
     }
 }
 
+impl TriFacesAroundFace for LinkedFaceMesh {
+    fn faces_around_face(&self, face: FaceHandle) -> TriList<FaceHandle> {
+        let data = &self.faces[face].vertex_data;
+
+        TriList::new([0, 1, 2].map(|i| {
+            let v = &data[i];
+
+            // Check if the `next_face` is adjacent to `face`. If it's not, we
+            // don't emit it.
+            let shared = data[(i + 1) % 3].handle;
+            if v.next_face != face && self.faces[v.next_face].is_adjacent_to(shared) {
+                Some(v.next_face)
+            } else {
+                None
+            }
+        }))
+    }
+}
+
 impl FacesAroundVertex for LinkedFaceMesh {
     fn faces_around_vertex(
         &self,
@@ -692,6 +711,7 @@ mod test {
         FacesAroundVertex,
         VerticesAroundVertex,
         TriVerticesOfFace,
+        TriFacesAroundFace,
         Manifold
     ]);
 }
