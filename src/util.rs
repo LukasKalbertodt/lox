@@ -95,6 +95,12 @@ impl<T> TriList<T> {
         &self.0
     }
 
+    /// Converts all elements of this list into a `Vec<T>`. Equivalent to
+    /// `self.into_iter().collect()`.
+    pub fn into_vec(self) -> Vec<T> {
+        self.into_iter().collect()
+    }
+
     /// Returns an iterator over references to this list's elements. See
     /// [`into_iter`](#impl-IntoIterator) for a consuming iterator.
     pub fn iter(&self) -> TriListIter<'_, T> {
