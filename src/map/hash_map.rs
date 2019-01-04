@@ -4,7 +4,10 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use crate::handle::Handle;
+use crate::{
+    handle::Handle,
+    traits::Empty,
+};
 use super::{boo, PropMap, PropStore, PropStoreMut};
 
 
@@ -86,6 +89,12 @@ impl<H: Handle + Hash, T> IndexMut<H> for HashMap<H, T> {
     }
 }
 
+impl<H: Handle + Hash, T> Empty for HashMap<H, T> {
+    fn empty() -> Self {
+        Self::new()
+    }
+}
+
 impl<H: Handle + Hash, T> PropStoreMut<H> for HashMap<H, T> {
     fn get_mut(&mut self, handle: H) -> Option<&mut Self::Output> {
         self.0.get_mut(&handle)
@@ -97,10 +106,6 @@ impl<H: Handle + Hash, T> PropStoreMut<H> for HashMap<H, T> {
 
     fn remove(&mut self, handle: H) -> Option<Self::Output> {
         self.0.remove(&handle)
-    }
-
-    fn empty() -> Self where Self: Sized {
-        Self::new()
     }
 
     fn clear(&mut self) {

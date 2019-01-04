@@ -9,6 +9,7 @@ use stable_vec::{Keys, StableVec};
 
 use crate::{
     handle::{DefaultInt, Handle},
+    traits::Empty,
 };
 use super::{
     PropMap, PropStore, PropStoreMut,
@@ -169,6 +170,12 @@ impl<H: Handle, T> IndexMut<H> for VecMap<H, T> {
     }
 }
 
+impl<H: Handle, T> Empty for VecMap<H, T> {
+    fn empty() -> Self {
+        Self::new()
+    }
+}
+
 impl<H: Handle, T> PropStoreMut<H> for VecMap<H, T> {
     fn get_mut(&mut self, handle: H) -> Option<&mut Self::Output> {
         self.vec.get_mut(handle.to_usize())
@@ -196,10 +203,6 @@ impl<H: Handle, T> PropStoreMut<H> for VecMap<H, T> {
 
     fn remove(&mut self, handle: H) -> Option<Self::Output> {
         self.vec.remove(handle.to_usize())
-    }
-
-    fn empty() -> Self where Self: Sized {
-        Self::new()
     }
 
     fn clear(&mut self) {

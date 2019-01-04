@@ -8,6 +8,7 @@ use smallvec::SmallVec;
 
 use crate::{
     handle::Handle,
+    traits::Empty,
 };
 use super::{
     PropMap, PropStore, PropStoreMut,
@@ -92,6 +93,12 @@ impl<H: Handle, T> IndexMut<H> for TinyMap<H, T> {
     }
 }
 
+impl<H: Handle, T> Empty for TinyMap<H, T> {
+    fn empty() -> Self {
+        Self::new()
+    }
+}
+
 impl<H: Handle, T> PropStoreMut<H> for TinyMap<H, T> {
     fn get_mut(&mut self, query: H) -> Option<&mut Self::Output> {
         self.vec.iter_mut()
@@ -115,10 +122,6 @@ impl<H: Handle, T> PropStoreMut<H> for TinyMap<H, T> {
         } else {
             None
         }
-    }
-
-    fn empty() -> Self where Self: Sized {
-        Self::new()
     }
 
     fn clear(&mut self) {

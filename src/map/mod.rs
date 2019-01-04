@@ -7,6 +7,7 @@ use std::{
 
 use crate::{
     handle::Handle,
+    traits::Empty,
 };
 
 
@@ -262,7 +263,7 @@ pub trait PropStore<H: Handle>: PropMap<H> + ops::Index<H> {
 
 // TODO: maybe combine this with `PropStore`?
 /// ...
-pub trait PropStoreMut<H: Handle>: PropStore<H> + ops::IndexMut<H> {
+pub trait PropStoreMut<H: Handle>: Empty + PropStore<H> + ops::IndexMut<H> {
     /// Returns a mutable reference to the property associated with `handle` or
     /// `None` if no such property exists.
     fn get_mut(&mut self, handle: H) -> Option<&mut Self::Output>;
@@ -279,9 +280,6 @@ pub trait PropStoreMut<H: Handle>: PropStore<H> + ops::IndexMut<H> {
     fn remove(&mut self, handle: H) -> Option<Self::Output>
     where
         Self::Output: Sized;
-
-    /// Returns an empty instance which doesn't contain any properties yet.
-    fn empty() -> Self where Self: Sized;
 
     /// Removes all properties so that all `contains_handle()` returns `false`
     /// for all handles.
