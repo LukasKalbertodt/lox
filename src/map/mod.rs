@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    handle::Handle,
+    handle::{DefaultInt, Handle},
     traits::Empty,
 };
 
@@ -245,7 +245,7 @@ pub trait PropStore<H: Handle>: PropMap<H> + ops::Index<H> {
     fn get_ref(&self, handle: H) -> Option<&Self::Output>;
 
     /// Returns the number of properties stored in this map.
-    fn num_props(&self) -> usize;
+    fn num_props(&self) -> DefaultInt;
 
     /// Returns an iterator over all handles that have a value associated with
     /// them.
@@ -286,9 +286,9 @@ pub trait PropStoreMut<H: Handle>: Empty + PropStore<H> + ops::IndexMut<H> {
     fn clear(&mut self);
 
     /// Reserves memory for at least `additional` new properties.
-    fn reserve(&mut self, additional: usize);
+    fn reserve(&mut self, additional: DefaultInt);
 
-    fn with_capacity(cap: usize) -> Self
+    fn with_capacity(cap: DefaultInt) -> Self
     where
         Self: Sized,
     {

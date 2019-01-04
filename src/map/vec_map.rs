@@ -152,8 +152,8 @@ impl<H: Handle, T> PropStore<H> for VecMap<H, T> {
         self.vec.get(handle.to_usize())
     }
 
-    fn num_props(&self) -> usize {
-        self.vec.num_elements()
+    fn num_props(&self) -> DefaultInt {
+        self.vec.num_elements() as DefaultInt
     }
 
     fn handles<'a>(&'a self) -> Box<dyn Iterator<Item = H> + 'a> {
@@ -209,8 +209,8 @@ impl<H: Handle, T> PropStoreMut<H> for VecMap<H, T> {
         self.vec.clear()
     }
 
-    fn reserve(&mut self, additional: usize) {
-        self.vec.reserve(additional);
+    fn reserve(&mut self, additional: DefaultInt) {
+        self.vec.reserve(additional as usize);
     }
 }
 
