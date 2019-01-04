@@ -287,4 +287,13 @@ pub trait PropStoreMut<H: Handle>: Empty + PropStore<H> + ops::IndexMut<H> {
 
     /// Reserves memory for at least `additional` new properties.
     fn reserve(&mut self, additional: usize);
+
+    fn with_capacity(cap: usize) -> Self
+    where
+        Self: Sized,
+    {
+        let mut out = Self::empty();
+        out.reserve(cap);
+        out
+    }
 }
