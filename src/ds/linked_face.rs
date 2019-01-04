@@ -276,10 +276,6 @@ impl LinkedFaceMesh {
         let before_first_hole = before_first_hole
             .expect("new face would add a non-manifold vertex (no hole found in cycle)");
 
-        println!("    ... before_first_hole: {:?}", before_first_hole);
-        println!("    ... prior: {:?}", prior);
-        println!("    ... next:  {:?}", next);
-
 
         // Now we have to decide what to do depending on whether we found a
         // face prior to/after the new one.
@@ -485,8 +481,6 @@ impl TriMesh for LinkedFaceMesh {}
 
 impl TriMeshMut for LinkedFaceMesh {
     fn add_face(&mut self, vertex_handles: [VertexHandle; 3]) -> FaceHandle {
-        println!("> add_face({:?})", vertex_handles);
-
         let new_fh = self.faces.next_push_handle();
 
         // Create the array of vertex data stored in the face. The `next_face`
@@ -499,8 +493,6 @@ impl TriMeshMut for LinkedFaceMesh {
         for i in 0..3 {
             let vh = vertex_handles[i];
             let v = &mut self.vertices[vh];
-
-            println!("   > Handling vertex {} ({:?})", i, vh);
 
             if let Some(face_of_vertex) = v.face.to_option() {
                 // The vertex is already connected to a face. We keep its face
