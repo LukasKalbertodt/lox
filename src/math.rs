@@ -5,7 +5,7 @@ use std::{
     fmt::Debug,
 };
 
-use num_traits::{Num, NumAssign};
+use num_traits::{Num, NumAssign, NumCast};
 #[cfg(feature = "cgmath")]
 use cgmath::{Point3, Vector3};
 
@@ -15,11 +15,14 @@ use cgmath::{Point3, Vector3};
 ///
 /// This trait is automatically implemented for all types that satisfy the
 /// super-trait constraints.
-pub trait PrimitiveNum: 'static + Copy + Debug + Num + PartialOrd + NumAssign {}
+///
+/// Note that this is very similar to `cgmath::BaseNum`. Right now, I think,
+/// the only difference is the additional `'static` bound on this trait.
+pub trait PrimitiveNum: 'static + Copy + Debug + Num + PartialOrd + NumAssign + NumCast {}
 
 impl<T> PrimitiveNum for T
 where
-    T: 'static + Copy + Debug + Num + PartialOrd + NumAssign,
+    T: 'static + Copy + Debug + Num + PartialOrd + NumAssign + NumCast,
 {}
 
 
