@@ -19,6 +19,7 @@ pub extern crate cgmath;
 #[macro_use]
 mod test_utils;
 
+pub mod algo;
 pub mod ds;
 pub mod handle;
 pub mod io;
