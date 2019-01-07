@@ -6,7 +6,7 @@ use crate::{
 };
 
 
-pub fn cog_smoothing<MeshT, MapT>(
+pub fn smooth_simple<MeshT, MapT>(
     mesh: &MeshT,
     vertex_positions: &MapT,
 ) -> VecMap<VertexHandle, MapT::Target>

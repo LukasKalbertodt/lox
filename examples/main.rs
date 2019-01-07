@@ -38,7 +38,7 @@ fn run() -> Result<(), Error> {
     let file = std::env::args().nth(1).expect("no filename given");
     let m: SimpleMesh = ply::read(&file)?;
 
-    let new_pos = algo::cog_smoothing(&m.mesh, &m.vertex_positions);
+    let new_pos = algo::smooth_simple(&m.mesh, &m.vertex_positions);
 
     ply::Serializer::binary()
         // .into_writer(&m.mesh, &m.vertex_positions)
