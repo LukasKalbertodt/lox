@@ -8,12 +8,14 @@
 
 use std::{
     io,
+    path::Path,
 };
 
 use failure::Fail;
 
 use crate::{
-    io::{FileEncoding, parse},
+    Empty,
+    io::{FileEncoding, StreamingSource, MemSink, parse},
 };
 
 mod read;
@@ -29,6 +31,21 @@ pub use self::read::{
     ScalarTypeParseError, ListLenType, RawOffset,
 };
 pub use self::write::{Serializer, Writer};
+
+
+/// Reads the PLY file with the given filename into an empty instance of `T`
+/// and returns that instance.
+///
+/// If you need more control about how and what to read, take a look at
+/// [`Reader`].
+///
+/// TODO: Example
+pub fn read<T: Empty + MemSink, P: AsRef<Path>>(path: P) -> Result<T, Error> {
+    let reader = Reader::open(path)?;
+    let mut out = T::empty();
+    reader.transfer_to(&mut out)?;
+    Ok(out)
+}
 
 
 /// The encoding of a PLY file.

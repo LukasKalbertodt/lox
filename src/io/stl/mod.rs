@@ -69,12 +69,14 @@
 use std::{
     convert::TryFrom,
     io,
+    path::Path,
 };
 
 use failure::Fail;
 
 use crate::{
-    io::{FileEncoding, EncodingNotSupported, parse},
+    Empty,
+    io::{FileEncoding, EncodingNotSupported, StreamingSource, MemSink, parse},
 };
 
 
@@ -86,6 +88,21 @@ mod tests;
 
 pub use self::read::{FnRawSink, Reader, RawSink, RawTriangle, RawResult};
 pub use self::write::{Config, Writer, Sink};
+
+
+/// Reads the STL file with the given filename into an empty instance of `T`
+/// and returns that instance.
+///
+/// If you need more control about how and what to read, take a look at
+/// [`Reader`].
+///
+/// TODO: Example
+pub fn read<T: Empty + MemSink, P: AsRef<Path>>(path: P) -> Result<T, Error> {
+    let reader = Reader::open(path)?;
+    let mut out = T::empty();
+    reader.transfer_to(&mut out)?;
+    Ok(out)
+}
 
 
 /// The two different encodings of STL files.

@@ -36,12 +36,7 @@ fn main() {
 
 fn run() -> Result<(), Error> {
     let file = std::env::args().nth(1).expect("no filename given");
-    let reader = ply::Reader::open(&file)?;
-    let mut m = SimpleMesh {
-        mesh: LinkedFaceMesh::empty(),
-        vertex_positions: VecMap::empty(),
-    };
-    reader.transfer_to(&mut m)?;
+    let m: SimpleMesh = ply::read(&file)?;
 
     let new_pos = algo::cog_smoothing(&m.mesh, &m.vertex_positions);
 
