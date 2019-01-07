@@ -54,6 +54,7 @@ fn run() -> Result<(), Error> {
 }
 
 
+#[derive(Empty)]
 struct SimpleMesh {
     mesh: LinkedFaceMesh,
     vertex_positions: VecMap<VertexHandle, Point3<f32>>,

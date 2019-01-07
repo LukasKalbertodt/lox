@@ -91,7 +91,7 @@ impl MeshInput {
         let crate_ident = if is_internal_call {
             quote! { crate }
         } else {
-            quote! { lox }
+            quote! { ::lox }
         };
 
         // Combine everything
