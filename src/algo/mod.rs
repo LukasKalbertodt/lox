@@ -1,12 +1,8 @@
-use cgmath::{
-    prelude::*,
-    Point3,
-};
-
 use crate::{
     prelude::*,
     map::{VecMap, VertexPropMap},
     math::Pos3Like,
+    refs::VertexRef,
 };
 
 
@@ -20,18 +16,18 @@ where
     MapT::Target: Pos3Like,
 {
     // TODO: things to improve
-    // - calculate centroid directly from iterator instead of pushing to Vec
-    //   first
+    // - Implement `FromIterator` for `VecMap` and then `collect`
     let mut out = VecMap::with_capacity(mesh.num_vertices());
-    let mut positions = Vec::new();
+    let pos_of = |v: VertexRef<'_, MeshT>| {
+        *vertex_positions.get(v.handle()).expect("missing vertex position")
+    };
 
     for v in mesh.vertices() {
-        positions.clear();
-        let ps = v.ring1_neighbors().map(|n| {
-            vertex_positions.get(n.handle()).expect("missing vertex position").to_point3()
-        });
-        positions.extend(ps);
-        let new_pos = Point3::centroid(&positions);
+        let new_pos = v.ring1_neighbors()
+            .map(|n| pos_of(n))
+            .centroid()
+            .unwrap_or(pos_of(v));
+
         out.insert(v.handle(), new_pos.convert());
     }
 

@@ -16,4 +16,5 @@ pub use crate::{
     map::{PropMap, PropStore, PropStoreMut},
     math::{Pos3Like, Vec3Like},
     io::{IntoMeshWriter, MeshWriter},
+    util::{PointIteratorExt, TriArrayExt},
 };

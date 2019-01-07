@@ -1,3 +1,12 @@
+use cgmath::{
+    Point3,
+    prelude::*,
+};
+use num_traits::cast;
+
+use crate::{
+    math::Pos3Like,
+};
 
 /// An extension traits with useful methods for arrays of size 3.
 ///
@@ -36,6 +45,29 @@ impl<'a, T> TriArrayExt for &'a [T; 3] {
     {
         let [a, b, c] = self;
         [mapping(a), mapping(b), mapping(c)]
+    }
+}
+
+pub trait PointIteratorExt {
+    type Point;
+    fn centroid(self) -> Option<Self::Point>;
+}
+
+impl<I> PointIteratorExt for I
+where
+    I: Iterator,
+    I::Item: Pos3Like,
+{
+    type Point = I::Item;
+    fn centroid(mut self) -> Option<Self::Point> {
+        self.next().map(|first| {
+            let first = first.to_point3().to_vec();
+            let (count, total_displacement) = self.fold((1, first), |(count, sum), p| {
+                (count + 1, sum + p.to_point3().to_vec())
+            });
+
+            Point3::from_vec(total_displacement / cast(count).unwrap()).convert()
+        })
     }
 }
 
