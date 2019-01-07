@@ -1,5 +1,6 @@
 use std::{
     fmt,
+    iter::FromIterator,
     marker::PhantomData,
     mem,
     ops::{Index, IndexMut},
@@ -219,6 +220,36 @@ impl<H: Handle, T: fmt::Debug> fmt::Debug for VecMap<H, T> {
         f.debug_map()
             .entries(self.vec.keys().map(|k| (H::from_usize(k), &self.vec[k])))
             .finish()
+    }
+}
+
+impl<H: Handle, T> Extend<(H, T)> for VecMap<H, T> {
+    fn extend<I: IntoIterator<Item = (H, T)>>(&mut self, iter: I) {
+        // We use the same strategy as the std `HashMap`: since keys may be
+        // already present or show multiple times in the iterator, we don't
+        // necessarily want to reserve too much.
+        let iter = iter.into_iter();
+        let cap = if self.is_empty() {
+            // Just reserve the full lower bound
+            iter.size_hint().0
+        } else {
+            // If we are not empty, we just reserve half. That way we
+            // reallocate at most twice.
+            (iter.size_hint().0 + 1) / 2
+        };
+        self.reserve(cap as u32);
+
+        for (handle, value) in iter {
+            self.insert(handle, value);
+        }
+    }
+}
+
+impl<H: Handle, T> FromIterator<(H, T)> for VecMap<H, T> {
+    fn from_iter<I: IntoIterator<Item = (H, T)>>(iter: I) -> Self {
+        let mut out = Self::empty();
+        out.extend(iter);
+        out
     }
 }
 
