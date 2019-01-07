@@ -2,7 +2,7 @@
 
 use crate::{
     handle::{EdgeHandle, FaceHandle, VertexHandle, Handle},
-    traits::VerticesAroundVertex,
+    traits::{VerticesAroundVertex, FacesAroundVertex},
 };
 
 
@@ -144,6 +144,10 @@ multi_impl!{
 impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
     /// Returns an iterator over all ring1 neighbors of this vertex (the
     /// vertices that are directly connected to `self` via an edge).
+    ///
+    /// This is just a convenience method wrapping [`VerticesAroundVertex`].
+    /// For more information about guarantees and the order of returned
+    /// vertices, take a look at its documentation.
     pub fn ring1_neighbors(&self) -> impl Iterator<Item = VertexRef<'a, MeshT>>
     where
         MeshT: VerticesAroundVertex,
@@ -152,11 +156,95 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
         self.mesh.vertices_around_vertex(self.handle)
             .map(move |h| VertexRef::new(mesh, h))
     }
+
+    /// Returns an iterator over all faces adjacent to this vertex.
+    ///
+    /// This is just a convenience method wrapping [`FacesAroundVertex`]. For
+    /// more information about guarantees and the order of returned faces, take
+    /// a look at its documentation.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lox::{
+    ///     prelude::*,
+    ///     refs::VertexRef,
+    ///     ds::LinkedFaceMesh,
+    /// };
+    ///
+    /// //    (A)---(D)
+    /// //     | \ Y |
+    /// //     |  \  |
+    /// //     | X \ |
+    /// //     |    \|
+    /// //    (B)---(C)
+    /// let mut mesh = LinkedFaceMesh::empty();
+    /// let va = mesh.add_vertex();
+    /// let vb = mesh.add_vertex();
+    /// let vc = mesh.add_vertex();
+    /// let vd = mesh.add_vertex();
+    /// let fx = mesh.add_face([va, vc, vb]);
+    /// let fy = mesh.add_face([va, vd, vc]);
+    ///
+    /// let v = VertexRef::new(&mesh, va);
+    /// let face_handles = v.adjacent_faces()
+    ///     .map(|f| f.handle())
+    ///     .collect::<Vec<_>>();
+    ///
+    /// assert_eq!(face_handles.len(), 2);
+    /// assert!(face_handles.contains(&fx));
+    /// assert!(face_handles.contains(&fy));
+    /// ```
+    ///
+    /// Another example:
+    ///
+    /// ```
+    /// #![feature(proc_macro_hygiene)]
+    /// use lox::{
+    ///     mesh,
+    ///     prelude::*,
+    ///     ds::LinkedFaceMesh,
+    ///     map::VecMap,
+    /// };
+    ///
+    /// //    (A)---(D)
+    /// //     | \ Y | \
+    /// //     |  \  |  \
+    /// //     | X \ | Z \
+    /// //     |    \|    \
+    /// //    (B)---(C)---(E)
+    /// let mesh = mesh! {
+    ///     type: LinkedFaceMesh,
+    ///     vertices: [va, vb, vc, vd, ve],
+    ///     faces: [
+    ///         [va, vc, vb],
+    ///         [va, vd, vc],
+    ///         [vd, ve, vc],
+    ///     ],
+    /// };
+    ///
+    /// // Now we have a prop map storing the number of adjacent faces per vertex.
+    /// let number_of_faces = mesh.vertices()
+    ///     .map(|v| (v.handle(), v.adjacent_faces().count()))
+    ///     .collect::<VecMap<_, _>>();
+    /// ```
+    ///
+    ///
+    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'a, MeshT>>
+    where
+        MeshT: FacesAroundVertex,
+    {
+        let mesh = self.mesh;
+        self.mesh.faces_around_vertex(self.handle)
+            .map(move |h| FaceRef::new(mesh, h))
+    }
 }
 
 impl<'a, MeshT: 'a> VertexRefMut<'a, MeshT> {
     /// Returns an iterator over all ring1 neighbors of this vertex (the
     /// vertices that are directly connected to `self` via an edge).
+    ///
+    /// See `VertexRef::ring1_neighbors` for more information.
     pub fn ring1_neighbors(&self) -> impl Iterator<Item = VertexRef<'_, MeshT>>
     where
         MeshT: VerticesAroundVertex,
@@ -164,6 +252,18 @@ impl<'a, MeshT: 'a> VertexRefMut<'a, MeshT> {
         let mesh = &*self.mesh;
         self.mesh.vertices_around_vertex(self.handle)
             .map(move |h| VertexRef::new(mesh, h))
+    }
+
+    /// Returns an iterator over all faces adjacent to this vertex.
+    ///
+    /// See `VertexRef::adjacent_faces` for more information.
+    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'_, MeshT>>
+    where
+        MeshT: FacesAroundVertex,
+    {
+        let mesh = &*self.mesh;
+        self.mesh.faces_around_vertex(self.handle)
+            .map(move |h| FaceRef::new(mesh, h))
     }
 }
 
