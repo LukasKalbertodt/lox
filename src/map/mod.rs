@@ -259,6 +259,10 @@ pub trait PropStore<H: Handle>: PropMap<H> + ops::Index<H> {
     // - Iterator over
     //      - values
     //      - both
+
+    fn is_empty(&self) -> bool {
+        self.num_props() == 0
+    }
 }
 
 // TODO: maybe combine this with `PropStore`?
