@@ -2,6 +2,7 @@
 
 use crate::{
     handle::{EdgeHandle, FaceHandle, VertexHandle, Handle},
+    traits::VerticesAroundVertex,
 };
 
 
@@ -140,6 +141,31 @@ multi_impl!{
     }
 }
 
+impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
+    /// Returns an iterator over all ring1 neighbors of this vertex (the
+    /// vertices that are directly connected to `self` via an edge).
+    pub fn ring1_neighbors(&self) -> impl Iterator<Item = VertexRef<'a, MeshT>>
+    where
+        MeshT: VerticesAroundVertex,
+    {
+        let mesh = self.mesh;
+        self.mesh.vertices_around_vertex(self.handle)
+            .map(move |h| VertexRef::new(mesh, h))
+    }
+}
+
+impl<'a, MeshT: 'a> VertexRefMut<'a, MeshT> {
+    /// Returns an iterator over all ring1 neighbors of this vertex (the
+    /// vertices that are directly connected to `self` via an edge).
+    pub fn ring1_neighbors(&self) -> impl Iterator<Item = VertexRef<'_, MeshT>>
+    where
+        MeshT: VerticesAroundVertex,
+    {
+        let mesh = &*self.mesh;
+        self.mesh.vertices_around_vertex(self.handle)
+            .map(move |h| VertexRef::new(mesh, h))
+    }
+}
 
 
 // ===========================================================================
