@@ -44,7 +44,7 @@ impl MeshInput {
 
         // Create code that adds vertices to the mesh and the corresponding
         // properties to the property maps.
-        let vertex_count = vertices.len();
+        let vertex_count = vertices.len() as u32;
         let mut add_vertices = vertex_maps.iter()
             .map(|map| {
                 quote! {
@@ -67,7 +67,7 @@ impl MeshInput {
 
         // Create code that adds faces to the mesh and the corresponding
         // properties to the property maps.
-        let face_count = faces.len();
+        let face_count = faces.len() as u32;
         let mut add_faces = face_maps.iter()
             .map(|map| {
                 quote! {
