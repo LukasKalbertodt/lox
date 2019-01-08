@@ -22,6 +22,10 @@ pub trait TriArrayExt {
     fn map<F, OutT>(self, mapping: F) -> [OutT; 3]
     where
         F: FnMut(Self::Item) -> OutT;
+
+    fn owned_iter(self) -> TriArrayIntoIter<Self::Item>
+    where
+        Self::Item: Copy;
 }
 
 impl<T> TriArrayExt for [T; 3] {
@@ -34,6 +38,13 @@ impl<T> TriArrayExt for [T; 3] {
         let [a, b, c] = self;
         [mapping(a), mapping(b), mapping(c)]
     }
+
+    fn owned_iter(self) -> TriArrayIntoIter<Self::Item>
+    where
+        Self::Item: Copy
+    {
+        TriArrayIntoIter::new(self)
+    }
 }
 
 impl<'a, T> TriArrayExt for &'a [T; 3] {
@@ -45,6 +56,40 @@ impl<'a, T> TriArrayExt for &'a [T; 3] {
     {
         let [a, b, c] = self;
         [mapping(a), mapping(b), mapping(c)]
+    }
+
+    fn owned_iter(self) -> TriArrayIntoIter<Self::Item>
+    where
+        Self::Item: Copy
+    {
+        TriArrayIntoIter::new([&self[0], &self[1], &self[2]])
+    }
+}
+
+#[derive(Debug)]
+pub struct TriArrayIntoIter<T: Copy> {
+    arr: [T; 3],
+    pos: usize,
+}
+
+impl<T: Copy> TriArrayIntoIter<T> {
+    fn new(arr: [T; 3]) -> Self {
+        Self {
+            arr,
+            pos: 0,
+        }
+    }
+}
+
+impl<T: Copy> Iterator for TriArrayIntoIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos >= 3 {
+            return None;
+        }
+
+        self.pos += 1;
+        Some(self.arr[self.pos - 1])
     }
 }
 
