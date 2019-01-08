@@ -239,7 +239,9 @@ pub trait PropMap<H: Handle> {
 /// - Example how to implement `PropStore`
 /// - When to use `PropMap` and when to use `PropStore`
 /// - Trait alias
-pub trait PropStore<H: Handle>: PropMap<H> + ops::Index<H> {
+pub trait PropStore<H: Handle>:
+    PropMap<H> + ops::Index<H, Output = <Self as PropMap<H>>::Target>
+{
     /// Returns a reference to the property associated with `handle` or `None`
     /// if no such property exists.
     fn get_ref(&self, handle: H) -> Option<&Self::Output>;
