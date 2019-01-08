@@ -2,7 +2,8 @@
 
 use crate::{
     handle::{EdgeHandle, FaceHandle, VertexHandle, Handle},
-    traits::{VerticesAroundVertex, FacesAroundVertex},
+    traits::{VerticesAroundVertex, FacesAroundVertex, TriVerticesOfFace},
+    util::TriArrayExt,
 };
 
 
@@ -277,5 +278,18 @@ multi_impl!{
         { impl<'a, MeshT: 'a> FaceRefMut<'a, MeshT> },
     ]
     {
+    }
+}
+
+impl<'a, MeshT: 'a> FaceRef<'a, MeshT> {
+    /// Returns an iterator over all vertices of this face.
+    pub fn adjacent_vertices(&self) -> impl Iterator<Item = VertexRef<'_, MeshT>>
+    where
+        MeshT: TriVerticesOfFace,
+    {
+        let mesh = self.mesh;
+        self.mesh.vertices_of_face(self.handle)
+            .owned_iter()
+            .map(move |h| VertexRef::new(mesh, h))
     }
 }
