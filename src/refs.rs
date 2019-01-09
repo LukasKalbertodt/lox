@@ -82,13 +82,13 @@ macro_rules! multi_impl {
 }
 
 
-impl<'a, HandleT: Handle, MeshT: 'a> ElementRef<'a, HandleT, MeshT> {
+impl<'a, HandleT: Handle, MeshT: 'a + ?Sized> ElementRef<'a, HandleT, MeshT> {
     pub fn new(mesh: &'a MeshT, handle: HandleT) -> Self {
         Self { mesh, handle }
     }
 }
 
-impl<'a, HandleT: Handle, MeshT: 'a> ElementRefMut<'a, HandleT, MeshT> {
+impl<'a, HandleT: Handle, MeshT: 'a + ?Sized> ElementRefMut<'a, HandleT, MeshT> {
     pub fn new(mesh: &'a mut MeshT, handle: HandleT) -> Self {
         Self { mesh, handle }
     }
