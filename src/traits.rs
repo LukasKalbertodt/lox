@@ -112,6 +112,10 @@ pub trait TriFacesAroundFace: TriMesh {
     /// Returns the faces around the given triangular face in front-face CCW
     /// order.
     fn faces_around_face(&self, face: FaceHandle) -> TriList<FaceHandle>;
+
+    fn are_adjacent_faces(&self, a: FaceHandle, b: FaceHandle) -> bool {
+        self.faces_around_face(a).contains(&b)
+    }
 }
 
 /// Meshes with *O*(1) vertex-to-face neighborhood information.

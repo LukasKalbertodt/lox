@@ -2,7 +2,7 @@
 
 use crate::{
     handle::{EdgeHandle, FaceHandle, VertexHandle, Handle},
-    traits::{VerticesAroundVertex, FacesAroundVertex, TriVerticesOfFace},
+    traits::{VerticesAroundVertex, FacesAroundVertex, TriVerticesOfFace, TriFacesAroundFace},
     util::TriArrayExt,
 };
 
@@ -291,5 +291,12 @@ impl<'a, MeshT: 'a> FaceRef<'a, MeshT> {
         self.mesh.vertices_of_face(self.handle)
             .owned_iter()
             .map(move |h| VertexRef::new(mesh, h))
+    }
+
+    pub fn is_adjacent_to_face(&self, fh: FaceHandle) -> bool
+    where
+        MeshT: TriFacesAroundFace,
+    {
+        self.mesh.are_adjacent_faces(self.handle, fh)
     }
 }
