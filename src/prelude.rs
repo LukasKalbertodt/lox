@@ -11,7 +11,7 @@
 
 pub use crate::{
     Mesh, TriMesh, MeshMut, TriMeshMut, TriVerticesOfFace, Empty,
-    FacesAroundVertex, VerticesAroundVertex,
+    FacesAroundVertex, VerticesAroundVertex, TriFacesAroundFace,
     handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
     map::{PropMap, PropStore, PropStoreMut},
     math::{Pos3Like, Vec3Like},
