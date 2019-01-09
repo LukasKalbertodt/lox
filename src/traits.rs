@@ -77,7 +77,7 @@ pub trait MeshMut: Mesh {
     /// ## Example
     ///
     /// ```
-    /// #//TODO: make it run
+    /// # //TODO: make it run
     /// use lox::MeshMut;
     ///
     /// fn add_two_vertices(mesh: &mut impl MeshMut) {
@@ -99,7 +99,7 @@ pub trait MeshMut: Mesh {
     /// ## Example
     ///
     /// ```
-    /// #//TODO: make it run
+    /// # //TODO: make it run
     /// use lox::MeshMut;
     ///
     /// fn add_two_vertices(mesh: &mut impl MeshMut) {
@@ -115,8 +115,8 @@ pub trait MeshMut: Mesh {
     /// If the mesh contains faces, this method will panic:
     ///
     /// ```
-    /// #//TODO: make it run
-    /// use lox::MeshMut;
+    /// # //TODO: make it run
+    /// use lox::TriMeshMut;
     ///
     /// fn add_two_vertices(mesh: &mut impl TriMeshMut) {
     ///     let a = mesh.add_vertex();
