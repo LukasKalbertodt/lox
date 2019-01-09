@@ -183,6 +183,15 @@ impl<T> TriList<T> {
     pub fn iter(&self) -> TriListIter<'_, T> {
         TriListIter(&self.0)
     }
+
+    pub fn contains(&self, needle: &T) -> bool
+    where
+        T: PartialEq,
+    {
+        self.0[0].as_ref() == Some(needle)
+            || self.0[1].as_ref() == Some(needle)
+            || self.0[2].as_ref() == Some(needle)
+    }
 }
 
 impl<T> IntoIterator for TriList<T> {
