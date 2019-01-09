@@ -1,6 +1,6 @@
 use crate::{
-    handle::{DefaultInt, FaceHandle, VertexHandle},
-    refs::{FaceRef, VertexRef},
+    handle::{Handle, DefaultInt, FaceHandle, VertexHandle},
+    refs::{ElementRef, ElementRefMut, FaceRef, VertexRef},
     util::{DynList, TriList},
 };
 
@@ -51,6 +51,17 @@ pub trait Mesh: Empty {
     // TODO: visit_mut
     // TODO: iterator over handles
     // TODO: mutable iterator?
+
+    // ===== Provided methods ================================================
+    /// Returns an `ElementRef` with the given handle referencing this mesh.
+    fn get_ref<H: Handle>(&self, handle: H) -> ElementRef<'_, H, Self> {
+        ElementRef::new(self, handle)
+    }
+
+    /// Returns an `ElementRefMut` with the given handle referencing this mesh.
+    fn get_ref_mut<H: Handle>(&mut self, handle: H) -> ElementRefMut<'_, H, Self> {
+        ElementRefMut::new(self, handle)
+    }
 }
 
 /// Some kind of polygon mesh that allows modifications.
