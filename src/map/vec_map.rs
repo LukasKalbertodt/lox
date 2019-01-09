@@ -109,6 +109,12 @@ impl<H: Handle, T> VecMap<H, T> {
             _dummy: PhantomData,
         }
     }
+
+    pub fn values_mut(&mut self) -> ValuesMut<'_, T> {
+        ValuesMut {
+            iter: self.vec.iter_mut(),
+        }
+    }
 }
 
 impl<H: Handle, T: Clone> VecMap<H, T> {
@@ -264,6 +270,18 @@ impl<'map, H: Handle> Iterator for Handles<'map, H> {
     type Item = H;
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(H::from_usize)
+    }
+}
+
+#[derive(Debug)]
+pub struct ValuesMut<'map, T> {
+    iter: stable_vec::IterMut<'map, T>,
+}
+
+impl<'map, T> Iterator for ValuesMut<'map, T> {
+    type Item = &'map mut T;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
     }
 }
 
