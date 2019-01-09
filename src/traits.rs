@@ -77,6 +77,7 @@ pub trait MeshMut: Mesh {
     /// ## Example
     ///
     /// ```
+    /// #//TODO: make it run
     /// use lox::MeshMut;
     ///
     /// fn add_two_vertices(mesh: &mut impl MeshMut) {
@@ -87,6 +88,51 @@ pub trait MeshMut: Mesh {
     /// }
     /// ```
     fn add_vertex(&mut self) -> VertexHandle;
+
+    /// Removes all vertices of this mesh. This can be more efficient than
+    /// calling [`remvove_vertex`](TODO) for each vertex individually.
+    ///
+    /// The caller of this method has to make sure that all vertices of this
+    /// mesh are unconnected. In other words, there must not be any edges or
+    /// faces in this mesh. Otherwise this function will panic.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// #//TODO: make it run
+    /// use lox::MeshMut;
+    ///
+    /// fn add_two_vertices(mesh: &mut impl MeshMut) {
+    ///     mesh.add_vertex();
+    ///     mesh.add_vertex();
+    ///     assert_eq!(mesh.num_vertices(), 2);
+    ///
+    ///     mesh.remove_all_vertices();
+    ///     assert_eq!(mesh.num_vertices(), 0);
+    /// }
+    /// ```
+    ///
+    /// If the mesh contains faces, this method will panic:
+    ///
+    /// ```
+    /// #//TODO: make it run
+    /// use lox::MeshMut;
+    ///
+    /// fn add_two_vertices(mesh: &mut impl TriMeshMut) {
+    ///     let a = mesh.add_vertex();
+    ///     let b = mesh.add_vertex();
+    ///     let c = mesh.add_vertex();
+    ///     mesh.add_face([a, b, c]);
+    ///
+    ///     // Panics
+    ///     mesh.remove_all_vertices();
+    /// }
+    /// ```
+    fn remove_all_vertices(&mut self);
+
+    /// Removes all faces of this mesh. This can be more efficient than calling
+    /// [`remvove_face`](TODO) for each face individually.
+    fn remove_all_faces(&mut self);
 }
 
 /// A triangular mesh: all faces are triangles.

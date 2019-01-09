@@ -4,7 +4,7 @@ use std::fmt;
 
 use crate::{
     handle::{DefaultInt, FaceHandle, VertexHandle},
-    map::{VecMap, PropMap},
+    map::{VecMap, PropMap, PropStoreMut},
     traits::{Empty, TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut},
     refs::{FaceRef, VertexRef},
 };
@@ -65,6 +65,19 @@ impl Mesh for SharedVertexMesh {
 impl MeshMut for SharedVertexMesh {
     fn add_vertex(&mut self) -> VertexHandle {
         self.vertices.push(())
+    }
+
+    fn remove_all_vertices(&mut self) {
+        assert!(
+            self.num_faces() == 0,
+            "call to `remove_all_vertices`, but there are faces in the mesh!",
+        );
+
+        self.vertices.clear();
+    }
+
+    fn remove_all_faces(&mut self) {
+        self.faces.clear();
     }
 }
 

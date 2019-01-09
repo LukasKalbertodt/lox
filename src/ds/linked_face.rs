@@ -3,7 +3,7 @@
 #[allow(unused_imports)] // TODO
 use crate::{
     handle::{DefaultInt, FaceHandle, VertexHandle, Opt},
-    map::{VecMap, PropMap},
+    map::{VecMap, PropMap, PropStoreMut},
     traits::{
         Empty, TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut,
         FacesAroundVertex, VerticesAroundVertex, TriFacesAroundFace,
@@ -473,6 +473,22 @@ impl MeshMut for LinkedFaceMesh {
         self.vertices.push(Vertex {
             face: Opt::none(),
         })
+    }
+
+    fn remove_all_vertices(&mut self) {
+        assert!(
+            self.num_faces() == 0,
+            "call to `remove_all_vertices`, but there are faces in the mesh!",
+        );
+
+        self.vertices.clear();
+    }
+
+    fn remove_all_faces(&mut self) {
+        self.faces.clear();
+        for v in self.vertices.values_mut() {
+            v.face = Opt::none();
+        }
     }
 }
 
