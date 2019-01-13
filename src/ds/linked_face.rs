@@ -1,11 +1,13 @@
 //! Everything related to the `LinkedFaceMesh`.
 
+use crate as lox;
 #[allow(unused_imports)] // TODO
 use crate::{
+    Empty,
     handle::{DefaultInt, FaceHandle, VertexHandle, Opt},
     map::{VecMap, PropMap, PropStoreMut},
     traits::{
-        Empty, TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut,
+        TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut,
         FacesAroundVertex, VerticesAroundVertex, TriFacesAroundFace,
     },
     refs::{FaceRef, VertexRef},
@@ -14,7 +16,7 @@ use crate::{
 
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Empty)]
 pub struct LinkedFaceMesh {
     vertices: VecMap<VertexHandle, Vertex>,
     faces: VecMap<FaceHandle, Face>,
@@ -104,13 +106,6 @@ impl Face {
 }
 
 impl LinkedFaceMesh {
-    fn new() -> Self {
-        Self {
-            vertices: VecMap::new(),
-            faces: VecMap::new(),
-        }
-    }
-
     /// Creates a circulator iterator around `center` starting at `start_face`.
     fn circulate_around(
         &self,
@@ -429,12 +424,6 @@ impl LinkedFaceMesh {
                 next
             }
         }
-    }
-}
-
-impl Empty for LinkedFaceMesh {
-    fn empty() -> Self {
-        Self::new()
     }
 }
 

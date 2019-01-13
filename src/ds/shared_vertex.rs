@@ -2,16 +2,18 @@
 
 use std::fmt;
 
+use crate as lox;
 use crate::{
+    Empty,
     handle::{DefaultInt, FaceHandle, VertexHandle},
     map::{VecMap, PropMap, PropStoreMut},
-    traits::{Empty, TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut},
+    traits::{TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut},
     refs::{FaceRef, VertexRef},
 };
 
 
 
-#[derive(Clone)]
+#[derive(Clone, Empty)]
 pub struct SharedVertexMesh {
     vertices: VecMap<VertexHandle, ()>,
     faces: VecMap<FaceHandle, [VertexHandle; 3]>,
@@ -19,16 +21,7 @@ pub struct SharedVertexMesh {
 
 impl SharedVertexMesh {
     pub fn new() -> Self {
-        Self {
-            vertices: VecMap::new(),
-            faces: VecMap::new(),
-        }
-    }
-}
-
-impl Empty for SharedVertexMesh {
-    fn empty() -> Self {
-        Self::new()
+        Self::empty()
     }
 }
 

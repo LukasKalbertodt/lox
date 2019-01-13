@@ -44,7 +44,7 @@ pub fn derive_empty(input: TokenStream) -> TokenStream {
     };
 
     // TODO: allow this derive to be used internally (via `crate`)
-    let crate_prefix = quote! { ::lox };
+    let crate_prefix = quote! { lox };
 
     // Prepare stuff for impl header.
     // TODO: maybe add `Empty` bounds to generics?
