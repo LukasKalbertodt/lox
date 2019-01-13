@@ -1,5 +1,6 @@
 use failure::Error;
 
+use crate as lox;
 use crate::{
     mesh,
     prelude::*,
@@ -17,7 +18,7 @@ use super::{
 // ===========================================================================
 
 fn triangle_mesh() -> (SharedVertexMesh, VecMap<VertexHandle, [f32; 3]>) {
-    mesh! {*
+    mesh! {
         type: SharedVertexMesh,
         vertices: [
             v0: ([0.0f32, 0.0, 0.0]),
@@ -102,7 +103,7 @@ fn write_triangle_with_comments_bbe() -> Result<(), Error> {
 }
 
 fn triangle_with_extra_props(encoding: Encoding) -> Result<Vec<u8>, Error> {
-    let (mesh, positions, bar) = mesh! {*
+    let (mesh, positions, bar) = mesh! {
         type: SharedVertexMesh,
         vertices: [
             v0: ([0.0f32, 0.0, 0.0], vec![]),

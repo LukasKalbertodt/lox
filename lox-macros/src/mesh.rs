@@ -14,7 +14,6 @@ use crate::{
 
 #[derive(Debug)]
 pub(crate) struct MeshInput {
-    is_internal_call: bool,
     mesh_type: syn::Path,
     vertices: Vec<(Ident, Vec<syn::Expr>)>,
     faces: Vec<([Ident; 3], Vec<syn::Expr>)>,
@@ -22,7 +21,7 @@ pub(crate) struct MeshInput {
 
 impl MeshInput {
     pub(crate) fn output(self) -> TokenStream {
-        let Self { is_internal_call, mesh_type, vertices, faces } = self;
+        let Self { mesh_type, vertices, faces } = self;
 
         // TODO: reserve memory for the mesh
 
@@ -88,15 +87,14 @@ impl MeshInput {
             }
         }
 
-        let crate_ident = if is_internal_call {
-            quote! { crate }
-        } else {
-            quote! { ::lox }
-        };
-
         // Combine everything
         quote! {{
-            use #crate_ident::{
+            // So: imports are hard. We cannot be sure that the crate `lox` is
+            // used by the crate using this macro. We just have to hope the
+            // user crate doesn't rename the `lox` crate. Additionally, we hope
+            // that the user does not have a local submodule called `lox` since
+            // with uniform paths, that would lead to a ambiguity error.
+            use lox::{
                 MeshMut, TriMeshMut, Empty,
                 map::{PropStoreMut, VecMap},
             };
@@ -170,9 +168,6 @@ impl Parse for MeshInput {
             }
         }
 
-
-        // ----- Check for special internal marker ----
-        let is_internal_call = input.eat_punct(b"*").is_ok();
 
         // ----- Parse type of mesh -------------------
         input.eat_ident("type")?;
@@ -250,7 +245,6 @@ impl Parse for MeshInput {
 
 
         Ok(Self {
-            is_internal_call,
             mesh_type,
             vertices,
             faces,

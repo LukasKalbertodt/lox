@@ -2,6 +2,7 @@
 
 use failure::Error;
 
+use crate as lox;
 use crate::{
     mesh,
     prelude::*,
@@ -124,7 +125,7 @@ fn triangle_mesh() -> (
     VecMap<VertexHandle, [f32; 3]>,
     VecMap<FaceHandle, [f32; 3]>,
 ) {
-    mesh! {*
+    mesh! {
         type: SharedVertexMesh,
         vertices: [
             v0: ([0.0f32, 0.0, 0.0]),

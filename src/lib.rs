@@ -9,6 +9,7 @@
 #![feature(bind_by_move_pattern_guards)]
 #![feature(try_from)]
 #![feature(specialization)]
+#![feature(uniform_paths)]
 
 #![deny(missing_debug_implementations)]
 
