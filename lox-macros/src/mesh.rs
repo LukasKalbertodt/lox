@@ -2,8 +2,8 @@
 
 use proc_macro2::{Ident, Span, TokenStream};
 use syn::{
-    bracketed, parenthesized, Token,
-    parse::{Error, Parse, ParseStream, Result},
+    bracketed, parenthesized, Token, token,
+    parse::{Error, Parse, ParseStream, ParseBuffer, Result},
     punctuated::Punctuated,
 };
 
@@ -117,6 +117,60 @@ impl MeshInput {
 
 impl Parse for MeshInput {
     fn parse(input: ParseStream) -> Result<Self> {
+        /// Parses optional values for vertices or faces:
+        ///
+        ///     <nothing>
+        ///     : expr
+        ///     : (expr)
+        ///     : (expr_a, expr_b)
+        ///
+        /// Returns the (potentially empty) list of expressions. Also checks
+        /// the number of parsed expressions against `expected_len`, if
+        /// provided.
+        fn parse_prop_values(
+            buf: &ParseBuffer,
+            expected_len: Option<usize>,
+        ) -> Result<Vec<syn::Expr>> {
+            if buf.peek(Token![:]) {
+                buf.eat_punct(b":")?;
+
+                // Fork for span information
+                let values_span = buf.cursor().span();
+
+                // Check if multiple values are given (in parenthesis, with
+                // tuple syntax) or if it's only a single value.
+                let values = if buf.peek(token::Paren) {
+                    // Parse values
+                    let values_inner;
+                    parenthesized!(values_inner in buf);
+                    let exprs = values_inner.parse_terminated::<_, Token![,]>(syn::Expr::parse)?;
+                    exprs.into_iter().collect()
+                } else {
+                    vec![buf.parse::<syn::Expr>()?]
+                };
+
+                // Check that the number of values equals the previous
+                // vertices.
+                if let Some(expected_len) = expected_len {
+                    if values.len() != expected_len {
+                        let msg = format!(
+                            "all vertices must have the same number of properties (the first \
+                                vertex has {}, this vertex has {})",
+                            expected_len,
+                            values.len(),
+                        );
+                        return Err(Error::new(values_span, msg));
+                    }
+                }
+
+
+                Ok(values)
+            } else {
+                Ok(vec![])
+            }
+        }
+
+
         // ----- Check for special internal marker ----
         let is_internal_call = input.eat_punct(b"*").is_ok();
 
@@ -136,42 +190,11 @@ impl Parse for MeshInput {
         let mut vertices: Vec<(_, Vec<_>)> = Vec::new();
         // let mut count = None;
         while !inner.is_empty() {
-            // Parse name and colon
+            // Parse name and values
             let name = inner.eat_ident(None)?;
+            let values = parse_prop_values(&inner, vertices.get(0).map(|v| v.1.len()))?;
 
-            // There might or might not be values specified after a colon.
-            let (values, error_span) = if inner.peek(Token![:]) {
-                inner.eat_punct(b":")?;
-
-                // Fork for span information
-                let values_span = inner.cursor().span();
-
-                // Parse values
-                let values_inner;
-                parenthesized!(values_inner in inner);
-                let exprs: Punctuated<_, Token![,]>
-                    = values_inner.parse_terminated(syn::Expr::parse)?;
-
-                (exprs.into_iter().collect(), values_span)
-            } else {
-                (vec![], name.span())
-            };
-
-            // Check that the number of properties of this vertex matches
-            // the number of the first one.
-            if !vertices.is_empty() {
-                if values.len() != vertices[0].1.len() {
-                    let msg = format!(
-                        "all vertices must have the same number of properties (the first \
-                            vertex has {}, this vertex has {})",
-                        vertices[0].1.len(),
-                        values.len(),
-                    );
-                    return Err(Error::new(error_span, msg));
-                }
-            }
-
-            // Eat comma
+            // Eat optional comma
             if !inner.is_empty() {
                 inner.eat_punct(b",")?;
             }
@@ -208,36 +231,9 @@ impl Parse for MeshInput {
                 [it.next().unwrap(), it.next().unwrap(), it.next().unwrap()]
             };
 
-            // There might or might not be values specified after a colon.
-            let (values, error_span) = if inner.peek(Token![:]) {
-                inner.eat_punct(b":")?;
+            // Parse face properties.
+            let values = parse_prop_values(&inner, faces.get(0).map(|v| v.1.len()))?;
 
-                let values_span = inner.cursor().span();
-
-                // Parse values
-                let values_inner;
-                parenthesized!(values_inner in inner);
-                let exprs: Punctuated<_, Token![,]>
-                    = values_inner.parse_terminated(syn::Expr::parse)?;
-
-                (exprs.into_iter().collect(), values_span)
-            } else {
-                (vec![], vertex_list_span)
-            };
-
-            // Check that the number of properties of this faces matches the
-            // number of the first one.
-            if !faces.is_empty() {
-                if values.len() != faces[0].1.len() {
-                    let msg = format!(
-                        "all faces must have the same number of properties (the first \
-                            face has {}, this face has {})",
-                        faces[0].1.len(),
-                        values.len(),
-                    );
-                    return Err(Error::new(error_span, msg));
-                }
-            }
 
             // Eat comma
             if !inner.is_empty() {
