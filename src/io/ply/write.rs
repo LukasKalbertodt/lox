@@ -227,73 +227,18 @@ where // TODO: remove once implied bounds land
 {
     type Error = Error;
 
-    fn write_to(&self, mut w: impl Write) -> Result<(), Self::Error> {
-        // ===================================================================
-        // ===== Write header (this part is always ASCII)
-        // ===================================================================
-        // Magic signature
-        w.write_all(b"ply\n")?;
-
-        // The line defining the format of the file
-        let format_line = match self.config.encoding {
-            Encoding::Ascii => b"format ascii 1.0\n" as &[_],
-            Encoding::BinaryBigEndian => b"format binary_big_endian 1.0\n",
-            Encoding::BinaryLittleEndian => b"format binary_little_endian 1.0\n",
-        };
-        w.write_all(format_line)?;
-
-        // Add all comments
-        for comment in &self.config.comments {
-            writeln!(w, "comment {}", comment)?;
-        }
-
-        // Define `vertex` element with all properties
-        writeln!(w, "element vertex {}", self.mesh.num_vertices())?;
-        self.vertex_props.write_header(&mut w)?;
-
-        // Define `face` element with all properties
-        writeln!(w, "element face {}", self.mesh.num_faces())?;
-        writeln!(w, "property list uchar uint vertex_indices")?;
-        self.face_props.write_header(&mut w)?;
-
-        w.write_all(b"end_header\n")?;
-
-
-        // ===================================================================
-        // ===== Write body
-        // ===================================================================
-        macro_rules! do_with_block {
-            ($block:ident) => {{
-                // Write all vertex properties
-                for v in self.mesh.vertices() {
-                    let mut block = $block::new(&mut w);
-                    self.vertex_props.write_block(v.handle(), &mut block)?;
-                    block.finish()?;
-                }
-
-                for f in self.mesh.faces() {
-                    let mut block = $block::new(&mut w);
-
-                    // Write special `vertex_indices` data
-                    let indices = self.mesh.vertices_of_face(f.handle());
-                    block.add(&3u8)?;
-                    block.add(&indices.map(|i| i.id()))?;
-
-                    // Write all properties
-                    self.face_props.write_block(f.handle(), &mut block)?;
-
-                    block.finish()?;
-                }
-            }}
-        }
-
-        match self.config.encoding {
-            Encoding::Ascii => do_with_block!(AsciiBlock),
-            Encoding::BinaryBigEndian => do_with_block!(BinaryBeBlock),
-            Encoding::BinaryLittleEndian => do_with_block!(BinaryLeBlock),
-        }
-
-        Ok(())
+    fn write_to(&self, w: impl Write) -> Result<(), Self::Error> {
+        write(
+            w,
+            &self.config,
+            self.mesh.num_vertices(),
+            self.mesh.num_faces(),
+            self.mesh.vertices().map(|v| v.handle()),
+            self.mesh.faces().map(|f| f.handle()),
+            |fh| self.mesh.vertices_of_face(fh),
+            &self.vertex_props,
+            &self.face_props,
+        )
     }
 }
 
@@ -658,3 +603,83 @@ macro_rules! gen_binary_block {
 
 gen_binary_block!(BinaryBeBlock, BigEndian);
 gen_binary_block!(BinaryLeBlock, LittleEndian);
+
+
+fn write(
+    mut w: impl Write,
+    config: &Config,
+    num_vertices: u32,
+    num_faces: u32,
+    vertices: impl Iterator<Item = VertexHandle>,
+    faces: impl Iterator<Item = FaceHandle>,
+    vertices_of_face: impl Fn(FaceHandle) -> [VertexHandle; 3],
+    vertex_props: &impl PropList<VertexHandle>,
+    face_props: &impl PropList<FaceHandle>,
+) -> Result<(), Error> {
+    // ===================================================================
+    // ===== Write header (this part is always ASCII)
+    // ===================================================================
+    // Magic signature
+    w.write_all(b"ply\n")?;
+
+    // The line defining the format of the file
+    let format_line = match config.encoding {
+        Encoding::Ascii => b"format ascii 1.0\n" as &[_],
+        Encoding::BinaryBigEndian => b"format binary_big_endian 1.0\n",
+        Encoding::BinaryLittleEndian => b"format binary_little_endian 1.0\n",
+    };
+    w.write_all(format_line)?;
+
+    // Add all comments
+    for comment in &config.comments {
+        writeln!(w, "comment {}", comment)?;
+    }
+
+    // Define `vertex` element with all properties
+    writeln!(w, "element vertex {}", num_vertices)?;
+    vertex_props.write_header(&mut w)?;
+
+    // Define `face` element with all properties
+    writeln!(w, "element face {}", num_faces)?;
+    writeln!(w, "property list uchar uint vertex_indices")?;
+    face_props.write_header(&mut w)?;
+
+    w.write_all(b"end_header\n")?;
+
+
+    // ===================================================================
+    // ===== Write body
+    // ===================================================================
+    macro_rules! do_with_block {
+        ($block:ident) => {{
+            // Write all vertex properties
+            for vh in vertices {
+                let mut block = $block::new(&mut w);
+                vertex_props.write_block(vh, &mut block)?;
+                block.finish()?;
+            }
+
+            for fh in faces {
+                let mut block = $block::new(&mut w);
+
+                // Write special `vertex_indices` data
+                let indices = vertices_of_face(fh);
+                block.add(&3u8)?;
+                block.add(&indices.map(|i| i.id()))?;
+
+                // Write all properties
+                face_props.write_block(fh, &mut block)?;
+
+                block.finish()?;
+            }
+        }}
+    }
+
+    match config.encoding {
+        Encoding::Ascii => do_with_block!(AsciiBlock),
+        Encoding::BinaryBigEndian => do_with_block!(BinaryBeBlock),
+        Encoding::BinaryLittleEndian => do_with_block!(BinaryLeBlock),
+    }
+
+    Ok(())
+}
