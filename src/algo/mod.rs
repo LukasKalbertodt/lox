@@ -96,8 +96,8 @@ where
             let next = faces_cache[(i + 1) % faces_cache.len()];
             if curr.is_adjacent_to_face(next.handle()) {
                 new_faces.push([
-                    new_vertices[curr.handle()],
                     new_vertices[next.handle()],
+                    new_vertices[curr.handle()],
                     v.handle(),
                 ]);
             }
