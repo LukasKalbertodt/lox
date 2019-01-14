@@ -117,10 +117,12 @@ impl Parse for MeshInput {
     fn parse(input: ParseStream) -> Result<Self> {
         /// Parses optional values for vertices or faces:
         ///
+        /// ```text
         ///     <nothing>
         ///     : expr
         ///     : (expr)
         ///     : (expr_a, expr_b)
+        /// ```
         ///
         /// Returns the (potentially empty) list of expressions. Also checks
         /// the number of parsed expressions against `expected_len`, if
