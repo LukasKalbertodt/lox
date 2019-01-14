@@ -570,6 +570,8 @@ impl Iterator for FaceCirculator<'_> {
     }
 }
 
+impl SupportsMultiBlade for FaceDelegateMesh {}
+
 impl VerticesAroundVertex for FaceDelegateMesh {
     fn vertices_around_vertex(
         &self,
@@ -581,8 +583,6 @@ impl VerticesAroundVertex for FaceDelegateMesh {
         })
     }
 }
-
-impl SupportsMultiBlade for FaceDelegateMesh {}
 
 /// Iterator over all neighbor vertices of a vertex. Is returned by
 /// `vertices_around_vertex`.
