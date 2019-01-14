@@ -8,6 +8,7 @@
 
 use std::{
     io,
+    fs::File,
     path::Path,
 };
 
@@ -15,7 +16,7 @@ use failure::Fail;
 
 use crate::{
     Empty,
-    io::{FileEncoding, StreamingSource, MemSink, parse},
+    io::{FileEncoding, StreamingSource, StreamingSink, MemSink, MemSource, parse},
 };
 
 mod read;
@@ -45,6 +46,14 @@ pub fn read<T: Empty + MemSink, P: AsRef<Path>>(path: P) -> Result<T, Error> {
     let mut out = T::empty();
     reader.transfer_to(&mut out)?;
     Ok(out)
+}
+
+pub fn write<T: MemSource, P: AsRef<Path>>(path: P, src: &T) -> Result<(), Error> {
+    let file = io::BufWriter::new(File::create(path)?);
+
+    Config::binary()
+        .into_sink(file)
+        .transfer_from(src)
 }
 
 
