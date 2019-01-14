@@ -1,4 +1,4 @@
-//! Everything related to the `LinkedFaceMesh`.
+//! Everything related to the `FaceDelegateMesh`.
 
 use crate as lox;
 #[allow(unused_imports)] // TODO
@@ -17,7 +17,7 @@ use crate::{
 
 
 #[derive(Debug, Clone, Empty)]
-pub struct LinkedFaceMesh {
+pub struct FaceDelegateMesh {
     vertices: VecMap<VertexHandle, Vertex>,
     faces: VecMap<FaceHandle, Face>,
 }
@@ -82,7 +82,7 @@ impl Face {
             () if self.vertex_data[0].handle == vh => 0,
             () if self.vertex_data[1].handle == vh => 1,
             _ => {
-                debug_assert!(self.vertex_data[2].handle == vh, "internal `LinkedFaceMesh` bug");
+                debug_assert!(self.vertex_data[2].handle == vh, "internal `FaceDelegateMesh` bug");
                 2
             }
         }
@@ -105,7 +105,7 @@ impl Face {
     }
 }
 
-impl LinkedFaceMesh {
+impl FaceDelegateMesh {
     /// Creates a circulator iterator around `center` starting at `start_face`.
     fn circulate_around(
         &self,
@@ -427,7 +427,7 @@ impl LinkedFaceMesh {
     }
 }
 
-impl Mesh for LinkedFaceMesh {
+impl Mesh for FaceDelegateMesh {
     fn num_vertices(&self) -> DefaultInt {
         self.vertices.num_elements()
     }
@@ -457,7 +457,7 @@ impl Mesh for LinkedFaceMesh {
     }
 }
 
-impl MeshMut for LinkedFaceMesh {
+impl MeshMut for FaceDelegateMesh {
     fn add_vertex(&mut self) -> VertexHandle {
         self.vertices.push(Vertex {
             face: Opt::none(),
@@ -482,9 +482,9 @@ impl MeshMut for LinkedFaceMesh {
 }
 
 
-impl TriMesh for LinkedFaceMesh {}
+impl TriMesh for FaceDelegateMesh {}
 
-impl TriMeshMut for LinkedFaceMesh {
+impl TriMeshMut for FaceDelegateMesh {
     fn add_face(&mut self, vertex_handles: [VertexHandle; 3]) -> FaceHandle {
         let new_fh = self.faces.next_push_handle();
 
@@ -517,13 +517,13 @@ impl TriMeshMut for LinkedFaceMesh {
     }
 }
 
-impl TriVerticesOfFace for LinkedFaceMesh {
+impl TriVerticesOfFace for FaceDelegateMesh {
     fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3] {
         self.faces[face].vertex_data.map(|d| d.handle)
     }
 }
 
-impl TriFacesAroundFace for LinkedFaceMesh {
+impl TriFacesAroundFace for FaceDelegateMesh {
     fn faces_around_face(&self, face: FaceHandle) -> TriList<FaceHandle> {
         let data = &self.faces[face].vertex_data;
 
@@ -542,7 +542,7 @@ impl TriFacesAroundFace for LinkedFaceMesh {
     }
 }
 
-impl FacesAroundVertex for LinkedFaceMesh {
+impl FacesAroundVertex for FaceDelegateMesh {
     fn faces_around_vertex(
         &self,
         vh: VertexHandle,
@@ -569,7 +569,7 @@ impl Iterator for FaceCirculator<'_> {
     }
 }
 
-impl VerticesAroundVertex for LinkedFaceMesh {
+impl VerticesAroundVertex for FaceDelegateMesh {
     fn vertices_around_vertex(
         &self,
         vh: VertexHandle,
@@ -651,7 +651,7 @@ impl<'a> From<CirculatorItem<'a>> for VertexDataRef {
 
 
 struct Circulator<'a> {
-    mesh: &'a LinkedFaceMesh,
+    mesh: &'a FaceDelegateMesh,
     center: VertexHandle,
     start_face: Opt<FaceHandle>,
     current_face: Opt<FaceHandle>,
@@ -704,7 +704,7 @@ impl<'a> Iterator for Circulator<'a> {
 mod test {
     use super::*;
 
-    gen_tri_mesh_tests!(LinkedFaceMesh: [
+    gen_tri_mesh_tests!(FaceDelegateMesh: [
         FacesAroundVertex,
         VerticesAroundVertex,
         TriVerticesOfFace,

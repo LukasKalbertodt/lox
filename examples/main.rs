@@ -6,7 +6,7 @@ use failure::{Error, ResultExt};
 
 use lox::{
     algo,
-    ds::{LinkedFaceMesh, SharedVertexMesh},
+    ds::{FaceDelegateMesh, SharedVertexMesh},
     io::{stl, ply, MemSink, StreamingSource},
     map::{ConstMap, FnMap, VecMap},
     math::PrimitiveNum,
@@ -52,7 +52,7 @@ fn run() -> Result<(), Error> {
 
 #[derive(Empty)]
 struct SimpleMesh {
-    mesh: LinkedFaceMesh,
+    mesh: FaceDelegateMesh,
     vertex_positions: VecMap<VertexHandle, Point3<f32>>,
 }
 

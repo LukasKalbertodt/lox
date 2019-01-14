@@ -170,7 +170,7 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
     /// use lox::{
     ///     prelude::*,
     ///     refs::VertexRef,
-    ///     ds::LinkedFaceMesh,
+    ///     ds::FaceDelegateMesh,
     /// };
     ///
     /// //    (A)---(D)
@@ -179,7 +179,7 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
     /// //     | X \ |
     /// //     |    \|
     /// //    (B)---(C)
-    /// let mut mesh = LinkedFaceMesh::empty();
+    /// let mut mesh = FaceDelegateMesh::empty();
     /// let va = mesh.add_vertex();
     /// let vb = mesh.add_vertex();
     /// let vc = mesh.add_vertex();
@@ -204,7 +204,7 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
     /// use lox::{
     ///     mesh,
     ///     prelude::*,
-    ///     ds::LinkedFaceMesh,
+    ///     ds::FaceDelegateMesh,
     ///     map::VecMap,
     /// };
     ///
@@ -215,7 +215,7 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
     /// //     |    \|    \
     /// //    (B)---(C)---(E)
     /// let mesh = mesh! {
-    ///     type: LinkedFaceMesh,
+    ///     type: FaceDelegateMesh,
     ///     vertices: [va, vb, vc, vd, ve],
     ///     faces: [
     ///         [va, vc, vb],
