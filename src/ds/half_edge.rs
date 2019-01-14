@@ -209,8 +209,6 @@ impl MeshMut for HalfEdgeMesh {
 
 impl TriMeshMut for HalfEdgeMesh {
     fn add_face(&mut self, [a, b, c]: [VertexHandle; 3]) -> FaceHandle {
-        println!("add_face([{:?}, {:?}, {:?}])", a, b, c);
-
         // ===================================================================
         // ===== Step 1: Find or add edges with dummy/old `next` handles
         // ===================================================================
@@ -347,8 +345,6 @@ impl TriMeshMut for HalfEdgeMesh {
         // blades are reconnected (this is the `(true, true)` case below) in
         // which case we need to take special care.
         for &(incoming, vh, outgoing) in &corners {
-            println!(">>lop: ({:?}, {:?}, {:?})", incoming, vh, outgoing);
-
             let v = &self.vertices[vh];
             let incoming_face = self.half_edges[incoming].face;
             let outgoing_face = self.half_edges[outgoing].face;
@@ -360,7 +356,6 @@ impl TriMeshMut for HalfEdgeMesh {
                 // but it can be a bit tricky when there are other edges (and
                 // thus a face) connected to that vertex.
                 (false, false) => {
-                    println!("    -> case (false, false)");
                     if v.outgoing.is_some() {
                         // More difficult case: we are creating a multi
                         // fan-blade vertex here. In order to correctly set the
@@ -426,7 +421,6 @@ impl TriMeshMut for HalfEdgeMesh {
                 //                       ^-- this edge are new in the cycle
                 //
                 (true, false) => {
-                    println!("    -> case (true, false)");
                     let before_new = self.prev(incoming.twin());
                     self.half_edges[before_new].next = outgoing;
                 }
@@ -454,7 +448,6 @@ impl TriMeshMut for HalfEdgeMesh {
                 //           ^-- this edge are new in the cycle
                 //
                 (false, true) => {
-                    println!("    -> case (false, true)");
                     self.half_edges[incoming].next = self.half_edges[outgoing.twin()].next;
                 }
 
