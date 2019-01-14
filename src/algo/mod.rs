@@ -48,8 +48,11 @@ pub fn sqrt3_subdivision<MeshT, MapT>(
     vertex_positions: &mut MapT,
 )
 where
-    MeshT: TriMeshMut + TriVerticesOfFace + FacesAroundVertex
-        + TriFacesAroundFace + VerticesAroundVertex,
+    MeshT: TriMeshMut
+        + TriVerticesOfFace
+        + FacesAroundVertex
+        + TriFacesAroundFace
+        + VerticesAroundVertex,
     MapT: PropStoreMut<VertexHandle>,
     MapT::Target: Pos3Like,
 {
