@@ -41,7 +41,7 @@ fn run() -> Result<(), Error> {
     // let new_pos = algo::smooth_simple(&m.mesh, &m.vertex_positions);
     algo::sqrt3_subdivision(&mut m.mesh, &mut m.vertex_positions);
 
-    ply::Serializer::binary()
+    ply::Config::binary()
         .into_writer(&m.mesh, &m.vertex_positions)
         // .into_writer(&m.mesh, &new_pos)
         .write_to_file("smoothed.ply")?;

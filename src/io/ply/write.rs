@@ -32,16 +32,16 @@ use super::{Error, Encoding, Serialize, SingleSerialize, PropSerializer, PropTyp
 
 
 // ===============================================================================================
-// ===== PLY Serializer
+// ===== PLY Config
 // ===============================================================================================
 
 #[derive(Clone, Debug)]
-pub struct Serializer {
+pub struct Config {
     encoding: Encoding,
     comments: Vec<String>,
 }
 
-impl Serializer {
+impl Config {
     pub fn ascii() -> Self {
         Self::new(Encoding::Ascii)
     }
@@ -69,7 +69,7 @@ impl Serializer {
     }
 }
 
-impl<'a, MeshT, PosM> IntoMeshWriter<'a, MeshT, PosM> for Serializer
+impl<'a, MeshT, PosM> IntoMeshWriter<'a, MeshT, PosM> for Config
 where
     MeshT: 'a + TriMesh + TriVerticesOfFace,
     PosM: 'a + VertexPropMap,
@@ -79,7 +79,7 @@ where
     type Writer = Writer<'a, MeshT, ListPosElem<'a, PosM, EmptyList>, EmptyList>;
     fn into_writer(self, mesh: &'a MeshT, vertex_positions: &'a PosM) -> Self::Writer {
         Writer {
-            ser: self,
+            config: self,
             mesh,
             vertex_props: ListPosElem {
                 map: vertex_positions,
@@ -104,7 +104,7 @@ where
     VertexPropsT: PropList<VertexHandle>,
     FacePropsT: PropList<FaceHandle>,
 {
-    ser: Serializer,
+    config: Config,
     mesh: &'a MeshT,
     vertex_props: VertexPropsT,
     vertex_prop_names: HashSet<String>,
@@ -130,7 +130,7 @@ where
         self.add_vertex_prop_name(name.clone());
 
         Writer {
-            ser: self.ser,
+            config: self.config,
             mesh: self.mesh,
             vertex_props: ListSingleElem {
                 name,
@@ -155,7 +155,7 @@ where
         self.add_face_prop_name(name.clone());
 
         Writer {
-            ser: self.ser,
+            config: self.config,
             mesh: self.mesh,
             vertex_props: self.vertex_props,
             vertex_prop_names: self.vertex_prop_names,
@@ -182,7 +182,7 @@ where
         self.add_vertex_prop_name("nz".into());
 
         Writer {
-            ser: self.ser,
+            config: self.config,
             mesh: self.mesh,
             vertex_props: ListVertexNormalElem {
                 map,
@@ -235,7 +235,7 @@ where // TODO: remove once implied bounds land
         w.write_all(b"ply\n")?;
 
         // The line defining the format of the file
-        let format_line = match self.ser.encoding {
+        let format_line = match self.config.encoding {
             Encoding::Ascii => b"format ascii 1.0\n" as &[_],
             Encoding::BinaryBigEndian => b"format binary_big_endian 1.0\n",
             Encoding::BinaryLittleEndian => b"format binary_little_endian 1.0\n",
@@ -243,7 +243,7 @@ where // TODO: remove once implied bounds land
         w.write_all(format_line)?;
 
         // Add all comments
-        for comment in &self.ser.comments {
+        for comment in &self.config.comments {
             writeln!(w, "comment {}", comment)?;
         }
 
@@ -287,7 +287,7 @@ where // TODO: remove once implied bounds land
             }}
         }
 
-        match self.ser.encoding {
+        match self.config.encoding {
             Encoding::Ascii => do_with_block!(AsciiBlock),
             Encoding::BinaryBigEndian => do_with_block!(BinaryBeBlock),
             Encoding::BinaryLittleEndian => do_with_block!(BinaryLeBlock),

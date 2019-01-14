@@ -30,7 +30,7 @@ pub use self::read::{
     RawElementGroup, RawElementIter, RawResult, RawSink, Reader, ScalarType,
     ScalarTypeParseError, ListLenType, RawOffset,
 };
-pub use self::write::{Serializer, Writer};
+pub use self::write::{Config, Writer};
 
 
 /// Reads the PLY file with the given filename into an empty instance of `T`

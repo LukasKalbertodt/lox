@@ -8,7 +8,7 @@ use crate::{
     map::{ConstMap, FnMap, VecMap},
 };
 use super::{
-    Serializer, Encoding, Reader, PropertyType, ScalarType, PropIndex, Property,
+    Config, Encoding, Reader, PropertyType, ScalarType, PropIndex, Property,
     ListLenType, RawOffset, RawResult,
 };
 
@@ -35,7 +35,7 @@ fn triangle_mesh() -> (SharedVertexMesh, VecMap<VertexHandle, [f32; 3]>) {
 fn write_triangle_ascii() -> Result<(), Error> {
     let (mesh, positions) = triangle_mesh();
 
-    let res = Serializer::ascii()
+    let res = Config::ascii()
         .into_writer(&mesh, &positions)
         .write_to_memory()?;
 
@@ -47,7 +47,7 @@ fn write_triangle_ascii() -> Result<(), Error> {
 fn write_triangle_bbe() -> Result<(), Error> {
     let (mesh, positions) = triangle_mesh();
 
-    let res = Serializer::new(Encoding::BinaryBigEndian)
+    let res = Config::new(Encoding::BinaryBigEndian)
         .into_writer(&mesh, &positions)
         .write_to_memory()?;
 
@@ -59,7 +59,7 @@ fn write_triangle_bbe() -> Result<(), Error> {
 fn write_triangle_ble() -> Result<(), Error> {
     let (mesh, positions) = triangle_mesh();
 
-    let res = Serializer::new(Encoding::BinaryLittleEndian)
+    let res = Config::new(Encoding::BinaryLittleEndian)
         .into_writer(&mesh, &positions)
         .write_to_memory()?;
 
@@ -72,7 +72,7 @@ fn write_triangle_ble() -> Result<(), Error> {
 fn write_triangle_with_comments_ascii() -> Result<(), Error> {
     let (mesh, positions) = triangle_mesh();
 
-    let res = Serializer::ascii()
+    let res = Config::ascii()
         .add_comment("My name is Tom")
         .add_comment("Yes we can have multiple comments :)")
         .add_comment(
@@ -89,7 +89,7 @@ fn write_triangle_with_comments_ascii() -> Result<(), Error> {
 fn write_triangle_with_comments_bbe() -> Result<(), Error> {
     let (mesh, positions) = triangle_mesh();
 
-    let res = Serializer::new(Encoding::BinaryBigEndian)
+    let res = Config::new(Encoding::BinaryBigEndian)
         .add_comment("My name is Tom")
         .add_comment("Yes we can have multiple comments :)")
         .add_comment(
@@ -115,7 +115,7 @@ fn triangle_with_extra_props(encoding: Encoding) -> Result<Vec<u8>, Error> {
         ],
     };
 
-    let res = Serializer::new(encoding)
+    let res = Config::new(encoding)
         .into_writer(&mesh, &positions)
         .add_vertex_prop("foo", &ConstMap([0.93f64, 0.2, 0.3]))
         .add_vertex_prop("bar", &FnMap(|h| bar.get(h).map(|v| v.into_inner().as_slice())))
