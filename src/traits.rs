@@ -138,8 +138,8 @@ pub trait MeshMut: Mesh {
 /// A triangular mesh: all faces are triangles.
 pub trait TriMesh: Mesh {}
 
-/// A triangular mesh that allows modifications.
-pub trait TriMeshMut: TriMesh + MeshMut {
+/// A mesh that allows additions of triangular faces.
+pub trait TriMeshMut: MeshMut {
     /// Adds a new triangular face defined by the three vertices to this mesh
     /// and returns the handle representing that face.
     ///
