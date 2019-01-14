@@ -25,7 +25,7 @@ pub mod handle;
 pub mod io;
 pub mod map;
 pub mod math;
-mod traits;
+pub mod traits;
 pub mod prelude;
 pub mod refs;
 pub mod shape;
@@ -33,6 +33,8 @@ pub mod util;
 
 pub use self::{
     handle::{EdgeHandle, FaceHandle, VertexHandle},
+    // TODO: I think we don't want to export them at the top level, but rather
+    // only via the `traits` module and `prelude`.
     traits::{
         Mesh, TriMesh, MeshMut, TriMeshMut, TriVerticesOfFace,
         Empty, FacesAroundVertex, VerticesAroundVertex, TriFacesAroundFace,

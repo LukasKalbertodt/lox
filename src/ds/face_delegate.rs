@@ -9,6 +9,7 @@ use crate::{
     traits::{
         TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut,
         FacesAroundVertex, VerticesAroundVertex, TriFacesAroundFace,
+        SupportsMultiBlade,
     },
     refs::{FaceRef, VertexRef},
     util::{DynList, TriList, TriArrayExt},
@@ -581,6 +582,8 @@ impl VerticesAroundVertex for FaceDelegateMesh {
     }
 }
 
+impl SupportsMultiBlade for FaceDelegateMesh {}
+
 /// Iterator over all neighbor vertices of a vertex. Is returned by
 /// `vertices_around_vertex`.
 struct VertexCirculator<'a> {
@@ -709,6 +712,7 @@ mod test {
         VerticesAroundVertex,
         TriVerticesOfFace,
         TriFacesAroundFace,
-        Manifold
+        Manifold,
+        SupportsMultiBlade
     ]);
 }

@@ -420,304 +420,304 @@ macro_rules! gen_tri_mesh_tests {
             });
         }
 
-        // TODO: maybe make this optional? Dunno if all mesh DSs need to
-        // support this.
-        #[test]
-        fn vertex_with_two_blades() {
-            //
-            //      (b)-------(c)
-            //        \       /
-            //         \  X  /
-            //          \   /
-            //           \ /
-            //           (a)
-            //           / \
-            //          /   \
-            //         /  Y  \
-            //        /       \
-            //      (d)-------(e)
-            //
+        gen_tri_mesh_tests!(@if_item SupportsMultiBlade in [$($extra),*] => {
+            #[test]
+            fn vertex_with_two_blades() {
+                //
+                //      (b)-------(c)
+                //        \       /
+                //         \  X  /
+                //          \   /
+                //           \ /
+                //           (a)
+                //           / \
+                //          /   \
+                //         /  Y  \
+                //        /       \
+                //      (d)-------(e)
+                //
 
-            let mut m = $name::empty();
-            let va = m.add_vertex();
-            let vb = m.add_vertex();
-            let vc = m.add_vertex();
-            let vd = m.add_vertex();
-            let ve = m.add_vertex();
+                let mut m = $name::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                let ve = m.add_vertex();
 
-            let fx = m.add_face([va, vc, vb]);
-            let fy = m.add_face([va, vd, ve]);
+                let fx = m.add_face([va, vc, vb]);
+                let fy = m.add_face([va, vd, ve]);
 
-
-            // ----- Check stuff
-            assert_eq!(m.num_faces(), 2);
-            assert_eq!(m.num_vertices(), 5);
-
-            assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy]);
-            assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve]);
-
-            gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
-                assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
-                assert_eq_order!(m.vertices_of_face(fy), [va, vd, ve]);
-            });
-
-            gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
-                assert_eq_order!(m.faces_around_vertex(va).into_vec(), [fx, fy]);
-                assert_eq_order!(m.faces_around_vertex(vb).into_vec(), [fx]);
-                assert_eq_order!(m.faces_around_vertex(vc).into_vec(), [fx]);
-                assert_eq_order!(m.faces_around_vertex(vd).into_vec(), [fy]);
-                assert_eq_order!(m.faces_around_vertex(ve).into_vec(), [fy]);
-            });
-
-            gen_tri_mesh_tests!(@if VerticesAroundVertex in [$($extra),*] => {
-                assert_eq_order!(m.vertices_around_vertex(va).into_vec(), [vb, vc, ve, vd]);
-                assert_eq_order!(m.vertices_around_vertex(vb).into_vec(), [vc, va]);
-                assert_eq_order!(m.vertices_around_vertex(vc).into_vec(), [va, vb]);
-                assert_eq_order!(m.vertices_around_vertex(vd).into_vec(), [va, ve]);
-                assert_eq_order!(m.vertices_around_vertex(ve).into_vec(), [vd, va]);
-            });
-
-            gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
-                assert_eq_order!(m.faces_around_face(fx).into_vec(), []);
-                assert_eq_order!(m.faces_around_face(fy).into_vec(), []);
-            });
-        }
-
-        #[test]
-        fn vertex_with_three_blades() {
-            //
-            //       (b)-------(c)
-            //         \       /
-            //          \  X  /
-            //           \   /
-            //            \ /
-            //  (g)-------(a)-------(d)
-            //    \       / \       /
-            //     \  Z  /   \  Y  /
-            //      \   /     \   /
-            //       \ /       \ /
-            //       (f)       (e)
-            //
-
-            let mut m = $name::empty();
-            let va = m.add_vertex();
-            let vb = m.add_vertex();
-            let vc = m.add_vertex();
-            let vd = m.add_vertex();
-            let ve = m.add_vertex();
-            let vf = m.add_vertex();
-            let vg = m.add_vertex();
-
-            let fx = m.add_face([va, vc, vb]);
-            let fy = m.add_face([va, ve, vd]);
-            let fz = m.add_face([va, vg, vf]);
-
-
-            // ----- Check stuff
-            assert_eq!(m.num_faces(), 3);
-            assert_eq!(m.num_vertices(), 7);
-
-            assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy, fz]);
-            assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve, vf, vg]);
-
-            gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
-                assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
-                assert_eq_order!(m.vertices_of_face(fy), [va, ve, vd]);
-                assert_eq_order!(m.vertices_of_face(fz), [va, vg, vf]);
-            });
-
-            gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
-                // We can't assume any order for the faces around (a).
-                assert_eq_set!(m.faces_around_vertex(va), [fx, fy, fz]);
-
-                assert_eq_order!(m.faces_around_vertex(vb).into_vec(), [fx]);
-                assert_eq_order!(m.faces_around_vertex(vc).into_vec(), [fx]);
-                assert_eq_order!(m.faces_around_vertex(vd).into_vec(), [fy]);
-                assert_eq_order!(m.faces_around_vertex(ve).into_vec(), [fy]);
-                assert_eq_order!(m.faces_around_vertex(vf).into_vec(), [fz]);
-                assert_eq_order!(m.faces_around_vertex(vg).into_vec(), [fz]);
-            });
-
-            gen_tri_mesh_tests!(@if VerticesAroundVertex in [$($extra),*] => {
-                assert_eq_set!(m.vertices_around_vertex(va), [vb, vc, vd, ve, vf, vg]);
-
-                assert_eq_order!(m.vertices_around_vertex(vb).into_vec(), [vc, va]);
-                assert_eq_order!(m.vertices_around_vertex(vc).into_vec(), [va, vb]);
-                assert_eq_order!(m.vertices_around_vertex(vd).into_vec(), [va, ve]);
-                assert_eq_order!(m.vertices_around_vertex(ve).into_vec(), [vd, va]);
-                assert_eq_order!(m.vertices_around_vertex(vf).into_vec(), [va, vg]);
-                assert_eq_order!(m.vertices_around_vertex(vg).into_vec(), [vf, va]);
-            });
-
-            gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
-                assert_eq_order!(m.faces_around_face(fx).into_vec(), []);
-                assert_eq_order!(m.faces_around_face(fy).into_vec(), []);
-                assert_eq_order!(m.faces_around_face(fz).into_vec(), []);
-            });
-        }
-
-        #[test]
-        fn connect_two_blades_around_vertex() {
-            // We start with the same mesh as in `vertex_with_three_blades` and
-            // will then add a face in two different ways.
-            //
-            // Since the order of the three blades is not defined, we should be
-            // able to connect any two blades. All these faces should be valid
-            // insertions:
-            // - [d, c, a]
-            // - [f, c, a]
-            // - [b, e, a]
-            // - [b, g, a]
-            // - [a, d, g]
-            // - [e, a, f]
-            //
-            // We only check everything for the first two, but still try to
-            // insert the last four just to check that nothing panics.
-            //
-            //       (b)-------(c)
-            //         \       /
-            //          \  X  /
-            //           \   /
-            //            \ /
-            //  (g)-------(a)-------(d)
-            //    \       / \       /
-            //     \  Z  /   \  Y  /
-            //      \   /     \   /
-            //       \ /       \ /
-            //       (f)       (e)
-            //
-
-            let mut m = $name::empty();
-            let va = m.add_vertex();
-            let vb = m.add_vertex();
-            let vc = m.add_vertex();
-            let vd = m.add_vertex();
-            let ve = m.add_vertex();
-            let vf = m.add_vertex();
-            let vg = m.add_vertex();
-
-            let fx = m.add_face([va, vc, vb]);
-            let fy = m.add_face([va, ve, vd]);
-            let fz = m.add_face([va, vg, vf]);
-
-
-            // Insert [d, c, a]
-            {
-                let mut m = m.clone();
-                let f = m.add_face([vd, vc, va]);
 
                 // ----- Check stuff
-                assert_eq!(m.num_faces(), 4);
+                assert_eq!(m.num_faces(), 2);
+                assert_eq!(m.num_vertices(), 5);
+
+                assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy]);
+                assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve]);
+
+                gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
+                    assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
+                    assert_eq_order!(m.vertices_of_face(fy), [va, vd, ve]);
+                });
+
+                gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
+                    assert_eq_order!(m.faces_around_vertex(va).into_vec(), [fx, fy]);
+                    assert_eq_order!(m.faces_around_vertex(vb).into_vec(), [fx]);
+                    assert_eq_order!(m.faces_around_vertex(vc).into_vec(), [fx]);
+                    assert_eq_order!(m.faces_around_vertex(vd).into_vec(), [fy]);
+                    assert_eq_order!(m.faces_around_vertex(ve).into_vec(), [fy]);
+                });
+
+                gen_tri_mesh_tests!(@if VerticesAroundVertex in [$($extra),*] => {
+                    assert_eq_order!(m.vertices_around_vertex(va).into_vec(), [vb, vc, ve, vd]);
+                    assert_eq_order!(m.vertices_around_vertex(vb).into_vec(), [vc, va]);
+                    assert_eq_order!(m.vertices_around_vertex(vc).into_vec(), [va, vb]);
+                    assert_eq_order!(m.vertices_around_vertex(vd).into_vec(), [va, ve]);
+                    assert_eq_order!(m.vertices_around_vertex(ve).into_vec(), [vd, va]);
+                });
+
+                gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
+                    assert_eq_order!(m.faces_around_face(fx).into_vec(), []);
+                    assert_eq_order!(m.faces_around_face(fy).into_vec(), []);
+                });
+            }
+
+            #[test]
+            fn vertex_with_three_blades() {
+                //
+                //       (b)-------(c)
+                //         \       /
+                //          \  X  /
+                //           \   /
+                //            \ /
+                //  (g)-------(a)-------(d)
+                //    \       / \       /
+                //     \  Z  /   \  Y  /
+                //      \   /     \   /
+                //       \ /       \ /
+                //       (f)       (e)
+                //
+
+                let mut m = $name::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                let ve = m.add_vertex();
+                let vf = m.add_vertex();
+                let vg = m.add_vertex();
+
+                let fx = m.add_face([va, vc, vb]);
+                let fy = m.add_face([va, ve, vd]);
+                let fz = m.add_face([va, vg, vf]);
+
+
+                // ----- Check stuff
+                assert_eq!(m.num_faces(), 3);
                 assert_eq!(m.num_vertices(), 7);
 
-                assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy, fz, f]);
+                assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy, fz]);
                 assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve, vf, vg]);
 
                 gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
                     assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
                     assert_eq_order!(m.vertices_of_face(fy), [va, ve, vd]);
                     assert_eq_order!(m.vertices_of_face(fz), [va, vg, vf]);
-                    assert_eq_order!(m.vertices_of_face(f), [vd, vc, va]);
                 });
 
                 gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
-                    // Since we have only two blades again, we can assume order
-                    assert_eq_order!(m.faces_around_vertex(va).into_vec(), [fx, f, fy, fz]);
+                    // We can't assume any order for the faces around (a).
+                    assert_eq_set!(m.faces_around_vertex(va), [fx, fy, fz]);
 
                     assert_eq_order!(m.faces_around_vertex(vb).into_vec(), [fx]);
-                    assert_eq_order!(m.faces_around_vertex(vc).into_vec(), [fx, f]);
-                    assert_eq_order!(m.faces_around_vertex(vd).into_vec(), [fy, f]);
+                    assert_eq_order!(m.faces_around_vertex(vc).into_vec(), [fx]);
+                    assert_eq_order!(m.faces_around_vertex(vd).into_vec(), [fy]);
                     assert_eq_order!(m.faces_around_vertex(ve).into_vec(), [fy]);
                     assert_eq_order!(m.faces_around_vertex(vf).into_vec(), [fz]);
                     assert_eq_order!(m.faces_around_vertex(vg).into_vec(), [fz]);
                 });
 
                 gen_tri_mesh_tests!(@if VerticesAroundVertex in [$($extra),*] => {
-                    assert_eq_order!(
-                        m.vertices_around_vertex(va).into_vec(),
-                        [vb, vc, vd, ve, vf, vg]
-                    );
+                    assert_eq_set!(m.vertices_around_vertex(va), [vb, vc, vd, ve, vf, vg]);
+
                     assert_eq_order!(m.vertices_around_vertex(vb).into_vec(), [vc, va]);
-                    assert_eq_order!(m.vertices_around_vertex(vc).into_vec(), [vd, va, vb]);
-                    assert_eq_order!(m.vertices_around_vertex(vd).into_vec(), [ve, va, vc]);
+                    assert_eq_order!(m.vertices_around_vertex(vc).into_vec(), [va, vb]);
+                    assert_eq_order!(m.vertices_around_vertex(vd).into_vec(), [va, ve]);
                     assert_eq_order!(m.vertices_around_vertex(ve).into_vec(), [vd, va]);
                     assert_eq_order!(m.vertices_around_vertex(vf).into_vec(), [va, vg]);
                     assert_eq_order!(m.vertices_around_vertex(vg).into_vec(), [vf, va]);
                 });
 
                 gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
-                    assert_eq_order!(m.faces_around_face(fx).into_vec(), [f]);
-                    assert_eq_order!(m.faces_around_face(fy).into_vec(), [f]);
-                    assert_eq_order!(m.faces_around_face(fz).into_vec(), []);
-                    assert_eq_order!(
-                        *m.faces_around_face(f).to_array(),
-                        [Some(fx), Some(fy), None]
-                    );
-                });
-            }
-
-            // Insert [f, c, a]
-            {
-                let mut m = m.clone();
-                let f = m.add_face([vf, vc, va]);
-
-                // ----- Check stuff
-                assert_eq!(m.num_faces(), 4);
-                assert_eq!(m.num_vertices(), 7);
-
-                assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy, fz, f]);
-                assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve, vf, vg]);
-
-                gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
-                    assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
-                    assert_eq_order!(m.vertices_of_face(fy), [va, ve, vd]);
-                    assert_eq_order!(m.vertices_of_face(fz), [va, vg, vf]);
-                    assert_eq_order!(m.vertices_of_face(f), [vf, vc, va]);
-                });
-
-                gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
-                    // Since we have only two blades again, we can assume order
-                    assert_eq_order!(m.faces_around_vertex(va).into_vec(), [fx, f, fz, fy]);
-
-                    assert_eq_order!(m.faces_around_vertex(vb).into_vec(), [fx]);
-                    assert_eq_order!(m.faces_around_vertex(vc).into_vec(), [fx, f]);
-                    assert_eq_order!(m.faces_around_vertex(vd).into_vec(), [fy]);
-                    assert_eq_order!(m.faces_around_vertex(ve).into_vec(), [fy]);
-                    assert_eq_order!(m.faces_around_vertex(vf).into_vec(), [fz, f]);
-                    assert_eq_order!(m.faces_around_vertex(vg).into_vec(), [fz]);
-                });
-
-                gen_tri_mesh_tests!(@if VerticesAroundVertex in [$($extra),*] => {
-                    assert_eq_order!(
-                        m.vertices_around_vertex(va).into_vec(),
-                        [vb, vc, vf, vg, vd, ve]
-                    );
-                    assert_eq_order!(m.vertices_around_vertex(vb).into_vec(), [vc, va]);
-                    assert_eq_order!(m.vertices_around_vertex(vc).into_vec(), [vf, va, vb]);
-                    assert_eq_order!(m.vertices_around_vertex(vd).into_vec(), [ve, va]);
-                    assert_eq_order!(m.vertices_around_vertex(ve).into_vec(), [vd, va]);
-                    assert_eq_order!(m.vertices_around_vertex(vf).into_vec(), [vg, va, vc]);
-                    assert_eq_order!(m.vertices_around_vertex(vg).into_vec(), [vf, va]);
-                });
-
-                gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
-                    assert_eq_order!(m.faces_around_face(fx).into_vec(), [f]);
+                    assert_eq_order!(m.faces_around_face(fx).into_vec(), []);
                     assert_eq_order!(m.faces_around_face(fy).into_vec(), []);
-                    assert_eq_order!(m.faces_around_face(fz).into_vec(), [f]);
-                    assert_eq_order!(
-                        *m.faces_around_face(f).to_array(),
-                        [Some(fx), Some(fz), None]
-                    );
+                    assert_eq_order!(m.faces_around_face(fz).into_vec(), []);
                 });
             }
 
-            // Try to insert the remaning faces (just make sure it doesn't
-            // panic).
-            m.clone().add_face([vb, ve, va]);
-            m.clone().add_face([vb, vg, va]);
-            m.clone().add_face([va, vd, vg]);
-            m.clone().add_face([ve, va, vf]);
-        }
+            #[test]
+            fn connect_two_blades_around_vertex() {
+                // We start with the same mesh as in `vertex_with_three_blades` and
+                // will then add a face in two different ways.
+                //
+                // Since the order of the three blades is not defined, we should be
+                // able to connect any two blades. All these faces should be valid
+                // insertions:
+                // - [d, c, a]
+                // - [f, c, a]
+                // - [b, e, a]
+                // - [b, g, a]
+                // - [a, d, g]
+                // - [e, a, f]
+                //
+                // We only check everything for the first two, but still try to
+                // insert the last four just to check that nothing panics.
+                //
+                //       (b)-------(c)
+                //         \       /
+                //          \  X  /
+                //           \   /
+                //            \ /
+                //  (g)-------(a)-------(d)
+                //    \       / \       /
+                //     \  Z  /   \  Y  /
+                //      \   /     \   /
+                //       \ /       \ /
+                //       (f)       (e)
+                //
+
+                let mut m = $name::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                let ve = m.add_vertex();
+                let vf = m.add_vertex();
+                let vg = m.add_vertex();
+
+                let fx = m.add_face([va, vc, vb]);
+                let fy = m.add_face([va, ve, vd]);
+                let fz = m.add_face([va, vg, vf]);
+
+
+                // Insert [d, c, a]
+                {
+                    let mut m = m.clone();
+                    let f = m.add_face([vd, vc, va]);
+
+                    // ----- Check stuff
+                    assert_eq!(m.num_faces(), 4);
+                    assert_eq!(m.num_vertices(), 7);
+
+                    assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy, fz, f]);
+                    assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve, vf, vg]);
+
+                    gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
+                        assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
+                        assert_eq_order!(m.vertices_of_face(fy), [va, ve, vd]);
+                        assert_eq_order!(m.vertices_of_face(fz), [va, vg, vf]);
+                        assert_eq_order!(m.vertices_of_face(f), [vd, vc, va]);
+                    });
+
+                    gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
+                        // Since we have only two blades again, we can assume order
+                        assert_eq_order!(m.faces_around_vertex(va).into_vec(), [fx, f, fy, fz]);
+
+                        assert_eq_order!(m.faces_around_vertex(vb).into_vec(), [fx]);
+                        assert_eq_order!(m.faces_around_vertex(vc).into_vec(), [fx, f]);
+                        assert_eq_order!(m.faces_around_vertex(vd).into_vec(), [fy, f]);
+                        assert_eq_order!(m.faces_around_vertex(ve).into_vec(), [fy]);
+                        assert_eq_order!(m.faces_around_vertex(vf).into_vec(), [fz]);
+                        assert_eq_order!(m.faces_around_vertex(vg).into_vec(), [fz]);
+                    });
+
+                    gen_tri_mesh_tests!(@if VerticesAroundVertex in [$($extra),*] => {
+                        assert_eq_order!(
+                            m.vertices_around_vertex(va).into_vec(),
+                            [vb, vc, vd, ve, vf, vg]
+                        );
+                        assert_eq_order!(m.vertices_around_vertex(vb).into_vec(), [vc, va]);
+                        assert_eq_order!(m.vertices_around_vertex(vc).into_vec(), [vd, va, vb]);
+                        assert_eq_order!(m.vertices_around_vertex(vd).into_vec(), [ve, va, vc]);
+                        assert_eq_order!(m.vertices_around_vertex(ve).into_vec(), [vd, va]);
+                        assert_eq_order!(m.vertices_around_vertex(vf).into_vec(), [va, vg]);
+                        assert_eq_order!(m.vertices_around_vertex(vg).into_vec(), [vf, va]);
+                    });
+
+                    gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
+                        assert_eq_order!(m.faces_around_face(fx).into_vec(), [f]);
+                        assert_eq_order!(m.faces_around_face(fy).into_vec(), [f]);
+                        assert_eq_order!(m.faces_around_face(fz).into_vec(), []);
+                        assert_eq_order!(
+                            *m.faces_around_face(f).to_array(),
+                            [Some(fx), Some(fy), None]
+                        );
+                    });
+                }
+
+                // Insert [f, c, a]
+                {
+                    let mut m = m.clone();
+                    let f = m.add_face([vf, vc, va]);
+
+                    // ----- Check stuff
+                    assert_eq!(m.num_faces(), 4);
+                    assert_eq!(m.num_vertices(), 7);
+
+                    assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy, fz, f]);
+                    assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve, vf, vg]);
+
+                    gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
+                        assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
+                        assert_eq_order!(m.vertices_of_face(fy), [va, ve, vd]);
+                        assert_eq_order!(m.vertices_of_face(fz), [va, vg, vf]);
+                        assert_eq_order!(m.vertices_of_face(f), [vf, vc, va]);
+                    });
+
+                    gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
+                        // Since we have only two blades again, we can assume order
+                        assert_eq_order!(m.faces_around_vertex(va).into_vec(), [fx, f, fz, fy]);
+
+                        assert_eq_order!(m.faces_around_vertex(vb).into_vec(), [fx]);
+                        assert_eq_order!(m.faces_around_vertex(vc).into_vec(), [fx, f]);
+                        assert_eq_order!(m.faces_around_vertex(vd).into_vec(), [fy]);
+                        assert_eq_order!(m.faces_around_vertex(ve).into_vec(), [fy]);
+                        assert_eq_order!(m.faces_around_vertex(vf).into_vec(), [fz, f]);
+                        assert_eq_order!(m.faces_around_vertex(vg).into_vec(), [fz]);
+                    });
+
+                    gen_tri_mesh_tests!(@if VerticesAroundVertex in [$($extra),*] => {
+                        assert_eq_order!(
+                            m.vertices_around_vertex(va).into_vec(),
+                            [vb, vc, vf, vg, vd, ve]
+                        );
+                        assert_eq_order!(m.vertices_around_vertex(vb).into_vec(), [vc, va]);
+                        assert_eq_order!(m.vertices_around_vertex(vc).into_vec(), [vf, va, vb]);
+                        assert_eq_order!(m.vertices_around_vertex(vd).into_vec(), [ve, va]);
+                        assert_eq_order!(m.vertices_around_vertex(ve).into_vec(), [vd, va]);
+                        assert_eq_order!(m.vertices_around_vertex(vf).into_vec(), [vg, va, vc]);
+                        assert_eq_order!(m.vertices_around_vertex(vg).into_vec(), [vf, va]);
+                    });
+
+                    gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
+                        assert_eq_order!(m.faces_around_face(fx).into_vec(), [f]);
+                        assert_eq_order!(m.faces_around_face(fy).into_vec(), []);
+                        assert_eq_order!(m.faces_around_face(fz).into_vec(), [f]);
+                        assert_eq_order!(
+                            *m.faces_around_face(f).to_array(),
+                            [Some(fx), Some(fz), None]
+                        );
+                    });
+                }
+
+                // Try to insert the remaning faces (just make sure it doesn't
+                // panic).
+                m.clone().add_face([vb, ve, va]);
+                m.clone().add_face([vb, vg, va]);
+                m.clone().add_face([va, vd, vg]);
+                m.clone().add_face([ve, va, vf]);
+            }
+        });
 
         gen_tri_mesh_tests!(@if_item Manifold in [$($extra),*] => {
             #[test]
@@ -835,6 +835,7 @@ macro_rules! gen_tri_mesh_tests {
     (@is_valid_extra_trait VerticesAroundVertex) => {};
     (@is_valid_extra_trait TriFacesAroundFace) => {};
     (@is_valid_extra_trait Manifold) => {}; // this is not a real trait yet...
+    (@is_valid_extra_trait SupportsMultiBlade) => {};
     (@is_valid_extra_trait $other:ident) => {
         compile_error!(concat!(
             "`",

@@ -7,7 +7,7 @@ use crate::{
     Empty,
     handle::{DefaultInt, FaceHandle, VertexHandle},
     map::{VecMap, PropMap, PropStoreMut},
-    traits::{TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut},
+    traits::{TriVerticesOfFace, SupportsMultiBlade, Mesh, TriMesh, TriMeshMut, MeshMut},
     refs::{FaceRef, VertexRef},
 };
 
@@ -89,6 +89,8 @@ impl TriVerticesOfFace for SharedVertexMesh {
     }
 }
 
+impl SupportsMultiBlade for SharedVertexMesh {}
+
 
 impl fmt::Debug for SharedVertexMesh {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -110,5 +112,5 @@ impl fmt::Debug for SharedVertexMesh {
 mod test {
     use super::*;
 
-    gen_tri_mesh_tests!(SharedVertexMesh: [TriVerticesOfFace]);
+    gen_tri_mesh_tests!(SharedVertexMesh: [TriVerticesOfFace, SupportsMultiBlade]);
 }
