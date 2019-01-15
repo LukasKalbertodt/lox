@@ -12,6 +12,7 @@ use crate::{
 };
 
 
+#[inline(never)]
 pub fn smooth_simple<MeshT, MapT>(
     mesh: &MeshT,
     vertex_positions: &MapT,
@@ -43,6 +44,7 @@ where
 /// The sqrt(3) subdivision algorithm.
 ///
 /// TODO: explain & link to paper
+#[inline(never)]
 pub fn sqrt3_subdivision<MeshT, MapT>(
     mesh: &mut MeshT,
     vertex_positions: &mut MapT,
