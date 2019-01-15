@@ -22,4 +22,4 @@ lox-macros = { path = "lox-macros" }
 hashbrown = "0.1.3"
 num-traits = "0.2"
 smallvec = { version = "0.6", features = ["union"] }
-stable-vec = "0.2.1"
+stable-vec = "0.3.0"
