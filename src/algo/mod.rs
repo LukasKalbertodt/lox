@@ -58,10 +58,44 @@ where
     MapT: PropStoreMut<VertexHandle>,
     MapT::Target: Pos3Like,
 {
+    struct WeightHelper {
+        cache: Vec<(f64, f64)>,
+    }
+
+    impl WeightHelper {
+        fn new() -> Self {
+            Self {
+                cache: (1..10).map(|v| Self::calc_values(v)).collect(),
+            }
+        }
+
+        fn get(&mut self, valence: u32) -> (f64, f64) {
+            // We don't want to blow our cache. This is a simple fall back for
+            // super strange meshes.
+            if valence > 1000 {
+                return Self::calc_values(valence);
+            }
+
+            // Fill cache with remaining values, if the requested value is not in the cache yet
+            for v in self.cache.len() + 1..valence as usize + 1 {
+                self.cache.push(Self::calc_values(v as u32))
+            }
+
+            self.cache[valence as usize - 1]
+        }
+
+        fn calc_values(valence: u32) -> (f64, f64) {
+            let alpha = (4.0 - 2.0 * (2.0 * std::f64::consts::PI / valence as f64).cos()) / 9.0;
+            (1.0 - alpha, alpha / (valence as f64))
+        }
+    }
+
     // Helper function to get the position of a vertex.
     let pos_of = |vertex_positions: &mut MapT, v: VertexRef<'_, MeshT>| {
         *vertex_positions.get(v.handle()).expect("missing vertex position")
     };
+
+    let mut weights = WeightHelper::new();
 
     // We create a new vertex per face, so we will create a map from face
     // handle to vertex handle. This is done in two steps since we run in
@@ -70,6 +104,49 @@ where
     // TODO: collecting face handles first should not be necessary
     let face_handles = mesh.faces().map(|f| f.handle()).collect::<Vec<_>>();
     let old_vertices = mesh.vertices().map(|v| v.handle()).collect::<Vec<_>>();
+
+    let relaxed_positions = old_vertices.iter().map(|&vh| {
+        let v = mesh.get_ref(vh);
+        let old_pos = pos_of(vertex_positions, v);
+
+        // Count the number of neighbors and calculate the centroid of all
+        // neighbors.
+        let mut valence = 0;
+        let vec_sum = v.ring1_neighbors()
+            .inspect(|_| valence += 1)
+            .map(|v| pos_of(vertex_positions, v).to_point3().to_vec())
+            .sum::<cgmath::Vector3<_>>();
+            // .centroid();
+
+        let relaxed_pos = if valence == 0 {
+            old_pos
+        } else {
+            let (weight_old, weight_new) = weights.get(valence);
+            let old_pos = old_pos.to_point3().to_vec().map(|s| s.to_f64().unwrap());
+            let vec_sum = vec_sum.map(|s| s.to_f64().unwrap());
+
+            (Point3::origin() + (weight_old * old_pos + weight_new * vec_sum))
+                .cast()
+                .unwrap()
+                .convert()
+        };
+
+        // // Se the new vertex position
+        // let relaxed_pos = maybe_centroid.map(|centroid| {
+        //     // We know that there is at least one neighbor vertex, so `valence`
+        //     // is not 0. We simply use the formula from the paper.
+        //     let alpha = (4.0 - 2.0 * (2.0 * std::f64::consts::PI / valence as f64).cos()) / 9.0;
+        //     let old_pos = old_pos.to_point3().to_vec().map(|s| s.to_f64().unwrap());
+        //     let centroid = centroid.to_point3().to_vec().map(|s| s.to_f64().unwrap());
+
+        //     (Point3::origin() + old_pos.lerp(centroid, alpha))
+        //         .cast()
+        //         .unwrap()
+        //         .convert()
+        // }).unwrap_or(old_pos);
+
+        (vh, relaxed_pos)
+    }).collect::<VecMap<_, _>>();
 
     let new_vertices = face_handles.into_iter().map(|fh| {
         // The position of the new vertex is just the centroid of the face's
@@ -87,6 +164,10 @@ where
         // We want build a face -> vertex map
         (fh, vh)
     }).collect::<VecMap<_, _>>();
+
+    for vh in relaxed_positions.handles() {
+        vertex_positions[vh] = relaxed_positions[vh];
+    }
 
 
     // Create a list of new faces we want to add
@@ -117,30 +198,30 @@ where
         mesh.add_face(new_face);
     }
 
-    for vh in old_vertices {
-        let v = mesh.get_ref(vh);
-        let old_pos = pos_of(vertex_positions, v);
+    // for vh in old_vertices {
+    //     let v = mesh.get_ref(vh);
+    //     let old_pos = pos_of(vertex_positions, v);
 
-        // Count the number of neighbors and calculate the centroid of all
-        // neighbors.
-        let mut valence = 0;
-        let maybe_centroid = v.ring1_neighbors()
-            .inspect(|_| valence += 1)
-            .map(|v| pos_of(vertex_positions, v))
-            .centroid();
+    //     // Count the number of neighbors and calculate the centroid of all
+    //     // neighbors.
+    //     let mut valence = 0;
+    //     let maybe_centroid = v.ring1_neighbors()
+    //         .inspect(|_| valence += 1)
+    //         .map(|v| pos_of(vertex_positions, v))
+    //         .centroid();
 
-        // Se the new vertex position
-        vertex_positions[vh] = maybe_centroid.map(|centroid| {
-            // We know that there is at least one neighbor vertex, so `valence`
-            // is not 0. We simply use the formula from the paper.
-            let alpha = (4.0 - 2.0 * (2.0 * std::f64::consts::PI / valence as f64).cos()) / 9.0;
-            let old_pos = old_pos.to_point3().to_vec().map(|s| s.to_f64().unwrap());
-            let centroid = centroid.to_point3().to_vec().map(|s| s.to_f64().unwrap());
+    //     // Se the new vertex position
+    //     vertex_positions[vh] = maybe_centroid.map(|centroid| {
+    //         // We know that there is at least one neighbor vertex, so `valence`
+    //         // is not 0. We simply use the formula from the paper.
+    //         let alpha = (4.0 - 2.0 * (2.0 * std::f64::consts::PI / valence as f64).cos()) / 9.0;
+    //         let old_pos = old_pos.to_point3().to_vec().map(|s| s.to_f64().unwrap());
+    //         let centroid = centroid.to_point3().to_vec().map(|s| s.to_f64().unwrap());
 
-            (Point3::origin() + old_pos.lerp(centroid, alpha))
-                .cast()
-                .unwrap()
-                .convert()
-        }).unwrap_or(old_pos);
-    }
+    //         (Point3::origin() + old_pos.lerp(centroid, alpha))
+    //             .cast()
+    //             .unwrap()
+    //             .convert()
+    //     }).unwrap_or(old_pos);
+    // }
 }
