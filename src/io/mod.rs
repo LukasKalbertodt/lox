@@ -302,7 +302,7 @@ impl<Source: Primitive, Target: Primitive> DowncastAs<Target> for Source {
 // ===== {Streaming/Mem}-Sinks and Sources
 // ==========================================================================
 
-pub trait StreamingSource {
+pub trait StreamSource {
     type Error: Fail;
     fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Self::Error>;
 }
@@ -318,7 +318,7 @@ pub trait MemSink {
     ) {}
 }
 
-pub trait StreamingSink {
+pub trait StreamSink {
     type Error: Fail;
     fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Self::Error>;
 }

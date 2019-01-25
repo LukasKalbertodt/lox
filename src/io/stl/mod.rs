@@ -78,7 +78,7 @@ use failure::Fail;
 use crate::{
     Empty,
     io::{
-        FileEncoding, EncodingNotSupported, StreamingSource, StreamingSink,
+        FileEncoding, EncodingNotSupported, StreamSource, StreamSink,
         MemSink, MemSource, parse
     },
 };

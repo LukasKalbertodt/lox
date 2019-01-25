@@ -7,7 +7,7 @@ use failure::{Error, ResultExt};
 use lox::{
     algo,
     ds::{FaceDelegateMesh, SharedVertexMesh},
-    io::{stl, ply, MemSink, StreamingSource},
+    io::{stl, ply, MemSink, StreamSource},
     map::{ConstMap, FnMap, VecMap},
     math::PrimitiveNum,
     mesh,

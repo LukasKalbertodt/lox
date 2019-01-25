@@ -16,7 +16,7 @@ use failure::Fail;
 
 use crate::{
     Empty,
-    io::{FileEncoding, StreamingSource, StreamingSink, MemSink, MemSource, parse},
+    io::{FileEncoding, StreamSource, StreamSink, MemSink, MemSource, parse},
 };
 
 mod read;

@@ -20,8 +20,8 @@ use lox::{
     handle::DefaultInt,
     map::VecMap,
     io::{
-        FileEncoding, FileFormat, StreamingSource, MemSink, MemSource,
-        StreamingSink, Primitive, PrimitiveType,
+        FileEncoding, FileFormat, StreamSource, MemSink, MemSource,
+        StreamSink, Primitive, PrimitiveType,
         stl,
         ply,
     },

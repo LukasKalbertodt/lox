@@ -24,7 +24,7 @@ use crate::{
     handle::{FaceHandle, Handle, VertexHandle},
     map::{FnMap, PropMap, FacePropMap, VertexPropMap},
     math::{Pos3Like, Vec3Like},
-    io::{IntoMeshWriter, MeshWriter, StreamingSink, MemSource, PrimitiveType},
+    io::{IntoMeshWriter, MeshWriter, StreamSink, MemSource, PrimitiveType},
     util::TriArrayExt,
 };
 use super::{Error, Encoding, Serialize, SingleSerialize, PropSerializer, PropType};
@@ -103,14 +103,14 @@ where
 // ===============================================================================================
 // ===== PLY Sink
 // ===============================================================================================
-/// The [`StreamingSink`] for PLY files. Is created via [`Config::into_sink`].
+/// The [`StreamSink`] for PLY files. Is created via [`Config::into_sink`].
 #[derive(Debug)]
 pub struct Sink<W: io::Write> {
     config: Config,
     writer: W,
 }
 
-impl<W: io::Write> StreamingSink for Sink<W> {
+impl<W: io::Write> StreamSink for Sink<W> {
     type Error = Error;
     fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Self::Error> {
         macro_rules! pos_fn {

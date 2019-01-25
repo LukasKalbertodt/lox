@@ -10,7 +10,7 @@ use crate::{
     handle::{FaceHandle, VertexHandle},
     map::{EmptyMap, FacePropMap, VertexPropMap},
     math::{Pos3Like, Vec3Like},
-    io::{IntoMeshWriter, MeshWriter, StreamingSink, MemSource, PrimitiveType},
+    io::{IntoMeshWriter, MeshWriter, StreamSink, MemSource, PrimitiveType},
 };
 use super::{Error, Encoding};
 
@@ -98,14 +98,14 @@ where
 // ===== STL Sink
 // ===============================================================================================
 
-/// The [`StreamingSink`] for STL files. Is created via [`Config::into_sink`].
+/// The [`StreamSink`] for STL files. Is created via [`Config::into_sink`].
 #[derive(Debug)]
 pub struct Sink<W: io::Write> {
     config: Config,
     writer: W,
 }
 
-impl<W: io::Write> StreamingSink for Sink<W> {
+impl<W: io::Write> StreamSink for Sink<W> {
     type Error = Error;
     fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Self::Error> {
         macro_rules! pos_fn {

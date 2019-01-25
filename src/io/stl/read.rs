@@ -13,7 +13,7 @@ use hashbrown::{HashMap, hash_map::Entry};
 use crate::{
     prelude::*,
     io::{
-        StreamingSource, MemSink,
+        StreamSource, MemSink,
         parse::{
             self, Input,
             buf::{Buffer},
@@ -630,7 +630,7 @@ impl VertexAdder for UnifyingAdder {
 }
 
 
-impl<R, U> StreamingSource for Reader<R, U>
+impl<R, U> StreamSource for Reader<R, U>
 where
     R: io::Read + io::Seek,
     U: UnifyingMarker,
