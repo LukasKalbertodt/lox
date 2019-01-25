@@ -10,7 +10,7 @@ use std::{
     time::Instant,
 };
 
-use failure::{err_msg, format_err, Error, ResultExt};
+use failure::{bail, err_msg, format_err, Error, ResultExt};
 use structopt::StructOpt;
 use term_painter::{ToStyle, Color};
 
@@ -169,6 +169,7 @@ fn load_file(opt: &Opt) -> Result<MeshData, Error> {
             reader.transfer_to(&mut mesh_data).context("failed to read STL body")?;
             println!(" done");
         }
+        _ => bail!("File format '{}' not supported", file_format),
     }
 
     Ok(mesh_data)
@@ -213,6 +214,7 @@ fn write_file(opt: &Opt, data: &MeshData) -> Result<(), Error> {
 
             println!(" done");
         }
+        _ => bail!("File format '{}' not supported", file_format),
     }
 
     Ok(())

@@ -68,7 +68,11 @@ pub trait MeshWriter {
 }
 
 /// Represents one of the supported file formats.
+///
+/// New file formats may be added with only minor version bumps, so you cannot
+/// match this enum exhaustively.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum FileFormat {
     Ply,
     Stl,
