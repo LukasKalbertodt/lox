@@ -52,6 +52,19 @@ pub enum MeshElement {
     Vertex,
 }
 
+// ===========================================================================
+// ===== `Sealed` trait
+// ===========================================================================
+pub(crate) mod sealed {
+    /// A trait that cannot be implemented outside of this crate.
+    ///
+    /// This is helpful for all "real" traits in this library that only
+    /// abstract over a closed set of types. Thus, users shouldn't be able to
+    /// implement those traits for their types. Adding `Sealed` as supertrait
+    /// solves this problem.
+    pub trait Sealed {}
+}
+
 
 // ===========================================================================
 // ===== Macros

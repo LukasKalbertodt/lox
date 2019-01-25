@@ -13,6 +13,7 @@ use crate::{
     handle::{VertexHandle, FaceHandle, DefaultInt},
     map::VertexPropMap,
     math::{Pos3Like, PrimitiveNum},
+    sealed::Sealed,
 };
 
 
@@ -226,9 +227,6 @@ impl PrimitiveValue {
     }
 }
 
-mod internal {
-    pub trait DoNotImplement {}
-}
 
 /// Abstracts over all IO primitive types.
 ///
@@ -236,9 +234,9 @@ mod internal {
 /// in [`PrimitiveType`] and [`PrimitiveValue`]. Thus, this is a closed set of
 /// implementing types (unusual for a trait). As a consequence, you are not
 /// supposed to implement this trait for your own types! That's why this trait
-/// has a supertrait called `DoNotImplement`. Said supertrait is crate-private,
-/// so you can't implement it for other types.
-pub trait Primitive: PrimitiveNum + internal::DoNotImplement {
+/// has a supertrait called `Sealed`. Said supertrait is crate-private, so you
+/// can't implement it for your types.
+pub trait Primitive: PrimitiveNum + Sealed {
     /// The type represented as this [`PrimitiveType`] value.
     const TY: PrimitiveType;
 
@@ -262,7 +260,7 @@ pub trait Primitive: PrimitiveNum + internal::DoNotImplement {
 
 macro_rules! impl_primitive {
     ($ty:ident, $variant:ident) => {
-        impl internal::DoNotImplement for $ty {}
+        impl Sealed for $ty {}
         impl Primitive for $ty {
             const TY: PrimitiveType = PrimitiveType::$variant;
             fn to_primitive_value(&self) -> PrimitiveValue {
