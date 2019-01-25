@@ -254,7 +254,7 @@ pub trait Primitive: PrimitiveNum + Sealed {
     /// This method is useful to convert a generic value into a value of a
     /// specific type.
     fn downcast_as<T: Primitive>(self) -> Option<T> {
-        AsPrimitive::as_primitive(self)
+        DowncastAs::downcast_as(self)
     }
 }
 
@@ -268,8 +268,8 @@ macro_rules! impl_primitive {
             }
         }
 
-        impl AsPrimitive<$ty> for $ty {
-            fn as_primitive(self) -> Option<$ty> {
+        impl DowncastAs<$ty> for $ty {
+            fn downcast_as(self) -> Option<$ty> {
                 Some(self)
             }
         }
@@ -285,13 +285,14 @@ impl_primitive!(i32, Int32);
 impl_primitive!(f32, Float32);
 impl_primitive!(f64, Float64);
 
-/// A helper trait to implement [`Primitive::downcast_as`]. Ignore this.
-pub trait AsPrimitive<Target: Primitive> {
-    fn as_primitive(self) -> Option<Target>;
+/// A helper trait to implement [`Primitive::downcast_as`].
+trait DowncastAs<Target: Primitive> {
+    fn downcast_as(self) -> Option<Target>;
 }
 
-impl<Source: Primitive, Target: Primitive> AsPrimitive<Target> for Source {
-    default fn as_primitive(self) -> Option<Target> {
+// The default impl returns `None`. Specific impls will overwrite that.
+impl<Source: Primitive, Target: Primitive> DowncastAs<Target> for Source {
+    default fn downcast_as(self) -> Option<Target> {
         None
     }
 }
