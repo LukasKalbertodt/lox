@@ -19,7 +19,6 @@ use crate::{
 };
 use self::parse::ParseError;
 
-
 pub mod parse;
 pub mod ply;
 pub mod stl;

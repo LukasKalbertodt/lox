@@ -1,3 +1,15 @@
+//! Parsing PLY files.
+//!
+//! Random notes on parsing:
+//!
+//! - The "specification" talks about "carriage-return terminated lines", but
+//!   this is incorrect, as in: all files I could find end their lines with
+//!   '\n' (0x0A) and not '\r' (0x0D). This includes the example file linked in
+//!   the specification! So in this file we use `parse::whitespace` which just
+//!   works with '\n'.
+//!
+//!
+
 #![allow(unused_imports)] // TODO
 
 use std::{
@@ -29,55 +41,6 @@ use crate::{
 };
 use super::Encoding;
 
-
-
-// ===========================================================================
-// ===== Parsing functions
-// ===========================================================================
-// TODO: move this somewhere better (and remove duplicate code in STL)
-macro_rules! parser {
-    ($name:ident = |$buf:ident| $body:expr) => {
-        parser!($name = |$buf| -> () { $body });
-    };
-    ($name:ident = |$buf:ident| -> $out:ty $body:block) => {
-        fn $name($buf: &mut impl Input) -> Result<$out, Error> {
-            $body
-        }
-    };
-}
-
-// Optionally skip whitespace
-parser!(opt_whitespace = |buf| buf.skip_until(|b| b != b' '));
-
-// Requires at least one whitespace, skips all whitespace that follows
-// it.
-parser!(whitespace = |buf| {
-    buf.expect_tag(b" ")?;
-    opt_whitespace(buf)?;
-    Ok(())
-});
-
-/// Requires a '\n' linebreak with optional whitespace before it. The
-/// "specification" talks about "carriage-return terminated lines", but this is
-/// incorrect, as in: all files I could find end their lines with '\n' (0x0A)
-/// and not '\r' (0x0D). This includes the example file linked in the
-/// specification!
-parser!(linebreak = |buf| {
-    opt_whitespace(buf)?;
-    buf.expect_tag(b"\n")?;
-    Ok(())
-});
-
-/// Calls the passed parser and requires a linebreak at the end.
-fn line<I, F, O>(buf: &mut I, func: F) -> Result<O, Error>
-where
-    I: Input,
-    F: FnOnce(&mut I) -> Result<O, Error>,
-{
-    let out = func(buf)?;
-    linebreak(buf)?;
-    Ok(out)
-}
 
 
 // ===========================================================================
@@ -114,12 +77,13 @@ impl<R: io::Read> Reader<R> {
         /// Mini helper function to add the comment in the given line to the
         /// list of comments. Assumes that `buf` is currently at the start of
         /// 'comment'. Consumes the whole line including linebreak.
-        fn add_comment(
+        fn parse_comment(
             buf: &mut impl Input,
             comments: &mut Vec<String>,
         ) -> Result<(), Error> {
-            line(buf, |buf| {
+            parse::line(buf, |buf| {
                 buf.take_until(b'\n', |line| {
+                    // With `[7..]` we skip the "comment" at the start.
                     comments.push(line.assert_ascii()?[7..].trim_start().to_string());
                     Ok(())
                 })
@@ -163,14 +127,14 @@ impl<R: io::Read> Reader<R> {
 
         // Read any comment lines that might be here
         while buf.is_next(b"comment")? {
-            add_comment(&mut buf, &mut comments)?;
+            parse_comment(&mut buf, &mut comments)?;
         }
 
         // Parse format line. This is required to be before everything else in
         // the header (except the magic number and potential comments).
-        let encoding = line(&mut buf, |buf| {
+        let encoding = parse::line(&mut buf, |buf| {
             buf.expect_tag(b"format")?;
-            whitespace(buf)?;
+            parse::whitespace(buf)?;
 
             let encoding = buf.take_until(b' ', |line| {
                 match line.data {
@@ -189,7 +153,7 @@ impl<R: io::Read> Reader<R> {
                 }
             })?;
 
-            whitespace(buf)?;
+            parse::whitespace(buf)?;
             buf.expect_tag(b"1.0")?;
 
             Ok(encoding)
@@ -202,15 +166,15 @@ impl<R: io::Read> Reader<R> {
         // Line by line until we reach the end of the header
         while !buf.is_next(b"end_header")? {
             match () {
-                () if buf.is_next(b"comment ")? => add_comment(&mut buf, &mut comments)?,
+                () if buf.is_next(b"comment ")? => parse_comment(&mut buf, &mut comments)?,
 
                 // Element definition, e.g. `element vertex 8`
                 () if buf.is_next(b"element ")? => {
                     buf.consume(b"element".len());
-                    whitespace(&mut buf)?;
+                    parse::whitespace(&mut buf)?;
 
                     let name = parse_ident(&mut buf)?;
-                    whitespace(&mut buf)?;
+                    parse::whitespace(&mut buf)?;
 
                     let count = buf.take_until(|b| b == b' ' || b == b'\n', |n| {
                         match n.assert_ascii()?.parse::<u64>() {
@@ -228,7 +192,7 @@ impl<R: io::Read> Reader<R> {
                         property_defs: Vec::new().into(),
                     });
 
-                    line(&mut buf, |buf| opt_whitespace(buf))?;
+                    parse::line(&mut buf, |buf| parse::opt_whitespace(buf))?;
                 }
 
                 // Property definition, e.g. `property float x` or
@@ -244,16 +208,16 @@ impl<R: io::Read> Reader<R> {
                     })?;
 
                     buf.consume(b"property".len());
-                    whitespace(&mut buf)?;
+                    parse::whitespace(&mut buf)?;
 
                     if buf.is_next(b"list")? {
                         buf.consume(b"list".len());
-                        whitespace(&mut buf)?;
+                        parse::whitespace(&mut buf)?;
 
                         let len_type = parse_scalar_type(&mut buf)?;
-                        whitespace(&mut buf)?;
+                        parse::whitespace(&mut buf)?;
                         let scalar_type = parse_scalar_type(&mut buf)?;
-                        whitespace(&mut buf)?;
+                        parse::whitespace(&mut buf)?;
                         let name = parse_ident(&mut buf)?;
 
                         // We don't allow floating point or signed integer
@@ -274,13 +238,13 @@ impl<R: io::Read> Reader<R> {
                         elem.property_defs.push(PropertyDef { name, ty });
                     } else {
                         let ty = PropertyType::Scalar(parse_scalar_type(&mut buf)?);
-                        whitespace(&mut buf)?;
+                        parse::whitespace(&mut buf)?;
                         let name = parse_ident(&mut buf)?;
 
                         elem.property_defs.push(PropertyDef { name, ty });
                     }
 
-                    line(&mut buf, |buf| opt_whitespace(buf))?;
+                    parse::line(&mut buf, |buf| parse::opt_whitespace(buf))?;
                 }
 
                 // Something else...
@@ -300,8 +264,8 @@ impl<R: io::Read> Reader<R> {
 
         // Consume the remaining header
         buf.expect_tag(b"end_header")?;
-        opt_whitespace(&mut buf)?;
-        linebreak(&mut buf)?;
+        parse::opt_whitespace(&mut buf)?;
+        parse::linebreak(&mut buf)?;
 
 
         Ok(Self { buf, comments, encoding, elements })
@@ -1111,10 +1075,10 @@ fn read_element_ascii<I: Input>(
 
     for prop_info in raw_elem.prop_infos.iter_mut() {
         if first {
-            opt_whitespace(buf)?;
+            parse::opt_whitespace(buf)?;
             first = false;
         } else {
-            whitespace(buf)?;
+            parse::whitespace(buf)?;
         }
 
         let len: RawOffset = match prop_info.ty {
@@ -1142,7 +1106,7 @@ fn read_element_ascii<I: Input>(
                 };
 
                 for _ in 0..list_len {
-                    whitespace(buf)?;
+                    parse::whitespace(buf)?;
                     read_ascii_value(buf, scalar_type, &mut raw_elem.data)?;
                 }
 
@@ -1154,7 +1118,7 @@ fn read_element_ascii<I: Input>(
         offset += RawOffset::from(len);
     }
 
-    linebreak(buf)?;
+    parse::linebreak(buf)?;
 
     Ok(())
 }

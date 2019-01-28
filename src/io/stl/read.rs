@@ -27,81 +27,26 @@ use super::Encoding;
 // ===========================================================================
 // ===== Parsing functions
 // ===========================================================================
-macro_rules! parser {
-    ($name:ident = |$buf:ident| $body:expr) => {
-        parser!($name = |$buf| -> () { $body });
-    };
-    ($name:ident = |$buf:ident| -> $out:ty $body:block) => {
-        fn $name($buf: &mut impl Input) -> Result<$out, Error> {
-            $body
-        }
-    };
-}
-
-// Optionally skip whitespace
-parser!(opt_whitespace = |buf| buf.skip_until(|b| b != b' '));
-
-// Requires at least one whitespace, skips all whitespace that follows
-// it.
-parser!(whitespace = |buf| {
-    buf.expect_tag(b" ")?;
-    opt_whitespace(buf)?;
-    Ok(())
-});
-
-/// Requires a '\n' linebreak with optional whitespace before and after
-/// it.
-parser!(linebreak = |buf| {
-    opt_whitespace(buf)?;
-    buf.expect_tag(b"\n")?;
-    opt_whitespace(buf)?;
-    Ok(())
-});
-
-/// Eats optional whitespace, calls the passed parser and requires a
-/// linebreak at the end.
-fn line<I, F, O>(buf: &mut I, func: F) -> Result<O, Error>
-where
-    I: Input,
-    F: FnOnce(&mut I) -> Result<O, Error>,
-{
-    opt_whitespace(buf)?;
-    let out = func(buf)?;
-    linebreak(buf)?;
-    Ok(out)
-}
-
-/// Parses one ASCII float via `<f32 as FromStr>::parse`. There must
-/// not be leading whitespace and the float literal has to end with ' '
-/// or '\n'.
-parser!(float = |buf| -> f32 {
-    buf.take_until(
-        |b| b == b' ' || b == b'\n',
-        |sd| sd.assert_ascii()?
-            .parse::<f32>()
-            .map_err(|e| sd.error(format!("invalid float literal: {}", e)).into())
-    )
-});
 
 /// Parses three floats separated by whitespace. No leading or trailing
 /// whitespace is handled.
-parser!(vec3 = |buf| -> [f32; 3] {
-    let x = float(buf)?;
-    whitespace(buf)?;
-    let y = float(buf)?;
-    whitespace(buf)?;
-    let z = float(buf)?;
+fn vec3(buf: &mut impl Input) -> Result<[f32; 3], Error> {
+    let x = parse::ascii_f32(buf)?;
+    parse::whitespace(buf)?;
+    let y = parse::ascii_f32(buf)?;
+    parse::whitespace(buf)?;
+    let z = parse::ascii_f32(buf)?;
     Ok([x, y, z])
-});
+}
 
 /// Parses one ASCII line with a vertex (e.g. `vertex 2.0 0.1  1`)
-parser!(vertex = |buf| -> [f32; 3] {
-    line(buf, |buf| {
+fn vertex(buf: &mut impl Input) -> Result<[f32; 3], Error> {
+    parse::line(buf, |buf| {
         buf.expect_tag(b"vertex")?;
-        whitespace(buf)?;
+        parse::whitespace(buf)?;
         vec3(buf)
     })
-});
+}
 
 
 // ===========================================================================
@@ -199,7 +144,7 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
 
             // Read the solid name (until line break in ASCII case, 80 chars in
             // binary case).
-            whitespace(&mut buf)?;
+            parse::whitespace(&mut buf)?;
             let solid_name = if is_binary {
                 buf.with_bytes(
                     80 - buf.offset(),
@@ -215,7 +160,7 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
                         .map(|name| name.trim().to_string())
                         .map_err(|e| e.into())
                 })?;
-                linebreak(&mut buf)?;
+                parse::linebreak(&mut buf)?;
                 name
             };
 
@@ -370,20 +315,20 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
             // Parse facets
             loop {
                 // First line (`facet normal 0.0 1.0 0.0`)
-                let normal = line(&mut buf, |buf| {
+                let normal = parse::line(&mut buf, |buf| {
                     buf.expect_tag(b"facet normal")?;
-                    whitespace(buf)?;
+                    parse::whitespace(buf)?;
                     vec3(buf)
                 })?;
 
                 // Parse vertices
-                line(&mut buf, |buf| buf.expect_tag(b"outer loop"))?;
+                parse::line(&mut buf, |buf| buf.expect_tag(b"outer loop"))?;
                 let vertices = [
                     vertex(&mut buf)?,
                     vertex(&mut buf)?,
                     vertex(&mut buf)?,
                 ];
-                line(&mut buf, |buf| buf.expect_tag(b"endloop"))?;
+                parse::line(&mut buf, |buf| buf.expect_tag(b"endloop"))?;
 
                 // Pass parsed triangle to sink
                 sink.triangle(RawTriangle {
@@ -393,11 +338,11 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
                 });
 
                 // Parse last line (`endfacet`)
-                line(&mut buf, |buf| buf.expect_tag(b"endfacet"))?;
+                parse::line(&mut buf, |buf| buf.expect_tag(b"endfacet"))?;
 
                 // Check if the next line starts with `endsolid` and break loop
                 // in that case.
-                opt_whitespace(&mut buf)?;
+                parse::opt_whitespace(&mut buf)?;
                 if buf.is_next(b"endsolid")? {
                     // We've seen `endsolid`: we just stop here. There could be
                     // junk afterwards, but we don't care.

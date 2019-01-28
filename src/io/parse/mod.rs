@@ -255,3 +255,55 @@ impl<F: Fn(u8) -> bool> Stopper for F {
         self(byte)
     }
 }
+
+// ===========================================================================
+// ===== Several useful parser functions
+// ===========================================================================
+
+/// Skips whitespace (only ' ', no other whitespace characters) until
+/// encountering a non-space character.
+pub(crate) fn opt_whitespace(buf: &mut impl Input) -> Result<(), Error> {
+    buf.skip_until(|b| b != b' ')
+}
+
+/// Expects at least one space character (' ') and additionally skips any space
+/// characters immediately following.
+pub(crate) fn whitespace(buf: &mut impl Input) -> Result<(), Error> {
+    buf.expect_tag(b" ")?;
+    opt_whitespace(buf)?;
+    Ok(())
+}
+
+/// Expects a '\n' linebreak with optional whitespace before and after it.
+pub(crate) fn linebreak(buf: &mut impl Input) -> Result<(), Error> {
+    opt_whitespace(buf)?;
+    buf.expect_tag(b"\n")?;
+    opt_whitespace(buf)?;
+    Ok(())
+}
+
+/// Skips optional whitespace, calls the passed parser and requires a
+/// linebreak '\n' at the end.
+pub(crate) fn line<I, F, O>(buf: &mut I, func: F) -> Result<O, Error>
+where
+    I: Input,
+    F: FnOnce(&mut I) -> Result<O, Error>,
+{
+    opt_whitespace(buf)?;
+    let out = func(buf)?;
+    linebreak(buf)?;
+    Ok(out)
+}
+
+/// Parses a whitespace (' ' or '\n') delimited ASCII `f32` value. We simply
+/// use the `FromStr` impl of `f32`.
+pub(crate) fn ascii_f32(buf: &mut impl Input) -> Result<f32, Error> {
+    buf.take_until(
+        |b| b == b' ' || b == b'\n',
+        |sd| {
+            sd.assert_ascii()?
+                .parse::<f32>()
+                .map_err(|e| sd.error(format!("invalid float literal: {}", e)).into())
+        }
+    )
+}
