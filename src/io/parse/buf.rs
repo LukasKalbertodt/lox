@@ -5,7 +5,8 @@ use std::{
     ops,
 };
 
-use super::{Error, Input};
+use crate::io::Error;
+use super::{Input, ParseError};
 
 
 /// The initial size of the buffer in bytes.
@@ -216,7 +217,7 @@ impl<R: Read> Input for Buffer<R> {
             let bytes_read = self.fill_buf_by(diff)?;
 
             if bytes_read < diff {
-                return Err(Error::UnexpectedEof(self.offset() + self.len()));
+                return Err(ParseError::UnexpectedEof(self.offset() + self.len()).into());
             }
         }
 

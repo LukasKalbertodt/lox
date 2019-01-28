@@ -32,7 +32,7 @@ macro_rules! parser {
         parser!($name = |$buf| -> () { $body });
     };
     ($name:ident = |$buf:ident| -> $out:ty $body:block) => {
-        fn $name($buf: &mut impl Input) -> Result<$out, parse::Error> {
+        fn $name($buf: &mut impl Input) -> Result<$out, Error> {
             $body
         }
     };
@@ -60,10 +60,10 @@ parser!(linebreak = |buf| {
 
 /// Eats optional whitespace, calls the passed parser and requires a
 /// linebreak at the end.
-fn line<I, F, O>(buf: &mut I, func: F) -> Result<O, parse::Error>
+fn line<I, F, O>(buf: &mut I, func: F) -> Result<O, Error>
 where
     I: Input,
-    F: FnOnce(&mut I) -> Result<O, parse::Error>,
+    F: FnOnce(&mut I) -> Result<O, Error>,
 {
     opt_whitespace(buf)?;
     let out = func(buf)?;
@@ -79,7 +79,7 @@ parser!(float = |buf| -> f32 {
         |b| b == b' ' || b == b'\n',
         |sd| sd.assert_ascii()?
             .parse::<f32>()
-            .map_err(|e| sd.error(format!("invalid float literal: {}", e)))
+            .map_err(|e| sd.error(format!("invalid float literal: {}", e)).into())
     )
 });
 
@@ -203,11 +203,17 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
             let solid_name = if is_binary {
                 buf.with_bytes(
                     80 - buf.offset(),
-                    |sd| sd.assert_ascii().map(|name| name.trim().to_string()),
+                    |sd| {
+                        sd.assert_ascii()
+                            .map(|name| name.trim().to_string())
+                            .map_err(|e| e.into())
+                    },
                 )?
             } else {
                 let name = buf.take_until(b'\n', |sd| {
-                    sd.assert_ascii().map(|name| name.trim().to_string())
+                    sd.assert_ascii()
+                        .map(|name| name.trim().to_string())
+                        .map_err(|e| e.into())
                 })?;
                 linebreak(&mut buf)?;
                 name

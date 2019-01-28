@@ -6,6 +6,7 @@ use std::{
 
 use failure::Fail;
 
+use super::Error;
 
 
 pub(crate) mod buf;
@@ -92,7 +93,7 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
 
     fn assert_eof(&mut self) -> Result<(), Error> {
         if !self.is_eof()? {
-            Err(Error::UnexpectedAdditionalData)
+            Err(ParseError::UnexpectedAdditionalData.into())
         } else {
             Ok(())
         }
@@ -106,7 +107,7 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
                     debug_fmt_bytes(tag),
                     debug_fmt_bytes(sd.data),
                 );
-                return Err(sd.error(msg));
+                return Err(sd.error(msg).into());
             }
 
             Ok(())
@@ -126,13 +127,13 @@ pub struct SpannedData<'a> {
 }
 
 impl<'a> SpannedData<'a> {
-    pub fn error(&self, msg: impl Into<String>) -> Error {
-        Error::Custom(msg.into(), self.span)
+    pub fn error(&self, msg: impl Into<String>) -> ParseError {
+        ParseError::Custom(msg.into(), self.span)
     }
 
-    pub fn assert_ascii(&self) -> Result<&'a str, Error> {
+    pub fn assert_ascii(&self) -> Result<&'a str, ParseError> {
         if !self.data.is_ascii() {
-            Err(Error::NotAscii(self.span))
+            Err(ParseError::NotAscii(self.span))
         } else {
             Ok(std::str::from_utf8(self.data).unwrap())
         }
@@ -165,10 +166,7 @@ impl fmt::Display for Span {
 }
 
 #[derive(Debug, Fail)]
-pub enum Error {
-    #[fail(display = "IO error: {}", _0)]
-    Io(io::Error),
-
+pub enum ParseError {
     #[fail(display = "unexpected EOF while parsing (at {})", _0)]
     UnexpectedEof(usize),
 
@@ -186,12 +184,6 @@ pub enum Error {
 
     #[fail(display = "{} (at {})", _0, _1)]
     Custom(String, Span)
-}
-
-impl From<io::Error> for Error {
-    fn from(src: io::Error) -> Self {
-        Error::Io(src)
-    }
 }
 
 

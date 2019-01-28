@@ -17,6 +17,7 @@ use crate::{
     math::{Pos3Like, PrimitiveNum},
     sealed::Sealed,
 };
+use self::parse::ParseError;
 
 
 pub mod parse;
@@ -162,7 +163,7 @@ pub enum Error {
     /// and the file isn't valid, this error is returned. See [`parse::Error`]
     /// for more information.
     #[fail(display = "Parsing error: {}", _0)]
-    Parse(parse::Error),
+    Parse(ParseError),
 }
 
 impl From<io::Error> for Error {
@@ -171,8 +172,8 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<parse::Error> for Error {
-    fn from(src: parse::Error) -> Self {
+impl From<ParseError> for Error {
+    fn from(src: ParseError) -> Self {
         Error::Parse(src)
     }
 }

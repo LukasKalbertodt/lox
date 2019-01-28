@@ -22,7 +22,7 @@ use crate::{
     io::{
         StreamSource, MemSink, Primitive, Error,
         parse::{
-            self, Input, Span, debug_fmt_bytes, SpannedData,
+            self, ParseError, Input, Span, debug_fmt_bytes, SpannedData,
             buf::{Buffer},
         },
     },
@@ -40,7 +40,7 @@ macro_rules! parser {
         parser!($name = |$buf| -> () { $body });
     };
     ($name:ident = |$buf:ident| -> $out:ty $body:block) => {
-        fn $name($buf: &mut impl Input) -> Result<$out, parse::Error> {
+        fn $name($buf: &mut impl Input) -> Result<$out, Error> {
             $body
         }
     };
@@ -69,10 +69,10 @@ parser!(linebreak = |buf| {
 });
 
 /// Calls the passed parser and requires a linebreak at the end.
-fn line<I, F, O>(buf: &mut I, func: F) -> Result<O, parse::Error>
+fn line<I, F, O>(buf: &mut I, func: F) -> Result<O, Error>
 where
     I: Input,
-    F: FnOnce(&mut I) -> Result<O, parse::Error>,
+    F: FnOnce(&mut I) -> Result<O, Error>,
 {
     let out = func(buf)?;
     linebreak(buf)?;
@@ -117,7 +117,7 @@ impl<R: io::Read> Reader<R> {
         fn add_comment(
             buf: &mut impl Input,
             comments: &mut Vec<String>,
-        ) -> Result<(), parse::Error> {
+        ) -> Result<(), Error> {
             line(buf, |buf| {
                 buf.take_until(b'\n', |line| {
                     comments.push(line.assert_ascii()?[7..].trim_start().to_string());
@@ -128,18 +128,18 @@ impl<R: io::Read> Reader<R> {
 
         /// Parses a scalar type delimited by whitespace (whitespace is not
         /// read by this function).
-        fn parse_scalar_type(buf: &mut impl Input) -> Result<ScalarType, parse::Error> {
+        fn parse_scalar_type(buf: &mut impl Input) -> Result<ScalarType, Error> {
             buf.take_until(b' ', |word| {
                 word.assert_ascii()?
                     .parse::<ScalarType>()
-                    .map_err(|e| word.error(e.to_string()))
+                    .map_err(|e| word.error(e.to_string()).into())
             })
         }
 
         /// Parses a single word delimited by whitespace or newline.
-        fn parse_ident(buf: &mut impl Input) -> Result<String, parse::Error> {
+        fn parse_ident(buf: &mut impl Input) -> Result<String, Error> {
             buf.take_until(|b| b == b' ' || b == b'\n', |s| {
-                s.assert_ascii().map(|s| s.to_string())
+                s.assert_ascii().map(|s| s.to_string()).map_err(|e| e.into())
             })
         }
 
@@ -153,11 +153,11 @@ impl<R: io::Read> Reader<R> {
         // PLY files always start with `ply\n`. This serves as magic number.
         buf.expect_tag(b"ply\n").map_err(|e| {
             match e {
-                parse::Error::Io(e) => parse::Error::Io(e),
-                _ => parse::Error::Custom(
+                Error::Parse(_) => ParseError::Custom(
                     "not a valid PLY file (does not start with \"ply\\n\")".into(),
                     Span::new(0, 4),
-                ),
+                ).into(),
+                other => other,
             }
         })?;
 
@@ -184,7 +184,7 @@ impl<R: io::Read> Reader<R> {
                                 \"binary_big_endian\", found '{}'",
                             debug_fmt_bytes(&other[..len]),
                         );
-                        Err(line.error(msg))
+                        Err(line.error(msg).into())
                     }
                 }
             })?;
@@ -217,7 +217,7 @@ impl<R: io::Read> Reader<R> {
                             Ok(v) => Ok(v),
                             Err(e) => {
                                 let msg = format!("invalid integer as element count ({})", e);
-                                Err(n.error(msg))
+                                Err(n.error(msg).into())
                             }
                         }
                     })?;
@@ -267,7 +267,7 @@ impl<R: io::Read> Reader<R> {
                                 name
                             );
 
-                            parse::Error::Custom(msg, span)
+                            Error::from(ParseError::Custom(msg, span))
                         })?;
 
                         let ty = PropertyType::List { len_type, scalar_type };
@@ -927,7 +927,7 @@ fn read_element_bbe<I: Input>(
     buf: &mut I,
     index: &[TypeLen],
     raw_elem: &mut RawElement,
-) -> Result<(), parse::Error> {
+) -> Result<(), Error> {
     #[cfg(target_endian = "big")]
     {
         read_element_binary_native(buf, index, raw_elem)
@@ -943,7 +943,7 @@ fn read_element_ble<I: Input>(
     buf: &mut I,
     index: &[TypeLen],
     raw_elem: &mut RawElement,
-) -> Result<(), parse::Error> {
+) -> Result<(), Error> {
     #[cfg(target_endian = "big")]
     {
         read_element_binary_swapped(buf, index, raw_elem)
@@ -961,7 +961,7 @@ fn read_bytes_into(
     buf: &mut impl Input,
     count: usize,
     out: &mut Vec<u8>,
-) -> Result<(), parse::Error> {
+) -> Result<(), Error> {
     buf.with_bytes(count, |b| {
         out.extend_from_slice(&b.data);
         Ok(())
@@ -978,7 +978,7 @@ fn read_binary_len(
     ty: ListLenType,
     out: &mut Vec<u8>,
     swap: impl FnOnce(&mut [u8]),
-) -> Result<u32, parse::Error> {
+) -> Result<u32, Error> {
     let offset = out.len();
     match ty {
         ListLenType::UChar => buf.with_bytes(1, |b| {
@@ -1003,7 +1003,7 @@ fn read_element_binary_native(
     buf: &mut impl Input,
     index: &[TypeLen],
     raw_elem: &mut RawElement,
-) -> Result<(), parse::Error> {
+) -> Result<(), Error> {
     let mut offset = RawOffset::from(0);
 
     for (prop_info, prop_len) in raw_elem.prop_infos.iter_mut().zip(index) {
@@ -1039,7 +1039,7 @@ fn read_element_binary_swapped(
     buf: &mut impl Input,
     index: &[TypeLen],
     raw_elem: &mut RawElement,
-) -> Result<(), parse::Error> {
+) -> Result<(), Error> {
     for (prop_info, prop_len) in raw_elem.prop_infos.iter_mut().zip(index) {
         // Starting offset of the data we are about to push
         prop_info.offset = RawOffset::from(raw_elem.data.len() as u32);
@@ -1093,7 +1093,7 @@ macro_rules! ascii_parser {
                             concat!("invalid '", stringify!($ty), "' literal: {}"),
                             e,
                         );
-                        sd.error(msg)
+                        sd.error(msg).into()
                     })
             }
         )
@@ -1105,7 +1105,7 @@ fn read_element_ascii<I: Input>(
     buf: &mut I,
     _: &[TypeLen],
     raw_elem: &mut RawElement,
-) -> Result<(), parse::Error> {
+) -> Result<(), Error> {
     let mut offset = RawOffset::from(0);
     let mut first = true;
 
@@ -1164,7 +1164,7 @@ fn read_ascii_value(
     buf: &mut impl Input,
     ty: ScalarType,
     out: &mut Vec<u8>,
-) -> Result<(), parse::Error> {
+) -> Result<(), Error> {
     match ty {
         ScalarType::Char => ascii_parser!(buf, i8)?.encode_ne(out),
         ScalarType::UChar => ascii_parser!(buf, u8)?.encode_ne(out),
