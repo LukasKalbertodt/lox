@@ -91,7 +91,8 @@ mod write;
 mod tests;
 
 pub use self::read::{FnRawSink, Reader, RawSink, RawTriangle, RawResult};
-pub use self::write::{Config, Writer, Sink};
+// pub use self::write::{Config, Writer, Sink};
+pub use self::write::{Config, Sink};
 
 
 /// Reads the STL file with the given filename into an empty instance of `T`

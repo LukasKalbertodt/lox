@@ -15,6 +15,6 @@ pub use crate::{
     handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
     map::{PropMap, PropStore, PropStoreMut},
     math::{Pos3Like, Vec3Like},
-    io::{IntoMeshWriter, MeshWriter},
+    // io::{IntoMeshWriter, MeshWriter},
     util::{PointIteratorExt, TriArrayExt},
 };

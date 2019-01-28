@@ -16,7 +16,7 @@ use super::{Error, Encoding};
 
 
 const DEFAULT_SOLID_NAME: &str = "mesh";
-type DummyMap = EmptyMap<[f32; 3]>;
+// type DummyMap = EmptyMap<[f32; 3]>;
 
 
 // ===============================================================================================
@@ -76,22 +76,22 @@ impl Config {
     }
 }
 
-impl<'a, MeshT, PosM> IntoMeshWriter<'a, MeshT, PosM> for Config
-where
-    MeshT: 'a + TriMesh + TriVerticesOfFace,
-    PosM: 'a + VertexPropMap,
-    PosM::Target: Pos3Like<Scalar = f32>,
-{
-    type Writer = Writer<'a, MeshT, PosM, DummyMap>;
-    fn into_writer(self, mesh: &'a MeshT, vertex_positions: &'a PosM) -> Self::Writer {
-        Writer {
-            config: self,
-            mesh,
-            vertex_positions,
-            face_normals: None,
-        }
-    }
-}
+// impl<'a, MeshT, PosM> IntoMeshWriter<'a, MeshT, PosM> for Config
+// where
+//     MeshT: 'a + TriMesh + TriVerticesOfFace,
+//     PosM: 'a + VertexPropMap,
+//     PosM::Target: Pos3Like<Scalar = f32>,
+// {
+//     type Writer = Writer<'a, MeshT, PosM, DummyMap>;
+//     fn into_writer(self, mesh: &'a MeshT, vertex_positions: &'a PosM) -> Self::Writer {
+//         Writer {
+//             config: self,
+//             mesh,
+//             vertex_positions,
+//             face_normals: None,
+//         }
+//     }
+// }
 
 
 // ===============================================================================================
@@ -150,87 +150,87 @@ impl<W: io::Write> StreamSink for Sink<W> {
 // ===== STL Writer
 // ===============================================================================================
 
-/// A writer able to write binary and ASCII STL files.
-///
-/// To create a writer, you need to create a [`Config`] first (probably via
-/// `Config::binary()`) and call `into_writer(..)` on it. Once you have a
-/// writer, you can optionally add face normals to it. If you don't add your
-/// own face normals, normals are calculated from the vertex positions on the
-/// fly (this requires every face to have a non-zero area!).
-///
-/// You can then actually write data via the
-/// [`MeshWriter`][crate::io::MeshWriter] trait.
-///
-/// Don't be scared by all the generic parameters and trait bounds. For the
-/// most part, you don't need to worry about that at all.
-#[derive(Debug)]
-pub struct Writer<'a, MeshT, PosM, NormalM>
-where
-    MeshT: TriMesh + TriVerticesOfFace,
-    PosM: VertexPropMap,
-    PosM::Target: Pos3Like<Scalar = f32>,
-    NormalM: FacePropMap,
-    NormalM::Target: Vec3Like<Scalar = f32>,
-{
-    config: Config,
-    mesh: &'a MeshT,
-    vertex_positions: &'a PosM,
-    face_normals: Option<&'a NormalM>,
-}
+// /// A writer able to write binary and ASCII STL files.
+// ///
+// /// To create a writer, you need to create a [`Config`] first (probably via
+// /// `Config::binary()`) and call `into_writer(..)` on it. Once you have a
+// /// writer, you can optionally add face normals to it. If you don't add your
+// /// own face normals, normals are calculated from the vertex positions on the
+// /// fly (this requires every face to have a non-zero area!).
+// ///
+// /// You can then actually write data via the
+// /// [`MeshWriter`][crate::io::MeshWriter] trait.
+// ///
+// /// Don't be scared by all the generic parameters and trait bounds. For the
+// /// most part, you don't need to worry about that at all.
+// #[derive(Debug)]
+// pub struct Writer<'a, MeshT, PosM, NormalM>
+// where
+//     MeshT: TriMesh + TriVerticesOfFace,
+//     PosM: VertexPropMap,
+//     PosM::Target: Pos3Like<Scalar = f32>,
+//     NormalM: FacePropMap,
+//     NormalM::Target: Vec3Like<Scalar = f32>,
+// {
+//     config: Config,
+//     mesh: &'a MeshT,
+//     vertex_positions: &'a PosM,
+//     face_normals: Option<&'a NormalM>,
+// }
 
-impl<'a, MeshT, PosM> Writer<'a, MeshT, PosM, DummyMap>
-where // TODO: remove once implied bounds land
-    MeshT: TriMesh + TriVerticesOfFace,
-    PosM: VertexPropMap,
-    PosM::Target: Pos3Like<Scalar = f32>,
-{
-    /// Instructs the writer to use the given face normals instead of
-    /// calculating normals on the fly. If any of your faces have a zero area,
-    /// you need to call that as automatically calculating normals won't work.
-    pub fn with_face_normals<NormalM>(
-        self,
-        face_normals: &'a NormalM,
-    ) -> Writer<'a, MeshT, PosM, NormalM>
-    where
-        NormalM: FacePropMap,
-        NormalM::Target: Vec3Like<Scalar = f32>,
-    {
-        Writer {
-            config: self.config,
-            mesh: self.mesh,
-            vertex_positions: self.vertex_positions,
-            face_normals: Some(face_normals),
-        }
-    }
-}
+// impl<'a, MeshT, PosM> Writer<'a, MeshT, PosM, DummyMap>
+// where // TODO: remove once implied bounds land
+//     MeshT: TriMesh + TriVerticesOfFace,
+//     PosM: VertexPropMap,
+//     PosM::Target: Pos3Like<Scalar = f32>,
+// {
+//     /// Instructs the writer to use the given face normals instead of
+//     /// calculating normals on the fly. If any of your faces have a zero area,
+//     /// you need to call that as automatically calculating normals won't work.
+//     pub fn with_face_normals<NormalM>(
+//         self,
+//         face_normals: &'a NormalM,
+//     ) -> Writer<'a, MeshT, PosM, NormalM>
+//     where
+//         NormalM: FacePropMap,
+//         NormalM::Target: Vec3Like<Scalar = f32>,
+//     {
+//         Writer {
+//             config: self.config,
+//             mesh: self.mesh,
+//             vertex_positions: self.vertex_positions,
+//             face_normals: Some(face_normals),
+//         }
+//     }
+// }
 
 
-impl<MeshT, PosM, NormalM> MeshWriter for Writer<'_, MeshT, PosM, NormalM>
-where // TODO: remove once implied bounds land
-    MeshT: TriMesh + TriVerticesOfFace,
-    PosM: VertexPropMap,
-    PosM::Target: Pos3Like<Scalar = f32>,
-    NormalM: FacePropMap,
-    NormalM::Target: Vec3Like<Scalar = f32>,
-{
-    type Error = Error;
+// impl<MeshT, PosM, NormalM> MeshWriter for Writer<'_, MeshT, PosM, NormalM>
+// where // TODO: remove once implied bounds land
+//     MeshT: TriMesh + TriVerticesOfFace,
+//     PosM: VertexPropMap,
+//     PosM::Target: Pos3Like<Scalar = f32>,
+//     NormalM: FacePropMap,
+//     NormalM::Target: Vec3Like<Scalar = f32>,
+// {
+//     type Error = Error;
 
-    fn write_to(&self, w: impl Write) -> Result<(), Self::Error> {
-        write(
-            w,
-            &self.config,
-            self.mesh.num_faces(),
-            self.mesh.faces().map(|face| face.handle()),
-            |fh| self.mesh.vertices_of_face(fh),
-            |vh| self.vertex_positions.get(vh).map(|p| p.convert()),
-            |fh, positions| {
-                self.face_normals
-                    .map(|normals| normals.get(fh).map(|n| n.convert()))
-                    .unwrap_or_else(|| Some(calc_normal(positions)))
-            },
-        )
-    }
-}
+//     fn write_to(&self, w: impl Write) -> Result<(), Self::Error> {
+//         write(
+//             w,
+//             &self.config,
+//             self.mesh.num_faces(),
+//             self.mesh.faces().map(|face| face.handle()),
+//             |fh| self.mesh.vertices_of_face(fh),
+//             |vh| self.vertex_positions.get(vh).map(|p| p.convert()),
+//             |fh, positions| {
+//                 self.face_normals
+//                     .map(|normals| normals.get(fh).map(|n| n.convert()))
+//                     .unwrap_or_else(|| Some(calc_normal(positions)))
+//             },
+//         )
+//     }
+// }
 
 
 // ===============================================================================================
