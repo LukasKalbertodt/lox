@@ -79,7 +79,7 @@ use crate::{
     Empty,
     io::{
         FileEncoding, EncodingNotSupported, StreamSource, StreamSink,
-        MemSink, MemSource, parse
+        MemSink, MemSource, Error, parse
     },
 };
 
@@ -145,27 +145,5 @@ impl From<Encoding> for FileEncoding {
             Encoding::Ascii => FileEncoding::Ascii,
             Encoding::Binary => FileEncoding::BinaryLittleEndian,
         }
-    }
-}
-
-/// Errors that can potentially happen when reading or writing an STL file.
-#[derive(Debug, Fail)]
-pub enum Error {
-    #[fail(display = "Parsing error: {}", _0)]
-    Parse(parse::Error),
-
-    #[fail(display = "IO error: {}", _0)]
-    Io(io::Error),
-}
-
-impl From<io::Error> for Error {
-    fn from(src: io::Error) -> Self {
-        Error::Io(src)
-    }
-}
-
-impl From<parse::Error> for Error {
-    fn from(src: parse::Error) -> Self {
-        Error::Parse(src)
     }
 }

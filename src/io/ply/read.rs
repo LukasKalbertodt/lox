@@ -20,14 +20,14 @@ use smallvec::SmallVec;
 use crate::{
     prelude::*,
     io::{
-        StreamSource, MemSink, Primitive,
+        StreamSource, MemSink, Primitive, Error,
         parse::{
             self, Input, Span, debug_fmt_bytes, SpannedData,
             buf::{Buffer},
         },
     },
 };
-use super::{Error, Encoding};
+use super::Encoding;
 
 
 
@@ -376,8 +376,7 @@ impl<R: io::Read> Reader<R> {
 }
 
 impl<R: io::Read> StreamSource for Reader<R> {
-    type Error = Error;
-    fn transfer_to<S: MemSink>(mut self, sink: &mut S) -> Result<(), Self::Error> {
+    fn transfer_to<S: MemSink>(mut self, sink: &mut S) -> Result<(), Error> {
         fn read_pos<T: FromBytes + Primitive, S: MemSink>(
             sink: &mut S,
             raw: &[u8],

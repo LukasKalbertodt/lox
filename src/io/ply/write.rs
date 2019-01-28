@@ -24,10 +24,11 @@ use crate::{
     handle::{FaceHandle, Handle, VertexHandle},
     map::{FnMap, PropMap, FacePropMap, VertexPropMap},
     math::{Pos3Like, Vec3Like},
-    io::{IntoMeshWriter, MeshWriter, StreamSink, MemSource, PrimitiveType},
+    // io::{IntoMeshWriter, MeshWriter, StreamSink, MemSource, PrimitiveType},
+    io::{Error, StreamSink, MemSource, PrimitiveType},
     util::TriArrayExt,
 };
-use super::{Error, Encoding, Serialize, SingleSerialize, PropSerializer, PropType};
+use super::{Encoding, Serialize, SingleSerialize, PropSerializer, PropType};
 
 
 
@@ -111,8 +112,7 @@ pub struct Sink<W: io::Write> {
 }
 
 impl<W: io::Write> StreamSink for Sink<W> {
-    type Error = Error;
-    fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Self::Error> {
+    fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Error> {
         macro_rules! pos_fn {
             ($orig_type:ident) => {{
                 let fun = |vh| {

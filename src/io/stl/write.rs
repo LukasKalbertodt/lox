@@ -10,9 +10,10 @@ use crate::{
     handle::{FaceHandle, VertexHandle},
     map::{EmptyMap, FacePropMap, VertexPropMap},
     math::{Pos3Like, Vec3Like},
-    io::{IntoMeshWriter, MeshWriter, StreamSink, MemSource, PrimitiveType},
+    io::{Error, StreamSink, MemSource, PrimitiveType},
+    // io::{Error, IntoMeshWriter, MeshWriter, StreamSink, MemSource, PrimitiveType},
 };
-use super::{Error, Encoding};
+use super::Encoding;
 
 
 const DEFAULT_SOLID_NAME: &str = "mesh";
@@ -106,8 +107,7 @@ pub struct Sink<W: io::Write> {
 }
 
 impl<W: io::Write> StreamSink for Sink<W> {
-    type Error = Error;
-    fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Self::Error> {
+    fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Error> {
         macro_rules! pos_fn {
             ($orig_type:ident) => {{
                 let fun = |vh| {

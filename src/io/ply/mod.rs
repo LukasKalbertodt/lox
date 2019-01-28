@@ -16,7 +16,7 @@ use failure::Fail;
 
 use crate::{
     Empty,
-    io::{FileEncoding, StreamSource, StreamSink, MemSink, MemSource, parse},
+    io::{Error, FileEncoding, StreamSource, StreamSink, MemSink, MemSource, parse},
 };
 
 mod read;
@@ -91,28 +91,6 @@ impl From<Encoding> for FileEncoding {
             Encoding::BinaryBigEndian => FileEncoding::BinaryBigEndian,
             Encoding::BinaryLittleEndian => FileEncoding::BinaryLittleEndian,
         }
-    }
-}
-
-/// Everything that can go wrong when writing or reading PLY files.
-#[derive(Debug, Fail)]
-pub enum Error {
-    #[fail(display = "Parsing error: {}", _0)]
-    Parse(parse::Error),
-
-    #[fail(display = "IO error: {}", _0)]
-    Io(io::Error),
-}
-
-impl From<io::Error> for Error {
-    fn from(src: io::Error) -> Self {
-        Error::Io(src)
-    }
-}
-
-impl From<parse::Error> for Error {
-    fn from(src: parse::Error) -> Self {
-        Error::Parse(src)
     }
 }
 

@@ -145,6 +145,39 @@ impl FileEncoding {
 #[derive(Debug, Clone, Copy)]
 pub struct EncodingNotSupported;
 
+/// The error type for reading or writing a mesh.
+#[derive(Debug, Fail)]
+pub enum Error {
+    /// An IO error.
+    ///
+    /// Can be caused by all kinds of failures. For example, if the underlying
+    /// writer or reader returns an error or a file cannot be opened, this
+    /// error variant is returned.
+    #[fail(display = "IO error: {}", _0)]
+    Io(io::Error),
+
+    /// An error while parsing input data.
+    ///
+    /// Whenever a file (or generally, a stream) is parsed as a specific format
+    /// and the file isn't valid, this error is returned. See [`parse::Error`]
+    /// for more information.
+    #[fail(display = "Parsing error: {}", _0)]
+    Parse(parse::Error),
+}
+
+impl From<io::Error> for Error {
+    fn from(src: io::Error) -> Self {
+        Error::Io(src)
+    }
+}
+
+impl From<parse::Error> for Error {
+    fn from(src: parse::Error) -> Self {
+        Error::Parse(src)
+    }
+}
+
+
 
 // ==========================================================================
 // ===== Primitives
@@ -305,8 +338,7 @@ impl<Source: Primitive, Target: Primitive> DowncastAs<Target> for Source {
 // ==========================================================================
 
 pub trait StreamSource {
-    type Error: Fail;
-    fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Self::Error>;
+    fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error>;
 }
 
 pub trait MemSink {
@@ -321,8 +353,7 @@ pub trait MemSink {
 }
 
 pub trait StreamSink {
-    type Error: Fail;
-    fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Self::Error>;
+    fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Error>;
 }
 
 // TODO: probably use mesh traits as supertrait instead of repeating many of

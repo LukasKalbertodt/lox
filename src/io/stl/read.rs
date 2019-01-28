@@ -13,14 +13,14 @@ use hashbrown::{HashMap, hash_map::Entry};
 use crate::{
     prelude::*,
     io::{
-        StreamSource, MemSink,
+        StreamSource, MemSink, Error,
         parse::{
             self, Input,
             buf::{Buffer},
         },
     },
 };
-use super::{Encoding, Error};
+use super::Encoding;
 
 
 
@@ -635,9 +635,7 @@ where
     R: io::Read + io::Seek,
     U: UnifyingMarker,
 {
-    type Error = Error;
-
-    fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Self::Error> {
+    fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error> {
         struct HelperSink<'a, S: MemSink, A: VertexAdder> {
             sink: &'a mut S,
             vertex_adder: A,
