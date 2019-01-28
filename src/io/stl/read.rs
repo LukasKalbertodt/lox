@@ -15,8 +15,7 @@ use crate::{
     io::{
         StreamSource, MemSink, Error,
         parse::{
-            self, Input,
-            buf::{Buffer},
+            self, ParseBuf, Buffer,
         },
     },
 };
@@ -30,7 +29,7 @@ use super::Encoding;
 
 /// Parses three floats separated by whitespace. No leading or trailing
 /// whitespace is handled.
-fn vec3(buf: &mut impl Input) -> Result<[f32; 3], Error> {
+fn vec3(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
     let x = parse::ascii_f32(buf)?;
     parse::whitespace(buf)?;
     let y = parse::ascii_f32(buf)?;
@@ -40,7 +39,7 @@ fn vec3(buf: &mut impl Input) -> Result<[f32; 3], Error> {
 }
 
 /// Parses one ASCII line with a vertex (e.g. `vertex 2.0 0.1  1`)
-fn vertex(buf: &mut impl Input) -> Result<[f32; 3], Error> {
+fn vertex(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
     parse::line(buf, |buf| {
         buf.expect_tag(b"vertex")?;
         parse::whitespace(buf)?;
@@ -125,8 +124,8 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
         //   file length, we assume it's a binary file. But if there is no such
         //   count (because the file is shorter than 84 bytes), the file is not
         //   binary.
-        let is_binary = !buf.starts_with(b"solid")
-            || buf.iter().take(1024).any(|b| !b.is_ascii())
+        let is_binary = !buf.raw_buf().starts_with(b"solid")
+            || buf.raw_buf().iter().take(1024).any(|b| !b.is_ascii())
             || num_tris_if_binary.map(|num_tris_if_binary| {
                 // In binary format, each triangle is stored with 50 bytes
                 // (3 * 3 = 9 position floats => 36 bytes, 3 normal floats

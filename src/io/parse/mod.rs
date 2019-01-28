@@ -6,36 +6,92 @@ use std::{
 
 use failure::Fail;
 
-
-
-pub(crate) mod buf;
 use crate::{
     io::Error,
     util::debug_fmt_bytes,
 };
 
-pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
+mod buf;
+
+pub(crate) use buf::Buffer;
+
+
+/// A parse buffer: a buffered reader that offers methods for parsing binary or
+/// ASCII data.
+///
+/// This trait is only implemented for [`Buffer`], so you might ask: why does
+/// this trait exist instead of using `Buffer` directly? The problem is that
+/// `Buffer` has the generic type parameter `R` for the reader. All parsers
+/// would have to be generic over the reader anyway, so we don't win anything.
+/// The trait exists because writing `&mut impl ParseBuf` is easier than `&mut
+/// Buffer<impl io::Read>`. Finally, the complete interface of the parse buffer
+/// can be seen in this trait (without any internal methods of `Buffer`).
+pub(crate) trait ParseBuf: io::Read {
+    /// Makes sure that at least `num_bytes` bytes are in the internal buffer.
+    ///
+    /// If the internal buffer already contains sufficiently many bytes, this
+    /// method does nothing.
+    ///
+    /// If additional data must be loaded from the underlying reader and an EOF
+    /// is reached, this method returns an error. See `saturating_prepare` for
+    /// an alternative.
     fn prepare(&mut self, num_bytes: usize) -> Result<(), Error>;
+
+    /// Makes sure that at least `num_bytes` bytes are in the internal buffer
+    /// or EOF is reached.
+    ///
+    /// If the internal buffer already contains sufficiently many bytes, this
+    /// method does nothing.
+    ///
+    /// This is different from `prepare` as this doesn't error when
+    /// encountering an EOF. Instead, this method simply loads fewer bytes into
+    /// the internal buffer in that case.
     fn saturating_prepare(&mut self, num_bytes: usize) -> Result<(), Error>;
+
+    /// Mark the next `num_bytes` bytes as consumed (i.e. remove them from the
+    /// internal buffer).
+    ///
+    /// Panics if `num_bytes` is greater than the internal buffer len.
     fn consume(&mut self, num_bytes: usize);
+
+    /// Returns `true` **iff** the underlying reader is exhausted and the
+    /// internal buffer is empty.
     fn is_eof(&mut self) -> Result<bool, Error>;
+
+    /// Returns the number of bytes that were already consumed. This is the
+    /// offset in the stream of the underlying reader.
     fn offset(&self) -> usize;
 
+    /// Returns a slice to the internal buffer.
+    fn raw_buf(&self) -> &[u8];
 
+
+    fn len(&self) -> usize {
+        self.raw_buf().len()
+    }
+
+    /// Returns `SpannedData` that represents the first `num_bytes` of the
+    /// internal buffer.
+    ///
+    /// Panics if `num_bytes` is greater than the internal buffer len.
     fn spanned_data(&self, num_bytes: usize) -> SpannedData<'_> {
         SpannedData {
-            data: &self[..num_bytes],
-            span: Span::new(self.offset(), self.offset() +  num_bytes),
+            data: &self.raw_buf()[..num_bytes],
+            span: Span::new(self.offset(), self.offset() + num_bytes),
         }
     }
 
+    /// Skips `num_bytes` bytes.
     fn skip(&mut self, num_bytes: usize) -> Result<(), Error> {
+        // TODO: we can do better than this.
         self.prepare(num_bytes)?;
         self.consume(num_bytes);
 
         Ok(())
     }
 
+    /// Skips all bytes until `stopper` says that the skipping should stop or
+    /// EOF is reached.
     fn skip_until(&mut self, stopper: impl Stopper) -> Result<(), Error> {
         loop {
             if self.is_eof()? {
@@ -46,7 +102,7 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
                 self.prepare(1)?;
             }
 
-            if stopper.should_stop(self[0]) {
+            if stopper.should_stop(self.raw_buf()[0]) {
                 break;
             }
 
@@ -56,6 +112,8 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
         Ok(())
     }
 
+    /// Prepares `num_bytes` and passes them as `SpannedData` to the given
+    /// `func`. If `func` returns successfully, those bytes are consumed.
     fn with_bytes<F, O>(&mut self, num_bytes: usize, func: F) -> Result<O, Error>
     where
         F: FnOnce(SpannedData) -> Result<O, Error>,
@@ -67,6 +125,9 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
         Ok(out)
     }
 
+    /// Prepares bytes until `stopper` returns `true` and passes them as
+    /// `SpannedData` to the given `func`. If `func` returns successfully,
+    /// those bytes are consumed.
     fn take_until<F, O>(
         &mut self,
         stopper: impl Stopper,
@@ -81,7 +142,7 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
                 self.prepare(pos + 1)?;
             }
 
-            if stopper.should_stop(self[pos]) {
+            if stopper.should_stop(self.raw_buf()[pos]) {
                 break;
             }
 
@@ -94,6 +155,8 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
         Ok(out)
     }
 
+    /// Makes sure that EOF is reached and returns an error if that's not the
+    /// case.
     fn assert_eof(&mut self) -> Result<(), Error> {
         if !self.is_eof()? {
             Err(ParseError::UnexpectedAdditionalData.into())
@@ -102,6 +165,8 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
         }
     }
 
+    /// Makes sure `tag` comes next in the data. If that's the case, those
+    /// bytes are consumed. If not, an error is returned.
     fn expect_tag(&mut self, tag: &[u8]) -> Result<(), Error> {
         self.with_bytes(tag.len(), |sd| {
             if sd.data != tag {
@@ -117,12 +182,14 @@ pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
         })
     }
 
+    /// Checks if `expected` comes next in the data. Does not consume anything.
     fn is_next(&mut self, expected: &[u8]) -> Result<bool, Error> {
         self.saturating_prepare(expected.len())?;
-        Ok(self.starts_with(expected))
+        Ok(self.raw_buf().starts_with(expected))
     }
 }
 
+/// A slice of input data with its span in the input stream.
 #[derive(Debug)]
 pub struct SpannedData<'a> {
     pub data: &'a [u8],
@@ -130,10 +197,14 @@ pub struct SpannedData<'a> {
 }
 
 impl<'a> SpannedData<'a> {
+    /// Returns a custom `ParseError` with the given message and the span of
+    /// this data.
     pub fn error(&self, msg: impl Into<String>) -> ParseError {
         ParseError::Custom(msg.into(), self.span)
     }
 
+    /// Makes sure this data is all ASCII. If that's the case, the data is
+    /// returned as `&str` string. If not, an error is returned.
     pub fn assert_ascii(&self) -> Result<&'a str, ParseError> {
         if !self.data.is_ascii() {
             Err(ParseError::NotAscii(self.span))
@@ -143,6 +214,7 @@ impl<'a> SpannedData<'a> {
     }
 }
 
+/// Represents a span in the input stream (with start and end).
 #[derive(Clone, Copy, Debug)]
 pub struct Span {
     lo: usize,
@@ -168,23 +240,35 @@ impl fmt::Display for Span {
     }
 }
 
+/// Things that can go wrong when parsing.
 #[derive(Debug, Fail)]
 pub enum ParseError {
+    /// Data was expected, but EOF was encountered at the given offset.
     #[fail(display = "unexpected EOF while parsing (at {})", _0)]
     UnexpectedEof(usize),
 
+    /// EOF was expected, but additional data was found.
     #[fail(display = "expected EOF, but additional data was found")]
     UnexpectedAdditionalData,
 
+    /// ASCII data was expected, but non-ASCII bytes were found.
     #[fail(display = "unexpected non-ASCII data at {}", _0)]
     NotAscii(Span),
 
+    /// The internal parse buffer got too big (larger than
+    /// `buf::MAX_BUFFER_SIZE`, which currently is 4MB).
+    ///
+    /// This shouldn't happen, as parsers only consume rather small chunks at a
+    /// time. So this either means a very degenerate file was loaded or the
+    /// parser is buggy. In either way, we don't want to die the slow OOM
+    /// death, but rather error right away.
     #[fail(
         display = "parsing lookahead got too big (due to a really degenerated \
             file or a parser bug)"
     )]
     LookAheadTooBig,
 
+    /// A custom error message with an attached span.
     #[fail(display = "{} (at {})", _0, _1)]
     Custom(String, Span)
 }
@@ -193,7 +277,7 @@ pub enum ParseError {
 macro_rules! gen_endian_parser {
     ($name:ident, $ty:ident,  $method:ident, $endian:ident) => {
         #[allow(dead_code)] // TODO
-        pub(crate) fn $name(input: &mut impl Input) -> Result<$ty, Error> {
+        pub(crate) fn $name(input: &mut impl ParseBuf) -> Result<$ty, Error> {
             use byteorder::ReadBytesExt;
 
             input.$method::<byteorder::$endian>().map_err(|e| e.into())
@@ -202,12 +286,12 @@ macro_rules! gen_endian_parser {
 }
 
 #[allow(dead_code)] // TODO
-pub(crate) fn u8_we(input: &mut impl Input) -> Result<u8, Error> {
+pub(crate) fn u8_we(input: &mut impl ParseBuf) -> Result<u8, Error> {
     use byteorder::ReadBytesExt;
     input.read_u8().map_err(|e| e.into())
 }
 #[allow(dead_code)] // TODO
-pub(crate) fn i8_we(input: &mut impl Input) -> Result<i8, Error> {
+pub(crate) fn i8_we(input: &mut impl ParseBuf) -> Result<i8, Error> {
     use byteorder::ReadBytesExt;
     input.read_i8().map_err(|e| e.into())
 }
@@ -235,8 +319,9 @@ gen_endian_parser!(f32_be, f32, read_f32, BigEndian);
 gen_endian_parser!(f64_be, f64, read_f64, BigEndian);
 
 
-
-pub trait Stopper {
+/// Something that decides when to stop traversing a byte stream. Used for
+/// `ParseBuf::skip_until` and `ParseBuf::take_until`.
+pub(crate) trait Stopper {
     fn should_stop(&self, byte: u8) -> bool;
 }
 
@@ -258,20 +343,20 @@ impl<F: Fn(u8) -> bool> Stopper for F {
 
 /// Skips whitespace (only ' ', no other whitespace characters) until
 /// encountering a non-space character.
-pub(crate) fn opt_whitespace(buf: &mut impl Input) -> Result<(), Error> {
+pub(crate) fn opt_whitespace(buf: &mut impl ParseBuf) -> Result<(), Error> {
     buf.skip_until(|b| b != b' ')
 }
 
 /// Expects at least one space character (' ') and additionally skips any space
 /// characters immediately following.
-pub(crate) fn whitespace(buf: &mut impl Input) -> Result<(), Error> {
+pub(crate) fn whitespace(buf: &mut impl ParseBuf) -> Result<(), Error> {
     buf.expect_tag(b" ")?;
     opt_whitespace(buf)?;
     Ok(())
 }
 
 /// Expects a '\n' linebreak with optional whitespace before and after it.
-pub(crate) fn linebreak(buf: &mut impl Input) -> Result<(), Error> {
+pub(crate) fn linebreak(buf: &mut impl ParseBuf) -> Result<(), Error> {
     opt_whitespace(buf)?;
     buf.expect_tag(b"\n")?;
     opt_whitespace(buf)?;
@@ -280,10 +365,10 @@ pub(crate) fn linebreak(buf: &mut impl Input) -> Result<(), Error> {
 
 /// Skips optional whitespace, calls the passed parser and requires a
 /// linebreak '\n' at the end.
-pub(crate) fn line<I, F, O>(buf: &mut I, func: F) -> Result<O, Error>
+pub(crate) fn line<P, F, O>(buf: &mut P, func: F) -> Result<O, Error>
 where
-    I: Input,
-    F: FnOnce(&mut I) -> Result<O, Error>,
+    P: ParseBuf,
+    F: FnOnce(&mut P) -> Result<O, Error>,
 {
     opt_whitespace(buf)?;
     let out = func(buf)?;
@@ -293,7 +378,7 @@ where
 
 /// Parses a whitespace (' ' or '\n') delimited ASCII `f32` value. We simply
 /// use the `FromStr` impl of `f32`.
-pub(crate) fn ascii_f32(buf: &mut impl Input) -> Result<f32, Error> {
+pub(crate) fn ascii_f32(buf: &mut impl ParseBuf) -> Result<f32, Error> {
     buf.take_until(
         |b| b == b' ' || b == b'\n',
         |sd| {

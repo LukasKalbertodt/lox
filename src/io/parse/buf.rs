@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::io::Error;
-use super::{Input, ParseError};
+use super::{ParseBuf, ParseError};
 
 
 /// The initial size of the buffer in bytes.
@@ -62,6 +62,10 @@ impl<R: Read> Buffer<R> {
 
         Ok(out)
     }
+
+    // =======================================================================
+    // ===== Internal methods
+    // =======================================================================
 
     fn len(&self) -> usize {
         self.end - self.start
@@ -143,7 +147,7 @@ impl<R: Read> Buffer<R> {
                 // `Vec::resize` will allocate and copy bytes around anyway, we
                 // use this to move our data to the beginning of our buffer.
                 let mut new = Vec::with_capacity(new_len);
-                new.extend_from_slice(&self);
+                new.extend_from_slice(self.raw_buf());
                 new.resize(new_len, 0);
                 self.buf = new;
 
@@ -181,13 +185,6 @@ impl<R: Read> Buffer<R> {
     }
 }
 
-impl<R: Read> ops::Deref for Buffer<R> {
-    type Target = [u8];
-    fn deref(&self) -> &Self::Target {
-        &self.buf[self.start..self.end]
-    }
-}
-
 impl<R: Read> Read for Buffer<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
         // If our buffer is empty, we might need to fill it.
@@ -203,14 +200,14 @@ impl<R: Read> Read for Buffer<R> {
         }
 
         let n = min(self.len(), buf.len());
-        buf[..n].copy_from_slice(&self[..n]);
+        buf[..n].copy_from_slice(&self.raw_buf()[..n]);
         self.consume(n);
 
         Ok(n)
     }
 }
 
-impl<R: Read> Input for Buffer<R> {
+impl<R: Read> ParseBuf for Buffer<R> {
     fn prepare(&mut self, num_bytes: usize) -> Result<(), Error> {
         if self.len() < num_bytes {
             let diff = num_bytes - self.len();
@@ -257,5 +254,9 @@ impl<R: Read> Input for Buffer<R> {
 
     fn offset(&self) -> usize {
         self.consumed_total
+    }
+
+    fn raw_buf(&self) -> &[u8] {
+        &self.buf[self.start..self.end]
     }
 }

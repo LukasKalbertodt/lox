@@ -33,10 +33,7 @@ use crate::{
     prelude::*,
     io::{
         StreamSource, MemSink, Primitive, Error,
-        parse::{
-            buf::{Buffer},
-            self, ParseError, Input, Span, SpannedData,
-        },
+        parse::{self, ParseError, Span, SpannedData, Buffer, ParseBuf},
     },
     util::debug_fmt_bytes,
 };
@@ -79,7 +76,7 @@ impl<R: io::Read> Reader<R> {
         /// list of comments. Assumes that `buf` is currently at the start of
         /// 'comment'. Consumes the whole line including linebreak.
         fn parse_comment(
-            buf: &mut impl Input,
+            buf: &mut impl ParseBuf,
             comments: &mut Vec<String>,
         ) -> Result<(), Error> {
             parse::line(buf, |buf| {
@@ -93,7 +90,7 @@ impl<R: io::Read> Reader<R> {
 
         /// Parses a scalar type delimited by whitespace (whitespace is not
         /// read by this function).
-        fn parse_scalar_type(buf: &mut impl Input) -> Result<ScalarType, Error> {
+        fn parse_scalar_type(buf: &mut impl ParseBuf) -> Result<ScalarType, Error> {
             buf.take_until(b' ', |word| {
                 word.assert_ascii()?
                     .parse::<ScalarType>()
@@ -102,7 +99,7 @@ impl<R: io::Read> Reader<R> {
         }
 
         /// Parses a single word delimited by whitespace or newline.
-        fn parse_ident(buf: &mut impl Input) -> Result<String, Error> {
+        fn parse_ident(buf: &mut impl ParseBuf) -> Result<String, Error> {
             buf.take_until(|b| b == b' ' || b == b'\n', |s| {
                 s.assert_ascii().map(|s| s.to_string()).map_err(|e| e.into())
             })
@@ -888,8 +885,8 @@ impl<T> ops::DerefMut for PropVec<T> {
 // This is not a very nice API, but this way we can avoid some moving data
 // around in other functions. Gotta go fast.
 
-fn read_element_bbe<I: Input>(
-    buf: &mut I,
+fn read_element_bbe<P: ParseBuf>(
+    buf: &mut P,
     index: &[TypeLen],
     raw_elem: &mut RawElement,
 ) -> Result<(), Error> {
@@ -904,8 +901,8 @@ fn read_element_bbe<I: Input>(
     }
 }
 
-fn read_element_ble<I: Input>(
-    buf: &mut I,
+fn read_element_ble<P: ParseBuf>(
+    buf: &mut P,
     index: &[TypeLen],
     raw_elem: &mut RawElement,
 ) -> Result<(), Error> {
@@ -923,7 +920,7 @@ fn read_element_ble<I: Input>(
 /// Reads `count` bytes from `buf` into `out`.
 #[inline(always)]
 fn read_bytes_into(
-    buf: &mut impl Input,
+    buf: &mut impl ParseBuf,
     count: usize,
     out: &mut Vec<u8>,
 ) -> Result<(), Error> {
@@ -939,7 +936,7 @@ fn read_bytes_into(
 /// The `swap` closure is used to swap bytes for non-native endianess. For
 /// native endianess, a no-op closure should be passed.
 fn read_binary_len(
-    buf: &mut impl Input,
+    buf: &mut impl ParseBuf,
     ty: ListLenType,
     out: &mut Vec<u8>,
     swap: impl FnOnce(&mut [u8]),
@@ -965,7 +962,7 @@ fn read_binary_len(
 
 /// Reads one element in native endianess from `buf` into `raw_elem`.
 fn read_element_binary_native(
-    buf: &mut impl Input,
+    buf: &mut impl ParseBuf,
     index: &[TypeLen],
     raw_elem: &mut RawElement,
 ) -> Result<(), Error> {
@@ -1001,7 +998,7 @@ fn read_element_binary_native(
 
 /// Reads one element in non-native endianess from `buf` into `raw_elem`.
 fn read_element_binary_swapped(
-    buf: &mut impl Input,
+    buf: &mut impl ParseBuf,
     index: &[TypeLen],
     raw_elem: &mut RawElement,
 ) -> Result<(), Error> {
@@ -1066,8 +1063,8 @@ macro_rules! ascii_parser {
 }
 
 /// Reads one element in ASCII representation from `buf` into `raw_elem`.
-fn read_element_ascii<I: Input>(
-    buf: &mut I,
+fn read_element_ascii<P: ParseBuf>(
+    buf: &mut P,
     _: &[TypeLen],
     raw_elem: &mut RawElement,
 ) -> Result<(), Error> {
@@ -1126,7 +1123,7 @@ fn read_element_ascii<I: Input>(
 
 /// Read a single ASCII value of type `ty` into `out`.
 fn read_ascii_value(
-    buf: &mut impl Input,
+    buf: &mut impl ParseBuf,
     ty: ScalarType,
     out: &mut Vec<u8>,
 ) -> Result<(), Error> {
