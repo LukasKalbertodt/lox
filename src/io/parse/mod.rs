@@ -6,10 +6,13 @@ use std::{
 
 use failure::Fail;
 
-use super::Error;
 
 
 pub(crate) mod buf;
+use crate::{
+    io::Error,
+    util::debug_fmt_bytes,
+};
 
 pub(crate) trait Input: io::Read + ops::Deref<Target = [u8]> {
     fn prepare(&mut self, num_bytes: usize) -> Result<(), Error>;
@@ -232,13 +235,6 @@ gen_endian_parser!(f32_be, f32, read_f32, BigEndian);
 gen_endian_parser!(f64_be, f64, read_f64, BigEndian);
 
 
-pub fn debug_fmt_bytes(data: &[u8]) -> String {
-    if let Ok(s) = std::str::from_utf8(data) {
-        format!("{:?}", s)
-    } else {
-        format!("{:?}", data)
-    }
-}
 
 pub trait Stopper {
     fn should_stop(&self, byte: u8) -> bool;

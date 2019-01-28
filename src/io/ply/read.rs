@@ -34,10 +34,11 @@ use crate::{
     io::{
         StreamSource, MemSink, Primitive, Error,
         parse::{
-            self, ParseError, Input, Span, debug_fmt_bytes, SpannedData,
             buf::{Buffer},
+            self, ParseError, Input, Span, SpannedData,
         },
     },
+    util::debug_fmt_bytes,
 };
 use super::Encoding;
 
