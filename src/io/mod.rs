@@ -342,6 +342,38 @@ pub trait StreamSource {
     fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error>;
 }
 
+/// A type that can receive and store mesh data in any order.
+///
+/// This trait is mostly used to transfer mesh data from a [`StreamSource`]
+/// into another type. In this kind of transfer, the `StreamSource` determines
+/// the order of the data, while the `MemSink` has to be able to store the data
+/// in any order. There are a few exceptions – those are explained below.
+///
+/// In general, if the source provides data that the sink cannot store, that
+/// data is ignored/discarded and does not lead to errors.
+///
+///
+/// # Kinds of methods on this trait
+///
+/// There are three kinds of methods:
+/// - *Mesh connectivity*: `add_vertex` and `add_face`. These are the only
+///   required methods.
+/// - *`size_hint`*: empty implementation provided.
+/// - *Mesh properties*: `prepare_*` and `set_*` methods: empty implementations
+///   provided.
+///
+/// There are some rules for the last kind of methods: for each property (e.g.
+/// `vertex_position` or `face_normal`), the `prepare_*` method has to be
+/// called by the source before the `set_*` method can be called. Additionally,
+/// the `N` type parameter must be the same for all calls of `prepare_*` and
+/// `set_*` of one property. The sink can rely on these rules.
+///
+/// The handles passed to `set_` methods have to be handles returned
+/// by `add_vertex` or `add_face`.
+///
+/// The `count` parameter of the `prepare_` methods is just an optimization and
+/// represents a lower bound of the number of properties will be added via
+/// `set_*`. Therefore, it's always valid for the source to pass 0 as `count`.
 pub trait MemSink {
     fn add_vertex(&mut self) -> VertexHandle;
     fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
@@ -357,9 +389,16 @@ pub trait MemSink {
     fn size_hint(&mut self, _hint: MeshSizeHint) {}
 
 
+    /// Informs the sink that the source will provide at least `count` vertex
+    /// positions with the scalar type `N`.
+    fn prepare_vertex_positions<N: Primitive>(&mut self, _count: DefaultInt) -> Result<(), Error> {
+        Ok(())
+    }
+
+    /// Sets the position (with scalar type `N`) of the vertex `v`.
     fn set_vertex_position<N: Primitive>(
         &mut self,
-        _: VertexHandle,
+        _v: VertexHandle,
         _position: Point3<N>,
     ) {}
 }

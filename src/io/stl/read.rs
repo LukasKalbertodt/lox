@@ -545,6 +545,7 @@ where
 
         // Give hints to the sink and our vertex adder.
         sink.size_hint(hint);
+        sink.prepare_vertex_positions::<f32>(hint.guess_vertex_count())?;
         vertex_adder.size_hint(hint.guess_vertex_count());
 
         // Read the body data
