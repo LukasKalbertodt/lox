@@ -33,3 +33,12 @@ pub fn derive_empty(input: TokenStream) -> TokenStream {
         .unwrap_or_else(|e| e.to_compile_error())
         .into()
 }
+
+
+#[proc_macro_derive(MemSink, attributes(lox))]
+pub fn derive_mem_sink(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+    derives::derive_mem_sink(&input)
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
+}

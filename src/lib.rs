@@ -71,6 +71,7 @@ pub(crate) mod sealed {
 // ===========================================================================
 
 pub use lox_macros::Empty;
+pub use lox_macros::MemSink;
 
 
 // Sadly, rustdoc is a bit buggy when it comes to reexporting proc macros. So
