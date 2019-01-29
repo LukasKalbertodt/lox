@@ -16,6 +16,7 @@ use crate::{
     map::VertexPropMap,
     math::{Pos3Like, PrimitiveNum},
     sealed::Sealed,
+    traits::Empty,
     util::MeshSizeHint,
 };
 use self::parse::ParseError;
@@ -355,9 +356,10 @@ pub trait StreamSource {
 ///
 /// # Kinds of methods on this trait
 ///
-/// There are three kinds of methods:
+/// There are four kinds of methods:
 /// - *Mesh connectivity*: `add_vertex` and `add_face`. These are the only
 ///   required methods.
+/// - *`create_from`*: just a provided, convenience method.
 /// - *`size_hint`*: empty implementation provided.
 /// - *Mesh properties*: `prepare_*` and `set_*` methods: empty implementations
 ///   provided.
@@ -377,6 +379,19 @@ pub trait StreamSource {
 pub trait MemSink {
     fn add_vertex(&mut self) -> VertexHandle;
     fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
+
+    /// Creates the sink from the given source.
+    ///
+    /// This is a convenience method that is already provided. There is
+    /// probably no need to overwrite this method.
+    fn create_from(source: impl StreamSource) -> Result<Self, Error>
+    where
+        Self: Sized + Empty,
+    {
+        let mut out = Self::empty();
+        source.transfer_to(&mut out)?;
+        Ok(out)
+    }
 
     /// Might be called by the source to indicate how many vertices and faces
     /// are to be expected.

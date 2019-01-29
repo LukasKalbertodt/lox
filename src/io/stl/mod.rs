@@ -103,10 +103,7 @@ pub use self::write::{Config, Sink};
 ///
 /// TODO: Example
 pub fn read<T: Empty + MemSink, P: AsRef<Path>>(path: P) -> Result<T, Error> {
-    let reader = Reader::open(path)?;
-    let mut out = T::empty();
-    reader.transfer_to(&mut out)?;
-    Ok(out)
+    T::create_from(Reader::open(path)?)
 }
 
 pub fn write<T: MemSource, P: AsRef<Path>>(path: P, src: &T) -> Result<(), Error> {
