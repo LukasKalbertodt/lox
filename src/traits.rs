@@ -202,3 +202,25 @@ pub trait VerticesAroundVertex: Mesh {
 ///
 /// TODO: more explanation and image.
 pub trait SupportsMultiBlade: MeshMut {}
+
+
+// ===========================================================================
+// ===== Implementations
+// ===========================================================================
+impl Empty for () {
+    fn empty() -> Self {
+        ()
+    }
+}
+
+impl<T> Empty for Vec<T> {
+    fn empty() -> Self {
+        Vec::new()
+    }
+}
+
+impl<T> Empty for Option<T> {
+    fn empty() -> Self {
+        None
+    }
+}
