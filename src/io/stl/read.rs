@@ -497,7 +497,8 @@ impl UnifyingMarker for VerbatimVertices {
 // ===========================================================================
 pub trait VertexAdder {
     fn new() -> Self;
-    fn size_hint(&mut self, _num_vertices: u32) {}
+    fn is_unifying(&self) -> bool;
+    fn size_hint(&mut self, _num_faces: u32) {}
     fn add_vertex<S: MemSink>(
         &mut self,
         sink: &mut S,
@@ -511,6 +512,10 @@ pub struct NonUnifyingAdder;
 impl VertexAdder for NonUnifyingAdder {
     fn new() -> Self {
         NonUnifyingAdder
+    }
+
+    fn is_unifying(&self) -> bool {
+        false
     }
 
     fn add_vertex<S: MemSink>(
@@ -548,8 +553,12 @@ impl VertexAdder for UnifyingAdder {
         UnifyingAdder(HashMap::default())
     }
 
-    fn size_hint(&mut self, num_vertices: u32) {
-        self.0.reserve(num_vertices as usize);
+    fn is_unifying(&self) -> bool {
+        true
+    }
+
+    fn size_hint(&mut self, num_faces: u32) {
+        self.0.reserve(num_faces as usize / 2);
     }
 
     fn add_vertex<S: MemSink>(
@@ -593,7 +602,15 @@ where
 
         impl<S: MemSink, A: VertexAdder> RawSink for HelperSink<'_, S, A> {
             fn solid_name(&mut self, _: String) {}
-            fn triangle_count(&mut self, _num: u32) {} // TODO
+            fn triangle_count(&mut self, tri_count: u32) {
+                if self.vertex_adder.is_unifying() {
+                    self.sink.size_hint(None, Some(tri_count));
+                    self.vertex_adder.size_hint(tri_count);
+                } else {
+                    let vertex_count = 3 * tri_count;
+                    self.sink.size_hint(Some(vertex_count), Some(tri_count));
+                }
+            }
 
             fn triangle(&mut self, triangle: RawTriangle) {
                 let [pa, pb, pc] = triangle.vertices;

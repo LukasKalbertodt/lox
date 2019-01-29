@@ -362,6 +362,8 @@ impl<R: io::Read> StreamSource for Reader<R> {
             Encoding::Ascii => read_element_ascii::<Buffer<R>>,
         };
 
+        // TODO: call size_hint
+
 
 
         // Iterate through each element group

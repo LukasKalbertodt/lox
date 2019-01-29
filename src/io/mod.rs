@@ -345,6 +345,46 @@ pub trait MemSink {
     fn add_vertex(&mut self) -> VertexHandle;
     fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
 
+    /// Might be called by the source to indicate how many vertices and faces
+    /// are to be expected.
+    ///
+    /// This is just an optimization as it allows the sink to reserve memory.
+    /// **However**, instead of overwriting this method, sinks should overwrite
+    /// `reserve` instead. This method's default implementation will call
+    /// `reserve` with reasonable estimates.
+    ///
+    /// The arguments `num_vertices` and `num_faces` are lower bounds. However,
+    /// it's benefitial if the source can provide exact numbers instead of just
+    /// bounds. The values might be `None` to indicate that the source doesn't
+    /// know the lower bound. Although it doesn't make much sense, this method
+    /// might be called with `num_vertices` and `num_faces` being `None`.
+    ///
+    /// This method might not be called by the source at all.
+    fn size_hint(
+        &mut self,
+        num_vertices: Option<DefaultInt>,
+        num_faces: Option<DefaultInt>,
+    ) {
+        // If one of the given lower bounds is `None`, one can derive a
+        // reasonable estimate for the other one via Euler's formula. In
+        // particular, the derived fact `|F| ≈ 2 * |V|` is of interest.
+        let (num_vertices, num_faces) = match (num_vertices, num_faces) {
+            (Some(v), Some(f)) => (v, f),
+            (Some(v), None)    => (v, 2 * v),
+            (None,    Some(f)) => (f / 2, f),
+            (None,    None)    => (0, 0),
+        };
+
+        self.reserve(num_vertices, num_faces);
+    }
+
+    /// Tells the sink to allocate memory for the given number of vertices and
+    /// faces.
+    ///
+    /// This is just an optimization; the provided implementation does nothing.
+    /// Both argument might be 0.
+    fn reserve(&mut self, _num_vertices: DefaultInt, _num_faces: DefaultInt) {}
+
     fn set_vertex_position<N: Primitive>(
         &mut self,
         _: VertexHandle,
