@@ -90,7 +90,7 @@ mod write;
 #[cfg(test)]
 mod tests;
 
-pub use self::read::{FnRawSink, Reader, RawSink, RawTriangle, RawResult};
+pub use self::read::{Reader, RawTriangle, RawResult};
 // pub use self::write::{Config, Writer, Sink};
 pub use self::write::{Config, Sink};
 

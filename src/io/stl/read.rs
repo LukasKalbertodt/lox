@@ -248,35 +248,34 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
     /// Reads the whole file into a [`RawResult`].
     ///
     /// Usually you either want to use a higher level function (like TODO) or
-    /// [`Reader::read_raw_into`]. The latter is the streaming version of this
+    /// [`Reader::read_raw`]. The latter is the streaming version of this
     /// method which doesn't require a temporary storage ([`RawResult`]).
     pub fn into_raw_result(self) -> Result<RawResult, Error> {
+        // Prepare the raw result with metadata and memory allocations.
         let mut out = RawResult::new();
-        self.read_raw_into(&mut out)?;
+        out.solid_name = self.solid_name.clone();
+        if let Some(tri_count) = self.triangle_count {
+            out.triangles.reserve(tri_count as usize);
+        }
+
+        // Read the all triangles into the raw result
+        self.read_raw(|tri| out.triangles.push(tri))?;
+
         Ok(out)
     }
 
-    /// Reads the whole file into the given raw sink.
+    /// Reads the whole file, passing each triangle to the `add_triangle`
+    /// callback.
     ///
     /// This is a low level building block that you usually don't want to use
     /// directly. TODO: High level? In particular, this method itself never
     /// performs any vertex unification (regardless of the type parameter `U`).
-    pub fn read_raw_into<S: RawSink>(
-        self,
-        sink: &mut S,
-    ) -> Result<(), Error> {
+    pub fn read_raw(self, mut add_triangle: impl FnMut(RawTriangle)) -> Result<(), Error> {
         let mut buf = self.buf;
-
-        // Forward metadata to the sink
-        if let Some(solid_name) = self.solid_name {
-            sink.solid_name(solid_name);
-        }
 
         // ===== Parse body ==================================================
         if let Some(triangle_count) = self.triangle_count {
             // ===== BINARY ==================================================
-            sink.triangle_count(triangle_count);
-
             // We attempt to read as many triangles as specified. If the
             // specified number was too high and we reach EOF early, we will
             // return an error.
@@ -304,7 +303,7 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
                     })
                 })?;
 
-                sink.triangle(triangle);
+                add_triangle(triangle);
             }
 
             // If the specified number of triangles was too small and there is
@@ -330,8 +329,8 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
                 ];
                 parse::line(&mut buf, |buf| buf.expect_tag(b"endloop"))?;
 
-                // Pass parsed triangle to sink
-                sink.triangle(RawTriangle {
+                // Pass parsed triangle to callback
+                add_triangle(RawTriangle {
                     normal,
                     vertices,
                     attribute_byte_count: 0,
@@ -368,27 +367,8 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> fmt::Debug for Reader<R, U> {
 
 
 // ===========================================================================
-// ===== Definition of `RawSink` and some sinks
+// ===== Definition of `RawTriangle` and `RawResult`
 // ===========================================================================
-
-/// A sink can accept raw data from an STL file. This is mainly used for
-/// [`Reader::read_raw_into`].
-pub trait RawSink {
-    /// Is called once in the beginning if the file starts with `solid`.
-    ///
-    /// If the file is guessed to be binary, the `name` is the 75 character
-    /// header after `solid` with whitespace trimmed from both sites. If the
-    /// file is ASCII, `name` is the first line (without `solid`). If the file
-    /// doesn't start with `solid`, this method is not called.
-    fn solid_name(&mut self, name: String);
-
-    /// If the file is binary, this method is called once in the beginning. The
-    /// number of triangles as stored in the file is passed into this method.
-    fn triangle_count(&mut self, num: u32);
-
-    /// Is called for each triangle that is read from the file.
-    fn triangle(&mut self, triangle: RawTriangle);
-}
 
 /// One raw triangle in an STL file.
 ///
@@ -435,48 +415,12 @@ impl RawResult {
     }
 }
 
-/// For convenience, you can use [`Reader::into_raw_result`] instead of
-/// [`Reader::read_raw_into`] with `RawResult`.
-impl RawSink for RawResult {
-    fn solid_name(&mut self, name: String) {
-        self.solid_name = Some(name);
-    }
-
-    fn triangle_count(&mut self, num: u32) {
-        self.triangles.reserve(num as usize);
-    }
-
-    fn triangle(&mut self, triangle: RawTriangle) {
-        self.triangles.push(triangle);
-    }
-}
-
-/// A simple wrapper around a closure which implements [`RawSink`].
-///
-/// The closure is used to implement the `triangle` method of the `RawSink` trait.
-/// The methods `solid_name` and `triangle_count` just don't do anything. This
-/// is just a quick way to create a sink.
-///
-/// Since the closure can return an error, you usually have to annotate the
-/// error type `!` manually if you are not actually returning an error.
-#[derive(Debug)]
-pub struct FnRawSink<F>(pub F);
-
-impl<F: FnMut(RawTriangle)> RawSink for FnRawSink<F> {
-    fn solid_name(&mut self, _: String) {}
-    fn triangle_count(&mut self, _: u32) {}
-
-    fn triangle(&mut self, triangle: RawTriangle) {
-        (self.0)(triangle)
-    }
-}
-
-
 // ===========================================================================
 // ===== Definition of unifying dummy types. Not actually public.
 // ===========================================================================
 pub trait UnifyingMarker {
     type Adder: VertexAdder;
+    const UNIFY: bool;
 }
 
 #[derive(Debug)]
@@ -484,6 +428,7 @@ pub enum UnifyVertices {}
 
 impl UnifyingMarker for UnifyVertices {
     type Adder = UnifyingAdder;
+    const UNIFY: bool = true;
 }
 
 #[derive(Debug)]
@@ -491,6 +436,7 @@ pub enum VerbatimVertices {}
 
 impl UnifyingMarker for VerbatimVertices {
     type Adder = NonUnifyingAdder;
+    const UNIFY: bool = false;
 }
 
 // ===========================================================================
@@ -498,7 +444,6 @@ impl UnifyingMarker for VerbatimVertices {
 // ===========================================================================
 pub trait VertexAdder {
     fn new() -> Self;
-    fn is_unifying(&self) -> bool;
     fn size_hint(&mut self, _vertex_count: u32) {}
     fn add_vertex<S: MemSink>(
         &mut self,
@@ -513,10 +458,6 @@ pub struct NonUnifyingAdder;
 impl VertexAdder for NonUnifyingAdder {
     fn new() -> Self {
         NonUnifyingAdder
-    }
-
-    fn is_unifying(&self) -> bool {
-        false
     }
 
     fn add_vertex<S: MemSink>(
@@ -552,10 +493,6 @@ pub struct UnifyingAdder(HashMap<PosKey, VertexHandle>);
 impl VertexAdder for UnifyingAdder {
     fn new() -> Self {
         UnifyingAdder(HashMap::default())
-    }
-
-    fn is_unifying(&self) -> bool {
-        true
     }
 
     fn size_hint(&mut self, vertex_count: u32) {
@@ -596,25 +533,6 @@ where
     U: UnifyingMarker,
 {
     fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error> {
-        struct HelperSink<'a, S: MemSink, A: VertexAdder> {
-            sink: &'a mut S,
-            vertex_adder: A,
-        };
-
-        impl<S: MemSink, A: VertexAdder> RawSink for HelperSink<'_, S, A> {
-            fn solid_name(&mut self, _: String) {}
-            fn triangle_count(&mut self, _tri_count: u32) {}
-
-            fn triangle(&mut self, triangle: RawTriangle) {
-                let [pa, pb, pc] = triangle.vertices;
-                let a = self.vertex_adder.add_vertex(self.sink, pa);
-                let b = self.vertex_adder.add_vertex(self.sink, pb);
-                let c = self.vertex_adder.add_vertex(self.sink, pc);
-
-                self.sink.add_face([a, b, c]);
-            }
-        }
-
         let mut vertex_adder = U::Adder::new();
 
         // Prepare the size hint. If we do not unify, we know the number of
@@ -622,15 +540,21 @@ where
         let face_count = self.triangle_count();
         let vertex_count = face_count
             .map(|tris| tris / 2)
-            .filter(|_| !vertex_adder.is_unifying());
+            .filter(|_| !U::UNIFY);
         let hint = MeshSizeHint { vertex_count, face_count };
 
         // Give hints to the sink and our vertex adder.
         sink.size_hint(hint);
         vertex_adder.size_hint(hint.guess_vertex_count());
 
+        // Read the body data
+        self.read_raw(|triangle| {
+            let [pa, pb, pc] = triangle.vertices;
+            let a = vertex_adder.add_vertex(sink, pa);
+            let b = vertex_adder.add_vertex(sink, pb);
+            let c = vertex_adder.add_vertex(sink, pc);
 
-        // Read into helper sink
-        self.read_raw_into(&mut HelperSink { sink, vertex_adder })
+            sink.add_face([a, b, c]);
+        })
     }
 }
