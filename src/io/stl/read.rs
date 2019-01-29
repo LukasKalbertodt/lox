@@ -18,6 +18,7 @@ use crate::{
             self, ParseBuf, Buffer,
         },
     },
+    util::MeshSizeHint,
 };
 use super::Encoding;
 
@@ -498,7 +499,7 @@ impl UnifyingMarker for VerbatimVertices {
 pub trait VertexAdder {
     fn new() -> Self;
     fn is_unifying(&self) -> bool;
-    fn size_hint(&mut self, _num_faces: u32) {}
+    fn size_hint(&mut self, _vertex_count: u32) {}
     fn add_vertex<S: MemSink>(
         &mut self,
         sink: &mut S,
@@ -557,8 +558,8 @@ impl VertexAdder for UnifyingAdder {
         true
     }
 
-    fn size_hint(&mut self, num_faces: u32) {
-        self.0.reserve(num_faces as usize / 2);
+    fn size_hint(&mut self, vertex_count: u32) {
+        self.0.reserve(vertex_count as usize);
     }
 
     fn add_vertex<S: MemSink>(
@@ -602,15 +603,7 @@ where
 
         impl<S: MemSink, A: VertexAdder> RawSink for HelperSink<'_, S, A> {
             fn solid_name(&mut self, _: String) {}
-            fn triangle_count(&mut self, tri_count: u32) {
-                if self.vertex_adder.is_unifying() {
-                    self.sink.size_hint(None, Some(tri_count));
-                    self.vertex_adder.size_hint(tri_count);
-                } else {
-                    let vertex_count = 3 * tri_count;
-                    self.sink.size_hint(Some(vertex_count), Some(tri_count));
-                }
-            }
+            fn triangle_count(&mut self, _tri_count: u32) {}
 
             fn triangle(&mut self, triangle: RawTriangle) {
                 let [pa, pb, pc] = triangle.vertices;
@@ -622,10 +615,22 @@ where
             }
         }
 
+        let mut vertex_adder = U::Adder::new();
+
+        // Prepare the size hint. If we do not unify, we know the number of
+        // vertices exactly.
+        let face_count = self.triangle_count();
+        let vertex_count = face_count
+            .map(|tris| tris / 2)
+            .filter(|_| !vertex_adder.is_unifying());
+        let hint = MeshSizeHint { vertex_count, face_count };
+
+        // Give hints to the sink and our vertex adder.
+        sink.size_hint(hint);
+        vertex_adder.size_hint(hint.guess_vertex_count());
+
+
         // Read into helper sink
-        self.read_raw_into(&mut HelperSink {
-            sink,
-            vertex_adder: U::Adder::new(),
-        })
+        self.read_raw_into(&mut HelperSink { sink, vertex_adder })
     }
 }

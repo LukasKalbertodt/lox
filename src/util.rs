@@ -5,6 +5,7 @@ use cgmath::{
 use num_traits::cast;
 
 use crate::{
+    handle::DefaultInt,
     math::Pos3Like,
 };
 
@@ -271,6 +272,46 @@ pub(crate) fn debug_fmt_bytes(data: &[u8]) -> String {
         format!("{:?}", std::str::from_utf8(data).unwrap())
     } else {
         format!("{:02x?}", data)
+    }
+}
+
+/// Represents potentially partial information about the number of elements in
+/// a mesh.
+///
+/// There are some helper methods to get reasonable estimates from Euler's
+/// formula in case some size information is missing. In particular, the
+/// derived fact `|F| ≈ 2 * |V|` is of interest.
+#[derive(Debug, Clone, Copy)]
+pub struct MeshSizeHint {
+    pub vertex_count: Option<DefaultInt>,
+    pub face_count: Option<DefaultInt>,
+}
+
+impl MeshSizeHint {
+    /// Returns an estimate of the number of vertices.
+    ///
+    /// If the number is already given, that number is returned. If not, but
+    /// the face count is given, the vertex count is estimated from that.
+    /// Otherwise 0 is returned.
+    pub fn guess_vertex_count(&self) -> DefaultInt {
+        match (self.vertex_count, self.face_count) {
+            (Some(v), _) => v,
+            (None, Some(f)) => f / 2,
+            (None, None)    => 0,
+        }
+    }
+
+    /// Returns an estimate of the number of faces.
+    ///
+    /// If the number is already given, that number is returned. If not, but
+    /// the vertex count is given, the face count is estimated from that.
+    /// Otherwise 0 is returned.
+    pub fn guess_face_count(&self) -> DefaultInt {
+        match (self.vertex_count, self.face_count) {
+            (_, Some(f)) => f,
+            (Some(v), None) => 2 * v,
+            (None, None) => 0,
+        }
     }
 }
 
