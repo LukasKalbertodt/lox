@@ -1,5 +1,6 @@
 //! Everything related to the `mesh!` macro.
 
+use quote::quote;
 use proc_macro2::{Ident, Span, TokenStream};
 use syn::{
     bracketed, parenthesized, Token, token,
