@@ -7,7 +7,7 @@ use std::{
     path::Path,
 };
 
-use cgmath::Point3;
+use cgmath::{Point3, Vector3};
 use failure::Fail;
 
 use crate::{
@@ -377,8 +377,16 @@ pub trait StreamSource {
 /// represents a lower bound of the number of properties will be added via
 /// `set_*`. Therefore, it's always valid for the source to pass 0 as `count`.
 pub trait MemSink {
+    // =======================================================================
+    // ===== Mesh connectivity
+    // =======================================================================
     fn add_vertex(&mut self) -> VertexHandle;
     fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
+
+
+    // =======================================================================
+    // ===== Provided convenience method
+    // =======================================================================
 
     /// Creates the sink from the given source.
     ///
@@ -393,6 +401,10 @@ pub trait MemSink {
         Ok(out)
     }
 
+    // =======================================================================
+    // ===== Size hint
+    // =======================================================================
+
     /// Might be called by the source to indicate how many vertices and faces
     /// are to be expected.
     ///
@@ -404,8 +416,12 @@ pub trait MemSink {
     fn size_hint(&mut self, _hint: MeshSizeHint) {}
 
 
-    /// Informs the sink that the source will provide at least `count` vertex
-    /// positions with the scalar type `N`.
+    // =======================================================================
+    // ===== Mesh properties
+    // =======================================================================
+
+    /// Informs the sink that the source will provide at least `count` many
+    /// vertex positions with the scalar type `N`.
     fn prepare_vertex_positions<N: Primitive>(&mut self, _count: DefaultInt) -> Result<(), Error> {
         Ok(())
     }
@@ -415,6 +431,32 @@ pub trait MemSink {
         &mut self,
         _v: VertexHandle,
         _position: Point3<N>,
+    ) {}
+
+    /// Informs the sink that the source will provide at least `count` many
+    /// vertex normals with the scalar type `N`.
+    fn prepare_vertex_normals<N: Primitive>(&mut self, _count: DefaultInt) -> Result<(), Error> {
+        Ok(())
+    }
+
+    /// Sets the normal (with scalar type `N`) of the vertex `v`.
+    fn set_vertex_normal<N: Primitive>(
+        &mut self,
+        _v: VertexHandle,
+        _normal: Vector3<N>,
+    ) {}
+
+    /// Informs the sink that the source will provide at least `count` many
+    /// face normals with the scalar type `N`.
+    fn prepare_face_normals<N: Primitive>(&mut self, _count: DefaultInt) -> Result<(), Error> {
+        Ok(())
+    }
+
+    /// Sets the normal (with scalar type `N`) of the face `f`.
+    fn set_face_normal<N: Primitive>(
+        &mut self,
+        _f: FaceHandle,
+        _normal: Vector3<N>,
     ) {}
 }
 
