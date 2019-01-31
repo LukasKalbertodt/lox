@@ -120,56 +120,56 @@ fn read_cube_binary() -> Result<(), Error> {
 // ===========================================================================
 // ===== Writing
 // ===========================================================================
-fn triangle_mesh() -> (
-    SharedVertexMesh,
-    VecMap<VertexHandle, [f32; 3]>,
-    VecMap<FaceHandle, [f32; 3]>,
-) {
-    mesh! {
-        type: SharedVertexMesh,
-        vertices: [
-            v0: ([0.0f32, 0.0, 0.0]),
-            v1: ([3.0, 5.0, 8.0]),
-            v2: ([1.942, 152.99, 0.007]),
-        ],
-        faces: [
-            [v0, v1, v2]: ([0.5, 0.3, 0.1]), // BS normal, but it's fine for the test
-        ],
-    }
-}
+// fn triangle_mesh() -> (
+//     SharedVertexMesh,
+//     VecMap<VertexHandle, [f32; 3]>,
+//     VecMap<FaceHandle, [f32; 3]>,
+// ) {
+//     mesh! {
+//         type: SharedVertexMesh,
+//         vertices: [
+//             v0: ([0.0f32, 0.0, 0.0]),
+//             v1: ([3.0, 5.0, 8.0]),
+//             v2: ([1.942, 152.99, 0.007]),
+//         ],
+//         faces: [
+//             [v0, v1, v2]: ([0.5, 0.3, 0.1]), // BS normal, but it's fine for the test
+//         ],
+//     }
+// }
 
-#[test]
-fn write_triangle_ascii() -> Result<(), Error> {
-    let (mesh, positions, face_normals) = triangle_mesh();
+// #[test]
+// fn write_triangle_ascii() -> Result<(), Error> {
+//     let (mesh, positions, face_normals) = triangle_mesh();
 
-    let res = Config::ascii()
-        .into_writer(&mesh, &positions)
-        .write_to_memory()?;
-    assert_eq_file!(&res, "triangle_ascii.stl");
+//     let res = Config::ascii()
+//         .into_writer(&mesh, &positions)
+//         .write_to_memory()?;
+//     assert_eq_file!(&res, "triangle_ascii.stl");
 
-    let res = Config::ascii()
-        .into_writer(&mesh, &positions)
-        .with_face_normals(&face_normals)
-        .write_to_memory()?;
-    assert_eq_file!(&res, "triangle_ascii_custom_normals.stl");
+//     let res = Config::ascii()
+//         .into_writer(&mesh, &positions)
+//         .with_face_normals(&face_normals)
+//         .write_to_memory()?;
+//     assert_eq_file!(&res, "triangle_ascii_custom_normals.stl");
 
-    Ok(())
-}
+//     Ok(())
+// }
 
-#[test]
-fn write_triangle_binary() -> Result<(), Error> {
-    let (mesh, positions, face_normals) = triangle_mesh();
+// #[test]
+// fn write_triangle_binary() -> Result<(), Error> {
+//     let (mesh, positions, face_normals) = triangle_mesh();
 
-    let res = Config::binary()
-        .into_writer(&mesh, &positions)
-        .write_to_memory()?;
-    assert_eq_file!(&res, "triangle_binary.stl");
+//     let res = Config::binary()
+//         .into_writer(&mesh, &positions)
+//         .write_to_memory()?;
+//     assert_eq_file!(&res, "triangle_binary.stl");
 
-    let res = Config::binary()
-        .into_writer(&mesh, &positions)
-        .with_face_normals(&face_normals)
-        .write_to_memory()?;
-    assert_eq_file!(&res, "triangle_binary_custom_normals.stl");
+//     let res = Config::binary()
+//         .into_writer(&mesh, &positions)
+//         .with_face_normals(&face_normals)
+//         .write_to_memory()?;
+//     assert_eq_file!(&res, "triangle_binary_custom_normals.stl");
 
-    Ok(())
-}
+//     Ok(())
+// }
