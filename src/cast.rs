@@ -88,8 +88,8 @@
 //! // Thus, the first line here would lead to a compiler error. With the
 //! // `try_*` version you can get `None` instead of a compiler error.
 //! //assert_eq!(cast::lossless::<u16, u8>(27), 27);
-//! assert_eq!(cast::try_lossless::<u16, u16>(10), None);
-//! assert_eq!(cast::try_lossless::<u16, u16>(300), None);
+//! assert_eq!(cast::try_lossless::<u16, u8>(10), None);
+//! assert_eq!(cast::try_lossless::<u16, u8>(300), None);
 //!
 //! // When we allow clamping, we can cast.
 //! assert_eq!(cast::clamping::<u16, u8>(300), 255);
