@@ -1,6 +1,119 @@
-//! ...
+//! Casting between different number types.
 //!
-//! TODO: should we use the `conv` crate instead?
+//! This module offers functions and traits for casting between numerical
+//! types. The goal is to allow the user to choose how exactly numbers are
+//! casted, e.g. whether rounding is allowed or not.
+//!
+//! A notable difference to similar solutions is that this module never looks
+//! at the actual concrete number value to decide whether or not casting is
+//! possible (of course, the value is used when performing the actual cast).
+//! Instead, it is decided purely on the compile-time type. This has the
+//! obvious disadvantage of being more restrictive (`u16` -> `u8` cast is not
+//! allowed via `lossless`, even if your `u16` values never exceed 255). The
+//! important advantage is speed: since everything can be decided at compile
+//! time, the decision has no overhead. Furthermore, you can get compile errors
+//! by using trait bounds from this module.
+//!
+//!
+//! # Cast Rigors
+//!
+//! A cast rigor describes how much we "allow" when casting. We decide between
+//! two things that one might want to avoid: clamping and rounding. The former
+//! describes the process of changing a number to fit in a smaller range (e.g.
+//! `500u16` to `u8`). "Rounding" means that the input number is not outside
+//! the range of the destination type, but can not be exactly represented; a
+//! reasonable close number of the destiniation type is choosen (e.g. float to
+//! int).
+//!
+//! Two binary choices lead to four different rigors:
+//! - [`Lossless`][cast::Lossless]: neither clamping nor rounding allowed.
+//! - [`AllowClamping`][cast::AllowClamping]: clamping allowed, rounding not allowed.
+//! - [`AllowRounding`][cast::AllowRounding]: rounding allowed, clamping not allowed.
+//! - [`Lossy`][cast::Lossy]: both, clamping and rounding, allowed.
+//!
+//! In the following table you can see what can happen during the conversions
+//! between primitive number types. Here, '×' stands for "clamping", '○' stands
+//! for "rounding" and '⊗' stands for both. Empty cells mean that this cast is
+//! always lossless.
+//!
+//! | ↱          |`u8`|`u16`|`u32`|`u64`|`u128`|`i8`|`i16`|`i32`|`i64`|`i128`|`f32`|`f64`|
+//! | -          |----|-----|-----|-----|------|----|-----|-----|-----|------|-----|-----|
+//! | **`u8`**   |    |     |     |     |      |  × |     |     |     |      |     |     |
+//! | **`u16`**  |  × |     |     |     |      |  × |   × |     |     |      |     |     |
+//! | **`u32`**  |  × |   × |     |     |      |  × |   × |   × |     |      |   ○ |     |
+//! | **`u64`**  |  × |   × |   × |     |      |  × |   × |   × |   × |      |   ○ |   ○ |
+//! | **`u128`** |  × |   × |   × |   × |      |  × |   × |   × |   × |    × |   ○ |   ○ |
+//! |            |    |     |     |     |      |    |     |     |     |      |     |     |
+//! | **`i8`**   |  × |   × |   × |   × |    × |    |     |     |     |      |     |     |
+//! | **`i16`**  |  × |   × |   × |   × |    × |  × |     |     |     |      |     |     |
+//! | **`i32`**  |  × |   × |   × |   × |    × |  × |   × |     |     |      |   ○ |     |
+//! | **`i64`**  |  × |   × |   × |   × |    × |  × |   × |   × |     |      |   ○ |   ○ |
+//! | **`i128`** |  × |   × |   × |   × |    × |  × |   × |   × |   × |      |   ○ |   ○ |
+//! |            |    |     |     |     |      |    |     |     |     |      |     |     |
+//! | **`f32`**  |  ⊗ |   ⊗ |  ⊗ |   ⊗ |   ⊗ |  ⊗ |   ⊗ |  ⊗ |   ⊗ |   ○  |     |     |
+//! | **`f64`**  |  ⊗ |   ⊗ |  ⊗ |   ⊗ |   ⊗ |  ⊗ |   ⊗ |  ⊗ |   ⊗ |   ⊗ |   ⊗ |     |
+//!
+//!
+//! # Casting functions
+//!
+//! For each cast rigor, there are two corresponding functions called
+//! `{{rigor}}` and `try_{{rigor}}`, e.g. [`lossless`][cast::lossless] and
+//! [`try_lossless`][cast::try_lossless].
+//!
+//! The functions without `try_` prefix work with classical trait bounds: if
+//! you attempt to cast betwene two types that are not castable with the
+//! selected rigor, you will get a compile error.
+//!
+//! The functions *with* `try_` prefix work differently: instead of resulting
+//! in a compiler error, `None` is returned. Remember: those functions do *not*
+//! look at the value to decide whether `Some` or `None` is returned! This is
+//! useful in a couple of situations, but you should first try to use the
+//! functions without `try_` prefix as a compiler error is better than a
+//! runtime error.
+//!
+//! Additionally, there are two functions generic over the cast rigor:
+//! [`cast`][cast::cast] and [`try_cast`][cast::try_cast]. You usually don't
+//! want to use them manually, but they are useful in generic contexts.
+//!
+//! ## Example
+//!
+//! ```
+//! use lox::cast;
+//!
+//! // This works without a problem as the cast is always lossless.
+//! assert_eq!(cast::lossless::<u8, u16>(27), 27);
+//! assert_eq!(cast::try_lossless::<u8, u16>(27), Some(27));
+//!
+//! // The other way around, we can't always cast without loosing information.
+//! // Thus, the first line here would lead to a compiler error. With the
+//! // `try_*` version you can get `None` instead of a compiler error.
+//! //assert_eq!(cast::lossless::<u16, u8>(27), 27);
+//! assert_eq!(cast::try_lossless::<u16, u16>(10), None);
+//! assert_eq!(cast::try_lossless::<u16, u16>(300), None);
+//!
+//! // When we allow clamping, we can cast.
+//! assert_eq!(cast::clamping::<u16, u8>(300), 255);
+//! assert_eq!(cast::try_clamping::<u16, u8>(300), Some(255));
+//! ```
+//!
+//! # Casting traits
+//!
+//! The traits are mainly used to implement the functions of this module and
+//! usually don't need to be used directly. However, you can use some traits as
+//! trait bounds for your own functions.
+//!
+//! The `CastFrom` trait is generic over the cast rigor. This trait shouldn't
+//! be implemented directly. Instead, there are four rigor specific traits that
+//! have proper supertrait bounds. `CastFrom` is automatically implemented via
+//! blanket implementations for types that implement the rigor specific traits.
+//!
+//! The traits are implemented for all combination of primitive Rust types
+//! (unsigned integers, signed integers and floating point types).
+//!
+//! The `TryCastFrom` trait is just a helper to implement `try_*` functions, so
+//! it's probably not useful to you.
+//!
+// TODO: should we use the `conv` crate instead?
 
 use crate::{
     sealed::Sealed,
@@ -11,7 +124,10 @@ use crate::{
 // ===== Casting functions
 // ===========================================================================
 
-
+/// Cast `src` from type `Src` to the type `Dst`, with the cast rigor `R`.
+///
+/// Instead of using this generic function, there is a specific function for
+/// each cast rigor that you can use. Usually, that's easier.
 pub fn cast<R, Src, Dst>(src: Src) -> Dst
 where
     R: CastRigor,
@@ -20,6 +136,7 @@ where
     Dst::cast_from(src)
 }
 
+/// Cast `src` from type `Src` to the type `Dst`, without loosing information.
 pub fn lossless<Src, Dst>(src: Src) -> Dst
 where
     Dst: LosslessCastFrom<Src>,
@@ -27,6 +144,7 @@ where
     Dst::lossless_cast_from(src)
 }
 
+/// Cast `src` from type `Src` to the type `Dst`, with clamping being allowed.
 pub fn clamping<Src, Dst>(src: Src) -> Dst
 where
     Dst: ClampingCastFrom<Src>,
@@ -34,6 +152,7 @@ where
     Dst::clamping_cast_from(src)
 }
 
+/// Cast `src` from type `Src` to the type `Dst`, with rounding being allowed.
 pub fn rounding<Src, Dst>(src: Src) -> Dst
 where
     Dst: RoundingCastFrom<Src>,
@@ -41,6 +160,8 @@ where
     Dst::rounding_cast_from(src)
 }
 
+/// Cast `src` from type `Src` to the type `Dst`, with clamping and rounding
+/// being allowed.
 pub fn lossy<Src, Dst>(src: Src) -> Dst
 where
     Dst: LossyCastFrom<Src>,
@@ -48,7 +169,13 @@ where
     Dst::lossy_cast_from(src)
 }
 
-
+/// Cast `src` from type `Src` to the type `Dst`, with the cast rigor `R`, or
+/// return `None` if the types cannot be casted with the specified rigor.
+///
+/// This is like [`cast`] but returns `None` if the two types cannot be casted
+/// with the specified rigor. Note that the decision whether the types can be
+/// casted only depends on the types and not the value. Thus, whether `Some` or
+/// `None` is returned is known at compile time.
 pub fn try_cast<R, Src, Dst>(src: Src) -> Option<Dst>
 where
     R: CastRigor,
@@ -57,6 +184,7 @@ where
     Dst::try_cast_from(src)
 }
 
+/// [`try_cast`] with `Lossless` rigor. See that documentation for more info.
 pub fn try_lossless<Src, Dst>(src: Src) -> Option<Dst>
 where
     Dst: TryCastFrom<Lossless, Src>,
@@ -64,6 +192,8 @@ where
     Dst::try_cast_from(src)
 }
 
+/// [`try_cast`] with `AllowClamping` rigor. See that documentation for more
+/// info.
 pub fn try_clamping<Src, Dst>(src: Src) -> Option<Dst>
 where
     Dst: TryCastFrom<AllowClamping, Src>,
@@ -71,6 +201,8 @@ where
     Dst::try_cast_from(src)
 }
 
+/// [`try_cast`] with `AllowRounding` rigor. See that documentation for more
+/// info.
 pub fn try_rounding<Src, Dst>(src: Src) -> Option<Dst>
 where
     Dst: TryCastFrom<AllowRounding, Src>,
@@ -78,6 +210,7 @@ where
     Dst::try_cast_from(src)
 }
 
+/// [`try_cast`] with `Lossy` rigor. See that documentation for more info.
 pub fn try_lossy<Src, Dst>(src: Src) -> Option<Dst>
 where
     Dst: TryCastFrom<Lossy, Src>,
@@ -89,24 +222,40 @@ where
 // ===== Casting rigors
 // ===========================================================================
 
+/// Describes how rigorous a cast shall be. See module level documentation for
+/// more information.
+///
+/// This trait is only implemented for the four different rigors defined in
+/// this module and cannot be implemented for own types.
 pub trait CastRigor: Sealed {}
 
-
+/// Cast rigor: neither clamping nor rounding is allowed.
+///
+/// This is purely used at type level and it's impossible to construct.
 #[derive(Debug)]
 pub enum Lossless {}
 impl Sealed for Lossless {}
 impl CastRigor for Lossless {}
 
+/// Cast rigor: clamping allowed, rounding not allowed.
+///
+/// This is purely used at type level and it's impossible to construct.
 #[derive(Debug)]
 pub enum AllowClamping {}
 impl Sealed for AllowClamping {}
 impl CastRigor for AllowClamping {}
 
+/// Cast rigor: rounding allowed, clamping not allowed.
+///
+/// This is purely used at type level and it's impossible to construct.
 #[derive(Debug)]
 pub enum AllowRounding {}
 impl Sealed for AllowRounding {}
 impl CastRigor for AllowRounding {}
 
+/// Cast rigor: both, clamping and rounding, allowed.
+///
+/// This is purely used at type level and it's impossible to construct.
 #[derive(Debug)]
 pub enum Lossy {}
 impl Sealed for Lossy {}
@@ -188,6 +337,12 @@ where
     }
 }
 
+/// Helper trait for `try_*` functions.
+///
+/// This trait is implemented for all types and this default implementation
+/// always returns `None`. For all rigor, source and destination type
+/// combinations for which `CastFrom` is implemented, this default
+/// implementation is overwritten to return `Some` with the casted value.
 pub trait TryCastFrom<R: CastRigor, Src>: Sized {
     fn try_cast_from(src: Src) -> Option<Self>;
 }
