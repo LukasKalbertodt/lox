@@ -21,6 +21,7 @@ pub extern crate cgmath;
 mod test_utils;
 
 pub mod algo;
+pub mod cast;
 pub mod ds;
 pub mod handle;
 pub mod io;
