@@ -75,6 +75,9 @@
 //! [`cast`][cast::cast] and [`try_cast`][cast::try_cast]. You usually don't
 //! want to use them manually, but they are useful in generic contexts.
 //!
+//! If you need to find out if a cast is possible without providing a value,
+//! [`is_cast_possible`][cast::is_cast_possible] is what you are looking for.
+//!
 //! ## Example
 //!
 //! ```
@@ -167,6 +170,20 @@ where
     Dst: LossyCastFrom<Src>,
 {
     Dst::lossy_cast_from(src)
+}
+
+/// Determines whether casting from `Src` to `Dst` with the specific cast rigor
+/// is possible.
+///
+/// If this function returns `false`, `try_from` will always return `None` for
+/// the same type arguments. Similarly, it will always return `Some` if this
+/// function returns `true`.
+pub fn is_cast_possible<R, Src, Dst>() -> bool
+where
+    R: CastRigor,
+    Dst: TryCastFrom<R, Src>,
+{
+    Dst::CAST_POSSIBLE
 }
 
 /// Cast `src` from type `Src` to the type `Dst`, with the cast rigor `R`, or
@@ -344,10 +361,12 @@ where
 /// combinations for which `CastFrom` is implemented, this default
 /// implementation is overwritten to return `Some` with the casted value.
 pub trait TryCastFrom<R: CastRigor, Src>: Sized {
+    const CAST_POSSIBLE: bool;
     fn try_cast_from(src: Src) -> Option<Self>;
 }
 
 impl<R: CastRigor, Src, Dst> TryCastFrom<R, Src> for Dst {
+    default const CAST_POSSIBLE: bool = false;
     default fn try_cast_from(_: Src) -> Option<Self> {
         None
     }
@@ -357,6 +376,7 @@ impl<R: CastRigor, Src, Dst> TryCastFrom<R, Src> for Dst
 where
     Dst: CastFrom<R, Src>,
 {
+    const CAST_POSSIBLE: bool = true;
     fn try_cast_from(src: Src) -> Option<Self> {
         Some(Dst::cast_from(src))
     }
@@ -719,22 +739,52 @@ mod tests {
     use super::*;
 
     macro_rules! util {
-        (@assert_opt $fun:ident: $src:ident as $dst:ident => $outcome:tt) => {
+        (@assert_opt $fun:ident, $rigor:ident: $src:ident as $dst:ident => $outcome:tt) => {
+            // Test specific function
             if $fun::<$src, $dst>(util!(@lit $src))
                 != util!(@to_opt $outcome (util!(@lit $dst) as $dst))
             {
                 let (expected, actual) = util!(@msg $outcome);
                 panic!(
-                    "expected {} -> {} cast to {}, but it {}",
+                    "expected {} -> {} `{}` cast to {}, but it {}",
+                    stringify!($src),
+                    stringify!($dst),
+                    stringify!($fun),
+                    expected,
+                    actual,
+                );
+            }
+
+            // Test generic `try_cast`
+            if try_cast::<$rigor, $src, $dst>(util!(@lit $src))
+                != util!(@to_opt $outcome (util!(@lit $dst) as $dst))
+            {
+                let (expected, actual) = util!(@msg $outcome);
+                panic!(
+                    "expected {} -> {} `try_cast` to {}, but it {}",
                     stringify!($src),
                     stringify!($dst),
                     expected,
                     actual,
                 );
             }
+
+            // Test `is_cast_possible`
+            if is_cast_possible::<$rigor, $src, $dst>() != util!(@to_bool $outcome) {
+                panic!(
+                    "expected `is_cast_possible<{}, {}, {}>()` to be `{}`, but it returned `{}`",
+                    stringify!($rigor),
+                    stringify!($src),
+                    stringify!($dst),
+                    util!(@to_bool $outcome),
+                    !util!(@to_bool $outcome),
+                );
+            }
         };
         (@to_opt n $v:expr) => { None };
         (@to_opt y $v:expr) => { Some($v) };
+        (@to_bool n) => { false };
+        (@to_bool y) => { true };
         (@msg n) => { ("fail", "succeeded") };
         (@msg y) => { ("succeed", "failed") };
         (@lit f32) => { 3.0 };
@@ -744,102 +794,102 @@ mod tests {
 
     macro_rules! test {
         (
-            $fun:ident: $ty:ident =>
+            $fun:ident, $rigor:ident: $ty:ident =>
             $u8:tt $u16:tt $u32:tt $u64:tt $u128:tt
             $i8:tt $i16:tt $i32:tt $i64:tt $i128:tt
             $f32:tt $f64:tt
         ) => {{
-            util!(@assert_opt $fun: $ty as u8 => $u8);
-            util!(@assert_opt $fun: $ty as u16 => $u16);
-            util!(@assert_opt $fun: $ty as u32 => $u32);
-            util!(@assert_opt $fun: $ty as u64 => $u64);
-            util!(@assert_opt $fun: $ty as u128 => $u128);
+            util!(@assert_opt $fun, $rigor: $ty as u8 => $u8);
+            util!(@assert_opt $fun, $rigor: $ty as u16 => $u16);
+            util!(@assert_opt $fun, $rigor: $ty as u32 => $u32);
+            util!(@assert_opt $fun, $rigor: $ty as u64 => $u64);
+            util!(@assert_opt $fun, $rigor: $ty as u128 => $u128);
 
-            util!(@assert_opt $fun: $ty as i8 => $i8);
-            util!(@assert_opt $fun: $ty as i16 => $i16);
-            util!(@assert_opt $fun: $ty as i32 => $i32);
-            util!(@assert_opt $fun: $ty as i64 => $i64);
-            util!(@assert_opt $fun: $ty as i128 => $i128);
+            util!(@assert_opt $fun, $rigor: $ty as i8 => $i8);
+            util!(@assert_opt $fun, $rigor: $ty as i16 => $i16);
+            util!(@assert_opt $fun, $rigor: $ty as i32 => $i32);
+            util!(@assert_opt $fun, $rigor: $ty as i64 => $i64);
+            util!(@assert_opt $fun, $rigor: $ty as i128 => $i128);
 
-            util!(@assert_opt $fun: $ty as f32 => $f32);
-            util!(@assert_opt $fun: $ty as f64 => $f64);
+            util!(@assert_opt $fun, $rigor: $ty as f32 => $f32);
+            util!(@assert_opt $fun, $rigor: $ty as f64 => $f64);
         }};
     }
 
     #[test]
     fn cast_try_lossless() {
         //                          u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64
-        test!(try_lossless: u8   => y  y   y   y   y    n  y   y   y   y    y   y);
-        test!(try_lossless: u16  => n  y   y   y   y    n  n   y   y   y    y   y);
-        test!(try_lossless: u32  => n  n   y   y   y    n  n   n   y   y    n   y);
-        test!(try_lossless: u64  => n  n   n   y   y    n  n   n   n   y    n   n);
-        test!(try_lossless: u128 => n  n   n   n   y    n  n   n   n   n    n   n);
+        test!(try_lossless, Lossless: u8   => y  y   y   y   y    n  y   y   y   y    y   y);
+        test!(try_lossless, Lossless: u16  => n  y   y   y   y    n  n   y   y   y    y   y);
+        test!(try_lossless, Lossless: u32  => n  n   y   y   y    n  n   n   y   y    n   y);
+        test!(try_lossless, Lossless: u64  => n  n   n   y   y    n  n   n   n   y    n   n);
+        test!(try_lossless, Lossless: u128 => n  n   n   n   y    n  n   n   n   n    n   n);
 
-        test!(try_lossless: i8   => n  n   n   n   n    y  y   y   y   y    y   y);
-        test!(try_lossless: i16  => n  n   n   n   n    n  y   y   y   y    y   y);
-        test!(try_lossless: i32  => n  n   n   n   n    n  n   y   y   y    n   y);
-        test!(try_lossless: i64  => n  n   n   n   n    n  n   n   y   y    n   n);
-        test!(try_lossless: i128 => n  n   n   n   n    n  n   n   n   y    n   n);
+        test!(try_lossless, Lossless: i8   => n  n   n   n   n    y  y   y   y   y    y   y);
+        test!(try_lossless, Lossless: i16  => n  n   n   n   n    n  y   y   y   y    y   y);
+        test!(try_lossless, Lossless: i32  => n  n   n   n   n    n  n   y   y   y    n   y);
+        test!(try_lossless, Lossless: i64  => n  n   n   n   n    n  n   n   y   y    n   n);
+        test!(try_lossless, Lossless: i128 => n  n   n   n   n    n  n   n   n   y    n   n);
 
-        test!(try_lossless: f32  => n  n   n   n   n    n  n   n   n   n    y   y);
-        test!(try_lossless: f64  => n  n   n   n   n    n  n   n   n   n    n   y);
+        test!(try_lossless, Lossless: f32  => n  n   n   n   n    n  n   n   n   n    y   y);
+        test!(try_lossless, Lossless: f64  => n  n   n   n   n    n  n   n   n   n    n   y);
     }
 
     #[test]
     fn cast_try_clamping() {
         //                          u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64
-        test!(try_clamping: u8   => y  y   y   y   y    y  y   y   y   y    y   y);
-        test!(try_clamping: u16  => y  y   y   y   y    y  y   y   y   y    y   y);
-        test!(try_clamping: u32  => y  y   y   y   y    y  y   y   y   y    n   y);
-        test!(try_clamping: u64  => y  y   y   y   y    y  y   y   y   y    n   n);
-        test!(try_clamping: u128 => y  y   y   y   y    y  y   y   y   y    n   n);
+        test!(try_clamping, AllowClamping: u8   => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_clamping, AllowClamping: u16  => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_clamping, AllowClamping: u32  => y  y   y   y   y    y  y   y   y   y    n   y);
+        test!(try_clamping, AllowClamping: u64  => y  y   y   y   y    y  y   y   y   y    n   n);
+        test!(try_clamping, AllowClamping: u128 => y  y   y   y   y    y  y   y   y   y    n   n);
 
-        test!(try_clamping: i8   => y  y   y   y   y    y  y   y   y   y    y   y);
-        test!(try_clamping: i16  => y  y   y   y   y    y  y   y   y   y    y   y);
-        test!(try_clamping: i32  => y  y   y   y   y    y  y   y   y   y    n   y);
-        test!(try_clamping: i64  => y  y   y   y   y    y  y   y   y   y    n   n);
-        test!(try_clamping: i128 => y  y   y   y   y    y  y   y   y   y    n   n);
+        test!(try_clamping, AllowClamping: i8   => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_clamping, AllowClamping: i16  => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_clamping, AllowClamping: i32  => y  y   y   y   y    y  y   y   y   y    n   y);
+        test!(try_clamping, AllowClamping: i64  => y  y   y   y   y    y  y   y   y   y    n   n);
+        test!(try_clamping, AllowClamping: i128 => y  y   y   y   y    y  y   y   y   y    n   n);
 
-        test!(try_clamping: f32  => n  n   n   n   n    n  n   n   n   n    y   y);
-        test!(try_clamping: f64  => n  n   n   n   n    n  n   n   n   n    n   y);
+        test!(try_clamping, AllowClamping: f32  => n  n   n   n   n    n  n   n   n   n    y   y);
+        test!(try_clamping, AllowClamping: f64  => n  n   n   n   n    n  n   n   n   n    n   y);
     }
 
     #[test]
     fn cast_try_rounding() {
         //                          u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64
-        test!(try_rounding: u8   => y  y   y   y   y    n  y   y   y   y    y   y);
-        test!(try_rounding: u16  => n  y   y   y   y    n  n   y   y   y    y   y);
-        test!(try_rounding: u32  => n  n   y   y   y    n  n   n   y   y    y   y);
-        test!(try_rounding: u64  => n  n   n   y   y    n  n   n   n   y    y   y);
-        test!(try_rounding: u128 => n  n   n   n   y    n  n   n   n   n    y   y);
+        test!(try_rounding, AllowRounding: u8   => y  y   y   y   y    n  y   y   y   y    y   y);
+        test!(try_rounding, AllowRounding: u16  => n  y   y   y   y    n  n   y   y   y    y   y);
+        test!(try_rounding, AllowRounding: u32  => n  n   y   y   y    n  n   n   y   y    y   y);
+        test!(try_rounding, AllowRounding: u64  => n  n   n   y   y    n  n   n   n   y    y   y);
+        test!(try_rounding, AllowRounding: u128 => n  n   n   n   y    n  n   n   n   n    y   y);
 
-        test!(try_rounding: i8   => n  n   n   n   n    y  y   y   y   y    y   y);
-        test!(try_rounding: i16  => n  n   n   n   n    n  y   y   y   y    y   y);
-        test!(try_rounding: i32  => n  n   n   n   n    n  n   y   y   y    y   y);
-        test!(try_rounding: i64  => n  n   n   n   n    n  n   n   y   y    y   y);
-        test!(try_rounding: i128 => n  n   n   n   n    n  n   n   n   y    y   y);
+        test!(try_rounding, AllowRounding: i8   => n  n   n   n   n    y  y   y   y   y    y   y);
+        test!(try_rounding, AllowRounding: i16  => n  n   n   n   n    n  y   y   y   y    y   y);
+        test!(try_rounding, AllowRounding: i32  => n  n   n   n   n    n  n   y   y   y    y   y);
+        test!(try_rounding, AllowRounding: i64  => n  n   n   n   n    n  n   n   y   y    y   y);
+        test!(try_rounding, AllowRounding: i128 => n  n   n   n   n    n  n   n   n   y    y   y);
 
-        test!(try_rounding: f32  => n  n   n   n   n    n  n   n   n   y    y   y);
-        test!(try_rounding: f64  => n  n   n   n   n    n  n   n   n   n    n   y);
+        test!(try_rounding, AllowRounding: f32  => n  n   n   n   n    n  n   n   n   y    y   y);
+        test!(try_rounding, AllowRounding: f64  => n  n   n   n   n    n  n   n   n   n    n   y);
     }
 
     #[test]
     fn cast_try_lossy() {
         //                       u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64
-        test!(try_lossy: u8   => y  y   y   y   y    y  y   y   y   y    y   y);
-        test!(try_lossy: u16  => y  y   y   y   y    y  y   y   y   y    y   y);
-        test!(try_lossy: u32  => y  y   y   y   y    y  y   y   y   y    y   y);
-        test!(try_lossy: u64  => y  y   y   y   y    y  y   y   y   y    y   y);
-        test!(try_lossy: u128 => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_lossy, Lossy: u8   => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_lossy, Lossy: u16  => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_lossy, Lossy: u32  => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_lossy, Lossy: u64  => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_lossy, Lossy: u128 => y  y   y   y   y    y  y   y   y   y    y   y);
 
-        test!(try_lossy: i8   => y  y   y   y   y    y  y   y   y   y    y   y);
-        test!(try_lossy: i16  => y  y   y   y   y    y  y   y   y   y    y   y);
-        test!(try_lossy: i32  => y  y   y   y   y    y  y   y   y   y    y   y);
-        test!(try_lossy: i64  => y  y   y   y   y    y  y   y   y   y    y   y);
-        test!(try_lossy: i128 => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_lossy, Lossy: i8   => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_lossy, Lossy: i16  => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_lossy, Lossy: i32  => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_lossy, Lossy: i64  => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_lossy, Lossy: i128 => y  y   y   y   y    y  y   y   y   y    y   y);
 
-        test!(try_lossy: f32  => y  y   y   y   y    y  y   y   y   y    y   y);
-        test!(try_lossy: f64  => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_lossy, Lossy: f32  => y  y   y   y   y    y  y   y   y   y    y   y);
+        test!(try_lossy, Lossy: f64  => y  y   y   y   y    y  y   y   y   y    y   y);
     }
 
     #[test]
