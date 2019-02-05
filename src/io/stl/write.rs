@@ -112,7 +112,7 @@ impl<W: io::Write> StreamSink for Sink<W> {
             ($orig_type:ident) => {{
                 let fun = |vh| {
                     src.vertex_position::<$orig_type>(vh)
-                        .map(|s| s as f32)
+                        .map(|s| s as f32) // TODO cast via `cast` module
                         .convert()
                 };
                 Box::new(fun) as Box<dyn Fn(VertexHandle) -> [f32; 3]>

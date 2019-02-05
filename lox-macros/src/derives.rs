@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    fmt,
+};
 
 use quote::{quote, quote_spanned};
 use proc_macro2::TokenStream as TokenStream2;
@@ -9,6 +12,8 @@ use syn::{
 
 use crate::util::struct_fields;
 
+
+const DEFAULT_CAST_MODE: CastMode = CastMode::Lossless;
 
 
 pub(crate) fn derive_empty(input: &DeriveInput) -> Result<TokenStream2, Error> {
@@ -65,7 +70,21 @@ pub(crate) fn derive_empty(input: &DeriveInput) -> Result<TokenStream2, Error> {
     Ok(out)
 }
 
-
+/// Implementation of `derive(MemSink)`.
+///
+/// In order to improve error messages if the type of a field is unfitting, we
+/// use some tricks here. All methods of `MemSink` are implemented by defining
+/// an inner function `_impl` that does the main work. This inner function is
+/// then called in the outer function. That allows us to explicitly annotate
+/// the trait bounds for the fields on the inner function. Thus, the call to
+/// the inner function results in a classic "the trait bound ... is not
+/// satisfied" error which is easier to understand than errors coming from code
+/// that already assumes the trait bound is implemented (that's basically why
+/// C++ error messages are bad).
+///
+/// Furthermore, the call to the inner function is created to contain the span
+/// of the field type. Thus, the error message will point to the type of the
+/// field which makes it even easier to understand.
 pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error> {
     // Make sure this is a struct and pull out the fields.
     let fields = struct_fields(&input, "only structs can derive `Empty`")?;
@@ -78,42 +97,139 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
         ));
     }
 
-    // ===== The core mesh =====
-    let e =  Error::new(
-        input.span(),
-        "no field named `mesh` or with attribute `#[lox(mesh)]` found"
-    );
-    let mesh_field = find_field(fields, "mesh")?.ok_or(e)?;
 
-    // ===== Vertex positions =====
-    let vertex_position_field = find_field(fields, "vertex_positions")?;
-    let vertex_position_code = if let Some(field) = vertex_position_field {
+    // ===== The core mesh =====
+    let mesh_code = {
+        let e =  Error::new(
+            input.span(),
+            "no field named `mesh` or with attribute `#[lox(mesh)]` found"
+        );
+        let field = find_field(fields, "mesh")?.ok_or(e)?;
+        let field_name = &field.name;
+        if field.cast_mode.is_some() {
+            return Err(Error::new(
+                field.name.span(),
+                "specifying casting behavior on the `mesh` field does not make sense",
+            ));
+        }
+
+
+        let vertex_inner_call = quote_spanned!{field.ty.span()=>
+            _impl(&mut self.#field_name)
+        };
+        let face_inner_call = quote_spanned!{field.ty.span()=>
+            _impl(&mut self.#field_name, vertices)
+        };
+
         quote! {
-            fn prepare_vertex_positions<N: lox::math::PrimitiveNum>(
-                &mut self,
-                count: lox::handle::DefaultInt,
-            ) -> Result<(), lox::io::Error> {
-                lox::map::PropStoreMut::reserve(
-                    &mut self.#field,
-                    count,
-                );
-                Ok(())
+            fn add_vertex(&mut self) -> lox::VertexHandle {
+                fn _impl<T: MeshMut + TriMeshMut>(mesh: &mut T) -> lox::VertexHandle {
+                    mesh.add_vertex()
+                }
+
+                #vertex_inner_call
             }
 
-            fn set_vertex_position<N: lox::math::PrimitiveNum>(
-                &mut self,
-                v: lox::VertexHandle,
-                position: lox::cgmath::Point3<N>,
-            ) {
-                lox::map::PropStoreMut::insert(
-                    &mut self.#field,
-                    v,
-                    unimplemented!(), // TODO
-                );
+            fn add_face(&mut self, vertices: [lox::VertexHandle; 3]) -> lox::FaceHandle {
+                fn _impl<T: MeshMut + TriMeshMut>(
+                    mesh: &mut T,
+                    vertices: [lox::VertexHandle; 3],
+                ) -> lox::FaceHandle {
+                    mesh.add_face(vertices)
+                }
+
+                #face_inner_call
             }
         }
-    } else {
-        quote! {}
+    };
+
+
+    // ===== Vertex positions =====
+    let vertex_position_code = {
+        let vertex_position_field = find_field(fields, "vertex_positions")?;
+        if let Some(field) = vertex_position_field {
+            let cast_mode = field.cast_mode.unwrap_or(DEFAULT_CAST_MODE);
+            let cast_rigor = match cast_mode {
+                CastMode::Lossless => quote! { lox::cast::Lossless },
+                CastMode::Clamping => quote! { lox::cast::AllowClamping },
+                CastMode::Rounding => quote! { lox::cast::AllowRounding },
+                CastMode::Lossy => quote! { lox::cast::Lossy },
+            };
+            let cast_error = format!(
+                "`set_vertex_position` called with unexpected primitive type '{{:?}}' \
+                    that cannot be casted as `{}` to the target type of the sink \
+                    (this is most likely a bug in the source implementation as the type \
+                    was not passed to `prepare_vertex_positions` before)",
+                cast_mode,
+            );
+
+            let field_name = &field.name;
+            let ty = &field.ty;
+            let prep_inner_call = quote_spanned!{ty.span()=>
+                _impl::<_, N>(&mut self.#field_name, count)
+            };
+            let set_inner_call = quote_spanned!{ty.span()=>
+                _impl::<_, N>(&mut self.#field_name, v, position)
+            };
+
+            quote! {
+                fn prepare_vertex_positions<N: lox::io::Primitive>(
+                    &mut self,
+                    count: lox::handle::DefaultInt,
+                ) -> Result<(), lox::io::Error> {
+                    fn _impl<T, N: lox::io::Primitive>(
+                        map: &mut T,
+                        count: lox::handle::DefaultInt,
+                    ) -> Result<(), lox::io::Error>
+                    where
+                        T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
+                        T::Output: lox::math::Pos3Like
+                    {
+                        let cast_possible = lox::cast::is_cast_possible::<
+                            #cast_rigor,
+                            N,
+                            <T::Output as Pos3Like>::Scalar,
+                        >();
+
+                        if !cast_possible {
+                            panic!("bad vertex type uhg wucky fucky")
+                        }
+
+                        map.reserve(count);
+
+                        Ok(())
+                    }
+
+                    #prep_inner_call
+                }
+
+                fn set_vertex_position<N: lox::io::Primitive>(
+                    &mut self,
+                    v: lox::VertexHandle,
+                    position: lox::cgmath::Point3<N>,
+                ) {
+                    fn _impl<T, N: lox::io::Primitive>(
+                        map: &mut T,
+                        v: lox::VertexHandle,
+                        position: lox::cgmath::Point3<N>,
+                    )
+                    where
+                        T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
+                        T::Output: lox::math::Pos3Like
+                    {
+                        let pos = position.map(|s| {
+                            lox::cast::try_cast::<#cast_rigor, _, _>(s)
+                                .unwrap_or_else(|| panic!(#cast_error, N::TY))
+                        });
+                        map.insert(v, pos.convert());
+                    }
+
+                    #set_inner_call
+                }
+            }
+        } else {
+            quote! {}
+        }
     };
 
 
@@ -121,18 +237,10 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
     let name = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
-
     // Combine everything.
     let out = quote! {
         impl #impl_generics lox::io::MemSink for #name #ty_generics #where_clause {
-            fn add_vertex(&mut self) -> lox::VertexHandle {
-                lox::MeshMut::add_vertex(&mut self.#mesh_field)
-            }
-
-            fn add_face(&mut self, vertices: [lox::VertexHandle; 3]) -> lox::FaceHandle {
-                lox::TriMeshMut::add_face(&mut self.#mesh_field, vertices)
-            }
-
+            #mesh_code
             #vertex_position_code
         }
     };
@@ -231,17 +339,54 @@ fn parse_lox_attrs(attr: &syn::Attribute) -> Result<LoxAttrs, Error> {
     Ok(out)
 }
 
+#[derive(Clone, Copy)]
+enum CastMode {
+    Lossless,
+    Clamping,
+    Rounding,
+    Lossy,
+    // TODO: add "none" casting mode
+}
+
+impl fmt::Display for CastMode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            CastMode::Lossless => "lossless",
+            CastMode::Clamping => "clamping",
+            CastMode::Rounding => "rounding",
+            CastMode::Lossy => "lossy",
+        }.fmt(f)
+    }
+}
+
+#[derive(Clone)]
+struct FoundField {
+    name: syn::Ident,
+    ty: syn::Type,
+    cast_mode: Option<CastMode>,
+}
+
 /// Searches for fields either named `needle` or that do have a lox attribute
 /// `needle`. Attributes win over names, so if both exist, the one with the
 /// attribute is returned.
-fn find_field<'a>(
-    fields: &'a syn::Fields,
+fn find_field(
+    fields: &syn::Fields,
     needle: &str,
-) -> Result<Option<&'a syn::Ident>, Error> {
+) -> Result<Option<FoundField>, Error> {
     // Find the field with ident `needle`.
     let field_with_name = fields.iter()
-        .map(|f| f.ident.as_ref().unwrap())
-        .find(|&i| i == needle);
+        .find(|f| f.ident.as_ref().map(|i| i == needle).unwrap_or(false))
+        .map(|f| {
+            FoundField {
+                name: f.ident.clone().unwrap(),
+                ty: f.ty.clone(),
+
+                // If the field also has an attribute specifying the cast type,
+                // it is found below and will have precedence over this result
+                // anyway.
+                cast_mode: None,
+            }
+        });
 
     // Find all fields with an attribute `#[lox(#attr)]` where `#attr` is
     // `attr`. We also do some error checking to detect invalid or strange
@@ -266,7 +411,11 @@ fn find_field<'a>(
         if lox_attrs.len() == 1 {
             let lox_attrs = parse_lox_attrs(&lox_attrs[0])?;
             if let Some(_) = lox_attrs.get(needle) {
-                fields_with_attr.push(f.ident.as_ref().unwrap());
+                fields_with_attr.push(FoundField {
+                    name: f.ident.clone().unwrap(),
+                    ty: f.ty.clone(),
+                    cast_mode: None, // TODO
+                });
             }
         }
     }
@@ -274,7 +423,7 @@ fn find_field<'a>(
     // Make sure the attribute is only attached to one field
     if fields_with_attr.len() > 1 {
         return Err(Error::new(
-            fields_with_attr[1].span(),
+            fields_with_attr[1].name.span(),
             format!("more than one field with '{}' attribute", needle),
         ));
     }
