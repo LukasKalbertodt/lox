@@ -279,11 +279,11 @@ type LoxAttrs = HashMap<String, LoxAttr>;
 
 struct LoxAttr {
     name: syn::Ident,
-    values: Vec<LoxAttrValue>,
+    values: HashMap<String, LoxAttrValue>,
 }
 
 struct LoxAttrValue {
-    name: Option<syn::Ident>,
+    name: syn::Ident,
     value: syn::Lit,
 }
 
@@ -305,16 +305,48 @@ fn parse_lox_attrs(attr: &syn::Attribute) -> Result<LoxAttrs, Error> {
         // Make sure the item has the correct type and extract the ident and
         // potential values from it.
         let (ident, values) = match nested {
-            syn::NestedMeta::Meta(syn::Meta::Word(w)) => (w, vec![]),
+            // `lox(foo)`
+            syn::NestedMeta::Meta(syn::Meta::Word(w)) => (w, HashMap::new()),
+
+            // `lox(foo(...))`
             syn::NestedMeta::Meta(syn::Meta::List(l)) => {
-                (&l.ident, vec![]) // TODO
+                let mut values = HashMap::new();
+                for nested in &l.nested {
+                    match nested {
+                        syn::NestedMeta::Meta(syn::Meta::NameValue(v)) => {
+                            if values.contains_key(&v.ident.to_string()) {
+                                return Err(Error::new(
+                                    v.ident.span(),
+                                    format!("duplicate key '{}'", v.ident),
+                                ));
+                            }
+
+                            values.insert(v.ident.to_string(), LoxAttrValue {
+                                name: v.ident.clone(),
+                                value: v.lit.clone(),
+                            });
+                        }
+                        _ => {
+                            return Err(Error::new(
+                                nested.span(),
+                                "expected named value, found something else",
+                            ));
+                        }
+                    }
+                }
+
+                (&l.ident, values)
             }
+
+            // `lox(foo = lit)`
             syn::NestedMeta::Meta(syn::Meta::NameValue(v)) => {
                 return Err(Error::new(
                     v.span(),
                     "expected ident, found named value",
                 ));
             }
+
+            // `lox("hi")`
             syn::NestedMeta::Literal(lit) => {
                 return Err(Error::new(
                     lit.span(),
@@ -342,7 +374,7 @@ fn parse_lox_attrs(attr: &syn::Attribute) -> Result<LoxAttrs, Error> {
     Ok(out)
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum CastMode {
     Lossless,
     Clamping,
@@ -413,11 +445,13 @@ fn find_field(
         // if it contains `needle`.
         if lox_attrs.len() == 1 {
             let lox_attrs = parse_lox_attrs(&lox_attrs[0])?;
-            if let Some(_) = lox_attrs.get(needle) {
+            if let Some(attr) = lox_attrs.get(needle) {
+                let cast_mode = parse_cast_attr(attr.values.get("cast"))?;
+
                 fields_with_attr.push(FoundField {
                     name: f.ident.clone().unwrap(),
                     ty: f.ty.clone(),
-                    cast_mode: None, // TODO
+                    cast_mode,
                 });
             }
         }
@@ -435,6 +469,33 @@ fn find_field(
     // we return that. Otherwise we return the field with the fitting name, if
     // that exists.
     Ok(fields_with_attr.get(0).cloned().or(field_with_name))
+}
+
+/// Parses the value of the `cast` attribute to get the cast mode.
+fn parse_cast_attr(v: Option<&LoxAttrValue>) -> Result<Option<CastMode>, Error> {
+    match v.map(|v| &v.value) {
+        None => Ok(None),
+        Some(syn::Lit::Str(slit)) => {
+            match slit.value().as_str() {
+                "lossless" => Ok(Some(CastMode::Lossless)),
+                "clamping" => Ok(Some(CastMode::Clamping)),
+                "rounding" => Ok(Some(CastMode::Rounding)),
+                "lossy" => Ok(Some(CastMode::Lossy)),
+                other => {
+                    Err(Error::new(
+                        slit.span(),
+                        format!("unknown casting mode '{}'", other),
+                    ))
+                }
+            }
+        }
+        Some(lit) => {
+            Err(Error::new(
+                lit.span(),
+                "expected string literal, found something else",
+            ))
+        }
+    }
 }
 
 /// Returns `true` **iff** the given fields are named fields.
