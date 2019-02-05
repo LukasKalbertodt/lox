@@ -147,15 +147,34 @@ impl FileEncoding {
 #[derive(Debug, Clone, Copy)]
 pub struct EncodingNotSupported;
 
+
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub enum PropKind {
+    VertexPosition,
+    VertexNormal,
+    FaceNormal,
+}
+
+impl PropKind {
+    fn plural_form(&self) -> &'static str {
+        match self {
+            PropKind::VertexPosition => "vertex positions",
+            PropKind::VertexNormal => "vertex normals",
+            PropKind::FaceNormal => "face normals",
+        }
+    }
+}
+
 /// The error type for reading or writing a mesh.
 #[derive(Debug, Fail)]
+#[non_exhaustive]
 pub enum Error {
     /// An IO error.
     ///
     /// Can be caused by all kinds of failures. For example, if the underlying
     /// writer or reader returns an error or a file cannot be opened, this
     /// error variant is returned.
-    #[fail(display = "IO error: {}", _0)]
     Io(io::Error),
 
     /// An error while parsing input data.
@@ -163,8 +182,52 @@ pub enum Error {
     /// Whenever a file (or generally, a stream) is parsed as a specific format
     /// and the file isn't valid, this error is returned. See [`parse::Error`]
     /// for more information.
-    #[fail(display = "Parsing error: {}", _0)]
+    ///
+    /// If you encounter this error, here is what you can do: make sure your
+    /// input file is well-formed. If you are sure that your file is fine and
+    /// other programs can succesfully parse that file, please consider
+    /// reporting this as a parser bug.
     Parse(ParseError),
+
+    /// This error can be returned by a `MemSink` to signal that it is not able
+    /// to handle incoming data.
+    ///
+    /// This error usually means that you try to transfer mesh data from a
+    /// source into a `MemSink` that has strict casting rules. E.g. if the sink
+    /// stores vertex positions as `f32`, the source provides `f64` vertex
+    /// positions and the sink only allows lossless casts, this error is
+    /// returned from [`MemSink::prepare_vertex_positions`].
+    ///
+    /// If you encounter this error, here is what you can do:
+    /// - If you own the sink: either change the type of your properties or use
+    ///   a more relaxed casting mode (if you derived `MemSink`, you can add
+    ///   `#[lox(vertex_position(cast = lossy))])` to your vertex position
+    ///   field.
+    /// - Otherwise: choose a different sink that supports your source's data
+    ///   or choose a different source that only provides data compatible with
+    ///   your sink.
+    SinkIncompatible {
+        prop: PropKind,
+        source_type: PrimitiveType,
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::Io(e) => write!(f, "IO error: {}", e),
+            Error::Parse(e) => write!(f, "Parsing error: {}", e),
+            Error::SinkIncompatible { prop, source_type } => {
+                write!(
+                    f,
+                    "sink is not compatible with source: sink cannot handle {} with type `{:?}` \
+                        (if you derived `MemSink`, you might want to change the casting mode)",
+                    prop.plural_form(),
+                    source_type,
+                )
+            }
+        }
+    }
 }
 
 impl From<io::Error> for Error {

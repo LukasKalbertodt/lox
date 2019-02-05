@@ -192,7 +192,10 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                         >();
 
                         if !cast_possible {
-                            panic!("bad vertex type uhg wucky fucky")
+                            return Err(lox::io::Error::SinkIncompatible {
+                                prop: lox::io::PropKind::VertexPosition,
+                                source_type: N::TY,
+                            });
                         }
 
                         map.reserve(count);
