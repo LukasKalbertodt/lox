@@ -2,9 +2,9 @@ use cgmath::{
     Point3,
     prelude::*,
 };
-use num_traits::cast;
 
 use crate::{
+    cast,
     handle::DefaultInt,
     math::Pos3Like,
 };
@@ -113,7 +113,7 @@ where
                 (count + 1, sum + p.to_point3().to_vec())
             });
 
-            Point3::from_vec(total_displacement / cast(count).unwrap()).convert()
+            Point3::from_vec(total_displacement / cast::lossy(count)).convert()
         })
     }
 }
