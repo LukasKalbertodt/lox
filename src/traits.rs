@@ -133,6 +133,20 @@ pub trait MeshMut: Mesh {
     /// Removes all faces of this mesh. This can be more efficient than calling
     /// [`remvove_face`](TODO) for each face individually.
     fn remove_all_faces(&mut self);
+
+    /// Reserves memory for `count` additional vertices.
+    ///
+    /// This is just an optimization that can reduce the number allocations
+    /// done by this data structure. But this function might also do nothing
+    /// (that's exactly what the provided default implementation does).
+    fn reserve_for_vertices(&mut self, _count: DefaultInt) {}
+
+    /// Reserves memory for `count` additional faces.
+    ///
+    /// This is just an optimization that can reduce the number allocations
+    /// done by this data structure. But this function might also do nothing
+    /// (that's exactly what the provided default implementation does).
+    fn reserve_for_faces(&mut self, _count: DefaultInt) {}
 }
 
 /// A triangular mesh: all faces are triangles.
