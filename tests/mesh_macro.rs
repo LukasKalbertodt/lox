@@ -119,3 +119,39 @@ fn check_vertices_of_face_are_unique(mesh: &(impl TriVerticesOfFace)) {
         assert_ne!(vb, vc);
     }
 }
+
+mod inner {
+    pub(crate) fn make_mesh() -> (
+        lox::ds::SharedVertexMesh,
+        lox::map::VecMap<lox::VertexHandle, char>,
+        lox::map::VecMap<lox::FaceHandle, u32>,
+    ) {
+        lox::mesh! {
+            type: lox::ds::SharedVertexMesh,
+            vertices: [
+                v0: ('x'),
+                v1: ('y'),
+                v2: ('z'),
+                v3: ('w'),
+            ],
+            faces: [
+                [v0, v1, v2]: (1u32),
+                [v1, v2, v3]: (2u32),
+            ],
+        }
+    }
+}
+
+#[test]
+fn rectangle_multi_props_inner_mod() {
+    let (mesh, labels, nums) = inner::make_mesh();
+
+    assert_eq!(mesh.num_vertices(), 4);
+    assert_eq!(mesh.num_faces(), 2);
+
+    check_vertices_of_face_are_unique(&mesh);
+    assert_eq!(labels.num_elements(), 4);
+    assert_eq!(nums.num_elements(), 2);
+
+    // TODO: check more
+}
