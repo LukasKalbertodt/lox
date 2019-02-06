@@ -1,13 +1,8 @@
-use cgmath::{
-    prelude::*,
-    Point3,
-};
-use num_traits::ToPrimitive;
-
 use crate::{
     prelude::*,
+    cast,
     map::{VecMap, VertexPropMap},
-    math::Pos3Like,
+    math::{Pos3Like, PrimitiveFloat},
     refs::VertexRef,
 };
 
@@ -45,7 +40,7 @@ where
 ///
 /// TODO: explain & link to paper
 #[inline(never)]
-pub fn sqrt3_subdivision<MeshT, MapT>(
+pub fn sqrt3_subdivision<MeshT, MapT, ScalarT>(
     mesh: &mut MeshT,
     vertex_positions: &mut MapT,
 )
@@ -56,7 +51,8 @@ where
         + TriFacesAroundFace
         + VerticesAroundVertex,
     MapT: PropStoreMut<VertexHandle>,
-    MapT::Target: Pos3Like,
+    MapT::Target: Pos3Like<Scalar = ScalarT>,
+    ScalarT: PrimitiveFloat,
 {
     // Helper function to get the position of a vertex.
     let pos_of = |vertex_positions: &mut MapT, v: VertexRef<'_, MeshT>| {
@@ -129,18 +125,27 @@ where
             .map(|v| pos_of(vertex_positions, v))
             .centroid();
 
-        // Se the new vertex position
+        // Set the new vertex position
         vertex_positions[vh] = maybe_centroid.map(|centroid| {
+            // Helper macro to create literal values of type `ScalarT`
+            macro_rules! lit {
+                ($x:literal) => (cast::lossless::<f32, ScalarT>($x));
+            }
+
             // We know that there is at least one neighbor vertex, so `valence`
             // is not 0. We simply use the formula from the paper.
-            let alpha = (4.0 - 2.0 * (2.0 * std::f64::consts::PI / valence as f64).cos()) / 9.0;
-            let old_pos = old_pos.to_point3().to_vec().map(|s| s.to_f64().unwrap());
-            let centroid = centroid.to_point3().to_vec().map(|s| s.to_f64().unwrap());
+            let alpha = (
+                lit!(4.0) - lit!(2.0) * (
+                    lit!(2.0) * ScalarT::PI() / cast::rounding::<_, ScalarT>(valence)
+                ).cos()
+            ) / lit!(9.0);
 
-            (Point3::origin() + old_pos.lerp(centroid, alpha))
-                .cast()
-                .unwrap()
-                .convert()
+            // Lerp between `old_pos? and `centroid` by the amount `alpha`
+            MapT::Target::from_coords(
+                (lit!(1.0) - alpha) * old_pos.x() + alpha * centroid.x(),
+                (lit!(1.0) - alpha) * old_pos.y() + alpha * centroid.y(),
+                (lit!(1.0) - alpha) * old_pos.z() + alpha * centroid.z(),
+            )
         }).unwrap_or(old_pos);
     }
 }
