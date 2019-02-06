@@ -10,7 +10,7 @@ use num_traits::{Float, FloatConst,Num, NumAssign, NumCast};
 use cgmath::{Point3, Vector3};
 
 use crate::{
-    cast::{self, CastFromIntegers, LosslessCastFrom},
+    cast::{self, CastFromIntegers, LosslessCastFrom, PrimitiveCast},
 };
 
 
@@ -19,13 +19,22 @@ use crate::{
 /// This trait is automatically implemented for all types that satisfy the
 /// super-trait constraints.
 ///
-/// Note that this is very similar to `cgmath::BaseNum`. Right now, I think,
-/// the only difference is the additional `'static` bound on this trait.
-pub trait PrimitiveNum: 'static + Copy + Debug + Num + PartialOrd + NumAssign + NumCast {}
+/// Note that this is very similar to `cgmath::BaseNum`. Right now, the only
+/// difference is the additional `'static` bound and the `PrimitiveCast` bound.
+pub trait PrimitiveNum:
+    'static + Copy + Debug + Num + PartialOrd + NumAssign + NumCast + PrimitiveCast<cast::Lossy>
+{}
 
 impl<T> PrimitiveNum for T
 where
-    T: 'static + Copy + Debug + Num + PartialOrd + NumAssign + NumCast,
+    T: 'static
+        + Copy
+        + Debug
+        + Num
+        + PartialOrd
+        + NumAssign
+        + NumCast
+        + PrimitiveCast<cast::Lossy>,
 {}
 
 /// Primitive floating point types: `f32` and `f64`.
