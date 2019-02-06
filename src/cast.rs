@@ -142,34 +142,34 @@ where
 /// Cast `src` from type `Src` to the type `Dst`, without loosing information.
 pub fn lossless<Src, Dst>(src: Src) -> Dst
 where
-    Dst: LosslessCastFrom<Src>,
+    Dst: CastFrom<Lossless, Src>,
 {
-    Dst::lossless_cast_from(src)
+    Dst::cast_from(src)
 }
 
 /// Cast `src` from type `Src` to the type `Dst`, with clamping being allowed.
 pub fn clamping<Src, Dst>(src: Src) -> Dst
 where
-    Dst: ClampingCastFrom<Src>,
+    Dst: CastFrom<AllowClamping, Src>,
 {
-    Dst::clamping_cast_from(src)
+    Dst::cast_from(src)
 }
 
 /// Cast `src` from type `Src` to the type `Dst`, with rounding being allowed.
 pub fn rounding<Src, Dst>(src: Src) -> Dst
 where
-    Dst: RoundingCastFrom<Src>,
+    Dst: CastFrom<AllowRounding, Src>,
 {
-    Dst::rounding_cast_from(src)
+    Dst::cast_from(src)
 }
 
 /// Cast `src` from type `Src` to the type `Dst`, with clamping and rounding
 /// being allowed.
 pub fn lossy<Src, Dst>(src: Src) -> Dst
 where
-    Dst: LossyCastFrom<Src>,
+    Dst: CastFrom<Lossy, Src>,
 {
-    Dst::lossy_cast_from(src)
+    Dst::cast_from(src)
 }
 
 /// Determines whether casting from `Src` to `Dst` with the specific cast rigor
@@ -294,6 +294,7 @@ pub trait CastFrom<R: CastRigor, Src> {
 }
 
 /// Types that can always be casted from `Src` without loosing any information.
+/// See [`Lossless`] for more information.
 pub trait LosslessCastFrom<Src>: ClampingCastFrom<Src> + RoundingCastFrom<Src> {
     fn lossless_cast_from(src: Src) -> Self;
 }
