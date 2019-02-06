@@ -5,10 +5,13 @@ use std::{
     fmt::Debug,
 };
 
-use num_traits::{Num, NumAssign, NumCast};
+use num_traits::{Float, FloatConst,Num, NumAssign, NumCast};
 #[cfg(feature = "cgmath")]
 use cgmath::{Point3, Vector3};
 
+use crate::{
+    cast::{self, CastFromIntegers, LosslessCastFrom},
+};
 
 
 /// Primitive numerical types, like `f64` and `u32`.
@@ -25,6 +28,26 @@ where
     T: 'static + Copy + Debug + Num + PartialOrd + NumAssign + NumCast,
 {}
 
+/// Primitive floating point types: `f32` and `f64`.
+///
+/// This trait is automatically implemented for all types that satisfy the
+/// super-trait constraints.
+pub trait PrimitiveFloat:
+    PrimitiveNum
+    + Float
+    + FloatConst
+    + LosslessCastFrom<f32>
+    + CastFromIntegers<cast::AllowRounding>
+{}
+
+impl<T> PrimitiveFloat for T
+where
+    T: PrimitiveNum
+        + Float
+        + FloatConst
+        + LosslessCastFrom<f32>
+        + CastFromIntegers<cast::AllowRounding>,
+{}
 
 /// Types that can be interpreted to represent some kind of 3D position.
 ///
