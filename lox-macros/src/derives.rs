@@ -120,6 +120,10 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
         let face_inner_call = quote_spanned!{field.ty.span()=>
             _impl(&mut self.#field_name, vertices)
         };
+        let size_hint_inner_call = quote_spanned!{field.ty.span()=>
+            _impl(&mut self.#field_name, hint)
+        };
+
 
         quote! {
             fn add_vertex(&mut self) -> lox::VertexHandle {
@@ -140,6 +144,19 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
 
                 #face_inner_call
             }
+
+            fn size_hint(&mut self, hint: lox::util::MeshSizeHint) {
+                fn _impl<T: MeshMut + TriMeshMut>(
+                    mesh: &mut T,
+                    hint: lox::util::MeshSizeHint,
+                ) {
+                    mesh.reserve_for_vertices(hint.guess_vertex_count());
+                    mesh.reserve_for_faces(hint.guess_face_count());
+                }
+
+                #size_hint_inner_call
+            }
+
         }
     };
 
