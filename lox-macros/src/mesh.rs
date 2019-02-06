@@ -24,8 +24,6 @@ impl MeshInput {
     pub(crate) fn output(self) -> TokenStream {
         let Self { mesh_type, vertices, faces } = self;
 
-        // TODO: reserve memory for the mesh
-
         /// Helper function to create idents for `len` many property maps.
         fn create_map_idents(prefix: &str, len: Option<usize>) -> Vec<Ident> {
             (0..len.unwrap_or(0))
@@ -101,6 +99,8 @@ impl MeshInput {
             };
 
             let mut mesh = <#mesh_type as Empty>::empty();
+            MeshMut::reserve_for_vertices(&mut mesh, #vertex_count);
+            MeshMut::reserve_for_faces(&mut mesh, #face_count);
 
             #add_vertices
             #add_faces
