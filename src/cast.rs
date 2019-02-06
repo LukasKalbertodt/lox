@@ -383,6 +383,59 @@ where
     }
 }
 
+// ===========================================================================
+// ===== Bound aliases
+// ===========================================================================
+/// Convenience trait implemented for all types that can be cast from all
+/// primitive integer types with the rigor `R`.
+pub trait CastFromIntegers<R: CastRigor>:
+    CastFrom<R, u8>
+    + CastFrom<R, i8>
+    + CastFrom<R, u16>
+    + CastFrom<R, i16>
+    + CastFrom<R, u32>
+    + CastFrom<R, i32>
+    + CastFrom<R, u64>
+    + CastFrom<R, i64>
+    + CastFrom<R, u128>
+    + CastFrom<R, i128>
+{}
+
+impl<T, R: CastRigor> CastFromIntegers<R> for T
+where
+    T: CastFrom<R, u8>
+        + CastFrom<R, i8>
+        + CastFrom<R, u16>
+        + CastFrom<R, i16>
+        + CastFrom<R, u32>
+        + CastFrom<R, i32>
+        + CastFrom<R, u64>
+        + CastFrom<R, i64>
+        + CastFrom<R, u128>
+        + CastFrom<R, i128>
+{}
+
+
+/// Convenience trait implemented for all types that can be cast from all
+/// primitive float types (`f32` and `f64`) with the rigor `R`.
+pub trait CastFromFloats<R: CastRigor>: CastFrom<R, f32> + CastFrom<R, f64> {}
+
+impl<T, R: CastRigor> CastFromFloats<R> for T
+where
+    T: CastFrom<R, f32> + CastFrom<R, f64>,
+{}
+
+
+/// Types that can be casted from all primitive types with rigor `R`.
+///
+/// This is basically a trait-bound alias that is automatically implemented for
+/// all types that satisfy the supertrait bounds.
+pub trait PrimitiveCast<R: CastRigor>: CastFromIntegers<R> + CastFromFloats<R> {}
+
+impl<T, R: CastRigor> PrimitiveCast<R> for T
+where
+    T: CastFromIntegers<R> + CastFromFloats<R>,
+{}
 
 // ===========================================================================
 // ===== Implementations for primitive types
