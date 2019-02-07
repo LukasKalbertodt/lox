@@ -20,11 +20,15 @@ use crate::{
     traits::Empty,
     util::MeshSizeHint,
 };
-use self::parse::ParseError;
+use self::{
+    parse::ParseError,
+    util::{TypeWish, DefaultTypeWishes, WishFor},
+};
 
 pub mod parse;
 pub mod ply;
 pub mod stl;
+pub mod util;
 
 // /// Types that can be transformed into a [`MeshWriter`].
 // pub trait IntoMeshWriter<'a, MeshT, PosM>
@@ -396,52 +400,6 @@ impl<Source: Primitive, Target: Primitive> DowncastAs<Target> for Source {
     default fn downcast_as(self) -> Option<Target> {
         None
     }
-}
-
-/// Specifies preferred types for floating point numbers and integers.
-///
-/// This is used by [`MemSink`] to signal preferred types to the source. This
-/// is used in situations where the source does not have a specific type but
-/// has a choice. If, for example, the source reads an ASCII file in which
-/// positions are specified in standard `3.14` notation, it's not immediately
-/// clear how the source should parse those numbers: parsing as `f32` could
-/// loose precision; parsing as `f64` could be useless overhead if the sink
-/// converts it back to `f32`. Similarly, if the source generates values (e.g.
-/// a shape description), the same is true: it would be great if the source
-/// would know the preferred type.
-///
-/// This trait is only implemented by [`WishFor<F, I>`][WishFor] where `F` is
-/// the float type and `I` is the integer type. I don't think implementing this
-/// trait for your own types makes any sense. The default for most things is
-/// `WishFor<f32, i32>`, see [`DefaultTypeWishes`].
-pub trait TypeWish {
-    /// The specific type that should be used, if floating point numbers are
-    /// available.
-    type Float: PrimitiveFloat + Primitive;
-
-    /// The specific type that should be used, if integers are available.
-    type Integer: Primitive;
-}
-
-/// The default type wish: `f32` as float type, `i32` as integer type.
-pub type DefaultTypeWishes = WishFor<f32, i32>;
-
-/// Implements [`TypeWish`] with the float type `F` and the integer type `I`.
-///
-/// This type is only used at the type level and cannot be created nor used at
-/// runtime.
-pub struct WishFor<F: PrimitiveFloat + Primitive, I: Primitive>(!, PhantomData<F>, PhantomData<I>);
-
-// Dummy impl to make `deny(missing_debug_impl)` happy
-impl<F: PrimitiveFloat + Primitive, I: Primitive> fmt::Debug for WishFor<F, I> {
-    fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result {
-        self.0
-    }
-}
-
-impl<F: PrimitiveFloat + Primitive, I: Primitive> TypeWish for WishFor<F, I> {
-    type Float = F;
-    type Integer = I;
 }
 
 

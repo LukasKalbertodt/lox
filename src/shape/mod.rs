@@ -6,7 +6,7 @@ use num_traits::{Float, FloatConst};
 
 use crate::{
     cast,
-    io::{Error, MemSink, StreamSource, TypeWish},
+    io::{Error, MemSink, StreamSource, util::TypeWish},
     util::MeshSizeHint,
 };
 
