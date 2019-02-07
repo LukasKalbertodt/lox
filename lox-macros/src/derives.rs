@@ -190,6 +190,14 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
             };
 
             quote! {
+                // TODO: add this back in. Currently, this is not possible
+                //       because associated type defaults are a bit broken.
+                // type VertexPosition = lox::io::util::OverwriteFor<
+                //     <
+                //         <#ty as std::ops::Index<lox::VertexHandle>>::Output as lox::math::Pos3Like
+                //     >::Scalar
+                // >;
+
                 fn prepare_vertex_positions<N: lox::io::Primitive>(
                     &mut self,
                     count: lox::handle::DefaultInt,
@@ -200,7 +208,7 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                     ) -> Result<(), lox::io::Error>
                     where
                         T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
-                        T::Output: lox::math::Pos3Like
+                        T::Output: lox::math::Pos3Like,
                     {
                         let cast_possible = lox::cast::is_cast_possible::<
                             #cast_rigor,
@@ -235,7 +243,7 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                     )
                     where
                         T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
-                        T::Output: lox::math::Pos3Like
+                        T::Output: lox::math::Pos3Like,
                     {
                         let pos = position.map(|s| {
                             lox::cast::try_cast::<#cast_rigor, _, _>(s)
