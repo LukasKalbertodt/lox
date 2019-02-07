@@ -10,6 +10,7 @@
 #![feature(try_from)]
 #![feature(specialization)]
 #![feature(non_exhaustive)]
+#![feature(associated_type_defaults)]
 
 #![deny(missing_debug_implementations)]
 

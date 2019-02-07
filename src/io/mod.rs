@@ -3,6 +3,7 @@
 use std::{
     fmt,
     fs::File,
+    marker::PhantomData,
     io::{self, BufWriter, Cursor, Write},
     path::Path,
 };
@@ -14,7 +15,7 @@ use crate::{
     Mesh, TriVerticesOfFace,
     handle::{VertexHandle, FaceHandle, DefaultInt},
     map::VertexPropMap,
-    math::{Pos3Like, PrimitiveNum},
+    math::{Pos3Like, PrimitiveFloat, PrimitiveNum},
     sealed::Sealed,
     traits::Empty,
     util::MeshSizeHint,
@@ -397,6 +398,53 @@ impl<Source: Primitive, Target: Primitive> DowncastAs<Target> for Source {
     }
 }
 
+/// Specifies preferred types for floating point numbers and integers.
+///
+/// This is used by [`MemSink`] to signal preferred types to the source. This
+/// is used in situations where the source does not have a specific type but
+/// has a choice. If, for example, the source reads an ASCII file in which
+/// positions are specified in standard `3.14` notation, it's not immediately
+/// clear how the source should parse those numbers: parsing as `f32` could
+/// loose precision; parsing as `f64` could be useless overhead if the sink
+/// converts it back to `f32`. Similarly, if the source generates values (e.g.
+/// a shape description), the same is true: it would be great if the source
+/// would know the preferred type.
+///
+/// This trait is only implemented by [`WishFor<F, I>`][WishFor] where `F` is
+/// the float type and `I` is the integer type. I don't think implementing this
+/// trait for your own types makes any sense. The default for most things is
+/// `WishFor<f32, i32>`, see [`DefaultTypeWishes`].
+pub trait TypeWish {
+    /// The specific type that should be used, if floating point numbers are
+    /// available.
+    type Float: PrimitiveFloat + Primitive;
+
+    /// The specific type that should be used, if integers are available.
+    type Integer: Primitive;
+}
+
+/// The default type wish: `f32` as float type, `i32` as integer type.
+pub type DefaultTypeWishes = WishFor<f32, i32>;
+
+/// Implements [`TypeWish`] with the float type `F` and the integer type `I`.
+///
+/// This type is only used at the type level and cannot be created nor used at
+/// runtime.
+pub struct WishFor<F: PrimitiveFloat + Primitive, I: Primitive>(!, PhantomData<F>, PhantomData<I>);
+
+// Dummy impl to make `deny(missing_debug_impl)` happy
+impl<F: PrimitiveFloat + Primitive, I: Primitive> fmt::Debug for WishFor<F, I> {
+    fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result {
+        self.0
+    }
+}
+
+impl<F: PrimitiveFloat + Primitive, I: Primitive> TypeWish for WishFor<F, I> {
+    type Float = F;
+    type Integer = I;
+}
+
+
 
 // ==========================================================================
 // ===== {Streaming/Mem}-Sinks and Sources
@@ -420,12 +468,12 @@ pub trait StreamSource {
 /// # Kinds of methods on this trait
 ///
 /// There are four kinds of methods:
-/// - *Mesh connectivity*: `add_vertex` and `add_face`. These are the only
+/// - **Mesh connectivity**: `add_vertex` and `add_face`. These are the only
 ///   required methods.
-/// - *`create_from`*: just a provided, convenience method.
-/// - *`size_hint`*: empty implementation provided.
-/// - *Mesh properties*: `prepare_*` and `set_*` methods: empty implementations
-///   provided.
+/// - **`create_from`**: just a provided, convenience method.
+/// - **`size_hint`**: empty implementation provided.
+/// - **Mesh properties**: `prepare_*` and `set_*` methods plus one associated
+///   type per property: empty/default implementations provided.
 ///
 /// There are some rules for the last kind of methods: for each property (e.g.
 /// `vertex_position` or `face_normal`), the `prepare_*` method has to be
@@ -439,6 +487,17 @@ pub trait StreamSource {
 /// The `count` parameter of the `prepare_` methods is just an optimization and
 /// represents a lower bound of the number of properties will be added via
 /// `set_*`. Therefore, it's always valid for the source to pass 0 as `count`.
+///
+/// The associated type for each property (e.g. `VertexPosition`) is a bit
+/// special, too. They can be used to signal a preferred property type to the
+/// source. The source is not forced to use those type wishes, but it usually
+/// does so if it makes sense: for example when parsing ASCII values or
+/// generating values. See [`TypeWish`] for more information.
+///
+///
+/// # Deriving
+///
+/// TODO
 pub trait MemSink {
     // =======================================================================
     // ===== Mesh connectivity
@@ -483,6 +542,10 @@ pub trait MemSink {
     // ===== Mesh properties
     // =======================================================================
 
+    // ----- Vertex positions ------------------------------------------------
+    /// Preferred types for the scalar type of vertex positions.
+    type VertexPosition: TypeWish = DefaultTypeWishes;
+
     /// Informs the sink that the source will provide at least `count` many
     /// vertex positions with the scalar type `N`.
     fn prepare_vertex_positions<N: Primitive>(&mut self, _count: DefaultInt) -> Result<(), Error> {
@@ -496,6 +559,11 @@ pub trait MemSink {
         _position: Point3<N>,
     ) {}
 
+
+    // ----- Vertex normals --------------------------------------------------
+    /// Preferred types for the scalar type of vertex normals.
+    type VertexNormal: TypeWish = DefaultTypeWishes;
+
     /// Informs the sink that the source will provide at least `count` many
     /// vertex normals with the scalar type `N`.
     fn prepare_vertex_normals<N: Primitive>(&mut self, _count: DefaultInt) -> Result<(), Error> {
@@ -508,6 +576,11 @@ pub trait MemSink {
         _v: VertexHandle,
         _normal: Vector3<N>,
     ) {}
+
+
+    // ----- Face normals ----------------------------------------------------
+    /// Preferred types for the scalar type of face normals.
+    type FaceNormal: TypeWish = DefaultTypeWishes;
 
     /// Informs the sink that the source will provide at least `count` many
     /// face normals with the scalar type `N`.
