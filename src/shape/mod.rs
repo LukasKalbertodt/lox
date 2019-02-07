@@ -2,9 +2,11 @@ use cgmath::{
     Point3, Vector3,
     prelude::*,
 };
+use num_traits::{Float, FloatConst};
 
 use crate::{
-    io::{Error, MemSink, StreamSource},
+    cast,
+    io::{Error, MemSink, StreamSource, TypeWish},
     util::MeshSizeHint,
 };
 
@@ -34,6 +36,8 @@ impl Default for Disc {
         }
     }
 }
+
+type PosType<S> = <<S as MemSink>::VertexPosition as TypeWish>::Float;
 
 impl StreamSource for Disc {
     fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error> {
@@ -69,25 +73,32 @@ impl StreamSource for Disc {
             face_count: Some(face_count),
         });
 
-        sink.prepare_vertex_positions::<f64>(vertex_count)?;
+        sink.prepare_vertex_positions::<PosType<S>>(vertex_count)?;
+
+        // Convert our config into the right type
+        let radius = cast::lossy::<_, PosType<S>>(self.radius);
+        let center_pos = self.center.map(|s| cast::lossy::<_, PosType<S>>(s));
+        let lit = |v: f32| cast::lossless::<f32, PosType<S>>(v);
 
 
         let center = sink.add_vertex();
-        sink.set_vertex_position(center, self.center);
+        sink.set_vertex_position(center, center_pos);
 
         let first = sink.add_vertex();
-        sink.set_vertex_position(first,self.center + Vector3::new(self.radius, 0.0, 0.0));
+        sink.set_vertex_position(first, center_pos + Vector3::new(radius, lit(0.0), lit(0.0)));
 
         // The last vertex we created.
         let mut last = first;
 
         // Add a new vertex and a new face in each iteration.
         for i in 1..self.faces {
-            let angle = (i as f64 / self.faces as f64) * 2.0 * std::f64::consts::PI;
-            let position = self.center + Vector3::new(
-                self.radius * angle.cos(),
-                self.radius * angle.sin(),
-                0.0,
+            let angle = (
+                cast::rounding::<u32, PosType<S>>(i) / cast::rounding::<u32, PosType<S>>(self.faces)
+            ) * lit(2.0) * PosType::<S>::PI();
+            let position = center_pos + Vector3::new(
+                radius * angle.cos(),
+                radius * angle.sin(),
+                lit(0.0),
             );
 
             let v = sink.add_vertex();
