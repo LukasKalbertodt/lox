@@ -442,18 +442,23 @@ pub trait StreamSource {
 /// # Kinds of methods on this trait
 ///
 /// There are four kinds of methods:
+/// - **Convenience methods for the user**: currently only `create_from`,
+///   already provided. Intended to be used by the user of a `MemSink`, not by
+///   a source.
 /// - **Mesh connectivity**: `add_vertex` and `add_face`. These are the only
-///   required methods.
-/// - **`create_from`**: just a provided, convenience method.
-/// - **`size_hint`**: empty implementation provided.
+///   required methods. Intended to be used by the source when transferring
+///   data.
 /// - **Mesh properties**: `prepare_*` and `set_*` methods plus one associated
-///   type per property: empty/default implementations provided.
+///   type per property: empty/default implementations provided. Intended to be
+///   used by the source when transferring data.
+/// - **Various other methods**: `size_hint` and `finish`. Empty implementation
+///   provided. Intended to be used by the source when transferring data.
 ///
-/// There are some rules for the last kind of methods: for each property (e.g.
-/// `vertex_position` or `face_normal`), the `prepare_*` method has to be
-/// called by the source before the `set_*` method can be called. Additionally,
-/// the `N` type parameter must be the same for all calls of `prepare_*` and
-/// `set_*` of one property. The sink can rely on these rules.
+/// There are some rules for the methods concerning properties: for each
+/// property (e.g. `vertex_position` or `face_normal`), the `prepare_*` method
+/// has to be called by the source before the `set_*` method can be called.
+/// Additionally, the `N` type parameter must be the same for all calls of
+/// `prepare_*` and `set_*` of one property. The sink can rely on these rules.
 ///
 /// The handles passed to `set_` methods have to be handles returned
 /// by `add_vertex` or `add_face`.
@@ -494,11 +499,12 @@ pub trait MemSink {
     {
         let mut out = Self::empty();
         source.transfer_to(&mut out)?;
+        out.finish()?;
         Ok(out)
     }
 
     // =======================================================================
-    // ===== Size hint
+    // ===== Various optional/provided methods
     // =======================================================================
 
     /// Might be called by the source to indicate how many vertices and faces
@@ -510,6 +516,28 @@ pub trait MemSink {
     ///
     /// This method might not be called by the source at all.
     fn size_hint(&mut self, _hint: MeshSizeHint) {}
+
+    /// Signals the sink that a transfer operation is finished and that no
+    /// additional data will be added to the sink.
+    ///
+    /// This method allows the sink to raise an error in response to a invalid
+    /// end state. This is usually done to make sure a sink has all the data it
+    /// was expecting. Due to the arbitrary-order nature of source data, the
+    /// sink's data is probably incomplete within a transfer operation. Calling
+    /// this method says: "there is no additional data, make sure you are in a
+    /// proper state now".
+    ///
+    /// This shouldn't be called by [`StreamSink::transfer_to`] directly as
+    /// calling `transfer_to` doesn't necessarily mean that a transfer is
+    /// completed afterwards. Instead, `finish` is called by
+    /// [`MemSink::create_from`] and thus by `io::read`.
+    ///
+    /// When deriving this trait, this method is implemented to check that
+    /// property maps are complete (meaning: for every element in the mesh, a
+    /// property has been added).
+    fn finish(&mut self) -> Result<(), Error> {
+        Ok(())
+    }
 
 
     // =======================================================================

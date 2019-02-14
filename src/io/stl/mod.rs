@@ -3,7 +3,7 @@
 //! STL is a pretty old and inflexible file format. It simply stores a list of
 //! triangles where each triangle specifies its normal and the position of its
 //! three vertices (plus a strange *attribute byte count* in binary encoding).
-//! The normal and positions are always three 32 bit IEEE floats (`f32`). Due
+//! The normal and positions are always three 32-bit IEEE floats (`f32`). Due
 //! to just storing a list of triangles, many vertices are stored multiple
 //! times, making the format fairly space inefficient.
 //!
