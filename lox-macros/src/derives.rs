@@ -88,6 +88,18 @@ pub(crate) fn derive_empty(input: &DeriveInput) -> Result<TokenStream2, Error> {
 pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error> {
     const ERR_NO_MESH: &str = "no field named `mesh` or with attribute `#[lox(mesh)]` found";
 
+    fn cast_error(cast_mode: CastMode, prop_name: &str) -> String {
+        format!(
+            "`set_{}` called with unexpected primitive type '{{:?}}' \
+                that cannot be casted as `{}` to the target type of the sink \
+                (this is most likely a bug in the source implementation as the type \
+                was not passed to `prepare_{}s` before)",
+            prop_name,
+            cast_mode,
+            prop_name,
+        )
+    }
+
     // Make sure this is a struct and pull out the fields.
     let fields = struct_fields(&input, "only structs can derive `Empty`")?;
 
@@ -147,19 +159,8 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
     let vertex_position_code = {
         if let Some(field) = &vertex_position_field {
             let cast_mode = field.cast_mode.unwrap_or(DEFAULT_CAST_MODE);
-            let cast_rigor = match cast_mode {
-                CastMode::Lossless => quote! { lox::cast::Lossless },
-                CastMode::Clamping => quote! { lox::cast::AllowClamping },
-                CastMode::Rounding => quote! { lox::cast::AllowRounding },
-                CastMode::Lossy => quote! { lox::cast::Lossy },
-            };
-            let cast_error = format!(
-                "`set_vertex_position` called with unexpected primitive type '{{:?}}' \
-                    that cannot be casted as `{}` to the target type of the sink \
-                    (this is most likely a bug in the source implementation as the type \
-                    was not passed to `prepare_vertex_positions` before)",
-                cast_mode,
-            );
+            let cast_rigor = cast_mode.rigor_tokens();
+            let cast_error = cast_error(cast_mode, "vertex_position");
 
             let field_name = &field.name;
             let ty = &field.ty;
@@ -244,30 +245,35 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
 
     // ===== The `finish()` method =====
     let finish_code = {
-        let mesh_field_name = &mesh_field.name;
-
-        let vertex_positions = if let Some(field) = vertex_position_field {
-            let name = &field.name;
-            let err_msg = "missing vertex positions ({} provided, {} expected)";
-            quote! {
-                if lox::map::PropStore::num_props(&self.#name) != num_vertices {
-                    let msg = format!(
-                        #err_msg,
-                        lox::map::PropStore::num_props(&self.#name),
-                        num_vertices,
-                    );
-                    return Err(lox::io::Error::DataIncomplete(msg));
+        macro_rules! gen_prop_check {
+            ($field:ident, $name:literal, $count:ident) => {
+                if let Some(field) = $field {
+                    let name = &field.name;
+                    let err_msg = concat!("missing ", $name, " ({} provided, {} expected)");
+                    quote! {
+                        if lox::map::PropStore::num_props(&self.#name) != $count {
+                            let msg = format!(
+                                #err_msg,
+                                lox::map::PropStore::num_props(&self.#name),
+                                $count,
+                            );
+                            return Err(lox::io::Error::DataIncomplete(msg));
+                        }
+                    }
+                } else {
+                    quote! {}
                 }
             }
-        } else {
-            quote! {}
-        };
+        }
+
+        let mesh_field_name = &mesh_field.name;
+        let vpos = gen_prop_check!(vertex_position_field, "vertex positions", num_vertices);
 
         quote! {
             fn finish(&mut self) -> Result<(), lox::io::Error> {
                 let num_vertices = lox::traits::Mesh::num_vertices(&self.#mesh_field_name);
 
-                #vertex_positions
+                #vpos
 
                 Ok(())
             }
@@ -422,6 +428,17 @@ enum CastMode {
     Rounding,
     Lossy,
     // TODO: add "none" casting mode
+}
+
+impl CastMode {
+    fn rigor_tokens(&self) -> TokenStream2 {
+        match self {
+            CastMode::Lossless => quote! { lox::cast::Lossless },
+            CastMode::Clamping => quote! { lox::cast::AllowClamping },
+            CastMode::Rounding => quote! { lox::cast::AllowRounding },
+            CastMode::Lossy => quote! { lox::cast::Lossy },
+        }
+    }
 }
 
 impl fmt::Display for CastMode {
