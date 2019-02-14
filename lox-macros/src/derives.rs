@@ -195,7 +195,7 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                         let cast_possible = lox::cast::is_cast_possible::<
                             #cast_rigor,
                             N,
-                            <T::Output as Pos3Like>::Scalar,
+                            <T::Output as lox::math::Pos3Like>::Scalar,
                         >();
 
                         if !cast_possible {
@@ -231,7 +231,7 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                             lox::cast::try_cast::<#cast_rigor, _, _>(s)
                                 .unwrap_or_else(|| panic!(#cast_error, N::TY))
                         });
-                        map.insert(v, pos.convert());
+                        map.insert(v, lox::math::Pos3Like::convert(&pos));
                     }
 
                     #set_inner_call
@@ -256,7 +256,7 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                 _impl::<_, N>(&mut self.#field_name, count)
             };
             let set_inner_call = quote_spanned!{ty.span()=>
-                _impl::<_, N>(&mut self.#field_name, v, position)
+                _impl::<_, N>(&mut self.#field_name, v, normal)
             };
 
             quote! {
@@ -276,7 +276,7 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                         let cast_possible = lox::cast::is_cast_possible::<
                             #cast_rigor,
                             N,
-                            <T::Output as Vec3Like>::Scalar,
+                            <T::Output as lox::math::Vec3Like>::Scalar,
                         >();
 
                         if !cast_possible {
@@ -297,22 +297,22 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                 fn set_vertex_normal<N: lox::io::Primitive>(
                     &mut self,
                     v: lox::VertexHandle,
-                    position: lox::cgmath::Vector3<N>,
+                    normal: lox::cgmath::Vector3<N>,
                 ) {
                     fn _impl<T, N: lox::io::Primitive>(
                         map: &mut T,
                         v: lox::VertexHandle,
-                        position: lox::cgmath::Vector3<N>,
+                        normal: lox::cgmath::Vector3<N>,
                     )
                     where
                         T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
                         T::Output: lox::math::Vec3Like,
                     {
-                        let pos = position.map(|s| {
+                        let normal = normal.map(|s| {
                             lox::cast::try_cast::<#cast_rigor, _, _>(s)
                                 .unwrap_or_else(|| panic!(#cast_error, N::TY))
                         });
-                        map.insert(v, pos.convert());
+                        map.insert(v, lox::math::Vec3Like::convert(&normal));
                     }
 
                     #set_inner_call
@@ -337,7 +337,7 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                 _impl::<_, N>(&mut self.#field_name, count)
             };
             let set_inner_call = quote_spanned!{ty.span()=>
-                _impl::<_, N>(&mut self.#field_name, v, position)
+                _impl::<_, N>(&mut self.#field_name, v, normal)
             };
 
             quote! {
@@ -357,7 +357,7 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                         let cast_possible = lox::cast::is_cast_possible::<
                             #cast_rigor,
                             N,
-                            <T::Output as Vec3Like>::Scalar,
+                            <T::Output as lox::math::Vec3Like>::Scalar,
                         >();
 
                         if !cast_possible {
@@ -378,22 +378,22 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                 fn set_face_normal<N: lox::io::Primitive>(
                     &mut self,
                     v: lox::FaceHandle,
-                    position: lox::cgmath::Vector3<N>,
+                    normal: lox::cgmath::Vector3<N>,
                 ) {
                     fn _impl<T, N: lox::io::Primitive>(
                         map: &mut T,
                         v: lox::FaceHandle,
-                        position: lox::cgmath::Vector3<N>,
+                        normal: lox::cgmath::Vector3<N>,
                     )
                     where
                         T: lox::map::PropStoreMut<lox::handle::FaceHandle>,
                         T::Output: lox::math::Vec3Like,
                     {
-                        let pos = position.map(|s| {
+                        let normal = normal.map(|s| {
                             lox::cast::try_cast::<#cast_rigor, _, _>(s)
                                 .unwrap_or_else(|| panic!(#cast_error, N::TY))
                         });
-                        map.insert(v, pos.convert());
+                        map.insert(v, lox::math::Vec3Like::convert(&normal));
                     }
 
                     #set_inner_call
