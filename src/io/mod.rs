@@ -214,7 +214,16 @@ pub enum Error {
     SinkIncompatible {
         prop: PropKind,
         source_type: PrimitiveType,
-    }
+    },
+
+    /// This error is raised when a sink detects that the source cannot provide
+    /// all data required by the sink.
+    ///
+    /// If you encounter this error, here is what you can do:
+    /// - Check why the source does not provide the data the sink requires and
+    ///   potentially use a source that provides that data.
+    /// - If you own the sink: relax the restrictions of what data is required.
+    DataIncomplete(String),
 }
 
 impl fmt::Display for Error {
@@ -229,6 +238,13 @@ impl fmt::Display for Error {
                         (if you derived `MemSink`, you might want to change the casting mode)",
                     prop.plural_form(),
                     source_type,
+                )
+            }
+            Error::DataIncomplete(details) => {
+                write!(
+                    f,
+                    "source data is incomplete (sink requires more data): {}",
+                    details,
                 )
             }
         }
