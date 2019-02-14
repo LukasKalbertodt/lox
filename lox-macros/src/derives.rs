@@ -86,6 +86,8 @@ pub(crate) fn derive_empty(input: &DeriveInput) -> Result<TokenStream2, Error> {
 /// of the field type. Thus, the error message will point to the type of the
 /// field which makes it even easier to understand.
 pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error> {
+    const ERR_NO_MESH: &str = "no field named `mesh` or with attribute `#[lox(mesh)]` found";
+
     // Make sure this is a struct and pull out the fields.
     let fields = struct_fields(&input, "only structs can derive `Empty`")?;
 
@@ -99,71 +101,50 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
 
 
     // ===== The core mesh =====
+    let mesh_field = find_field(fields, "mesh")?.ok_or(Error::new(input.span(), ERR_NO_MESH))?;
     let mesh_code = {
-        let e =  Error::new(
-            input.span(),
-            "no field named `mesh` or with attribute `#[lox(mesh)]` found"
-        );
-        let field = find_field(fields, "mesh")?.ok_or(e)?;
-        let field_name = &field.name;
-        if field.cast_mode.is_some() {
+        let field_name = &mesh_field.name;
+        if mesh_field.cast_mode.is_some() {
             return Err(Error::new(
-                field.name.span(),
+                mesh_field.name.span(),
                 "specifying casting behavior on the `mesh` field does not make sense",
             ));
         }
 
-
-        let vertex_inner_call = quote_spanned!{field.ty.span()=>
-            _impl(&mut self.#field_name)
+        let add_vertex = quote_spanned!{mesh_field.ty.span()=>
+            lox::traits::MeshMut::add_vertex(&mut self.#field_name)
         };
-        let face_inner_call = quote_spanned!{field.ty.span()=>
-            _impl(&mut self.#field_name, vertices)
+        let add_face = quote_spanned!{mesh_field.ty.span()=>
+            lox::traits::TriMeshMut::add_face(&mut self.#field_name, vertices)
         };
-        let size_hint_inner_call = quote_spanned!{field.ty.span()=>
-            _impl(&mut self.#field_name, hint)
+        let size_hint = quote_spanned!{mesh_field.ty.span()=>
+            lox::traits::MeshMut::reserve_for_vertices(
+                &mut self.#field_name,
+                hint.guess_vertex_count(),
+            );
+            lox::traits::MeshMut::reserve_for_faces(
+                &mut self.#field_name,
+                hint.guess_face_count(),
+            );
         };
-
 
         quote! {
             fn add_vertex(&mut self) -> lox::VertexHandle {
-                fn _impl<T: MeshMut + TriMeshMut>(mesh: &mut T) -> lox::VertexHandle {
-                    mesh.add_vertex()
-                }
-
-                #vertex_inner_call
+                #add_vertex
             }
-
             fn add_face(&mut self, vertices: [lox::VertexHandle; 3]) -> lox::FaceHandle {
-                fn _impl<T: MeshMut + TriMeshMut>(
-                    mesh: &mut T,
-                    vertices: [lox::VertexHandle; 3],
-                ) -> lox::FaceHandle {
-                    mesh.add_face(vertices)
-                }
-
-                #face_inner_call
+                #add_face
             }
-
             fn size_hint(&mut self, hint: lox::util::MeshSizeHint) {
-                fn _impl<T: MeshMut + TriMeshMut>(
-                    mesh: &mut T,
-                    hint: lox::util::MeshSizeHint,
-                ) {
-                    mesh.reserve_for_vertices(hint.guess_vertex_count());
-                    mesh.reserve_for_faces(hint.guess_face_count());
-                }
-
-                #size_hint_inner_call
+                #size_hint
             }
-
         }
     };
 
 
     // ===== Vertex positions =====
+    let vertex_position_field = find_field(fields, "vertex_positions")?;
     let vertex_position_code = {
-        let vertex_position_field = find_field(fields, "vertex_positions")?;
         if let Some(field) = vertex_position_field {
             let cast_mode = field.cast_mode.unwrap_or(DEFAULT_CAST_MODE);
             let cast_rigor = match cast_mode {
