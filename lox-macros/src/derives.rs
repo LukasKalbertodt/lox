@@ -242,6 +242,168 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
         }
     };
 
+    // ===== Vertex normals =====
+    let vertex_normal_field = find_field(fields, "vertex_normals")?;
+    let vertex_normal_code = {
+        if let Some(field) = &vertex_normal_field {
+            let cast_mode = field.cast_mode.unwrap_or(DEFAULT_CAST_MODE);
+            let cast_rigor = cast_mode.rigor_tokens();
+            let cast_error = cast_error(cast_mode, "vertex_normal");
+
+            let field_name = &field.name;
+            let ty = &field.ty;
+            let prep_inner_call = quote_spanned!{ty.span()=>
+                _impl::<_, N>(&mut self.#field_name, count)
+            };
+            let set_inner_call = quote_spanned!{ty.span()=>
+                _impl::<_, N>(&mut self.#field_name, v, position)
+            };
+
+            quote! {
+                // TODO: type wish
+                fn prepare_vertex_normals<N: lox::io::Primitive>(
+                    &mut self,
+                    count: lox::handle::DefaultInt,
+                ) -> Result<(), lox::io::Error> {
+                    fn _impl<T, N: lox::io::Primitive>(
+                        map: &mut T,
+                        count: lox::handle::DefaultInt,
+                    ) -> Result<(), lox::io::Error>
+                    where
+                        T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
+                        T::Output: lox::math::Vec3Like,
+                    {
+                        let cast_possible = lox::cast::is_cast_possible::<
+                            #cast_rigor,
+                            N,
+                            <T::Output as Vec3Like>::Scalar,
+                        >();
+
+                        if !cast_possible {
+                            return Err(lox::io::Error::SinkIncompatible {
+                                prop: lox::io::PropKind::VertexPosition,
+                                source_type: N::TY,
+                            });
+                        }
+
+                        map.reserve(count);
+
+                        Ok(())
+                    }
+
+                    #prep_inner_call
+                }
+
+                fn set_vertex_normal<N: lox::io::Primitive>(
+                    &mut self,
+                    v: lox::VertexHandle,
+                    position: lox::cgmath::Vector3<N>,
+                ) {
+                    fn _impl<T, N: lox::io::Primitive>(
+                        map: &mut T,
+                        v: lox::VertexHandle,
+                        position: lox::cgmath::Vector3<N>,
+                    )
+                    where
+                        T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
+                        T::Output: lox::math::Vec3Like,
+                    {
+                        let pos = position.map(|s| {
+                            lox::cast::try_cast::<#cast_rigor, _, _>(s)
+                                .unwrap_or_else(|| panic!(#cast_error, N::TY))
+                        });
+                        map.insert(v, pos.convert());
+                    }
+
+                    #set_inner_call
+                }
+            }
+        } else {
+            quote! {}
+        }
+    };
+
+    // ===== Face normals =====
+    let face_normal_field = find_field(fields, "face_normals")?;
+    let face_normal_code = {
+        if let Some(field) = &face_normal_field {
+            let cast_mode = field.cast_mode.unwrap_or(DEFAULT_CAST_MODE);
+            let cast_rigor = cast_mode.rigor_tokens();
+            let cast_error = cast_error(cast_mode, "face_normal");
+
+            let field_name = &field.name;
+            let ty = &field.ty;
+            let prep_inner_call = quote_spanned!{ty.span()=>
+                _impl::<_, N>(&mut self.#field_name, count)
+            };
+            let set_inner_call = quote_spanned!{ty.span()=>
+                _impl::<_, N>(&mut self.#field_name, v, position)
+            };
+
+            quote! {
+                // TODO: type wish
+                fn prepare_face_normals<N: lox::io::Primitive>(
+                    &mut self,
+                    count: lox::handle::DefaultInt,
+                ) -> Result<(), lox::io::Error> {
+                    fn _impl<T, N: lox::io::Primitive>(
+                        map: &mut T,
+                        count: lox::handle::DefaultInt,
+                    ) -> Result<(), lox::io::Error>
+                    where
+                        T: lox::map::PropStoreMut<lox::handle::FaceHandle>,
+                        T::Output: lox::math::Vec3Like,
+                    {
+                        let cast_possible = lox::cast::is_cast_possible::<
+                            #cast_rigor,
+                            N,
+                            <T::Output as Vec3Like>::Scalar,
+                        >();
+
+                        if !cast_possible {
+                            return Err(lox::io::Error::SinkIncompatible {
+                                prop: lox::io::PropKind::VertexPosition,
+                                source_type: N::TY,
+                            });
+                        }
+
+                        map.reserve(count);
+
+                        Ok(())
+                    }
+
+                    #prep_inner_call
+                }
+
+                fn set_face_normal<N: lox::io::Primitive>(
+                    &mut self,
+                    v: lox::FaceHandle,
+                    position: lox::cgmath::Vector3<N>,
+                ) {
+                    fn _impl<T, N: lox::io::Primitive>(
+                        map: &mut T,
+                        v: lox::FaceHandle,
+                        position: lox::cgmath::Vector3<N>,
+                    )
+                    where
+                        T: lox::map::PropStoreMut<lox::handle::FaceHandle>,
+                        T::Output: lox::math::Vec3Like,
+                    {
+                        let pos = position.map(|s| {
+                            lox::cast::try_cast::<#cast_rigor, _, _>(s)
+                                .unwrap_or_else(|| panic!(#cast_error, N::TY))
+                        });
+                        map.insert(v, pos.convert());
+                    }
+
+                    #set_inner_call
+                }
+            }
+        } else {
+            quote! {}
+        }
+    };
+
 
     // ===== The `finish()` method =====
     let finish_code = {
@@ -267,13 +429,18 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
         }
 
         let mesh_field_name = &mesh_field.name;
-        let vpos = gen_prop_check!(vertex_position_field, "vertex positions", num_vertices);
+        let vpos = gen_prop_check!(vertex_position_field, "vertex positions", _num_vertices);
+        let vnormal = gen_prop_check!(vertex_normal_field, "vertex normals", _num_vertices);
+        let fnormal = gen_prop_check!(face_normal_field, "face normals", _num_faces);
 
         quote! {
             fn finish(&mut self) -> Result<(), lox::io::Error> {
-                let num_vertices = lox::traits::Mesh::num_vertices(&self.#mesh_field_name);
+                let _num_vertices = lox::traits::Mesh::num_vertices(&self.#mesh_field_name);
+                let _num_faces = lox::traits::Mesh::num_faces(&self.#mesh_field_name);
 
                 #vpos
+                #vnormal
+                #fnormal
 
                 Ok(())
             }
@@ -291,6 +458,8 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
             #mesh_code
             #finish_code
             #vertex_position_code
+            #vertex_normal_code
+            #face_normal_code
         }
     };
 
