@@ -37,7 +37,9 @@ impl Default for Disc {
     }
 }
 
-type PosType<S> = <<S as MemSink>::VertexPosition as TypeWish>::Float;
+type VPosType<S> = <<S as MemSink>::VertexPosition as TypeWish>::Float;
+type VNormalType<S> = <<S as MemSink>::VertexNormal as TypeWish>::Float;
+type FNormalType<S> = <<S as MemSink>::FaceNormal as TypeWish>::Float;
 
 impl StreamSource for Disc {
     fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error> {
@@ -73,19 +75,26 @@ impl StreamSource for Disc {
             face_count: Some(face_count),
         });
 
-        sink.prepare_vertex_positions::<PosType<S>>(vertex_count)?;
+        sink.prepare_vertex_positions::<VPosType<S>>(vertex_count)?;
+        sink.prepare_vertex_normals::<VNormalType<S>>(vertex_count)?;
+        sink.prepare_face_normals::<FNormalType<S>>(face_count)?;
+
+        let vertex_normal = Vector3::<VNormalType<S>>::unit_z();
+        let face_normal = Vector3::<FNormalType<S>>::unit_z();
 
         // Convert our config into the right type
-        let radius = cast::lossy::<_, PosType<S>>(self.radius);
-        let center_pos = self.center.map(|s| cast::lossy::<_, PosType<S>>(s));
-        let lit = |v: f32| cast::lossless::<f32, PosType<S>>(v);
+        let radius = cast::lossy::<_, VPosType<S>>(self.radius);
+        let center_pos = self.center.map(|s| cast::lossy::<_, VPosType<S>>(s));
+        let lit = |v: f32| cast::lossless::<f32, VPosType<S>>(v);
 
 
         let center = sink.add_vertex();
         sink.set_vertex_position(center, center_pos);
+        sink.set_vertex_normal(center, vertex_normal);
 
         let first = sink.add_vertex();
         sink.set_vertex_position(first, center_pos + Vector3::new(radius, lit(0.0), lit(0.0)));
+        sink.set_vertex_normal(first, vertex_normal);
 
         // The last vertex we created.
         let mut last = first;
@@ -93,8 +102,8 @@ impl StreamSource for Disc {
         // Add a new vertex and a new face in each iteration.
         for i in 1..self.faces {
             let angle = (
-                cast::rounding::<u32, PosType<S>>(i) / cast::rounding::<u32, PosType<S>>(self.faces)
-            ) * lit(2.0) * PosType::<S>::PI();
+                cast::rounding::<u32, VPosType<S>>(i) / cast::rounding::<u32, VPosType<S>>(self.faces)
+            ) * lit(2.0) * VPosType::<S>::PI();
             let position = center_pos + Vector3::new(
                 radius * angle.cos(),
                 radius * angle.sin(),
@@ -103,13 +112,17 @@ impl StreamSource for Disc {
 
             let v = sink.add_vertex();
             sink.set_vertex_position(v, position);
-            sink.add_face([center, last, v]);
+            sink.set_vertex_normal(v, vertex_normal);
+
+            let f = sink.add_face([center, last, v]);
+            sink.set_face_normal(f, face_normal);
 
             last = v;
         }
 
         // Add last face (with the first outer vertex)
-        sink.add_face([center, last, first]);
+        let f = sink.add_face([center, last, first]);
+        sink.set_face_normal(f, face_normal);
 
         Ok(())
     }
