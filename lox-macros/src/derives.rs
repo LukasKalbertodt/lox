@@ -289,6 +289,7 @@ struct LoxAttr {
 }
 
 struct LoxAttrValue {
+    #[allow(dead_code)] // TODO
     name: syn::Ident,
     value: syn::Lit,
 }
