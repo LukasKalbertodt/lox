@@ -145,7 +145,7 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
     // ===== Vertex positions =====
     let vertex_position_field = find_field(fields, "vertex_positions")?;
     let vertex_position_code = {
-        if let Some(field) = vertex_position_field {
+        if let Some(field) = &vertex_position_field {
             let cast_mode = field.cast_mode.unwrap_or(DEFAULT_CAST_MODE);
             let cast_rigor = match cast_mode {
                 CastMode::Lossless => quote! { lox::cast::Lossless },
@@ -242,6 +242,39 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
     };
 
 
+    // ===== The `finish()` method =====
+    let finish_code = {
+        let mesh_field_name = &mesh_field.name;
+
+        let vertex_positions = if let Some(field) = vertex_position_field {
+            let name = &field.name;
+            let err_msg = "missing vertex positions ({} provided, {} expected)";
+            quote! {
+                if lox::map::PropStore::num_props(&self.#name) != num_vertices {
+                    let msg = format!(
+                        #err_msg,
+                        lox::map::PropStore::num_props(&self.#name),
+                        num_vertices,
+                    );
+                    return Err(lox::io::Error::DataIncomplete(msg));
+                }
+            }
+        } else {
+            quote! {}
+        };
+
+        quote! {
+            fn finish(&mut self) -> Result<(), lox::io::Error> {
+                let num_vertices = lox::traits::Mesh::num_vertices(&self.#mesh_field_name);
+
+                #vertex_positions
+
+                Ok(())
+            }
+        }
+    };
+
+
     // Prepare stuff for impl header.
     let name = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -250,6 +283,7 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
     let out = quote! {
         impl #impl_generics lox::io::MemSink for #name #ty_generics #where_clause {
             #mesh_code
+            #finish_code
             #vertex_position_code
         }
     };
