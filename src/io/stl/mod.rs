@@ -36,35 +36,35 @@
 //! Then you can use the writer via [`MeshWriter`][crate::io::MeshWriter].
 //!
 //!
-//! ```no_run
-//! #![feature(proc_macro_hygiene)]
-//! use cgmath::{Point3, Vector3};
-//! use lox::{
-//!     mesh,
-//!     prelude::*,
-//!     ds::SharedVertexMesh,
-//!     io::stl::Config,
-//! };
-//!
-//!
-//! let (mesh, positions, face_normals) = mesh! {
-//!     type: SharedVertexMesh,
-//!     vertices: [
-//!         v0: (Point3::new(0.0f32, 0.0, 0.0)),
-//!         v1: (Point3::new(0.0, 1.0, 0.0)),
-//!         v2: (Point3::new(1.0, 0.0, 0.0)),
-//!     ],
-//!     faces: [
-//!         [v0, v1, v2]: (Vector3::new(0.0f32, 0.0, -1.0)),
-//!     ],
-//! };
-//!
-//! // TODO remove unwrap once ? in doctest is stable
-//! Config::binary()
-//!     .into_writer(&mesh, &positions)
-//!     .with_face_normals(&face_normals) // <-- this is optional
-//!     .write_to_file("mesh.stl").unwrap();
-//! ```
+// ! ```no_run
+// ! #![feature(proc_macro_hygiene)]
+// ! use cgmath::{Point3, Vector3};
+// ! use lox::{
+// !     mesh,
+// !     prelude::*,
+// !     ds::SharedVertexMesh,
+// !     io::stl::Config,
+// ! };
+// !
+// !
+// ! let (mesh, positions, face_normals) = mesh! {
+// !     type: SharedVertexMesh,
+// !     vertices: [
+// !         v0: (Point3::new(0.0f32, 0.0, 0.0)),
+// !         v1: (Point3::new(0.0, 1.0, 0.0)),
+// !         v2: (Point3::new(1.0, 0.0, 0.0)),
+// !     ],
+// !     faces: [
+// !         [v0, v1, v2]: (Vector3::new(0.0f32, 0.0, -1.0)),
+// !     ],
+// ! };
+// !
+// ! // TODO remove unwrap once ? in doctest is stable
+// ! Config::binary()
+// !     .into_writer(&mesh, &positions)
+// !     .with_face_normals(&face_normals) // <-- this is optional
+// !     .write_to_file("mesh.stl").unwrap();
+// ! ```
 
 use std::{
     convert::TryFrom,

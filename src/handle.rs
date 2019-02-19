@@ -11,7 +11,7 @@
 //! expected. Without strong handle types, it's easy to get very strange and
 //! hard to debug runtime errors.
 //!
-//! # IDs and `DefaultInt`
+//! # IDs and `hsize`
 //!
 //! Handles are built around IDs. Usually, a handle type simply stores the id
 //! and functions as a (strongly typed) wrapper. An ID is just data that is
@@ -25,7 +25,7 @@
 //! this makes large parts of the API a lot more complicated. Additionally,
 //! without the "GAT" feature of Rust, many things are not really possible. So
 //! for now, `u32` is the ID type used everywhere. This choice is probably
-//! absolutely OK for most uses cases. See the documentation of `DefaultInt` for
+//! absolutely OK for most uses cases. See the documentation of `hsize` for
 //! more details.
 
 use std::fmt;
@@ -65,7 +65,8 @@ use std::fmt;
 ///
 ///
 /// [1]: https://math.stackexchange.com/q/425968/340615
-pub type DefaultInt = u32;
+#[allow(non_camel_case_types)]
+pub type hsize = u32;
 
 /// Trait to pretend being generic over ID types.
 ///
@@ -74,7 +75,7 @@ pub type DefaultInt = u32;
 /// it's already useful to code most part of the library as if the ID would
 /// be generic.
 ///
-/// Right now the trait is only implemented for [`DefaultInt`].
+/// Right now the trait is only implemented for [`hsize`].
 pub trait HandleId: 'static + Copy {
     /// The number of bytes needed to store the ID.
     const NUM_BYTES: u8;
@@ -103,8 +104,8 @@ pub trait HandleId: 'static + Copy {
     fn next(&self) -> Self;
 }
 
-impl HandleId for DefaultInt {
-    const NUM_BYTES: u8 = ::std::mem::size_of::<DefaultInt>() as u8;
+impl HandleId for hsize {
+    const NUM_BYTES: u8 = ::std::mem::size_of::<hsize>() as u8;
 
     fn from_usize(raw: usize) -> Self {
         // If `usize` is bigger than `u32`, we assert that the value is fine.
@@ -134,16 +135,16 @@ impl HandleId for DefaultInt {
 /// converted to an ID type. So handles are just strongly typed IDs.
 pub trait Handle: 'static + Copy + fmt::Debug + Eq {
     /// Create a handle from the given ID. The ID must not be
-    /// `DefaultInt::max_value()` as this value is reserved!
-    fn from_id(id: DefaultInt) -> Self;
+    /// `hsize::max_value()` as this value is reserved!
+    fn from_id(id: hsize) -> Self;
 
     /// Return the ID of the current handle.
-    fn id(&self) -> DefaultInt;
+    fn id(&self) -> hsize;
 
     /// Helper method to create a handle directly from an `usize`. See
     /// [`HandleId::from_usize`] for details.
     fn from_usize(raw: usize) -> Self {
-        Self::from_id(DefaultInt::from_usize(raw))
+        Self::from_id(hsize::from_usize(raw))
     }
 
     /// Helper method to get the ID as a usize directly from an handle. See
@@ -153,17 +154,18 @@ pub trait Handle: 'static + Copy + fmt::Debug + Eq {
     }
 }
 
+
 macro_rules! make_handle_type {
     ($(#[$attr:meta])* $name:ident = $short:expr;) => {
         $(#[$attr])*
         #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-        pub struct $name(DefaultInt);
+        pub struct $name(hsize);
 
         impl Handle for $name {
-            fn from_id(id: DefaultInt) -> Self {
+            fn from_id(id: hsize) -> Self {
                 $name(id)
             }
-            fn id(&self) -> DefaultInt {
+            fn id(&self) -> hsize {
                 self.0
             }
         }

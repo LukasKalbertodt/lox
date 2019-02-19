@@ -5,7 +5,7 @@ use std::fmt;
 use crate as lox;
 use crate::{
     Empty,
-    handle::{DefaultInt, FaceHandle, VertexHandle},
+    handle::{hsize, FaceHandle, VertexHandle},
     map::{VecMap, PropMap, PropStoreMut},
     traits::{TriVerticesOfFace, SupportsMultiBlade, Mesh, TriMesh, TriMeshMut, MeshMut},
     refs::{FaceRef, VertexRef},
@@ -26,7 +26,7 @@ impl SharedVertexMesh {
 }
 
 impl Mesh for SharedVertexMesh {
-    fn num_vertices(&self) -> DefaultInt {
+    fn num_vertices(&self) -> hsize {
         self.vertices.num_elements()
     }
 
@@ -40,7 +40,7 @@ impl Mesh for SharedVertexMesh {
         self.vertices.contains_handle(vertex)
     }
 
-    fn num_faces(&self) -> DefaultInt {
+    fn num_faces(&self) -> hsize {
         self.faces.num_elements()
     }
 

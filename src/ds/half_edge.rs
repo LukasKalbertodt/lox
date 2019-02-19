@@ -6,7 +6,7 @@ use crate as lox;
 #[allow(unused_imports)] // TODO
 use crate::{
     Empty,
-    handle::{DefaultInt, FaceHandle, VertexHandle, Opt, Handle},
+    handle::{hsize, FaceHandle, VertexHandle, Opt, Handle},
     map::{VecMap, PropMap, PropStoreMut},
     traits::{
         TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut,
@@ -37,7 +37,7 @@ pub struct HalfEdgeMesh {
 
 /// Handle to refer to half edges.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct HalfEdgeHandle(DefaultInt);
+pub struct HalfEdgeHandle(hsize);
 
 impl HalfEdgeHandle {
     /// Returns the handle of the half edge twin (the half edge right next to
@@ -55,10 +55,10 @@ impl HalfEdgeHandle {
 }
 
 impl Handle for HalfEdgeHandle {
-    fn from_id(id: DefaultInt) -> Self {
+    fn from_id(id: hsize) -> Self {
         HalfEdgeHandle(id)
     }
-    fn id(&self) -> DefaultInt {
+    fn id(&self) -> hsize {
         self.0
     }
 }
@@ -152,7 +152,7 @@ impl HalfEdgeMesh {
 // ===============================================================================================
 
 impl Mesh for HalfEdgeMesh {
-    fn num_vertices(&self) -> DefaultInt {
+    fn num_vertices(&self) -> hsize {
         self.vertices.num_elements()
     }
 
@@ -166,7 +166,7 @@ impl Mesh for HalfEdgeMesh {
         self.vertices.contains_handle(vertex)
     }
 
-    fn num_faces(&self) -> DefaultInt {
+    fn num_faces(&self) -> hsize {
         self.faces.num_elements()
     }
 

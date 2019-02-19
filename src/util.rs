@@ -5,7 +5,7 @@ use cgmath::{
 
 use crate::{
     cast,
-    handle::DefaultInt,
+    handle::hsize,
     math::Pos3Like,
 };
 
@@ -283,8 +283,8 @@ pub(crate) fn debug_fmt_bytes(data: &[u8]) -> String {
 /// derived fact `|F| ≈ 2 * |V|` is of interest.
 #[derive(Debug, Clone, Copy)]
 pub struct MeshSizeHint {
-    pub vertex_count: Option<DefaultInt>,
-    pub face_count: Option<DefaultInt>,
+    pub vertex_count: Option<hsize>,
+    pub face_count: Option<hsize>,
 }
 
 impl MeshSizeHint {
@@ -293,7 +293,7 @@ impl MeshSizeHint {
     /// If the number is already given, that number is returned. If not, but
     /// the face count is given, the vertex count is estimated from that.
     /// Otherwise 0 is returned.
-    pub fn guess_vertex_count(&self) -> DefaultInt {
+    pub fn guess_vertex_count(&self) -> hsize {
         match (self.vertex_count, self.face_count) {
             (Some(v), _) => v,
             (None, Some(f)) => f / 2,
@@ -306,7 +306,7 @@ impl MeshSizeHint {
     /// If the number is already given, that number is returned. If not, but
     /// the vertex count is given, the face count is estimated from that.
     /// Otherwise 0 is returned.
-    pub fn guess_face_count(&self) -> DefaultInt {
+    pub fn guess_face_count(&self) -> hsize {
         match (self.vertex_count, self.face_count) {
             (_, Some(f)) => f,
             (Some(v), None) => 2 * v,

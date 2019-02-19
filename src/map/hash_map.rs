@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    handle::{DefaultInt, Handle},
+    handle::{hsize, Handle},
     traits::Empty,
 };
 use super::{boo, PropMap, PropStore, PropStoreMut};
@@ -71,8 +71,8 @@ impl<H: Handle + Hash, T> PropStore<H> for HashMap<H, T> {
         self.0.get(&handle)
     }
 
-    fn num_props(&self) -> DefaultInt {
-        self.0.len() as DefaultInt
+    fn num_props(&self) -> hsize {
+        self.0.len() as hsize
     }
 
     fn handles<'a>(&'a self) -> Box<dyn Iterator<Item = H> + 'a> {
@@ -112,7 +112,7 @@ impl<H: Handle + Hash, T> PropStoreMut<H> for HashMap<H, T> {
         self.0.clear()
     }
 
-    fn reserve(&mut self, additional: DefaultInt) {
+    fn reserve(&mut self, additional: hsize) {
         self.0.reserve(additional as usize);
     }
 }

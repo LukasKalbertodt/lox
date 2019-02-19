@@ -40,7 +40,7 @@ use failure::Fail;
 
 use crate::{
     Mesh, TriVerticesOfFace,
-    handle::{VertexHandle, FaceHandle, DefaultInt},
+    handle::{VertexHandle, FaceHandle, hsize},
     map::VertexPropMap,
     math::{Pos3Like, PrimitiveFloat, PrimitiveNum},
     sealed::Sealed,
@@ -744,7 +744,7 @@ pub trait MemSink {
 
     /// Informs the sink that the source will provide at least `count` many
     /// vertex positions with the scalar type `N`.
-    fn prepare_vertex_positions<N: Primitive>(&mut self, _count: DefaultInt) -> Result<(), Error> {
+    fn prepare_vertex_positions<N: Primitive>(&mut self, _count: hsize) -> Result<(), Error> {
         Ok(())
     }
 
@@ -762,7 +762,7 @@ pub trait MemSink {
 
     /// Informs the sink that the source will provide at least `count` many
     /// vertex normals with the scalar type `N`.
-    fn prepare_vertex_normals<N: Primitive>(&mut self, _count: DefaultInt) -> Result<(), Error> {
+    fn prepare_vertex_normals<N: Primitive>(&mut self, _count: hsize) -> Result<(), Error> {
         Ok(())
     }
 
@@ -780,7 +780,7 @@ pub trait MemSink {
 
     /// Informs the sink that the source will provide at least `count` many
     /// face normals with the scalar type `N`.
-    fn prepare_face_normals<N: Primitive>(&mut self, _count: DefaultInt) -> Result<(), Error> {
+    fn prepare_face_normals<N: Primitive>(&mut self, _count: hsize) -> Result<(), Error> {
         Ok(())
     }
 
@@ -802,8 +802,8 @@ pub trait MemSource {
     fn vertices(&self) -> Box<dyn Iterator<Item = VertexHandle> + '_>;
     fn faces(&self) -> Box<dyn Iterator<Item = FaceHandle> + '_>;
 
-    fn num_vertices(&self) -> DefaultInt;
-    fn num_faces(&self) -> DefaultInt;
+    fn num_vertices(&self) -> hsize;
+    fn num_faces(&self) -> hsize;
 
     fn vertices_of_face(&self, f: FaceHandle) -> [VertexHandle; 3];
 

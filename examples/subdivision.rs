@@ -44,7 +44,7 @@ struct MyMesh {
 
 #[allow(unused_imports)]
 use lox::{
-    handle::DefaultInt,
+    handle::hsize,
     io::{MemSink, MemSource, PrimitiveType, Primitive},
     math::PrimitiveNum,
 };
@@ -72,10 +72,10 @@ impl MemSource for MyMesh {
     fn faces(&self) -> Box<dyn Iterator<Item = FaceHandle> + '_> {
         Box::new(self.mesh.faces().map(|f| f.handle()))
     }
-    fn num_vertices(&self) -> DefaultInt {
+    fn num_vertices(&self) -> hsize {
         self.mesh.num_vertices()
     }
-    fn num_faces(&self) -> DefaultInt {
+    fn num_faces(&self) -> hsize {
         self.mesh.num_faces()
     }
     fn vertices_of_face(&self, f: FaceHandle) -> [VertexHandle; 3] {

@@ -1,5 +1,5 @@
 use crate::{
-    handle::{Handle, DefaultInt, FaceHandle, VertexHandle},
+    handle::{Handle, hsize, FaceHandle, VertexHandle},
     refs::{ElementRef, ElementRefMut, FaceRef, VertexRef},
     util::{DynList, TriList},
 };
@@ -20,7 +20,7 @@ pub trait Empty {
 pub trait Mesh: Empty {
     // ===== Vertices ========================================================
     /// Returns the number of vertices in this mesh.
-    fn num_vertices(&self) -> DefaultInt;
+    fn num_vertices(&self) -> hsize;
 
     /// Returns an iterator over all vertices in this mesh. The order of these
     /// vertices is unspecified, but each vertex is yielded by the iterator
@@ -38,7 +38,7 @@ pub trait Mesh: Empty {
 
     // ===== Faces ===========================================================
     /// Returns the number of faces in this mesh.
-    fn num_faces(&self) -> DefaultInt;
+    fn num_faces(&self) -> hsize;
 
     /// Returns an iterator over all faces in this mesh. The order of these
     /// faces is unspecified, but each vertex is yielded by the iterator
@@ -139,14 +139,14 @@ pub trait MeshMut: Mesh {
     /// This is just an optimization that can reduce the number allocations
     /// done by this data structure. But this function might also do nothing
     /// (that's exactly what the provided default implementation does).
-    fn reserve_for_vertices(&mut self, _count: DefaultInt) {}
+    fn reserve_for_vertices(&mut self, _count: hsize) {}
 
     /// Reserves memory for `count` additional faces.
     ///
     /// This is just an optimization that can reduce the number allocations
     /// done by this data structure. But this function might also do nothing
     /// (that's exactly what the provided default implementation does).
-    fn reserve_for_faces(&mut self, _count: DefaultInt) {}
+    fn reserve_for_faces(&mut self, _count: hsize) {}
 }
 
 /// A triangular mesh: all faces are triangles.

@@ -182,11 +182,11 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
 
                 fn prepare_vertex_positions<N: lox::io::Primitive>(
                     &mut self,
-                    count: lox::handle::DefaultInt,
+                    count: lox::handle::hsize,
                 ) -> Result<(), lox::io::Error> {
                     fn _impl<T, N: lox::io::Primitive>(
                         map: &mut T,
-                        count: lox::handle::DefaultInt,
+                        count: lox::handle::hsize,
                     ) -> Result<(), lox::io::Error>
                     where
                         T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
@@ -263,11 +263,11 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                 // TODO: type wish
                 fn prepare_vertex_normals<N: lox::io::Primitive>(
                     &mut self,
-                    count: lox::handle::DefaultInt,
+                    count: lox::handle::hsize,
                 ) -> Result<(), lox::io::Error> {
                     fn _impl<T, N: lox::io::Primitive>(
                         map: &mut T,
-                        count: lox::handle::DefaultInt,
+                        count: lox::handle::hsize,
                     ) -> Result<(), lox::io::Error>
                     where
                         T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
@@ -344,11 +344,11 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                 // TODO: type wish
                 fn prepare_face_normals<N: lox::io::Primitive>(
                     &mut self,
-                    count: lox::handle::DefaultInt,
+                    count: lox::handle::hsize,
                 ) -> Result<(), lox::io::Error> {
                     fn _impl<T, N: lox::io::Primitive>(
                         map: &mut T,
-                        count: lox::handle::DefaultInt,
+                        count: lox::handle::hsize,
                     ) -> Result<(), lox::io::Error>
                     where
                         T: lox::map::PropStoreMut<lox::handle::FaceHandle>,

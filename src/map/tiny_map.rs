@@ -7,7 +7,7 @@ use std::{
 use smallvec::SmallVec;
 
 use crate::{
-    handle::{DefaultInt, Handle},
+    handle::{hsize, Handle},
     traits::Empty,
 };
 use super::{
@@ -75,8 +75,8 @@ impl<H: Handle, T> PropStore<H> for TinyMap<H, T> {
             .map(|(_, value)| value)
     }
 
-    fn num_props(&self) -> DefaultInt {
-        self.vec.len() as DefaultInt
+    fn num_props(&self) -> hsize {
+        self.vec.len() as hsize
     }
 
     fn handles<'a>(&'a self) -> Box<dyn Iterator<Item = H> + 'a> {
@@ -128,7 +128,7 @@ impl<H: Handle, T> PropStoreMut<H> for TinyMap<H, T> {
         self.vec.clear()
     }
 
-    fn reserve(&mut self, additional: DefaultInt) {
+    fn reserve(&mut self, additional: hsize) {
         self.vec.reserve(additional as usize);
     }
 }

@@ -4,7 +4,7 @@ use crate as lox;
 #[allow(unused_imports)] // TODO
 use crate::{
     Empty,
-    handle::{DefaultInt, FaceHandle, VertexHandle, Opt},
+    handle::{hsize, FaceHandle, VertexHandle, Opt},
     map::{VecMap, PropMap, PropStoreMut},
     traits::{
         TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut,
@@ -429,7 +429,7 @@ impl FaceDelegateMesh {
 }
 
 impl Mesh for FaceDelegateMesh {
-    fn num_vertices(&self) -> DefaultInt {
+    fn num_vertices(&self) -> hsize {
         self.vertices.num_elements()
     }
 
@@ -443,7 +443,7 @@ impl Mesh for FaceDelegateMesh {
         self.vertices.contains_handle(vertex)
     }
 
-    fn num_faces(&self) -> DefaultInt {
+    fn num_faces(&self) -> hsize {
         self.faces.num_elements()
     }
 

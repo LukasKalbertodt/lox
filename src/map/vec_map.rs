@@ -9,7 +9,7 @@ use std::{
 use stable_vec::{Keys, StableVec};
 
 use crate::{
-    handle::{DefaultInt, Handle},
+    handle::{hsize, Handle},
     traits::Empty,
 };
 use super::{
@@ -99,8 +99,8 @@ impl<H: Handle, T> VecMap<H, T> {
         H::from_usize(self.vec.next_index())
     }
 
-    pub fn num_elements(&self) -> DefaultInt {
-        self.vec.num_elements() as DefaultInt
+    pub fn num_elements(&self) -> hsize {
+        self.vec.num_elements() as hsize
     }
 
     pub fn handles(&self) -> Handles<H> {
@@ -159,8 +159,8 @@ impl<H: Handle, T> PropStore<H> for VecMap<H, T> {
         self.vec.get(handle.to_usize())
     }
 
-    fn num_props(&self) -> DefaultInt {
-        self.vec.num_elements() as DefaultInt
+    fn num_props(&self) -> hsize {
+        self.vec.num_elements() as hsize
     }
 
     fn handles<'a>(&'a self) -> Box<dyn Iterator<Item = H> + 'a> {
@@ -216,7 +216,7 @@ impl<H: Handle, T> PropStoreMut<H> for VecMap<H, T> {
         self.vec.clear()
     }
 
-    fn reserve(&mut self, additional: DefaultInt) {
+    fn reserve(&mut self, additional: hsize) {
         self.vec.reserve(additional as usize);
     }
 }
