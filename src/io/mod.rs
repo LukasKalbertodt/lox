@@ -47,6 +47,9 @@ pub mod ply;
 pub mod stl;
 pub mod util;
 
+#[cfg(test)]
+mod tests;
+
 // /// Types that can be transformed into a [`MeshWriter`].
 // pub trait IntoMeshWriter<'a, MeshT, PosM>
 // where
