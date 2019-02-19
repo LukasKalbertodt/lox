@@ -136,7 +136,8 @@ impl FileFormat {
     /// for `Ply`).
     ///
     /// If there are multiple extensions that can be used for this file format,
-    /// the recommended or most used one is returned.
+    /// the recommended or most used one is returned. The returned extension is
+    /// always lowercase.
     pub fn extension(&self) -> &'static str {
         // We can just return the first element, as our informal module
         // interface requires that to be the recommended extesion (see module

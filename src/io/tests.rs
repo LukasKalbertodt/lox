@@ -27,3 +27,9 @@ fn from_extension_none() {
     assert_eq!(FileFormat::from_extension("foo/.bar"), None);
     assert_eq!(FileFormat::from_extension("foo/bröther"), None);
 }
+
+#[test]
+fn extension() {
+    assert_eq!(FileFormat::Ply.extension(), "ply");
+    assert_eq!(FileFormat::Stl.extension(), "stl");
+}
