@@ -24,6 +24,7 @@ mod test_utils;
 pub mod algo;
 pub mod cast;
 pub mod ds;
+pub mod fat;
 pub mod handle;
 pub mod io;
 pub mod map;
