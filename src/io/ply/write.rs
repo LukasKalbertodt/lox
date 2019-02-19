@@ -726,7 +726,7 @@ fn write(
                 // Write special `vertex_indices` data
                 let indices = vertices_of_face(fh);
                 block.add(&3u8)?;
-                block.add(&indices.map(|i| i.id()))?;
+                block.add(&indices.map(|i| i.idx()))?;
 
                 // Write all properties
                 face_props.write_block(fh, &mut block)?;

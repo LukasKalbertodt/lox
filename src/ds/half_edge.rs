@@ -50,22 +50,22 @@ impl HalfEdgeHandle {
     /// an even number (0 in our case). Thus, we can simply flip the last bit
     /// of the handle id to get the twin handle.
     fn twin(&self) -> HalfEdgeHandle {
-        Self::from_id(self.id() ^ 1)
+        Self::new(self.idx() ^ 1)
     }
 }
 
 impl Handle for HalfEdgeHandle {
-    fn from_id(id: hsize) -> Self {
+    fn new(id: hsize) -> Self {
         HalfEdgeHandle(id)
     }
-    fn id(&self) -> hsize {
+    fn idx(&self) -> hsize {
         self.0
     }
 }
 
 impl fmt::Debug for HalfEdgeHandle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "HE{}", self.id())
+        write!(f, "HE{}", self.idx())
     }
 }
 
@@ -239,13 +239,13 @@ impl TriMeshMut for HalfEdgeMesh {
             // Default values that mostly get overwritten later.
             let default = HalfEdge {
                 // Never used, because it's "overwritten" below
-                target: VertexHandle::from_id(0),
+                target: VertexHandle::new(0),
 
                 // This might get overwritten later
                 face: Opt::none(),
 
                 // This will always be overwritten later!
-                next: HalfEdgeHandle::from_id(0),
+                next: HalfEdgeHandle::new(0),
             };
 
             // Create the two new half edges.

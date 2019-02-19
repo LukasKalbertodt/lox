@@ -101,7 +101,7 @@ macro_rules! gen_tri_mesh_tests {
         #[allow(unused_imports)]
         use crate::{
             prelude::*,
-            handle::{Handle, HandleId},
+            handle::{Handle, HSizeExt},
         };
 
         #[test]
@@ -114,10 +114,10 @@ macro_rules! gen_tri_mesh_tests {
             assert!(m.faces().next().is_none());
             assert!(m.vertices().next().is_none());
 
-            assert!(!m.contains_vertex(VertexHandle::from_id(0)));
-            assert!(!m.contains_vertex(VertexHandle::from_id(27)));
-            assert!(!m.contains_face(FaceHandle::from_id(0)));
-            assert!(!m.contains_face(FaceHandle::from_id(27)));
+            assert!(!m.contains_vertex(VertexHandle::new(0)));
+            assert!(!m.contains_vertex(VertexHandle::new(27)));
+            assert!(!m.contains_face(FaceHandle::new(0)));
+            assert!(!m.contains_face(FaceHandle::new(27)));
         }
 
         #[test]
@@ -132,7 +132,7 @@ macro_rules! gen_tri_mesh_tests {
             assert_eq_set!(m.vertices().map(|x| x.handle()), [v]);
 
             assert!(m.contains_vertex(v));
-            assert!(!m.contains_vertex(VertexHandle::from_id(v.id().next())));
+            assert!(!m.contains_vertex(VertexHandle::new(v.idx().next())));
 
             gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
                 assert_eq_order!(m.faces_around_vertex(v).into_vec(), []);
@@ -168,7 +168,7 @@ macro_rules! gen_tri_mesh_tests {
             assert!(m.contains_vertex(vb));
             assert!(m.contains_vertex(vc));
             assert!(m.contains_face(f));
-            assert!(!m.contains_face(FaceHandle::from_id(f.id().next())));
+            assert!(!m.contains_face(FaceHandle::new(f.idx().next())));
 
             gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
                 assert_eq_order!(m.vertices_of_face(f), [va, vb, vc]);
