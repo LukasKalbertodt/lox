@@ -7,9 +7,25 @@ use crate::{
     mesh,
     prelude::*,
     ds::SharedVertexMesh,
+    io::IsFormat,
     map::{ConstMap, FnMap, VecMap},
 };
-use super::{RawResult, Reader, Config};
+use super::{RawResult, Reader, Config, is_file_start};
+
+
+// ===========================================================================
+// ===== Utilities
+// ===========================================================================
+#[test]
+fn test_is_file_start() {
+    assert_eq!(is_file_start(b""), IsFormat::No);
+    assert_eq!(is_file_start(b"solix"), IsFormat::No);
+
+    assert_eq!(is_file_start(&[0u8; 90]), IsFormat::Maybe);
+
+    assert_eq!(is_file_start(b"solid"), IsFormat::Probably);
+    assert_eq!(is_file_start(b"solid foo"), IsFormat::Probably);
+}
 
 
 // ===========================================================================

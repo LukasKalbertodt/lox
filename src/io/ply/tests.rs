@@ -5,13 +5,28 @@ use crate::{
     mesh,
     prelude::*,
     ds::SharedVertexMesh,
+    io::IsFormat,
     map::{ConstMap, FnMap, VecMap},
 };
 use super::{
     Config, Encoding, Reader, PropertyType, ScalarType, PropIndex, Property,
-    ListLenType, RawOffset, RawResult,
+    ListLenType, RawOffset, RawResult, is_file_start,
 };
 
+// ===========================================================================
+// ===== Utilities
+// ===========================================================================
+#[test]
+fn test_is_file_start() {
+    assert_eq!(is_file_start(b""), IsFormat::No);
+    assert_eq!(is_file_start(b"plyx"), IsFormat::No);
+    assert_eq!(is_file_start(b"plx\n"), IsFormat::No);
+
+    assert_eq!(is_file_start(b"ply\n"), IsFormat::Probably);
+    assert_eq!(is_file_start(b"ply\nfoo"), IsFormat::Probably);
+    assert_eq!(is_file_start(b"ply\ncomment"), IsFormat::Probably);
+    assert_eq!(is_file_start(b"ply\nformat"), IsFormat::Probably);
+}
 
 // ===========================================================================
 // ===== Writing

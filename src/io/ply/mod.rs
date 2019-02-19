@@ -16,7 +16,7 @@ use failure::Fail;
 
 use crate::{
     Empty,
-    io::{Error, FileEncoding, StreamSource, StreamSink, MemSink, MemSource, parse},
+    io::{Error, FileEncoding, IsFormat, StreamSource, StreamSink, MemSink, MemSource, parse},
 };
 
 mod read;
@@ -36,6 +36,16 @@ pub use self::write::Config;
 
 /// File name extentions used for this file format: `.ply`.
 pub const FILE_EXTENSIONS: &[&str] = &["ply"];
+
+/// Check if the given data from the start of the file is a valid PLY file
+/// start.
+pub fn is_file_start(data: &[u8]) -> IsFormat {
+    if data.len() >= 4 && &data[..4] == b"ply\n" {
+        IsFormat::Probably
+    } else {
+        IsFormat::No
+    }
+}
 
 /// Reads the PLY file with the given filename into an empty instance of `T`
 /// and returns that instance.

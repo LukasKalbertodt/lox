@@ -79,7 +79,7 @@ use crate::{
     Empty,
     io::{
         FileEncoding, EncodingNotSupported, StreamSource, StreamSink,
-        MemSink, MemSource, Error, parse
+        MemSink, MemSource, Error, IsFormat, parse
     },
 };
 
@@ -97,6 +97,20 @@ pub use self::write::{Config, Sink};
 
 /// File name extentions used for this file format: `.stl`.
 pub const FILE_EXTENSIONS: &[&str] = &["stl"];
+
+/// Check if the given data from the start of the file is a valid PLY file
+/// start.
+pub fn is_file_start(data: &[u8]) -> IsFormat {
+    if data.len() >= 5 && &data[..5] == b"solid" {
+        IsFormat::Probably
+    } else if data.len() >= 84 {
+        // Binary STL could start however, so we can't know for sure. But it
+        // has to be at least 84 bytes long.
+        IsFormat::Maybe
+    } else {
+        IsFormat::No
+    }
+}
 
 /// Reads the STL file with the given filename into an empty instance of `T`
 /// and returns that instance.
