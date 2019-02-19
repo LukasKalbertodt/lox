@@ -69,10 +69,17 @@ mod tests;
 /// couldn't be determined because it's unknown or ambiguous,
 /// `Error::FormatUnknown` is returned.
 ///
-/// ```norun
-/// use lox::io;
+/// ```no_run
+/// use lox::{
+///     ds::FaceDelegateMesh,
+///     fat::MiniMesh,
+///     io
+/// };
 ///
-/// // TODO: finish example once we offer `SimpleMesh`
+/// # fn main() -> Result<(), failure::Error> {
+/// let mesh: MiniMesh<FaceDelegateMesh> = io::read("foo.ply")?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn read<T: Empty + MemSink, P: AsRef<Path>>(path: P) -> Result<T, Error> {
     // We have this inner method which takes a `&Path` directly to reduce the
