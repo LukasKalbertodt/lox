@@ -546,6 +546,7 @@ where
         // Give hints to the sink and our vertex adder.
         sink.size_hint(hint);
         sink.prepare_vertex_positions::<f32>(hint.guess_vertex_count())?;
+        sink.prepare_face_normals::<f32>(hint.guess_face_count())?;
         vertex_adder.size_hint(hint.guess_vertex_count());
 
         // Read the body data
@@ -555,7 +556,8 @@ where
             let b = vertex_adder.add_vertex(sink, pb);
             let c = vertex_adder.add_vertex(sink, pc);
 
-            sink.add_face([a, b, c]);
+            let f = sink.add_face([a, b, c]);
+            sink.set_face_normal(f, triangle.normal.to_vector3());
         })
     }
 }
