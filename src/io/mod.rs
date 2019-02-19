@@ -108,21 +108,40 @@ pub enum FileFormat {
 impl FileFormat {
     /// Tries to guess the file format from the file extension.
     ///
+    /// It doesn't matter if the extension is uppercase or lowercase (or mixed)
+    /// as it's converted to lowercase before matching.
+    ///
     /// Returns `None` if:
     /// - the path/file has no extension in its name, or
-    /// - the extension is no valid UTF8, or
+    /// - the extension contains non-ASCII characters, or
     /// - the file extension is not known.
     pub fn from_extension(path: impl AsRef<Path>) -> Option<Self> {
-        path.as_ref()
+        let ext = path.as_ref()
             .extension()
             .and_then(|ext| ext.to_str())
-            .and_then(|ext| {
-                match ext {
-                    "ply" => Some(FileFormat::Ply),
-                    "stl" => Some(FileFormat::Stl),
-                    _ => None,
-                }
-            })
+            .filter(|ext| ext.is_ascii())
+            .map(|ext| ext.to_ascii_lowercase())?;
+
+        match () {
+            () if ply::FILE_EXTENSIONS.contains(&&*ext) => Some(FileFormat::Ply),
+            () if stl::FILE_EXTENSIONS.contains(&&*ext) => Some(FileFormat::Stl),
+            _ => None
+        }
+    }
+
+    /// Returns the file name extension used for this file format (e.g. `"ply"`
+    /// for `Ply`).
+    ///
+    /// If there are multiple extensions that can be used for this file format,
+    /// the recommended or most used one is returned.
+    pub fn extension(&self) -> &'static str {
+        // We can just return the first element, as our informal module
+        // interface requires that to be the recommended extesion (see module
+        // documentation).
+        match self {
+            FileFormat::Ply => ply::FILE_EXTENSIONS[0],
+            FileFormat::Stl => stl::FILE_EXTENSIONS[0],
+        }
     }
 }
 
