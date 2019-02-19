@@ -13,6 +13,9 @@
 //!   by that format (usually, it's only one extension, thus one element in the
 //!   slice). The slice must contain at least one element. The first element is
 //!   the most commonly used/preferred extension.
+//! - **`fn read`**: has the same signature as [`io::read`] and works exactly
+//!   the same, except that it reads the file in the specific format and does
+//!   not guess the format.
 //! - **`is_file_start`**: checks if the given data is a valid start of a file
 //!   in the specific format. This is used to guess the file format of a given
 //!   file. If the file is <= 1024 bytes large, the full file is given to this
@@ -28,7 +31,7 @@ use std::{
     fmt,
     fs::File,
     marker::PhantomData,
-    io::{self, BufWriter, Cursor, Write},
+    io::{self, BufWriter, Cursor, Read, Write},
     path::Path,
 };
 
@@ -56,6 +59,53 @@ pub mod util;
 
 #[cfg(test)]
 mod tests;
+
+
+/// Reads the file with the given filename into an empty instance of type `T`
+/// and returns that instance.
+///
+/// This function tries to automatically determine the file format from the
+/// filename extension and the first few bytes of the file. If the format
+/// couldn't be determined because it's unknown or ambiguous,
+/// `Error::FormatUnknown` is returned.
+///
+/// ```norun
+/// use lox::io;
+///
+/// // TODO: finish example once we offer `SimpleMesh`
+/// ```
+pub fn read<T: Empty + MemSink, P: AsRef<Path>>(path: P) -> Result<T, Error> {
+    // We have this inner method which takes a `&Path` directly to reduce the
+    // number of instantiations of the outer function. These "convenience"
+    // generics can actually often result in bloated binaries.
+    fn inner<T: Empty + MemSink>(path: &Path) -> Result<T, Error> {
+        // We don't need to use a `BufReader` here, because our internal parse
+        // buffer already buffers.
+        let mut file = File::open(path)?;
+
+        // Guess the file format
+        let format = match FileFormat::from_extension(path) {
+            Some(f) => f,
+            None => {
+                // Read the first 1024 bytes
+                let mut buf = Vec::new();
+                Read::by_ref(&mut file).take(1024).read_to_end(&mut buf)?;
+
+                // Guess from the data or just error that we couldn't find the
+                // format.
+                FileFormat::from_file_start(&buf).ok_or(Error::FormatUnknown)?
+            }
+        };
+
+        // Read the file into the specified sink
+        match format {
+            FileFormat::Ply => T::create_from(ply::Reader::new(file)?),
+            FileFormat::Stl => T::create_from(stl::Reader::new(file)?),
+        }
+    }
+
+    inner(path.as_ref())
+}
 
 // /// Types that can be transformed into a [`MeshWriter`].
 // pub trait IntoMeshWriter<'a, MeshT, PosM>
@@ -150,8 +200,9 @@ impl FileFormat {
     /// that it's guaranteed that the file has the returned format; it only
     /// means that it's the most likely candidate.
     ///
-    /// The given `data` has to be at least 1024 bytes long. It is passed to
-    /// the `is_file_start` functions from the format submodules.
+    /// The given `data` has to be at least 1024 bytes long if the file is >=
+    /// 1024 bytes long; otherwise `data` must contain the full file. It is
+    /// passed to the `is_file_start` functions from the format submodules.
     pub fn from_file_start(data: &[u8]) -> Option<Self> {
         macro_rules! results {
             ($($module:ident => $variant:ident,)*) => {
@@ -348,6 +399,17 @@ pub enum Error {
     ///   potentially use a source that provides that data.
     /// - If you own the sink: relax the restrictions of what data is required.
     DataIncomplete(String),
+
+    /// A file couldn't be opened because the file format was no specified and
+    /// could not be automatically determined.
+    ///
+    /// If you encounter this error, here is what you can do:
+    /// - Make sure the file you want to open has a valid file extension for
+    ///   your file format (e.g. `.ply` for PLY).
+    /// - Make sure to use a file format which can identify files based on a
+    ///   magic number (e.g. *not* STL).
+    /// - Specify the file format explicitly.
+    FormatUnknown,
 }
 
 impl fmt::Display for Error {
@@ -371,6 +433,7 @@ impl fmt::Display for Error {
                     details,
                 )
             }
+            Error::FormatUnknown => write!(f, "unknown or ambiguous file format"),
         }
     }
 }
