@@ -34,6 +34,8 @@ pub use self::read::{
 // pub use self::write::{Config, Writer};
 pub use self::write::Config;
 
+/// File name extentions used for this file format: `.ply`.
+pub const FILE_EXTENSIONS: &[&str] = &["ply"];
 
 /// Reads the PLY file with the given filename into an empty instance of `T`
 /// and returns that instance.

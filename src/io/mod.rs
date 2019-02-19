@@ -1,3 +1,20 @@
+//! TODO
+//!
+//!
+//! # Informal interface of format submodules
+//!
+//! All submodules that represent a file format (e.g. `ply`) have a similar
+//! interface: they export many symbols with the same name. This interface is
+//! not checked by the compiler (no traits are involved), but it's useful for
+//! users and library authors to make all those modules look about the same.
+//!
+//! Here is an informal description of said interface:
+//! - **`const FILE_EXTENSIONS: &[&str]`**: a list of file name extensions used
+//!   by that format (usually, it's only one extension, thus one element in the
+//!   slice). The slice must contain at least one element. The first element is
+//!   the most commonly used/preferred extension.
+//! - TODO
+
 #![allow(unused_imports)] // TODO
 
 use std::{

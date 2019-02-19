@@ -95,6 +95,9 @@ pub use self::read::{Reader, RawTriangle, RawResult};
 pub use self::write::{Config, Sink};
 
 
+/// File name extentions used for this file format: `.stl`.
+pub const FILE_EXTENSIONS: &[&str] = &["stl"];
+
 /// Reads the STL file with the given filename into an empty instance of `T`
 /// and returns that instance.
 ///
