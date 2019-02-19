@@ -143,6 +143,56 @@ pub enum FileFormat {
 }
 
 impl FileFormat {
+    /// Tries to guess the file format from the start of a file.
+    ///
+    /// Returns `None` if the format is ambiguous or if no format (known to the
+    /// library) is detected. Note that if `Some` is returned, it doesn't mean
+    /// that it's guaranteed that the file has the returned format; it only
+    /// means that it's the most likely candidate.
+    ///
+    /// The given `data` has to be at least 1024 bytes long. It is passed to
+    /// the `is_file_start` functions from the format submodules.
+    pub fn from_file_start(data: &[u8]) -> Option<Self> {
+        macro_rules! results {
+            ($($module:ident => $variant:ident,)*) => {
+                [$(
+                    (FileFormat::$variant, $module::is_file_start(data))
+                ,)*]
+            }
+        }
+
+        let results = results!(
+            ply => Ply,
+            stl => Stl,
+        );
+
+        let probablies = results.iter()
+            .filter(|(_, is_format)| *is_format == IsFormat::Probably)
+            .map(|(format, _)| format)
+            .collect::<Vec<_>>();
+
+        match &*probablies {
+            // No "probably" matches, let's try "maybe"s
+            [] => {}
+
+            // Exactly one format says "probably" -> perfect
+            [one] => return Some(**one),
+
+            // Two or more formats say "probably" -> that's bad
+            _ => return None,
+        }
+
+        let maybes = results.iter()
+            .filter(|(_, is_format)| *is_format == IsFormat::Maybe)
+            .map(|(format, _)| format)
+            .collect::<Vec<_>>();
+
+        match &*maybes {
+            [one] => Some(**one),
+            _ => None,
+        }
+    }
+
     /// Tries to guess the file format from the file extension.
     ///
     /// It doesn't matter if the extension is uppercase or lowercase (or mixed)

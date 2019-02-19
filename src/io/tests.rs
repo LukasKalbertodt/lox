@@ -33,3 +33,13 @@ fn extension() {
     assert_eq!(FileFormat::Ply.extension(), "ply");
     assert_eq!(FileFormat::Stl.extension(), "stl");
 }
+
+#[test]
+fn from_file_start() {
+    assert_eq!(FileFormat::from_file_start(b"ply\n"), Some(FileFormat::Ply));
+    assert_eq!(FileFormat::from_file_start(b"solid"), Some(FileFormat::Stl));
+    assert_eq!(FileFormat::from_file_start(&[0; 90]), Some(FileFormat::Stl));
+
+    assert_eq!(FileFormat::from_file_start(b""), None);
+    assert_eq!(FileFormat::from_file_start(b"peter"), None);
+}
