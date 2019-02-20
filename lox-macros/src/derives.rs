@@ -323,6 +323,116 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
         }
     };
 
+    // ===== Vertex colors =====
+    let vertex_color_field = find_field(fields, "vertex_colors")?;
+    let vertex_color_code = {
+        if let Some(field) = &vertex_color_field {
+            if field.cast_mode.is_some() {
+                return Err(Error::new(
+                    field.name.span(),
+                    "specifying casting behavior for colors is not allowed",
+                ));
+            }
+
+            let field_name = &field.name;
+            let ty = &field.ty;
+            let set_inner_call = quote_spanned!{ty.span()=>
+                _impl::<_, C>(&mut self.#field_name, v, color)
+            };
+            let reserve = quote_spanned!{mesh_field.ty.span()=>
+                lox::map::PropStoreMut::reserve(&mut self.#field_name, count);
+            };
+
+            quote! {
+                fn prepare_vertex_colors<C: lox::prop::PrimitiveColorChannel>(
+                    &mut self,
+                    count: lox::handle::hsize,
+                    _alpha: bool,
+                ) -> Result<(), lox::io::Error> {
+                    #reserve
+                    Ok(())
+                }
+
+                fn set_vertex_color<C: lox::prop::PrimitiveColorChannel>(
+                    &mut self,
+                    v: VertexHandle,
+                    color: lox::io::Color<C>,
+                ) {
+                    fn _impl<T, C: lox::prop::PrimitiveColorChannel>(
+                        map: &mut T,
+                        v: lox::VertexHandle,
+                        color: lox::io::Color<C>,
+                    )
+                    where
+                        T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
+                        T::Output: lox::prop::ColorLike,
+                    {
+                        map.insert(v, lox::prop::ColorLike::cast(&color));
+                    }
+
+                    #set_inner_call
+                }
+            }
+        } else {
+            quote! {}
+        }
+    };
+
+    // ===== Face colors =====
+    let face_color_field = find_field(fields, "face_colors")?;
+    let face_color_code = {
+        if let Some(field) = &face_color_field {
+            if field.cast_mode.is_some() {
+                return Err(Error::new(
+                    field.name.span(),
+                    "specifying casting behavior for colors is not allowed",
+                ));
+            }
+
+            let field_name = &field.name;
+            let ty = &field.ty;
+            let set_inner_call = quote_spanned!{ty.span()=>
+                _impl::<_, C>(&mut self.#field_name, v, color)
+            };
+            let reserve = quote_spanned!{mesh_field.ty.span()=>
+                lox::map::PropStoreMut::reserve(&mut self.#field_name, count);
+            };
+
+            quote! {
+                fn prepare_face_colors<C: lox::prop::PrimitiveColorChannel>(
+                    &mut self,
+                    count: lox::handle::hsize,
+                    _alpha: bool,
+                ) -> Result<(), lox::io::Error> {
+                    #reserve
+                    Ok(())
+                }
+
+                fn set_face_color<C: lox::prop::PrimitiveColorChannel>(
+                    &mut self,
+                    v: FaceHandle,
+                    color: lox::io::Color<C>,
+                ) {
+                    fn _impl<T, C: lox::prop::PrimitiveColorChannel>(
+                        map: &mut T,
+                        v: lox::FaceHandle,
+                        color: lox::io::Color<C>,
+                    )
+                    where
+                        T: lox::map::PropStoreMut<lox::handle::FaceHandle>,
+                        T::Output: lox::prop::ColorLike,
+                    {
+                        map.insert(v, lox::prop::ColorLike::cast(&color));
+                    }
+
+                    #set_inner_call
+                }
+            }
+        } else {
+            quote! {}
+        }
+    };
+
     // ===== Face normals =====
     let face_normal_field = find_field(fields, "face_normals")?;
     let face_normal_code = {
@@ -431,7 +541,9 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
         let mesh_field_name = &mesh_field.name;
         let vpos = gen_prop_check!(vertex_position_field, "vertex positions", _num_vertices);
         let vnormal = gen_prop_check!(vertex_normal_field, "vertex normals", _num_vertices);
+        let vcolor = gen_prop_check!(vertex_color_field, "vertex colors", _num_vertices);
         let fnormal = gen_prop_check!(face_normal_field, "face normals", _num_faces);
+        let fcolor = gen_prop_check!(face_color_field, "face colors", _num_faces);
 
         quote! {
             fn finish(&mut self) -> Result<(), lox::io::Error> {
@@ -440,7 +552,9 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
 
                 #vpos
                 #vnormal
+                #vcolor
                 #fnormal
+                #fcolor
 
                 Ok(())
             }
@@ -459,7 +573,9 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
             #finish_code
             #vertex_position_code
             #vertex_normal_code
+            #vertex_color_code
             #face_normal_code
+            #face_color_code
         }
     };
 
