@@ -29,6 +29,7 @@ pub mod handle;
 pub mod io;
 pub mod map;
 pub mod math;
+pub mod prop;
 pub mod traits;
 pub mod prelude;
 pub mod refs;

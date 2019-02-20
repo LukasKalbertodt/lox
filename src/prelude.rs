@@ -14,7 +14,7 @@ pub use crate::{
     FacesAroundVertex, VerticesAroundVertex, TriFacesAroundFace,
     handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
     map::{PropMap, PropStore, PropStoreMut},
-    math::{Pos3Like, Vec3Like},
+    prop::{Pos3Like, Vec3Like},
     io::{StreamSource, MemSink},
     util::{PointIteratorExt, TriArrayExt},
 };

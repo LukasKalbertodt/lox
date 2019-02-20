@@ -2,7 +2,8 @@ use crate::{
     prelude::*,
     cast,
     map::{VecMap, VertexPropMap},
-    math::{Pos3Like, PrimitiveFloat},
+    math::PrimitiveFloat,
+    prop::Pos3Like,
     refs::VertexRef,
 };
 

@@ -176,7 +176,7 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                 //       because associated type defaults are a bit broken.
                 // type VertexPosition = lox::io::util::OverwriteFor<
                 //     <
-                //         <#ty as std::ops::Index<lox::VertexHandle>>::Output as lox::math::Pos3Like
+                //         <#ty as std::ops::Index<lox::VertexHandle>>::Output as lox::prop::Pos3Like
                 //     >::Scalar
                 // >;
 
@@ -190,12 +190,12 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                     ) -> Result<(), lox::io::Error>
                     where
                         T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
-                        T::Output: lox::math::Pos3Like,
+                        T::Output: lox::prop::Pos3Like,
                     {
                         let cast_possible = lox::cast::is_cast_possible::<
                             #cast_rigor,
                             N,
-                            <T::Output as lox::math::Pos3Like>::Scalar,
+                            <T::Output as lox::prop::Pos3Like>::Scalar,
                         >();
 
                         if !cast_possible {
@@ -225,13 +225,13 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                     )
                     where
                         T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
-                        T::Output: lox::math::Pos3Like,
+                        T::Output: lox::prop::Pos3Like,
                     {
                         let pos = position.map(|s| {
                             lox::cast::try_cast::<#cast_rigor, _, _>(s)
                                 .unwrap_or_else(|| panic!(#cast_error, N::TY))
                         });
-                        map.insert(v, lox::math::Pos3Like::convert(&pos));
+                        map.insert(v, lox::prop::Pos3Like::convert(&pos));
                     }
 
                     #set_inner_call
@@ -271,12 +271,12 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                     ) -> Result<(), lox::io::Error>
                     where
                         T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
-                        T::Output: lox::math::Vec3Like,
+                        T::Output: lox::prop::Vec3Like,
                     {
                         let cast_possible = lox::cast::is_cast_possible::<
                             #cast_rigor,
                             N,
-                            <T::Output as lox::math::Vec3Like>::Scalar,
+                            <T::Output as lox::prop::Vec3Like>::Scalar,
                         >();
 
                         if !cast_possible {
@@ -306,13 +306,13 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                     )
                     where
                         T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
-                        T::Output: lox::math::Vec3Like,
+                        T::Output: lox::prop::Vec3Like,
                     {
                         let normal = normal.map(|s| {
                             lox::cast::try_cast::<#cast_rigor, _, _>(s)
                                 .unwrap_or_else(|| panic!(#cast_error, N::TY))
                         });
-                        map.insert(v, lox::math::Vec3Like::convert(&normal));
+                        map.insert(v, lox::prop::Vec3Like::convert(&normal));
                     }
 
                     #set_inner_call
@@ -352,12 +352,12 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                     ) -> Result<(), lox::io::Error>
                     where
                         T: lox::map::PropStoreMut<lox::handle::FaceHandle>,
-                        T::Output: lox::math::Vec3Like,
+                        T::Output: lox::prop::Vec3Like,
                     {
                         let cast_possible = lox::cast::is_cast_possible::<
                             #cast_rigor,
                             N,
-                            <T::Output as lox::math::Vec3Like>::Scalar,
+                            <T::Output as lox::prop::Vec3Like>::Scalar,
                         >();
 
                         if !cast_possible {
@@ -387,13 +387,13 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
                     )
                     where
                         T: lox::map::PropStoreMut<lox::handle::FaceHandle>,
-                        T::Output: lox::math::Vec3Like,
+                        T::Output: lox::prop::Vec3Like,
                     {
                         let normal = normal.map(|s| {
                             lox::cast::try_cast::<#cast_rigor, _, _>(s)
                                 .unwrap_or_else(|| panic!(#cast_error, N::TY))
                         });
-                        map.insert(v, lox::math::Vec3Like::convert(&normal));
+                        map.insert(v, lox::prop::Vec3Like::convert(&normal));
                     }
 
                     #set_inner_call

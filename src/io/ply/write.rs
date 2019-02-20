@@ -23,7 +23,7 @@ use crate::{
     TriVerticesOfFace, TriMesh,
     handle::{FaceHandle, Handle, VertexHandle},
     map::{FnMap, PropMap, FacePropMap, VertexPropMap},
-    math::{Pos3Like, Vec3Like},
+    prop::{Pos3Like, Vec3Like},
     // io::{IntoMeshWriter, MeshWriter, StreamSink, MemSource, PrimitiveType},
     io::{Error, StreamSink, MemSource, PrimitiveType},
     util::TriArrayExt,

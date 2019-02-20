@@ -9,13 +9,10 @@ members = [
     "tools/convert/"
 ]
 
-[features]
-default = ["cgmath"]
-
 [dependencies]
 boolinator = "2.4"
 byteorder = "1.2"
-cgmath = { version = "0.16", optional = true }
+cgmath = "0.16"
 derive_more = "0.13"
 failure = "0.1.2"
 lox-macros = { path = "lox-macros" }

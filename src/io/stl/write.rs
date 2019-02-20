@@ -9,7 +9,7 @@ use crate::{
     TriVerticesOfFace, TriMesh,
     handle::{FaceHandle, VertexHandle},
     map::{EmptyMap, FacePropMap, VertexPropMap},
-    math::{Pos3Like, Vec3Like},
+    prop::{Pos3Like, Vec3Like},
     io::{Error, StreamSink, MemSource, PrimitiveType},
     // io::{Error, IntoMeshWriter, MeshWriter, StreamSink, MemSource, PrimitiveType},
 };

@@ -6,7 +6,7 @@ use cgmath::{
 use crate::{
     cast,
     handle::hsize,
-    math::Pos3Like,
+    prop::Pos3Like,
 };
 
 /// An extension traits with useful methods for arrays of size 3.
