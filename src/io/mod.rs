@@ -43,7 +43,7 @@ use crate::{
     handle::{VertexHandle, FaceHandle, hsize},
     map::VertexPropMap,
     math::{PrimitiveFloat, PrimitiveNum},
-    prop::Pos3Like,
+    prop::{ColorLike, PrimitiveColorChannel, Pos3Like},
     sealed::Sealed,
     traits::Empty,
     util::MeshSizeHint,
@@ -610,6 +610,38 @@ trait DowncastAs<Target: Primitive> {
 impl<Source: Primitive, Target: Primitive> DowncastAs<Target> for Source {
     default fn downcast_as(self) -> Option<Target> {
         None
+    }
+}
+
+/// Specific color type used in IO traits. Alpha is optional.
+#[derive(Clone, Copy, Debug)]
+pub struct Color<C: PrimitiveColorChannel> {
+    pub r: C,
+    pub g: C,
+    pub b: C,
+    pub a: Option<C>,
+}
+
+impl<C: PrimitiveColorChannel> ColorLike for Color<C> {
+    type Channel = C;
+
+    fn from_rgb(r: Self::Channel, g: Self::Channel, b: Self::Channel) -> Self {
+        Self { r, g, b, a: None }
+    }
+    fn from_rgba(r: Self::Channel, g: Self::Channel, b: Self::Channel, a: Self::Channel) -> Self {
+        Self { r, g, b, a: Some(a) }
+    }
+    fn red(&self) -> Self::Channel {
+        self.r
+    }
+    fn green(&self) -> Self::Channel {
+        self.g
+    }
+    fn blue(&self) -> Self::Channel {
+        self.b
+    }
+    fn alpha(&self) -> Option<Self::Channel> {
+        self.a
     }
 }
 
