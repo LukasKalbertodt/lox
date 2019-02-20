@@ -807,6 +807,26 @@ pub trait MemSink {
     ) {}
 
 
+    // ----- Vertex colors --------------------------------------------------
+    /// Informs the sink that the source will provide at least `count` many
+    /// vertex colors with the color channel type `C`. `alpha` specified
+    /// whether the provided colors will have an alpha channel.
+    fn prepare_vertex_colors<C: PrimitiveColorChannel>(
+        &mut self,
+        _count: hsize,
+        _alpha: bool,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+
+    /// Sets the color (with color channel type `C`) of the vertex `v`.
+    fn set_vertex_color<C: PrimitiveColorChannel>(
+        &mut self,
+        _v: VertexHandle,
+        _color: Color<C>,
+    ) {}
+
+
     // ----- Face normals ----------------------------------------------------
     /// Preferred types for the scalar type of face normals.
     type FaceNormal: TypeWish = DefaultTypeWishes;
@@ -822,6 +842,26 @@ pub trait MemSink {
         &mut self,
         _f: FaceHandle,
         _normal: Vector3<N>,
+    ) {}
+
+
+    // ----- Face colors ----------------------------------------------------
+    /// Informs the sink that the source will provide at least `count` many
+    /// face colors with the color channel type `C`. `alpha` specified whether
+    /// the provided colors will have an alpha channel.
+    fn prepare_face_colors<C: PrimitiveColorChannel>(
+        &mut self,
+        _count: hsize,
+        _alpha: bool,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+
+    /// Sets the color (with color channel type `C`) of the face `f`.
+    fn set_face_color<C: PrimitiveColorChannel>(
+        &mut self,
+        _f: FaceHandle,
+        _color: Color<C>,
     ) {}
 }
 
