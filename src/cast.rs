@@ -134,42 +134,42 @@ use crate::{
 pub fn cast<R, Src, Dst>(src: Src) -> Dst
 where
     R: CastRigor,
-    Dst: CastFrom<R, Src>,
+    Src: CastInto<R, Dst>,
 {
-    Dst::cast_from(src)
+    src.cast_into()
 }
 
 /// Cast `src` from type `Src` to the type `Dst`, without loosing information.
 pub fn lossless<Src, Dst>(src: Src) -> Dst
 where
-    Dst: CastFrom<Lossless, Src>,
+    Src: CastInto<Lossless, Dst>,
 {
-    Dst::cast_from(src)
+    src.cast_into()
 }
 
 /// Cast `src` from type `Src` to the type `Dst`, with clamping being allowed.
 pub fn clamping<Src, Dst>(src: Src) -> Dst
 where
-    Dst: CastFrom<AllowClamping, Src>,
+    Src: CastInto<AllowClamping, Dst>,
 {
-    Dst::cast_from(src)
+    src.cast_into()
 }
 
 /// Cast `src` from type `Src` to the type `Dst`, with rounding being allowed.
 pub fn rounding<Src, Dst>(src: Src) -> Dst
 where
-    Dst: CastFrom<AllowRounding, Src>,
+    Src: CastInto<AllowRounding, Dst>,
 {
-    Dst::cast_from(src)
+    src.cast_into()
 }
 
 /// Cast `src` from type `Src` to the type `Dst`, with clamping and rounding
 /// being allowed.
 pub fn lossy<Src, Dst>(src: Src) -> Dst
 where
-    Dst: CastFrom<Lossy, Src>,
+    Src: CastInto<Lossy, Dst>,
 {
-    Dst::cast_from(src)
+    src.cast_into()
 }
 
 /// Determines whether casting from `Src` to `Dst` with the specific cast rigor
@@ -380,6 +380,25 @@ where
     const CAST_POSSIBLE: bool = true;
     fn try_cast_from(src: Src) -> Option<Self> {
         Some(Dst::cast_from(src))
+    }
+}
+
+/// A helper trait that works in the opposite direction than `CastFrom`.
+///
+/// There is a blanket implementation that implements this for all types for
+/// which `CastFrom` is implemented. So you usually don't have to implement
+/// this trait directly.
+pub trait CastInto<R: CastRigor, Dst> {
+    fn cast_into(self) -> Dst;
+}
+
+impl<R, Src, Dst> CastInto<R, Dst> for Src
+where
+    R: CastRigor,
+    Dst: CastFrom<R, Src>,
+{
+    fn cast_into(self) -> Dst {
+        Dst::cast_from(self)
     }
 }
 
