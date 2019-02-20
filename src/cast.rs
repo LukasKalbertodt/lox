@@ -434,6 +434,35 @@ where
         + CastFrom<R, i128>
 {}
 
+/// Convenience trait implemented for all types that can be cast into all
+/// primitive integer types with the rigor `R`.
+pub trait CastIntoIntegers<R: CastRigor>:
+    CastInto<R, u8>
+    + CastInto<R, i8>
+    + CastInto<R, u16>
+    + CastInto<R, i16>
+    + CastInto<R, u32>
+    + CastInto<R, i32>
+    + CastInto<R, u64>
+    + CastInto<R, i64>
+    + CastInto<R, u128>
+    + CastInto<R, i128>
+{}
+
+impl<T, R: CastRigor> CastIntoIntegers<R> for T
+where
+    T: CastInto<R, u8>
+        + CastInto<R, i8>
+        + CastInto<R, u16>
+        + CastInto<R, i16>
+        + CastInto<R, u32>
+        + CastInto<R, i32>
+        + CastInto<R, u64>
+        + CastInto<R, i64>
+        + CastInto<R, u128>
+        + CastInto<R, i128>
+{}
+
 
 /// Convenience trait implemented for all types that can be cast from all
 /// primitive float types (`f32` and `f64`) with the rigor `R`.
@@ -444,16 +473,30 @@ where
     T: CastFrom<R, f32> + CastFrom<R, f64>,
 {}
 
+/// Convenience trait implemented for all types that can be cast into all
+/// primitive float types (`f32` and `f64`) with the rigor `R`.
+pub trait CastIntoFloats<R: CastRigor>: CastInto<R, f32> + CastInto<R, f64> {}
 
-/// Types that can be casted from all primitive types with rigor `R`.
+impl<T, R: CastRigor> CastIntoFloats<R> for T
+where
+    T: CastInto<R, f32> + CastInto<R, f64>,
+{}
+
+
+/// Types that can be casted from and into all primitive types with rigor `R`.
 ///
 /// This is basically a trait-bound alias that is automatically implemented for
 /// all types that satisfy the supertrait bounds.
-pub trait PrimitiveCast<R: CastRigor>: CastFromIntegers<R> + CastFromFloats<R> {}
+pub trait PrimitiveCast<R: CastRigor>:
+    CastFromIntegers<R>
+    + CastFromFloats<R>
+    + CastIntoIntegers<R>
+    + CastIntoFloats<R>
+{}
 
 impl<T, R: CastRigor> PrimitiveCast<R> for T
 where
-    T: CastFromIntegers<R> + CastFromFloats<R>,
+    T: CastFromIntegers<R> + CastFromFloats<R> + CastIntoIntegers<R> + CastIntoFloats<R>,
 {}
 
 // ===========================================================================
