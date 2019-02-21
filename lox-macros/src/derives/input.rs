@@ -37,10 +37,39 @@ struct SpannedCastMode {
     mode: CastMode,
 }
 
+impl SpannedCastMode {
+    fn from_attr(ident: &Ident, lit: Option<&Lit>) -> Result<SpannedCastMode, Error> {
+        let lit = match lit {
+            Some(Lit::Str(lit)) => lit,
+            Some(lit) => bail!(
+                lit.span(),
+                "expected string literal (e.g. `\"lossy\"`), found other kind of literal",
+            ),
+            None => bail!(ident.span(), "expected value (e.g. `cast = \"lossy\"`)"),
+        };
+
+        let value = lit.value();
+        match CastMode::from_str(&value) {
+            Some(mode) => {
+                Ok(SpannedCastMode {
+                    span: lit.span(),
+                    mode,
+                })
+            }
+            None => bail!(
+                lit.span(),
+                "invalid cast mode \"{}\" (allowed modes: \"none\", \"lossless\", \
+                    \"rounding\", \"clamping\" and \"lossy\")",
+                value,
+            ),
+        }
+    }
+}
+
 
 #[derive(Debug)]
 pub(crate) struct Field {
-    cast_mode: SpannedCastMode,
+    cast_mode: Option<SpannedCastMode>,
     span: Span,
     name: Option<Ident>,
     ty: Type,
@@ -121,34 +150,13 @@ fn parse_struct_attrs(attrs: &[Attribute]) -> Result<StructAttrs, Error> {
         match () {
             // ===== 'cast' attribute =====
             () if ident == "cast" => {
-                let lit = match lit {
-                    Some(Lit::Str(lit)) => lit,
-                    Some(lit) => bail!(
-                        lit.span(),
-                        "expected string literal (e.g. `\"lossy\"`), found other kind of literal",
-                    ),
-                    None => bail!(ident.span(), "expected value (e.g. `cast = \"lossy\"`)"),
-                };
+                let mode = SpannedCastMode::from_attr(&ident, lit.as_ref())?;
 
-                let value = lit.value();
-                match CastMode::from_str(&value) {
-                    Some(mode) => {
-                        if out.cast_mode.is_some() {
-                            bail!(lit.span(), "duplicate `cast` attribute");
-                        }
-
-                        out.cast_mode = Some(SpannedCastMode {
-                            span: lit.span(),
-                            mode,
-                        });
-                    }
-                    None => bail!(
-                        lit.span(),
-                        "invalid cast mode \"{}\" (allowed modes: \"none\", \"lossless\", \
-                            \"rounding\", \"clamping\" and \"lossy\")",
-                        value,
-                    ),
+                if out.cast_mode.is_some() {
+                    bail!(lit.span(), "duplicate `cast` attribute");
                 }
+
+                out.cast_mode = Some(mode);
             }
 
             // ===== Unknown attribute =====
