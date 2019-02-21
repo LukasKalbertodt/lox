@@ -8,6 +8,12 @@ use syn::{
     spanned::Spanned,
 };
 
+macro_rules! bail {
+    ($span:expr, $fmt:literal $($tail:tt)*) => {
+        return Err(Error::new($span, format!($fmt $($tail)*)))
+    }
+}
+
 
 pub(crate) fn struct_fields(
     input: &syn::DeriveInput,

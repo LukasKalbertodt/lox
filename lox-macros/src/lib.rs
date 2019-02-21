@@ -7,8 +7,10 @@ use proc_macro::TokenStream;
 use syn::DeriveInput;
 
 
-mod derives;
+#[macro_use]
 mod util;
+
+mod derives;
 mod mesh;
 
 
