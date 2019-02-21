@@ -403,6 +403,28 @@ pub enum Error {
         source_type: PrimitiveType,
     },
 
+    /// This error can be returned by a `MemSource` to signal that it is not
+    /// able to provide a property in the type requested by the sink.
+    ///
+    /// This error usually means that you try to transfer mesh data from a
+    /// `MemSource` that has strict casting rules. E.g. if the sink wants to
+    /// store vertex positions as `f32`, the source provides `f64` vertex
+    /// positions and the source only allows lossless casts, this error is
+    /// returned from [`MemSource::vertex_position`].
+    ///
+    /// If you encounter this error, here is what you can do:
+    /// - If you own the source: either change the type of your properties or
+    ///   use a more relaxed casting mode (if you derived `MemSource`, you can
+    ///   add `#[lox(vertex_position(cast = lossy))])` to your vertex position
+    ///   field.
+    /// - Otherwise: choose a different source that supports your sinks's data
+    ///   types or choose a different sink that stores data in types compatible
+    ///   with your source.
+    SourceIncompatible {
+        prop: PropKind,
+        requested_type: PrimitiveType,
+    },
+
     /// This error is raised when a sink detects that the source cannot provide
     /// all data required by the sink.
     ///
@@ -436,6 +458,16 @@ impl fmt::Display for Error {
                         (if you derived `MemSink`, you might want to change the casting mode)",
                     prop.plural_form(),
                     source_type,
+                )
+            }
+            Error::SourceIncompatible { prop, requested_type } => {
+                write!(
+                    f,
+                    "source is not compatible with sink: source cannot provide {} with type \
+                        `{:?}` (if you derived `MemSource`, you might want to change the casting \
+                        mode)",
+                    prop.plural_form(),
+                    requested_type,
                 )
             }
             Error::DataIncomplete(details) => {
