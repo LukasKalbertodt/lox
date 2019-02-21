@@ -87,6 +87,11 @@ pub(crate) struct Input {
     cast_mode: Option<SpannedCastMode>,
     name: Ident,
     core_mesh: CoreMeshField,
+    vertex_position: Option<PropField>,
+    vertex_normal: Option<PropField>,
+    vertex_color: Option<PropField>,
+    face_normal: Option<PropField>,
+    face_color: Option<PropField>,
 }
 
 impl Input {
@@ -102,10 +107,34 @@ impl Input {
         };
 
         let mut core_mesh = None;
-        for f in fields {
-            let attrs = parse_field_attrs(&f.attrs)?;
-            // println!("{:?}", attrs);
+        let mut vertex_position = None;
+        let mut vertex_normal = None;
+        let mut vertex_color = None;
+        let mut face_normal = None;
+        let mut face_color = None;
 
+        for f in fields {
+            macro_rules! check_dupe {
+                ($field:ident) => {
+                    if $field.is_some() {
+                        bail!(f.ident.span(), "duplicate `{}` field", stringify!($field));
+                    }
+                }
+            }
+
+            macro_rules! set_prop_field {
+                ($field:ident, $attrs:ident) => {{
+                    check_dupe!($field);
+                    $field = Some(PropField {
+                        cast_mode: $attrs.cast_mode,
+                        span: f.span(),
+                        name: f.ident.clone(),
+                        ty: f.ty.clone(),
+                    });
+                }}
+            }
+
+            let attrs = parse_field_attrs(&f.attrs)?;
             if let Some(purpose) = attrs.purpose {
                 match purpose {
                     FieldPurpose::CoreMesh => {
@@ -117,17 +146,19 @@ impl Input {
                             );
                         }
 
+                        check_dupe!(core_mesh);
+
                         core_mesh = Some(CoreMeshField {
                             span: f.span(),
                             name: f.ident.clone(),
                             ty: f.ty.clone(),
                         });
                     }
-                    FieldPurpose::VertexPosition => {}
-                    FieldPurpose::VertexNormal => {}
-                    FieldPurpose::VertexColor => {}
-                    FieldPurpose::FaceNormal => {}
-                    FieldPurpose::FaceColor => {}
+                    FieldPurpose::VertexPosition => set_prop_field!(vertex_position, attrs),
+                    FieldPurpose::VertexNormal => set_prop_field!(vertex_normal, attrs),
+                    FieldPurpose::VertexColor => set_prop_field!(vertex_color, attrs),
+                    FieldPurpose::FaceNormal => set_prop_field!(face_normal, attrs),
+                    FieldPurpose::FaceColor => set_prop_field!(face_color, attrs),
                 }
 
             } else {
@@ -135,7 +166,7 @@ impl Input {
                     bail!(
                         mode.span,
                         "cast mode specified, but this field does not have a purpose \
-                            (maybe you forgot to add a `vertex_position` attribute?)",
+                            (maybe you forgot to add an attribute like `vertex_position`?)",
                     );
                 }
             }
@@ -157,6 +188,11 @@ impl Input {
             cast_mode: struct_attrs.cast_mode,
             name: input.ident.clone(),
             core_mesh,
+            vertex_position,
+            vertex_normal,
+            vertex_color,
+            face_normal,
+            face_color,
         })
     }
 }
