@@ -3,7 +3,7 @@ use proc_macro2::{
     TokenStream, Span,
 };
 use syn::{
-    Attribute, DeriveInput, Error, Fields, Ident, Type, Meta, NestedMeta, Lit,
+    Attribute, DeriveInput, Error, Ident, Type, Meta, NestedMeta, Lit,
     spanned::Spanned,
 };
 
@@ -66,9 +66,15 @@ impl SpannedCastMode {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct CoreMeshField {
+    span: Span,
+    name: Option<Ident>,
+    ty: Type,
+}
 
 #[derive(Debug)]
-pub(crate) struct Field {
+pub(crate) struct PropField {
     cast_mode: Option<SpannedCastMode>,
     span: Span,
     name: Option<Ident>,
@@ -80,60 +86,163 @@ pub(crate) struct Field {
 pub(crate) struct Input {
     cast_mode: Option<SpannedCastMode>,
     name: Ident,
-    fields: Vec<Field>,
+    core_mesh: CoreMeshField,
 }
 
 impl Input {
     pub(crate) fn from_syn(input: &DeriveInput, derive: &str) -> Result<Self, Error> {
-        // // Make sure the input is a struct and extract the fields from it
-        // let fields = match &input.data {
-        //     syn::Data::Struct(s) => &s.fields,
-        //     _ => bail!(input.span(), "only structs can derive `{}`", derive),
-        // };
-
-        // let mut fields_with_attr = Vec::new();
-        // for f in fields {
-        //     // Find all attributes that start with `lox`
-        //     let lox_attrs = f.attrs.iter()
-        //         .filter(|attr| attr.path.is_ident("lox"))
-        //         .collect::<Vec<_>>();
-
-        //     // Make sure there is only one such attribute
-        //     if lox_attrs.len() > 1 {
-        //         return Err(Error::new(
-        //             lox_attrs[1].span(),
-        //             "more than one `lox` attribute on field",
-        //         ));
-        //     }
-
-        //     // If there is a `lox` attribute, let's check it for validity and check
-        //     // if it contains `needle`.
-        //     if lox_attrs.len() == 1 {
-        //         let lox_attrs = parse_lox_attrs(&lox_attrs[0])?;
-        //         if let Some(attr) = lox_attrs.get(needle) {
-        //             let cast_mode = parse_cast_attr(attr.values.get("cast"))?;
-
-        //             fields_with_attr.push(FoundField {
-        //                 name: f.ident.clone().unwrap(),
-        //                 ty: f.ty.clone(),
-        //                 cast_mode,
-        //             });
-        //         }
-        //     }
-        // }
-
-        // visit_lox_attrs(&input.attrs, |ident, lit| {
-        //     println!("{} = {:?}", ident, lit);
-        // })?;
+        // Parse the attributes ofthe struct
         let struct_attrs = parse_struct_attrs(&input.attrs)?;
+
+
+        // Make sure the input is a struct and extract the fields from it
+        let fields = match &input.data {
+            syn::Data::Struct(s) => &s.fields,
+            _ => bail!(input.span(), "only structs can derive `{}`", derive),
+        };
+
+        let mut core_mesh = None;
+        for f in fields {
+            let attrs = parse_field_attrs(&f.attrs)?;
+            // println!("{:?}", attrs);
+
+            if let Some(purpose) = attrs.purpose {
+                match purpose {
+                    FieldPurpose::CoreMesh => {
+                        if let Some(mode) = attrs.cast_mode {
+                            bail!(
+                                mode.span,
+                                "cast mode on `core_mesh` field is not allowed because it \
+                                    doesn't make sense",
+                            );
+                        }
+
+                        core_mesh = Some(CoreMeshField {
+                            span: f.span(),
+                            name: f.ident.clone(),
+                            ty: f.ty.clone(),
+                        });
+                    }
+                    FieldPurpose::VertexPosition => {}
+                    FieldPurpose::VertexNormal => {}
+                    FieldPurpose::VertexColor => {}
+                    FieldPurpose::FaceNormal => {}
+                    FieldPurpose::FaceColor => {}
+                }
+
+            } else {
+                if let Some(mode) = attrs.cast_mode {
+                    bail!(
+                        mode.span,
+                        "cast mode specified, but this field does not have a purpose \
+                            (maybe you forgot to add a `vertex_position` attribute?)",
+                    );
+                }
+            }
+        }
+
+        let core_mesh = match core_mesh {
+            Some(m) => m,
+            None => {
+                bail!(
+                    input.ident.span(),
+                    "no `core_mesh` field found, but a core mesh is required for `derive({})` \
+                        (maybe you forgot to annotate `#[lox(core_mesh)]`?)",
+                    derive,
+                );
+            }
+        };
 
         Ok(Input {
             cast_mode: struct_attrs.cast_mode,
             name: input.ident.clone(),
-            fields: vec![],
+            core_mesh,
         })
     }
 }
+
+#[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
+enum FieldPurpose {
+    CoreMesh,
+    VertexPosition,
+    VertexNormal,
+    VertexColor,
+    FaceNormal,
+    FaceColor,
+}
+
+impl FieldPurpose {
+    fn keyword(&self) -> &'static str {
+        match self {
+            FieldPurpose::CoreMesh => "core_mesh",
+            FieldPurpose::VertexPosition => "vertex_position",
+            FieldPurpose::VertexNormal => "vertex_normal",
+            FieldPurpose::VertexColor => "vertex_color",
+            FieldPurpose::FaceNormal => "face_normal",
+            FieldPurpose::FaceColor => "face_color",
+        }
+    }
+}
+
+/// All attributes we accept on a struct directly.
+#[derive(Debug)]
+struct FieldAttrs {
+    cast_mode: Option<SpannedCastMode>,
+    purpose: Option<FieldPurpose>,
+}
+
+/// Parse the attributes of a field.
+fn parse_field_attrs(attrs: &[Attribute]) -> Result<FieldAttrs, Error> {
+    let mut out = FieldAttrs {
+        cast_mode: None,
+        purpose: None,
+    };
+
+    macro_rules! check_purpose {
+        ($ident:ident, $variant:ident) => {{
+            if let Some(before) = &out.purpose {
+                bail!(
+                    $ident.span(),
+                    "duplicate field purpose (field was already marked as '{}' before)",
+                    before.keyword(),
+                );
+            }
+            out.purpose = Some(FieldPurpose::$variant);
+        }}
+    }
+
+    visit_lox_attrs(attrs, |ident, lit| {
+        match ident.to_string().as_str() {
+            // ===== 'cast' attribute =====
+            "cast" => {
+                let mode = SpannedCastMode::from_attr(&ident, lit.as_ref())?;
+
+                if out.cast_mode.is_some() {
+                    bail!(lit.span(), "duplicate `cast` attribute");
+                }
+
+                out.cast_mode = Some(mode);
+            }
+
+            // ===== Field purposes =====
+            "core_mesh" => check_purpose!(ident, CoreMesh),
+            "vertex_position" => check_purpose!(ident, VertexPosition),
+            "vertex_normal" => check_purpose!(ident, VertexNormal),
+            "vertex_color" => check_purpose!(ident, VertexColor),
+            "face_normal" => check_purpose!(ident, FaceNormal),
+            "face_color" => check_purpose!(ident, FaceColor),
+
+            // ===== Unknown attribute =====
+            _ => bail!(ident.span(), "'{}' is not a valid lox attribute for a field", ident),
+        }
+
+        Ok(())
+    })?;
+
+    Ok(out)
+}
+
 
 /// All attributes we accept on a struct directly.
 struct StructAttrs {
@@ -147,9 +256,9 @@ fn parse_struct_attrs(attrs: &[Attribute]) -> Result<StructAttrs, Error> {
     };
 
     visit_lox_attrs(attrs, |ident, lit| {
-        match () {
+        match ident.to_string().as_str() {
             // ===== 'cast' attribute =====
-            () if ident == "cast" => {
+            "cast" => {
                 let mode = SpannedCastMode::from_attr(&ident, lit.as_ref())?;
 
                 if out.cast_mode.is_some() {
