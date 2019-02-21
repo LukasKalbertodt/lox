@@ -433,10 +433,8 @@ impl Mesh for FaceDelegateMesh {
         self.vertices.num_elements()
     }
 
-    fn vertices<'s>(&'s self) -> Box<Iterator<Item = VertexRef<Self>> + 's> {
-        Box::new(self.vertices.handles().map(move |handle| {
-            VertexRef::new(self, handle)
-        }))
+    fn vertex_handles(&self) -> Box<Iterator<Item = VertexHandle> + '_> {
+        Box::new(self.vertices.handles())
     }
 
     fn contains_vertex(&self, vertex: VertexHandle) -> bool {
@@ -447,10 +445,8 @@ impl Mesh for FaceDelegateMesh {
         self.faces.num_elements()
     }
 
-    fn faces<'s>(&'s self) -> Box<Iterator<Item = FaceRef<Self>> + 's> {
-        Box::new(self.faces.handles().map(move |handle| {
-            FaceRef::new(self, handle)
-        }))
+    fn face_handles(&self) -> Box<Iterator<Item = FaceHandle> + '_> {
+        Box::new(self.faces.handles())
     }
 
     fn contains_face(&self, face: FaceHandle) -> bool {

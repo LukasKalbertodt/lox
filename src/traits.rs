@@ -22,10 +22,17 @@ pub trait Mesh: Empty {
     /// Returns the number of vertices in this mesh.
     fn num_vertices(&self) -> hsize;
 
-    /// Returns an iterator over all vertices in this mesh. The order of these
-    /// vertices is unspecified, but each vertex is yielded by the iterator
-    /// exactly once.
-    fn vertices(&self) -> Box<dyn Iterator<Item = VertexRef<'_, Self>> + '_>;
+    /// Returns an iterator over the handles of all vertices in this mesh.
+    ///
+    /// Note that this iterator only yields the handles. To get an iterator
+    /// over `VertexRef`s, use [`vertices()`][Self::vertices], which is often
+    /// more useful.
+    ///
+    /// The order of these vertices is unspecified, but each vertex is yielded
+    /// by the iterator exactly once.
+    fn vertex_handles(&self) -> Box<dyn Iterator<Item = VertexHandle> + '_>;
+
+
 
     /// Checks if the given vertex handle refers to a valid vertex of this
     /// mesh.
@@ -40,10 +47,15 @@ pub trait Mesh: Empty {
     /// Returns the number of faces in this mesh.
     fn num_faces(&self) -> hsize;
 
-    /// Returns an iterator over all faces in this mesh. The order of these
-    /// faces is unspecified, but each vertex is yielded by the iterator
-    /// exactly once.
-    fn faces(&self) -> Box<dyn Iterator<Item = FaceRef<'_, Self>> + '_>;
+    /// Returns an iterator over the handles of all faces in this mesh.
+    ///
+    /// Note that this iterator only yields the handles. To get an iterator
+    /// over `VertexRef`s, use [`faces()`][Self::faces], which is often more
+    /// useful.
+    ///
+    /// The order of these faces is unspecified, but each vertex is yielded by
+    /// the iterator exactly once.
+    fn face_handles(&self) -> Box<dyn Iterator<Item = FaceHandle> + '_>;
 
     /// Checks if the given face handle refers to a valid face of this mesh.
     fn contains_face(&self, face: FaceHandle) -> bool;
@@ -61,6 +73,22 @@ pub trait Mesh: Empty {
     /// Returns an `ElementRefMut` with the given handle referencing this mesh.
     fn get_ref_mut<H: Handle>(&mut self, handle: H) -> ElementRefMut<'_, H, Self> {
         ElementRefMut::new(self, handle)
+    }
+
+    /// Returns an iterator over all vertices in this mesh.
+    ///
+    /// This iterator yields `VertexRef`s. If you are only interested in the
+    /// handle, use [`vertex_handles()`][Self::vertex_handles].
+    fn vertices(&self) -> Box<dyn Iterator<Item = VertexRef<'_, Self>> + '_> {
+        Box::new(self.vertex_handles().map(move |h| ElementRef::new(self, h))
+    }
+
+    /// Returns an iterator over all faces in this mesh.
+    ///
+    /// This iterator yields `FaceRef`s. If you are only interested in the
+    /// handle, use [`face_handles()`][Self::face_handles].
+    fn faces(&self) -> Box<dyn Iterator<Item = FaceRef<'_, Self>> + '_> {
+        Box::new(self.face_handles().map(move |h| ElementRef::new(self, h))
     }
 }
 
