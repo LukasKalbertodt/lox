@@ -3,6 +3,7 @@ use failure::Error;
 
 #[allow(unused_imports)]
 use lox::{
+    MemSink,
     algo,
     ds::{FaceDelegateMesh, SharedVertexMesh, HalfEdgeMesh},
     io::ply,
@@ -25,7 +26,7 @@ fn main() -> Result<(), Error> {
 }
 
 
-#[derive(Empty)]
+#[derive(Empty, MemSink)]
 struct MyMesh {
     mesh: HalfEdgeMesh,
     vertex_positions: VecMap<VertexHandle, Point3<f32>>,
@@ -42,28 +43,9 @@ struct MyMesh {
 
 // --- This stuff is boilerplate code that won't be necessary in the future ---
 
-#[allow(unused_imports)]
 use lox::{
-    handle::hsize,
-    io::{MemSink, MemSource, PrimitiveType, Primitive},
-    math::PrimitiveNum,
+    io::{MemSource, PrimitiveType, Primitive},
 };
-
-impl MemSink for MyMesh {
-    fn add_vertex(&mut self) -> VertexHandle {
-        self.mesh.add_vertex()
-    }
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
-        self.mesh.add_face(vertices)
-    }
-    fn set_vertex_position<N: PrimitiveNum>(
-        &mut self,
-        v: VertexHandle,
-        position: Point3<N>,
-    ) {
-        self.vertex_positions.insert(v, position.map(|s| s.to_f32().unwrap()));
-    }
-}
 
 impl MemSource for MyMesh {
     type CoreMesh = HalfEdgeMesh;
