@@ -341,7 +341,9 @@ pub struct EncodingNotSupported;
 pub enum PropKind {
     VertexPosition,
     VertexNormal,
+    VertexColor,
     FaceNormal,
+    FaceColor,
 }
 
 impl PropKind {
@@ -349,7 +351,9 @@ impl PropKind {
         match self {
             PropKind::VertexPosition => "vertex positions",
             PropKind::VertexNormal => "vertex normals",
+            PropKind::VertexColor => "vertex colors",
             PropKind::FaceNormal => "face normals",
+            PropKind::FaceColor => "face colors",
         }
     }
 }
