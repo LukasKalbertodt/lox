@@ -281,7 +281,7 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
 
                         if !cast_possible {
                             return Err(lox::io::Error::SinkIncompatible {
-                                prop: lox::io::PropKind::VertexPosition,
+                                prop: lox::io::PropKind::VertexNormal,
                                 source_type: N::TY,
                             });
                         }
@@ -472,7 +472,7 @@ pub(crate) fn derive_mem_sink(input: &DeriveInput) -> Result<TokenStream2, Error
 
                         if !cast_possible {
                             return Err(lox::io::Error::SinkIncompatible {
-                                prop: lox::io::PropKind::VertexPosition,
+                                prop: lox::io::PropKind::FaceNormal,
                                 source_type: N::TY,
                             });
                         }
