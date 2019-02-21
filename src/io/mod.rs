@@ -790,7 +790,7 @@ pub trait MemSink {
     /// this method says: "there is no additional data, make sure you are in a
     /// proper state now".
     ///
-    /// This shouldn't be called by [`StreamSink::transfer_to`] directly as
+    /// This shouldn't be called by `StreamSink::transfer_to` directly, as
     /// calling `transfer_to` doesn't necessarily mean that a transfer is
     /// completed afterwards. Instead, `finish` is called by
     /// [`MemSink::create_from`] and thus by `io::read`.
@@ -948,7 +948,7 @@ pub trait MemSource {
     /// Returns the scalar type of the vertex positions of this source or
     /// `None` if this source does not provide vertex positions.
     ///
-    /// See [the trait documentation][Self] for important information!
+    /// See [the trait documentation][MemSource] for important information!
     fn vertex_position_type(&self) -> Option<PrimitiveType> {
         None
     }
@@ -956,7 +956,8 @@ pub trait MemSource {
     /// Returns the vertex position of the vertex with the given handle, or
     /// `None` if there is no position associated with that vertex.
     ///
-    /// See [the trait documentation][Self] for important information!
+    /// See [the trait documentation][MemSource] for important
+    /// information!
     fn vertex_position<T: Primitive>(&self, _v: VertexHandle) -> Result<Option<Point3<T>>, Error> {
         panic!("requested non-existent vertex position from `MemSource`");
     }

@@ -25,7 +25,7 @@ pub trait Mesh: Empty {
     /// Returns an iterator over the handles of all vertices in this mesh.
     ///
     /// Note that this iterator only yields the handles. To get an iterator
-    /// over `VertexRef`s, use [`vertices()`][Self::vertices], which is often
+    /// over `VertexRef`s, use [`vertices()`][Mesh::vertices], which is often
     /// more useful.
     ///
     /// The order of these vertices is unspecified, but each vertex is yielded
@@ -50,7 +50,7 @@ pub trait Mesh: Empty {
     /// Returns an iterator over the handles of all faces in this mesh.
     ///
     /// Note that this iterator only yields the handles. To get an iterator
-    /// over `VertexRef`s, use [`faces()`][Self::faces], which is often more
+    /// over `VertexRef`s, use [`faces()`][Mesh::faces], which is often more
     /// useful.
     ///
     /// The order of these faces is unspecified, but each vertex is yielded by
@@ -78,7 +78,7 @@ pub trait Mesh: Empty {
     /// Returns an iterator over all vertices in this mesh.
     ///
     /// This iterator yields `VertexRef`s. If you are only interested in the
-    /// handle, use [`vertex_handles()`][Self::vertex_handles].
+    /// handle, use [`vertex_handles()`][Mesh::vertex_handles].
     fn vertices(&self) -> Box<dyn Iterator<Item = VertexRef<'_, Self>> + '_> {
         Box::new(self.vertex_handles().map(move |h| ElementRef::new(self, h))
     }
@@ -86,7 +86,7 @@ pub trait Mesh: Empty {
     /// Returns an iterator over all faces in this mesh.
     ///
     /// This iterator yields `FaceRef`s. If you are only interested in the
-    /// handle, use [`face_handles()`][Self::face_handles].
+    /// handle, use [`face_handles()`][Mesh::face_handles].
     fn faces(&self) -> Box<dyn Iterator<Item = FaceRef<'_, Self>> + '_> {
         Box::new(self.face_handles().map(move |h| ElementRef::new(self, h))
     }

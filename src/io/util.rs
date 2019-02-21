@@ -13,15 +13,15 @@ use crate::{
 
 /// Specifies preferred types for floating point numbers and integers.
 ///
-/// This is used by [`MemSink`] to signal preferred types to the source. This
-/// is used in situations where the source does not have a specific type but
-/// has a choice. If, for example, the source reads an ASCII file in which
-/// positions are specified in standard `3.14` notation, it's not immediately
-/// clear how the source should parse those numbers: parsing as `f32` could
-/// loose precision; parsing as `f64` could be useless overhead if the sink
-/// converts it back to `f32`. Similarly, if the source generates values (e.g.
-/// a shape description), the same is true: it would be great if the source
-/// would know the preferred type.
+/// This is used by [`MemSink`][super::MemSink] to signal preferred types to
+/// the source. This is used in situations where the source does not have a
+/// specific type but has a choice. If, for example, the source reads an ASCII
+/// file in which positions are specified in standard `3.14` notation, it's not
+/// immediately clear how the source should parse those numbers: parsing as
+/// `f32` could loose precision; parsing as `f64` could be useless overhead if
+/// the sink converts it back to `f32`. Similarly, if the source generates
+/// values (e.g. a shape description), the same is true: it would be great if
+/// the source would know the preferred type.
 ///
 /// This trait is only implemented by [`WishFor<F, I>`][WishFor] where `F` is
 /// the float type and `I` is the integer type. I don't think implementing this
