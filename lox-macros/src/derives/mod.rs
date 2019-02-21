@@ -13,6 +13,8 @@ use syn::{
 use crate::util::struct_fields;
 
 
+mod input;
+
 const DEFAULT_CAST_MODE: CastMode = CastMode::Lossless;
 
 
