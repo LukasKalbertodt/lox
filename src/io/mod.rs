@@ -872,13 +872,8 @@ pub trait StreamSink {
 // TODO: probably use mesh traits as supertrait instead of repeating many of
 // the relevant methods here.
 pub trait MemSource {
-    fn vertices(&self) -> Box<dyn Iterator<Item = VertexHandle> + '_>;
-    fn faces(&self) -> Box<dyn Iterator<Item = FaceHandle> + '_>;
-
-    fn num_vertices(&self) -> hsize;
-    fn num_faces(&self) -> hsize;
-
-    fn vertices_of_face(&self, f: FaceHandle) -> [VertexHandle; 3];
+    type CoreMesh: Mesh + TriVerticesOfFace;
+    fn core_mesh(&self) -> &Self::CoreMesh;
 
     fn vertex_position_type(&self) -> Option<PrimitiveType> {
         None

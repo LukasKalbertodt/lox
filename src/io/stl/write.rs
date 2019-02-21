@@ -6,11 +6,11 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use cgmath::prelude::*;
 
 use crate::{
-    TriVerticesOfFace, TriMesh,
     handle::{FaceHandle, VertexHandle},
     map::{EmptyMap, FacePropMap, VertexPropMap},
     prop::{Pos3Like, Vec3Like},
     io::{Error, StreamSink, MemSource, PrimitiveType},
+    traits::*,
     // io::{Error, IntoMeshWriter, MeshWriter, StreamSink, MemSource, PrimitiveType},
 };
 use super::Encoding;
@@ -134,9 +134,9 @@ impl<W: io::Write> StreamSink for Sink<W> {
         write(
             self.writer,
             &self.config,
-            src.num_faces(),
-            src.faces(),
-            |fh| src.vertices_of_face(fh),
+            src.core_mesh().num_faces(),
+            src.core_mesh().faces().map(|f| f.handle()),
+            |fh| src.core_mesh().vertices_of_face(fh),
             |vh| Some(vertex_positions(vh)),
 
             // TODO: use real normals once `MemSource` provides them

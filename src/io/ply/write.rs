@@ -20,12 +20,12 @@ use std::{
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 
 use crate::{
-    TriVerticesOfFace, TriMesh,
     handle::{FaceHandle, Handle, VertexHandle},
     map::{FnMap, PropMap, FacePropMap, VertexPropMap},
     prop::{Pos3Like, Vec3Like},
     // io::{IntoMeshWriter, MeshWriter, StreamSink, MemSource, PrimitiveType},
     io::{Error, StreamSink, MemSource, PrimitiveType},
+    traits::*,
     util::TriArrayExt,
 };
 use super::{Encoding, Serialize, SingleSerialize, PropSerializer, PropType};
@@ -139,11 +139,11 @@ impl<W: io::Write> StreamSink for Sink<W> {
         write(
             self.writer,
             &self.config,
-            src.num_vertices(),
-            src.num_faces(),
-            src.vertices(),
-            src.faces(),
-            |fh| src.vertices_of_face(fh),
+            src.core_mesh().num_vertices(),
+            src.core_mesh().num_faces(),
+            src.core_mesh().vertices().map(|v| v.handle()),
+            src.core_mesh().faces().map(|f| f.handle()),
+            |fh| src.core_mesh().vertices_of_face(fh),
             &ListPosElem {
                 map: &FnMap(|vh| Some(vertex_positions(vh))),
                 tail: EmptyList,

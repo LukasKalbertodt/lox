@@ -66,20 +66,9 @@ impl MemSink for MyMesh {
 }
 
 impl MemSource for MyMesh {
-    fn vertices(&self) -> Box<dyn Iterator<Item = VertexHandle> + '_> {
-        Box::new(self.mesh.vertices().map(|v| v.handle()))
-    }
-    fn faces(&self) -> Box<dyn Iterator<Item = FaceHandle> + '_> {
-        Box::new(self.mesh.faces().map(|f| f.handle()))
-    }
-    fn num_vertices(&self) -> hsize {
-        self.mesh.num_vertices()
-    }
-    fn num_faces(&self) -> hsize {
-        self.mesh.num_faces()
-    }
-    fn vertices_of_face(&self, f: FaceHandle) -> [VertexHandle; 3] {
-        self.mesh.vertices_of_face(f)
+    type CoreMesh = HalfEdgeMesh;
+    fn core_mesh(&self) -> &Self::CoreMesh {
+        &self.mesh
     }
     fn vertex_position_type(&self) -> Option<PrimitiveType> {
         Some(PrimitiveType::Float32)
