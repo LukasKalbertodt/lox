@@ -905,16 +905,59 @@ pub trait StreamSink {
     fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Error>;
 }
 
-// TODO: probably use mesh traits as supertrait instead of repeating many of
-// the relevant methods here.
+
+/// ...
+///
+///
+/// # Rules regarding property methods
+///
+/// For each property, there are two methods (e.g. `vertex_position` and
+/// `vertex_position_type`). There are some rules for using and implementing
+/// these methods. Those rules are covered here instead of repeating the same
+/// rules in all method descriptions.
+///
+/// The `*_type` method gives two pieces of information: (a) does the source
+/// provide this property, and (b) what type does that property have. If the
+/// source does *not* provide a property "foo", then calling the method `foo()`
+/// will always panic. Thus, a sink using this interace should always call the
+/// `*_type` method first to check if the property is provided.
+///
+/// The type returned by the `*_type` method is merely a recommendation for the
+/// sink. If the sink can store multiple types, it should choose a type closest
+/// to the returned type. But it is legal for the sink to always stick to one
+/// type (in fact, many sinks can only store one type).
+///
+/// The `foo` method is then called by the sink with a specific type. This type
+/// must be fixed! Meaning: over the lifetime of a `MemSource`,
+/// `vertex_position` must always be called with the same type (the same is
+/// true for other property methods). However, the source must be able to
+/// handle all primitive types that a property function might be called with.
+/// This is usually done via casting or returning `Err::SourceIncompatible`.
+///
+/// The handles passed to all main property methods must be valid handles
+/// obtained from the mesh returned by `core_mesh()`.
+///
+/// All property methods have a default implemention which returns `None` and
+/// panics in `*_type` and `*` respectively.
 pub trait MemSource {
     type CoreMesh: Mesh + TriVerticesOfFace;
     fn core_mesh(&self) -> &Self::CoreMesh;
 
+
+    // ----- Vertex positions -------------------------------------------------
+    /// Returns the scalar type of the vertex positions of this source or
+    /// `None` if this source does not provide vertex positions.
+    ///
+    /// See [the trait documentation][Self] for important information!
     fn vertex_position_type(&self) -> Option<PrimitiveType> {
         None
     }
-    fn vertex_position<T: Primitive>(&self, _: VertexHandle) -> Point3<T> {
+
+    /// Returns the vertex position of the vertex with the given handle, or
+    /// `None` if there is no position associated with that vertex.
+    ///
+    /// See [the trait documentation][Self] for important information!
+    fn vertex_position<T: Primitive>(&self, _v: VertexHandle) -> Result<Option<Point3<T>>, Error> {
         panic!("requested non-existent vertex position from `MemSource`");
     }
 }

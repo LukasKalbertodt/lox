@@ -12,6 +12,8 @@
 //!
 //!
 
+#![allow(dead_code)] // TODO
+
 use std::{
     collections::HashSet,
     io::{self, Write},
@@ -112,44 +114,44 @@ pub struct Sink<W: io::Write> {
 }
 
 impl<W: io::Write> StreamSink for Sink<W> {
-    fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Error> {
-        macro_rules! pos_fn {
-            ($orig_type:ident) => {{
-                let fun = |vh| {
-                    src.vertex_position::<$orig_type>(vh)
-                        .map(|s| s as f32)
-                        .convert()
-                };
-                Box::new(fun) as Box<dyn Fn(VertexHandle) -> [f32; 3]>
-            }}
-        }
+    fn transfer_from<S: MemSource>(self, _src: &S) -> Result<(), Error> {
+        unimplemented!()
+        // macro_rules! pos_fn {
+        //     ($orig_type:ident) => {{
+        //         let fun = |vh| {
+        //             src.vertex_position::<$orig_type>(vh)
+        //                 .map(|opt| opt.map(|p| p.convert()))
+        //         };
+        //         Box::new(fun) as Box<dyn Fn(VertexHandle) -> [f32; 3]>
+        //     }}
+        // }
 
-        let pos_type = src.vertex_position_type().expect("fucky wucky"); // TODO
-        let vertex_positions = match pos_type {
-            PrimitiveType::Uint8 => pos_fn!(u8),
-            PrimitiveType::Int8 => pos_fn!(i8),
-            PrimitiveType::Uint16 => pos_fn!(u16),
-            PrimitiveType::Int16 => pos_fn!(i16),
-            PrimitiveType::Uint32 => pos_fn!(u32),
-            PrimitiveType::Int32 => pos_fn!(i32),
-            PrimitiveType::Float32 => pos_fn!(f32),
-            PrimitiveType::Float64 => pos_fn!(f64),
-        };
+        // let pos_type = src.vertex_position_type().expect("fucky wucky"); // TODO
+        // let vertex_positions = match pos_type {
+        //     PrimitiveType::Uint8 => pos_fn!(u8),
+        //     PrimitiveType::Int8 => pos_fn!(i8),
+        //     PrimitiveType::Uint16 => pos_fn!(u16),
+        //     PrimitiveType::Int16 => pos_fn!(i16),
+        //     PrimitiveType::Uint32 => pos_fn!(u32),
+        //     PrimitiveType::Int32 => pos_fn!(i32),
+        //     PrimitiveType::Float32 => pos_fn!(f32),
+        //     PrimitiveType::Float64 => pos_fn!(f64),
+        // };
 
-        write(
-            self.writer,
-            &self.config,
-            src.core_mesh().num_vertices(),
-            src.core_mesh().num_faces(),
-            src.core_mesh().vertex_handles(),
-            src.core_mesh().face_handles(),
-            |fh| src.core_mesh().vertices_of_face(fh),
-            &ListPosElem {
-                map: &FnMap(|vh| Some(vertex_positions(vh))),
-                tail: EmptyList,
-            },
-            &EmptyList,
-        )
+        // write(
+        //     self.writer,
+        //     &self.config,
+        //     src.core_mesh().num_vertices(),
+        //     src.core_mesh().num_faces(),
+        //     src.core_mesh().vertex_handles(),
+        //     src.core_mesh().face_handles(),
+        //     |fh| src.core_mesh().vertices_of_face(fh),
+        //     &ListPosElem {
+        //         map: &FnMap(|vh| Some(vertex_positions(vh))),
+        //         tail: EmptyList,
+        //     },
+        //     &EmptyList,
+        // )
     }
 }
 

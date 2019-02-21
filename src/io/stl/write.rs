@@ -108,28 +108,9 @@ pub struct Sink<W: io::Write> {
 
 impl<W: io::Write> StreamSink for Sink<W> {
     fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Error> {
-        macro_rules! pos_fn {
-            ($orig_type:ident) => {{
-                let fun = |vh| {
-                    src.vertex_position::<$orig_type>(vh)
-                        .map(|s| s as f32) // TODO cast via `cast` module
-                        .convert()
-                };
-                Box::new(fun) as Box<dyn Fn(VertexHandle) -> [f32; 3]>
-            }}
+        if src.vertex_position_type().is_none() {
+            panic!("fucky wucky"); // TODO
         }
-
-        let pos_type = src.vertex_position_type().expect("fucky wucky"); // TODO
-        let vertex_positions = match pos_type {
-            PrimitiveType::Uint8 => pos_fn!(u8),
-            PrimitiveType::Int8 => pos_fn!(i8),
-            PrimitiveType::Uint16 => pos_fn!(u16),
-            PrimitiveType::Int16 => pos_fn!(i16),
-            PrimitiveType::Uint32 => pos_fn!(u32),
-            PrimitiveType::Int32 => pos_fn!(i32),
-            PrimitiveType::Float32 => pos_fn!(f32),
-            PrimitiveType::Float64 => pos_fn!(f64),
-        };
 
         write(
             self.writer,
@@ -137,7 +118,7 @@ impl<W: io::Write> StreamSink for Sink<W> {
             src.core_mesh().num_faces(),
             src.core_mesh().face_handles(),
             |fh| src.core_mesh().vertices_of_face(fh),
-            |vh| Some(vertex_positions(vh)),
+            |vh| src.vertex_position::<f32>(vh).map(|opt| opt.map(|p| p.convert())),
 
             // TODO: use real normals once `MemSource` provides them
             |_, positions| Some(calc_normal(positions)),
@@ -244,26 +225,27 @@ fn write(
     num_faces: u32,
     faces: impl Iterator<Item = FaceHandle>,
     vertices_of_face: impl Fn(FaceHandle) -> [VertexHandle; 3],
-    positions: impl Fn(VertexHandle) -> Option<[f32; 3]>,
+    vertex_positions: impl Fn(VertexHandle) -> Result<Option<[f32; 3]>, Error>,
     normals: impl Fn(FaceHandle, &[[f32; 3]; 3]) -> Option<[f32; 3]>,
 ) -> Result<(), Error> {
     // Retrieves the positions and normal of the given face.
-    let get_pos_and_normal = |face_handle| -> ([[f32; 3]; 3], [f32; 3]) {
+    let get_pos_and_normal = |face_handle| -> Result<([[f32; 3]; 3], [f32; 3]), Error> {
         let [va, vb, vc] = vertices_of_face(face_handle);
 
         // Get positions from map and convert them to array
-        let get = |h| -> [f32; 3] {
-            positions(h)
-                .unwrap_or_else(|| panic!("no position for {:?} while writing STL", h))
+        let get = |h| -> Result<[f32; 3], Error> {
+            vertex_positions(h).map(|opt| {
+                opt.unwrap_or_else(|| panic!("no position for {:?} while writing STL", h))
+            })
         };
-        let positions = [get(va), get(vb), get(vc)];
+        let positions = [get(va)?, get(vb)?, get(vc)?];
 
         // If a normal map was specified, retrieve the normal from there,
         // otherwise calculate it via cross product.
         let normal = normals(face_handle, &positions)
             .unwrap_or_else(|| panic!("no normal for {:?} while writing STL", face_handle));
 
-        (positions, normal)
+        Ok((positions, normal))
     };
 
     if config.encoding == Encoding::Ascii {
@@ -273,7 +255,7 @@ fn write(
         writeln!(w, "solid {}", config.solid_name)?;
 
         for face_handle in faces {
-            let (positions, normal) = get_pos_and_normal(face_handle);
+            let (positions, normal) = get_pos_and_normal(face_handle)?;
 
             // Write face normal
             write!(w, "  facet normal ")?;
@@ -309,7 +291,7 @@ fn write(
         w.write_u32::<LittleEndian>(num_faces)?;
 
         for face_handle in faces {
-            let (positions, [nx, ny, nz]) = get_pos_and_normal(face_handle);
+            let (positions, [nx, ny, nz]) = get_pos_and_normal(face_handle)?;
 
             // Write face normal
             w.write_f32::<LittleEndian>(nx)?;
