@@ -141,8 +141,8 @@ impl<W: io::Write> StreamSink for Sink<W> {
             &self.config,
             src.core_mesh().num_vertices(),
             src.core_mesh().num_faces(),
-            src.core_mesh().vertices().map(|v| v.handle()),
-            src.core_mesh().faces().map(|f| f.handle()),
+            src.core_mesh().vertex_handles(),
+            src.core_mesh().face_handles(),
             |fh| src.core_mesh().vertices_of_face(fh),
             &ListPosElem {
                 map: &FnMap(|vh| Some(vertex_positions(vh))),

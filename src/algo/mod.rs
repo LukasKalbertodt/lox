@@ -65,8 +65,8 @@ where
     // borrowing problems.
     //
     // TODO: collecting face handles first should not be necessary
-    let face_handles = mesh.faces().map(|f| f.handle()).collect::<Vec<_>>();
-    let old_vertices = mesh.vertices().map(|v| v.handle()).collect::<Vec<_>>();
+    let face_handles = mesh.face_handles().collect::<Vec<_>>();
+    let old_vertices = mesh.vertex_handles().collect::<Vec<_>>();
 
     let new_vertices = face_handles.into_iter().map(|fh| {
         // The position of the new vertex is just the centroid of the face's

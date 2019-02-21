@@ -135,7 +135,7 @@ impl<W: io::Write> StreamSink for Sink<W> {
             self.writer,
             &self.config,
             src.core_mesh().num_faces(),
-            src.core_mesh().faces().map(|f| f.handle()),
+            src.core_mesh().face_handles(),
             |fh| src.core_mesh().vertices_of_face(fh),
             |vh| Some(vertex_positions(vh)),
 

@@ -129,7 +129,7 @@ macro_rules! gen_tri_mesh_tests {
             assert_eq!(m.num_vertices(), 1);
 
             assert!(m.faces().next().is_none());
-            assert_eq_set!(m.vertices().map(|x| x.handle()), [v]);
+            assert_eq_set!(m.vertex_handles(), [v]);
 
             assert!(m.contains_vertex(v));
             assert!(!m.contains_vertex(VertexHandle::new(v.idx().next())));
@@ -161,8 +161,8 @@ macro_rules! gen_tri_mesh_tests {
             assert_eq!(m.num_faces(), 1);
             assert_eq!(m.num_vertices(), 3);
 
-            assert_eq_set!(m.faces().map(|x| x.handle()), [f]);
-            assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc]);
+            assert_eq_set!(m.face_handles(), [f]);
+            assert_eq_set!(m.vertex_handles(), [va, vb, vc]);
 
             assert!(m.contains_vertex(va));
             assert!(m.contains_vertex(vb));
@@ -216,8 +216,8 @@ macro_rules! gen_tri_mesh_tests {
             assert_eq!(m.num_faces(), 4);
             assert_eq!(m.num_vertices(), 4);
 
-            assert_eq_set!(m.faces().map(|x| x.handle()), [f_bottom, f_ab, f_bc, f_ca]);
-            assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, v_top]);
+            assert_eq_set!(m.face_handles(), [f_bottom, f_ab, f_bc, f_ca]);
+            assert_eq_set!(m.vertex_handles(), [va, vb, vc, v_top]);
 
             gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
                 assert_eq_order!(m.vertices_of_face(f_bottom), [va, vc, vb]);
@@ -272,8 +272,8 @@ macro_rules! gen_tri_mesh_tests {
             assert_eq!(m.num_faces(), 2);
             assert_eq!(m.num_vertices(), 4);
 
-            assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy]);
-            assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd]);
+            assert_eq_set!(m.face_handles(), [fx, fy]);
+            assert_eq_set!(m.vertex_handles(), [va, vb, vc, vd]);
 
             gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
                 assert_eq_order!(m.vertices_of_face(fx), [va, vb, vc]);
@@ -306,8 +306,8 @@ macro_rules! gen_tri_mesh_tests {
             assert_eq!(m.num_faces(), 3);
             assert_eq!(m.num_vertices(), 5);
 
-            assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy, fz]);
-            assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve]);
+            assert_eq_set!(m.face_handles(), [fx, fy, fz]);
+            assert_eq_set!(m.vertex_handles(), [va, vb, vc, vd, ve]);
 
             gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
                 assert_eq_order!(m.vertices_of_face(fx), [va, vb, vc]);
@@ -380,8 +380,8 @@ macro_rules! gen_tri_mesh_tests {
             assert_eq!(m.num_faces(), 6);
             assert_eq!(m.num_vertices(), 6);
 
-            assert_eq_set!(m.faces().map(|x| x.handle()), [fu, fv, fw, fx, fy, fz]);
-            assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve, vf]);
+            assert_eq_set!(m.face_handles(), [fu, fv, fw, fx, fy, fz]);
+            assert_eq_set!(m.vertex_handles(), [va, vb, vc, vd, ve, vf]);
 
             gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
                 assert_eq_order!(m.vertices_of_face(fu), [va, vc, vb]);
@@ -452,8 +452,8 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq!(m.num_faces(), 2);
                 assert_eq!(m.num_vertices(), 5);
 
-                assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy]);
-                assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve]);
+                assert_eq_set!(m.face_handles(), [fx, fy]);
+                assert_eq_set!(m.vertex_handles(), [va, vb, vc, vd, ve]);
 
                 gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
                     assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
@@ -516,8 +516,8 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq!(m.num_faces(), 3);
                 assert_eq!(m.num_vertices(), 7);
 
-                assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy, fz]);
-                assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve, vf, vg]);
+                assert_eq_set!(m.face_handles(), [fx, fy, fz]);
+                assert_eq_set!(m.vertex_handles(), [va, vb, vc, vd, ve, vf, vg]);
 
                 gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
                     assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
@@ -609,8 +609,8 @@ macro_rules! gen_tri_mesh_tests {
                     assert_eq!(m.num_faces(), 4);
                     assert_eq!(m.num_vertices(), 7);
 
-                    assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy, fz, f]);
-                    assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve, vf, vg]);
+                    assert_eq_set!(m.face_handles(), [fx, fy, fz, f]);
+                    assert_eq_set!(m.vertex_handles(), [va, vb, vc, vd, ve, vf, vg]);
 
                     gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
                         assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
@@ -664,8 +664,8 @@ macro_rules! gen_tri_mesh_tests {
                     assert_eq!(m.num_faces(), 4);
                     assert_eq!(m.num_vertices(), 7);
 
-                    assert_eq_set!(m.faces().map(|x| x.handle()), [fx, fy, fz, f]);
-                    assert_eq_set!(m.vertices().map(|x| x.handle()), [va, vb, vc, vd, ve, vf, vg]);
+                    assert_eq_set!(m.face_handles(), [fx, fy, fz, f]);
+                    assert_eq_set!(m.vertex_handles(), [va, vb, vc, vd, ve, vf, vg]);
 
                     gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
                         assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
