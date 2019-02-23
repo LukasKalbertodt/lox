@@ -8,7 +8,7 @@ use syn::{
     spanned::Spanned,
 };
 use super::{
-    DEFAULT_COLOR_CAST_ALLOWED,
+    DEFAULT_COLOR_CAST_ALLOWED, DEFAULT_CAST_MODE2 as DEFAULT_CAST_MODE,
     input::{CastMode, ColorPropField, CoreMeshField, Input, PropField},
 };
 
@@ -20,6 +20,8 @@ pub(in crate::derives) fn gen_impl(input: &Input) -> Result<TokenStream, Error> 
     let mesh_code = gen_mesh_code(&input.core_mesh);
 
     // Vertex properties
+    let vertex_position_code = input.vertex_position.as_ref()
+        .map(|f| gen_prop_code(f, "Vertex", "Position", global_cast_mode));
     let vertex_color_code = input.vertex_color.as_ref()
         .map(|f| gen_color_prop_code(f, "Vertex", global_cast_mode));
 
@@ -37,7 +39,8 @@ pub(in crate::derives) fn gen_impl(input: &Input) -> Result<TokenStream, Error> 
         impl #impl_generics lox::io::MemSink for #name #ty_generics #where_clause {
             #mesh_code
             // #finish_code
-            // #vertex_position_code
+
+            #vertex_position_code
             // #vertex_normal_code
             #vertex_color_code
             // #face_normal_code
@@ -82,6 +85,138 @@ fn gen_mesh_code(field: &CoreMeshField) -> TokenStream {
         }
         fn size_hint(&mut self, hint: lox::util::MeshSizeHint) {
             #size_hint
+        }
+    }
+}
+
+fn gen_prop_code(
+    field: &PropField,
+    _elem: &str,
+    _prop: &str,
+    global_cast_mode: Option<CastMode>,
+) -> TokenStream {
+    // Generate the code to check whether the supplied scalar type can be cast
+    // into the target type, respecting the specified cast modes. Plus the code
+    // to get the new item to be inserted into the map.
+    let cast_mode = field.cast_mode
+        .map(|m| m.mode)
+        .or(global_cast_mode)
+        .unwrap_or(DEFAULT_CAST_MODE);
+    let (check_code, new_elem_code) = if let Some(cast_rigor) = rigor_tokens(cast_mode) {
+        let check = quote! {
+            let cast_possible = lox::cast::is_cast_possible::<
+                #cast_rigor,
+                N,
+                <T::Output as lox::prop::Pos3Like>::Scalar,
+            >();
+
+            if !cast_possible {
+                return Err(lox::io::Error::SinkIncompatible {
+                    prop: lox::io::PropKind::VertexPosition,
+                    source_type: N::TY,
+                });
+            }
+        };
+
+        let err_msg = format!(
+            "`set_vertex_position` called with unexpected primitive type '{{:?}}' \
+                that cannot be cast (in cast mode \"{}\") to the target type of the sink \
+                (this is most likely a bug in the source implementation as the type \
+                was not passed to `prepare_vertex_positions` before)",
+            cast_mode.to_str(),
+        );
+        let elem = quote! {
+            lox::prop::Pos3Like::convert(
+                &position.map(|s| {
+                    lox::cast::try_cast::<#cast_rigor, _, _>(s)
+                        .unwrap_or_else(|| panic!(#err_msg, N::TY))
+                })
+            )
+        };
+
+        (check, elem)
+    } else {
+        // "None" cast mode
+        let check = quote! {
+            if !lox::util::are_same_type::<N, <T::Output as lox::prop::Pos3Like>::Scalar>() {
+                return Err(lox::io::Error::SinkIncompatible {
+                    prop: lox::io::PropKind::VertexPosition,
+                    source_type: <N as lox::io::Primitive>::TY,
+                });
+            }
+        };
+
+        let err_msg = format!(
+            "`set_vertex_position` called with unexpected type '{{:?}}' \
+                that cannot be cast to the target type of the sink \
+                (this is most likely a bug in the source implementation as the type \
+                was not passed to `prepare_vertex_positions` before)",
+        );
+        let elem = quote! {
+            lox::prop::Pos3Like::map_scalar(&position, |s| {
+                lox::util::downcast_as(s).unwrap_or_else(|| panic!(#err_msg, N::TY))
+            })
+        };
+
+        (check, elem)
+    };
+
+    let field_name = &field.name;
+    let ty = &field.ty;
+    let prep_inner_call = quote_spanned!{ty.span()=>
+        _impl::<_, N>(&mut self.#field_name, count)
+    };
+    let set_inner_call = quote_spanned!{ty.span()=>
+        _impl::<_, N>(&mut self.#field_name, v, position)
+    };
+
+    quote! {
+        // TODO: add this back in. Currently, this is not possible
+        //       because associated type defaults are a bit broken.
+        // type VertexPosition = lox::io::util::OverwriteFor<
+        //     <
+        //         <#ty as std::ops::Index<lox::VertexHandle>>::Output as lox::prop::Pos3Like
+        //     >::Scalar
+        // >;
+
+        fn prepare_vertex_positions<N: lox::io::Primitive>(
+            &mut self,
+            count: lox::handle::hsize,
+        ) -> Result<(), lox::io::Error> {
+            fn _impl<T, N: lox::io::Primitive>(
+                map: &mut T,
+                count: lox::handle::hsize,
+            ) -> Result<(), lox::io::Error>
+            where
+                T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
+                T::Target: lox::prop::Pos3Like,
+            {
+                #check_code
+                map.reserve(count);
+                Ok(())
+            }
+
+            #prep_inner_call
+        }
+
+        fn set_vertex_position<N: lox::io::Primitive>(
+            &mut self,
+            v: lox::VertexHandle,
+            position: lox::cgmath::Point3<N>,
+        ) {
+            fn _impl<T, N: lox::io::Primitive>(
+                map: &mut T,
+                v: lox::VertexHandle,
+                position: lox::cgmath::Point3<N>,
+            )
+            where
+                T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
+                T::Target: lox::prop::Pos3Like,
+            {
+                map.insert(v, #new_elem_code);
+            }
+
+            #set_inner_call
         }
     }
 }

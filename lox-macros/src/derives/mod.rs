@@ -17,6 +17,7 @@ mod input;
 mod mem_sink;
 
 const DEFAULT_CAST_MODE: CastMode = CastMode::Lossless;
+const DEFAULT_CAST_MODE2: input::CastMode = input::CastMode::Lossless;
 
 /// Specifies whether casting colors (in "rounding" mode) is allowed when a
 /// casting mode is not explicitly specified.
