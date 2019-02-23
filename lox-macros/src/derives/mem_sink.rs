@@ -21,13 +21,17 @@ pub(in crate::derives) fn gen_impl(input: &Input) -> Result<TokenStream, Error> 
 
     // Vertex properties
     let vertex_position_code = input.vertex_position.as_ref()
-        .map(|f| gen_prop_code(f, "Vertex", "Position", global_cast_mode));
+        .map(|f| gen_prop_code(f, "Vertex", "Position", "Point3", "Pos3Like", global_cast_mode));
+    let vertex_normal_code = input.vertex_normal.as_ref()
+        .map(|f| gen_prop_code(f, "Vertex", "Normal", "Vector3", "Vec3Like", global_cast_mode));
     let vertex_color_code = input.vertex_color.as_ref()
         .map(|f| gen_color_prop_code(f, "Vertex", global_cast_mode));
 
     // Face properties
     let face_color_code = input.face_color.as_ref()
         .map(|f| gen_color_prop_code(f, "Face", global_cast_mode));
+    let face_normal_code = input.face_normal.as_ref()
+        .map(|f| gen_prop_code(f, "Face", "Normal", "Vector3", "Vec3Like", global_cast_mode));
 
 
     // Prepare stuff for impl header.
@@ -41,9 +45,9 @@ pub(in crate::derives) fn gen_impl(input: &Input) -> Result<TokenStream, Error> 
             // #finish_code
 
             #vertex_position_code
-            // #vertex_normal_code
+            #vertex_normal_code
             #vertex_color_code
-            // #face_normal_code
+            #face_normal_code
             #face_color_code
         }
     };
@@ -91,10 +95,21 @@ fn gen_mesh_code(field: &CoreMeshField) -> TokenStream {
 
 fn gen_prop_code(
     field: &PropField,
-    _elem: &str,
-    _prop: &str,
+    elem: &str,
+    prop: &str,
+    type_name: &str,
+    trait_name: &str,
     global_cast_mode: Option<CastMode>,
 ) -> TokenStream {
+    // Create idents
+    let elem_prop = ident!("{}{}", elem, prop);
+    let elem_handle = ident!("{}Handle", elem);
+    let prep_fn_name = ident!("prepare_{}_{}s", elem.to_lowercase(), prop.to_lowercase());
+    let set_fn_name = ident!("set_{}_{}", elem.to_lowercase(), prop.to_lowercase());
+    let prop_type = ident!("{}", type_name);
+    let trait_name = ident!("{}", trait_name);
+
+
     // Generate the code to check whether the supplied scalar type can be cast
     // into the target type, respecting the specified cast modes. Plus the code
     // to get the new item to be inserted into the map.
@@ -107,26 +122,28 @@ fn gen_prop_code(
             let cast_possible = lox::cast::is_cast_possible::<
                 #cast_rigor,
                 N,
-                <T::Output as lox::prop::Pos3Like>::Scalar,
+                <T::Output as lox::prop::#trait_name>::Scalar,
             >();
 
             if !cast_possible {
                 return Err(lox::io::Error::SinkIncompatible {
-                    prop: lox::io::PropKind::VertexPosition,
+                    prop: lox::io::PropKind::#elem_prop,
                     source_type: N::TY,
                 });
             }
         };
 
         let err_msg = format!(
-            "`set_vertex_position` called with unexpected primitive type '{{:?}}' \
+            "`{}` called with unexpected primitive type '{{:?}}' \
                 that cannot be cast (in cast mode \"{}\") to the target type of the sink \
                 (this is most likely a bug in the source implementation as the type \
-                was not passed to `prepare_vertex_positions` before)",
+                was not passed to `{}` before)",
+            set_fn_name,
             cast_mode.to_str(),
+            prep_fn_name,
         );
         let elem = quote! {
-            lox::prop::Pos3Like::convert(
+            lox::prop::#trait_name::convert(
                 &position.map(|s| {
                     lox::cast::try_cast::<#cast_rigor, _, _>(s)
                         .unwrap_or_else(|| panic!(#err_msg, N::TY))
@@ -138,9 +155,9 @@ fn gen_prop_code(
     } else {
         // "None" cast mode
         let check = quote! {
-            if !lox::util::are_same_type::<N, <T::Output as lox::prop::Pos3Like>::Scalar>() {
+            if !lox::util::are_same_type::<N, <T::Output as lox::prop::#trait_name>::Scalar>() {
                 return Err(lox::io::Error::SinkIncompatible {
-                    prop: lox::io::PropKind::VertexPosition,
+                    prop: lox::io::PropKind::#elem_prop,
                     source_type: <N as lox::io::Primitive>::TY,
                 });
             }
@@ -153,7 +170,7 @@ fn gen_prop_code(
                 was not passed to `prepare_vertex_positions` before)",
         );
         let elem = quote! {
-            lox::prop::Pos3Like::map_scalar(&position, |s| {
+            lox::prop::#trait_name::map_scalar(&position, |s| {
                 lox::util::downcast_as(s).unwrap_or_else(|| panic!(#err_msg, N::TY))
             })
         };
@@ -171,15 +188,9 @@ fn gen_prop_code(
     };
 
     quote! {
-        // TODO: add this back in. Currently, this is not possible
-        //       because associated type defaults are a bit broken.
-        // type VertexPosition = lox::io::util::OverwriteFor<
-        //     <
-        //         <#ty as std::ops::Index<lox::VertexHandle>>::Output as lox::prop::Pos3Like
-        //     >::Scalar
-        // >;
+        // TODO: overwrite type wish
 
-        fn prepare_vertex_positions<N: lox::io::Primitive>(
+        fn #prep_fn_name<N: lox::io::Primitive>(
             &mut self,
             count: lox::handle::hsize,
         ) -> Result<(), lox::io::Error> {
@@ -188,8 +199,8 @@ fn gen_prop_code(
                 count: lox::handle::hsize,
             ) -> Result<(), lox::io::Error>
             where
-                T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
-                T::Target: lox::prop::Pos3Like,
+                T: lox::map::PropStoreMut<lox::handle::#elem_handle>,
+                T::Target: lox::prop::#trait_name,
             {
                 #check_code
                 map.reserve(count);
@@ -199,19 +210,19 @@ fn gen_prop_code(
             #prep_inner_call
         }
 
-        fn set_vertex_position<N: lox::io::Primitive>(
+        fn #set_fn_name<N: lox::io::Primitive>(
             &mut self,
-            v: lox::VertexHandle,
-            position: lox::cgmath::Point3<N>,
+            v: lox::#elem_handle,
+            position: lox::cgmath::#prop_type<N>,
         ) {
             fn _impl<T, N: lox::io::Primitive>(
                 map: &mut T,
-                v: lox::VertexHandle,
-                position: lox::cgmath::Point3<N>,
+                v: lox::#elem_handle,
+                position: lox::cgmath::#prop_type<N>,
             )
             where
-                T: lox::map::PropStoreMut<lox::handle::VertexHandle>,
-                T::Target: lox::prop::Pos3Like,
+                T: lox::map::PropStoreMut<lox::handle::#elem_handle>,
+                T::Target: lox::prop::#trait_name,
             {
                 map.insert(v, #new_elem_code);
             }
