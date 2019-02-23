@@ -14,24 +14,19 @@ use super::{
 
 
 pub(in crate::derives) fn gen_impl(input: &Input) -> Result<TokenStream, Error> {
-    macro_rules! maybe_field {
-        ($field:ident, |$f:ident| $body:expr) => {
-            input.$field
-                .as_ref()
-                .map(|$f| $body)
-                .unwrap_or(TokenStream::new())
-        }
-    }
+    let global_cast_mode = input.cast_mode.as_ref().map(|m| m.mode);
 
+    // Core mesh
     let mesh_code = gen_mesh_code(&input.core_mesh);
 
-    let global_cast_mode = input.cast_mode.as_ref().map(|m| m.mode);
-    let vertex_color_code = maybe_field!(vertex_color, |f| {
-        gen_color_prop_code(f, "Vertex", global_cast_mode)
-    });
-    let face_color_code = maybe_field!(face_color, |f| {
-        gen_color_prop_code(f, "Face", global_cast_mode)
-    });
+    // Vertex properties
+    let vertex_color_code = input.vertex_color.as_ref()
+        .map(|f| gen_color_prop_code(f, "Vertex", global_cast_mode));
+
+    // Face properties
+    let face_color_code = input.face_color.as_ref()
+        .map(|f| gen_color_prop_code(f, "Face", global_cast_mode));
+
 
     // Prepare stuff for impl header.
     let name = &input.name;
