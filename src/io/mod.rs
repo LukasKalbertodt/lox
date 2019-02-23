@@ -46,7 +46,7 @@ use crate::{
     prop::{ColorLike, PrimitiveColorChannel, Pos3Like},
     sealed::Sealed,
     traits::Empty,
-    util::MeshSizeHint,
+    util::{downcast_as, MeshSizeHint},
 };
 use self::{
     parse::ParseError,
@@ -605,8 +605,10 @@ pub trait Primitive: PrimitiveNum + Sealed {
     ///
     /// This method is useful to convert a generic value into a value of a
     /// specific type.
+    ///
+    /// TODO: remove and replace all uses by `util::downcast_as`.
     fn downcast_as<T: Primitive>(self) -> Option<T> {
-        DowncastAs::downcast_as(self)
+        downcast_as(self)
     }
 }
 
@@ -617,12 +619,6 @@ macro_rules! impl_primitive {
             const TY: PrimitiveType = PrimitiveType::$variant;
             fn to_primitive_value(&self) -> PrimitiveValue {
                 PrimitiveValue::$variant(*self)
-            }
-        }
-
-        impl DowncastAs<$ty> for $ty {
-            fn downcast_as(self) -> Option<$ty> {
-                Some(self)
             }
         }
     }
@@ -637,17 +633,6 @@ impl_primitive!(i32, Int32);
 impl_primitive!(f32, Float32);
 impl_primitive!(f64, Float64);
 
-/// A helper trait to implement [`Primitive::downcast_as`].
-trait DowncastAs<Target: Primitive> {
-    fn downcast_as(self) -> Option<Target>;
-}
-
-// The default impl returns `None`. Specific impls will overwrite that.
-impl<Source: Primitive, Target: Primitive> DowncastAs<Target> for Source {
-    default fn downcast_as(self) -> Option<Target> {
-        None
-    }
-}
 
 /// Specific color type used in IO traits. Alpha is optional.
 #[derive(Clone, Copy, Debug)]
