@@ -315,6 +315,27 @@ impl MeshSizeHint {
     }
 }
 
+/// Returns `true` if both given types are the same type, `false` otherwise.
+///
+/// The types are required to be `'static` because comparing lifetimes for
+/// equality is tricky. In particular because this function is implemented
+/// using specialization which has known soundness holes regarding lifetimes.
+pub fn are_same_type<T: 'static, U: 'static>() -> bool {
+    trait SameType {
+        const ANSWER: bool;
+    }
+
+    impl<T: 'static, U: 'static> SameType for (T, U) {
+        default const ANSWER: bool = false;
+    }
+
+    impl<T: 'static> SameType for (T, T) {
+        const ANSWER: bool = true;
+    }
+
+    <(T, U) as SameType>::ANSWER
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -367,5 +388,17 @@ mod tests {
         assert_eq!(l.iter().collect::<Vec<_>>(), [&"c"]);
         assert_eq!(l.into_iter().collect::<Vec<_>>(), ["c"]);
 
+    }
+
+    #[test]
+    fn test_are_same_type() {
+        assert!(are_same_type::<u32, u32>());
+        assert!(are_same_type::<i32, i32>());
+        assert!(are_same_type::<String, String>());
+        assert!(are_same_type::<bool, bool>());
+
+        assert!(!are_same_type::<u32, i32>());
+        assert!(!are_same_type::<u32, String>());
+        assert!(!are_same_type::<bool, String>());
     }
 }
