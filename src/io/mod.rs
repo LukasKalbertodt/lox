@@ -847,7 +847,7 @@ pub trait MemSink {
     /// Informs the sink that the source will provide at least `count` many
     /// vertex colors with the color channel type `C`. `alpha` specified
     /// whether the provided colors will have an alpha channel.
-    fn prepare_vertex_colors<C: PrimitiveColorChannel>(
+    fn prepare_vertex_colors<C: PrimitiveColorChannel + Primitive>(
         &mut self,
         _count: hsize,
         _alpha: bool,
@@ -856,7 +856,7 @@ pub trait MemSink {
     }
 
     /// Sets the color (with color channel type `C`) of the vertex `v`.
-    fn set_vertex_color<C: PrimitiveColorChannel>(
+    fn set_vertex_color<C: PrimitiveColorChannel + Primitive>(
         &mut self,
         _v: VertexHandle,
         _color: Color<C>,
@@ -885,7 +885,7 @@ pub trait MemSink {
     /// Informs the sink that the source will provide at least `count` many
     /// face colors with the color channel type `C`. `alpha` specified whether
     /// the provided colors will have an alpha channel.
-    fn prepare_face_colors<C: PrimitiveColorChannel>(
+    fn prepare_face_colors<C: PrimitiveColorChannel + Primitive>(
         &mut self,
         _count: hsize,
         _alpha: bool,
@@ -894,7 +894,7 @@ pub trait MemSink {
     }
 
     /// Sets the color (with color channel type `C`) of the face `f`.
-    fn set_face_color<C: PrimitiveColorChannel>(
+    fn set_face_color<C: PrimitiveColorChannel + Primitive>(
         &mut self,
         _f: FaceHandle,
         _color: Color<C>,
