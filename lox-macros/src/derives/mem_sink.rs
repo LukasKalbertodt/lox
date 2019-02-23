@@ -102,11 +102,11 @@ fn gen_color_prop_code(
     global_cast_mode: Option<CastMode>,
 ) -> TokenStream {
     // Create idents
-    let elem_color = Ident::new(&format!("{}Color", elem), Span::call_site());
-    let elem_handle = Ident::new(&format!("{}Handle", elem), Span::call_site());
+    let elem_color = ident!("{}Color", elem);
+    let elem_handle = ident!("{}Handle", elem);
     let elem = elem.to_lowercase();
-    let prep_fn_name = Ident::new(&format!("prepare_{}_colors", elem), Span::call_site());
-    let set_fn_name = Ident::new(&format!("set_{}_color", elem), Span::call_site());
+    let prep_fn_name = ident!("prepare_{}_colors", elem);
+    let set_fn_name = ident!("set_{}_color", elem);
 
     // The code to check whether the supplied color channel type can be cast
     // into the target type, respecting the specified cast modes. Plus the code

@@ -14,6 +14,14 @@ macro_rules! bail {
     }
 }
 
+/// Works like `format!` but creates an `Ident` with `Span::call_site()`
+/// instead of a `String`.
+macro_rules! ident {
+    ($($t:tt)*) => {
+        Ident::new(&format!($($t)*), Span::call_site())
+    }
+}
+
 
 pub(crate) fn struct_fields(
     input: &syn::DeriveInput,
