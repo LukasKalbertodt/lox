@@ -108,22 +108,42 @@ fn gen_color_prop_code(
     let prep_fn_name = Ident::new(&format!("prepare_{}_colors", elem), Span::call_site());
     let set_fn_name = Ident::new(&format!("set_{}_color", elem), Span::call_site());
 
-    // The code to check whether the supplied color channel type can be casted
-    // into the target type, respecting the specified cast modes.
+    // The code to check whether the supplied color channel type can be cast
+    // into the target type, respecting the specified cast modes. Plus the code
+    // to get the new item to be inserted into the map.
     let rounding_allowed = field.allow_cast
         .or_else(|| global_cast_mode.map(|m| m.is_rounding_allowed()))
         .unwrap_or(DEFAULT_COLOR_CAST_ALLOWED);
-    let check_type = if rounding_allowed {
-        quote! {}
+    let (check_type, new_value) = if rounding_allowed {
+        (
+            quote! {},
+            quote! { lox::prop::ColorLike::cast(&color) },
+        )
     } else {
-        quote! {
+        let check = quote! {
             if !lox::util::are_same_type::<C, <T::Output as lox::prop::ColorLike>::Channel>() {
                 return Err(lox::io::Error::SinkIncompatible {
                     prop: lox::io::PropKind::#elem_color,
                     source_type: <C as lox::io::Primitive>::TY,
                 });
             }
-        }
+        };
+
+        let err_msg = format!(
+            "`set_{}_color` called with unexpected color channel type '{{:?}}' \
+                that cannot be cast to the target color channel type of the sink \
+                (this is most likely a bug in the source implementation as the type \
+                was not passed to `prepare_{}_colors` before)",
+            elem,
+            elem,
+        );
+        let value = quote! {
+            lox::prop::ColorLike::map_channel(&color, |c| {
+                c.downcast_as().unwrap_or_else(|| panic!(#err_msg, C::TY))
+            })
+        };
+
+        (check, value)
     };
 
     // Prepare the code calling the inner functions. These have different spans
@@ -176,9 +196,10 @@ fn gen_color_prop_code(
             )
             where
                 T: lox::map::PropStoreMut<lox::handle::#elem_handle>,
-                T::Output: lox::prop::ColorLike,
+                T::Target: lox::prop::ColorLike,
+                <T::Target as lox::prop::ColorLike>::Channel: lox::io::Primitive,
             {
-                map.insert(v, lox::prop::ColorLike::cast(&color));
+                map.insert(v, #new_value);
             }
 
             #set_inner_call
