@@ -263,13 +263,27 @@ pub trait ColorLike: Copy {
     /// the same as `Self`. Thus you have to rely on type inference or
     /// explicitly annotate the type.
     fn cast<T: ColorLike>(&self) -> T {
+        self.map_channel(T::Channel::color_cast_from)
+    }
+
+    /// Maps all channels with the given function and creates a new value of
+    /// type `T`.
+    ///
+    /// Sadly Rust can't handle HKTs yet, so this method is a bit shitty. It
+    /// would be nice to only map the scalars and not change the outer type.
+    /// But since that's not possible, the output is not `Self<_>`, but this
+    /// `T`. So you probably have to use type annotations somewhere.
+    ///
+    /// If this color has an alpha channel, it is mapped as well and the output
+    /// color is created via `from_rgba`.
+    fn map_channel<T: ColorLike>(&self, mut f: impl FnMut(Self::Channel) -> T::Channel) -> T {
         let [r, g, b] = [
-            T::Channel::color_cast_from(self.red()),
-            T::Channel::color_cast_from(self.green()),
-            T::Channel::color_cast_from(self.blue())
+            f(self.red()),
+            f(self.green()),
+            f(self.blue())
         ];
         if let Some(a) = self.alpha() {
-            T::from_rgba(r, g, b, T::Channel::color_cast_from(a))
+            T::from_rgba(r, g, b, f(a))
         } else {
             T::from_rgb(r, g, b)
         }
