@@ -3,12 +3,12 @@ use proc_macro2::{
     TokenStream, Span,
 };
 use syn::{
-    Attribute, DeriveInput, Error, Ident, Type, Meta, NestedMeta, Lit,
+    Attribute, DeriveInput, Error, Ident, Type, Meta, NestedMeta, Lit, Generics,
     spanned::Spanned,
 };
 
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)] // TODO
 pub(crate) enum CastMode {
     None,
@@ -29,12 +29,22 @@ impl CastMode {
             _ => None
         }
     }
+
+    pub(crate) fn is_rounding_allowed(&self) -> bool {
+        match self {
+            CastMode::None => false,
+            CastMode::Lossless => false,
+            CastMode::Clamping => false,
+            CastMode::Rounding => true,
+            CastMode::Lossy => true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
-struct SpannedCastMode {
-    span: Span,
-    mode: CastMode,
+pub(crate) struct SpannedCastMode {
+    pub(crate) span: Span,
+    pub(crate) mode: CastMode,
 }
 
 impl SpannedCastMode {
@@ -68,30 +78,41 @@ impl SpannedCastMode {
 
 #[derive(Debug)]
 pub(crate) struct CoreMeshField {
-    span: Span,
-    name: Option<Ident>,
-    ty: Type,
+    pub(crate) span: Span,
+    pub(crate) name: Option<Ident>,
+    pub(crate) ty: Type,
 }
 
 #[derive(Debug)]
+pub(crate) struct ColorPropField {
+    pub(crate) allow_cast: Option<bool>,
+    pub(crate) span: Span,
+    pub(crate) name: Option<Ident>,
+    pub(crate) ty: Type,
+}
+
+
+#[derive(Debug)]
 pub(crate) struct PropField {
-    cast_mode: Option<SpannedCastMode>,
-    span: Span,
-    name: Option<Ident>,
-    ty: Type,
+    pub(crate) cast_mode: Option<SpannedCastMode>,
+    pub(crate) span: Span,
+    pub(crate) name: Option<Ident>,
+    pub(crate) ty: Type,
 }
 
 #[derive(Debug)]
 #[allow(dead_code)] // TODO
 pub(crate) struct Input {
-    cast_mode: Option<SpannedCastMode>,
-    name: Ident,
-    core_mesh: CoreMeshField,
-    vertex_position: Option<PropField>,
-    vertex_normal: Option<PropField>,
-    vertex_color: Option<PropField>,
-    face_normal: Option<PropField>,
-    face_color: Option<PropField>,
+    pub(crate) cast_mode: Option<SpannedCastMode>,
+    pub(crate) name: Ident,
+    pub(crate) generics: Generics,
+
+    pub(crate) core_mesh: CoreMeshField,
+    pub(crate) vertex_position: Option<PropField>,
+    pub(crate) vertex_normal: Option<PropField>,
+    pub(crate) vertex_color: Option<ColorPropField>,
+    pub(crate) face_normal: Option<PropField>,
+    pub(crate) face_color: Option<ColorPropField>,
 }
 
 impl Input {
@@ -134,6 +155,31 @@ impl Input {
                 }}
             }
 
+            macro_rules! set_color_field {
+                ($field:ident, $attrs:ident) => {{
+                    if let Some(mode) = $attrs.cast_mode {
+                        match mode.mode {
+                            CastMode::Clamping | CastMode::Lossy | CastMode::Lossless => {
+                                bail!(
+                                    mode.span,
+                                    "invalid cast mode for color property (only \"none\" and \
+                                        \"rounding\" are allowed)",
+                                );
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    check_dupe!($field);
+                    $field = Some(ColorPropField {
+                        allow_cast: $attrs.cast_mode.map(|m| m.mode == CastMode::Rounding),
+                        span: f.span(),
+                        name: f.ident.clone(),
+                        ty: f.ty.clone(),
+                    });
+                }}
+            }
+
             let attrs = parse_field_attrs(&f.attrs)?;
             if let Some(purpose) = attrs.purpose {
                 match purpose {
@@ -156,9 +202,9 @@ impl Input {
                     }
                     FieldPurpose::VertexPosition => set_prop_field!(vertex_position, attrs),
                     FieldPurpose::VertexNormal => set_prop_field!(vertex_normal, attrs),
-                    FieldPurpose::VertexColor => set_prop_field!(vertex_color, attrs),
+                    FieldPurpose::VertexColor => set_color_field!(vertex_color, attrs),
                     FieldPurpose::FaceNormal => set_prop_field!(face_normal, attrs),
-                    FieldPurpose::FaceColor => set_prop_field!(face_color, attrs),
+                    FieldPurpose::FaceColor => set_color_field!(face_color, attrs),
                 }
 
             } else {
@@ -187,6 +233,7 @@ impl Input {
         Ok(Input {
             cast_mode: struct_attrs.cast_mode,
             name: input.ident.clone(),
+            generics: input.generics.clone(),
             core_mesh,
             vertex_position,
             vertex_normal,
