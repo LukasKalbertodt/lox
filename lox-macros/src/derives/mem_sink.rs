@@ -201,3 +201,15 @@ fn gen_color_prop_code(
         }
     }
 }
+
+/// Returns a path to the cast rigor type in `lox` corresponding to the given
+/// cast mode.
+fn rigor_tokens(mode: CastMode) -> Option<TokenStream> {
+    match mode {
+        CastMode::None => None,
+        CastMode::Lossless => Some(quote! { lox::cast::Lossless }),
+        CastMode::Clamping => Some(quote! { lox::cast::AllowClamping }),
+        CastMode::Rounding => Some(quote! { lox::cast::AllowRounding }),
+        CastMode::Lossy => Some(quote! { lox::cast::Lossy }),
+    }
+}

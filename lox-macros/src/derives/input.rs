@@ -30,6 +30,16 @@ impl CastMode {
         }
     }
 
+    pub(crate) fn to_str(&self) -> &'static str {
+        match self {
+            CastMode::None => "none",
+            CastMode::Lossless => "lossless",
+            CastMode::Clamping => "clamping",
+            CastMode::Rounding => "rounding",
+            CastMode::Lossy => "lossy",
+        }
+    }
+
     pub(crate) fn is_rounding_allowed(&self) -> bool {
         match self {
             CastMode::None => false,
