@@ -33,6 +33,8 @@ pub(in crate::derives) fn gen_impl(input: &Input) -> Result<TokenStream, Error> 
     let face_normal_code = input.face_normal.as_ref()
         .map(|f| gen_prop_code(f, "Face", "Normal", "Vector3", "Vec3Like", global_cast_mode));
 
+    // The `finish()` method
+    let finish_code = gen_finish_code(input);
 
     // Prepare stuff for impl header.
     let name = &input.name;
@@ -42,7 +44,7 @@ pub(in crate::derives) fn gen_impl(input: &Input) -> Result<TokenStream, Error> 
     let out = quote! {
         impl #impl_generics lox::io::MemSink for #name #ty_generics #where_clause {
             #mesh_code
-            // #finish_code
+            #finish_code
 
             #vertex_position_code
             #vertex_normal_code
@@ -89,6 +91,62 @@ fn gen_mesh_code(field: &CoreMeshField) -> TokenStream {
         }
         fn size_hint(&mut self, hint: lox::util::MeshSizeHint) {
             #size_hint
+        }
+    }
+}
+
+fn gen_finish_code(input: &Input) -> TokenStream {
+    fn gen_check(field_name: &Ident, prop_name: &str, expected: &Ident) -> TokenStream {
+        let err_msg = format!("missing {} ({{}} provided, {{}} expected)", prop_name);
+        quote! {
+            // We only have to check for the case where the number of
+            // properties is less than the number of elements in the mesh. It
+            // can't be more because the source can only add properties for
+            // each handle returned by the mesh.
+            if lox::map::PropStore::num_props(&self.#field_name) < #expected {
+                let msg = format!(
+                    #err_msg,
+                    lox::map::PropStore::num_props(&self.#field_name),
+                    #expected,
+                );
+                return Err(lox::io::Error::DataIncomplete(msg));
+            }
+        }
+    }
+
+
+    // Generate on check for each field that is present
+    let num_vertices = ident!("_num_vertices");
+    let num_faces = ident!("_num_faces");
+
+    let vertex_position = input.vertex_position.as_ref()
+        .map(|f| gen_check(f.name.as_ref().unwrap(), "vertex positions", &num_vertices));
+    let vertex_normal = input.vertex_normal.as_ref()
+        .map(|f| gen_check(f.name.as_ref().unwrap(), "vertex normals", &num_vertices));
+    let vertex_color = input.vertex_color.as_ref()
+        .map(|f| gen_check(f.name.as_ref().unwrap(), "vertex colors", &num_vertices));
+    let face_normal = input.face_normal.as_ref()
+        .map(|f| gen_check(f.name.as_ref().unwrap(), "face normals", &num_faces));
+    let face_color = input.face_color.as_ref()
+        .map(|f| gen_check(f.name.as_ref().unwrap(), "face colors", &num_faces));
+
+    // Combine everything
+    let mesh_field_name = &input.core_mesh.name;
+    quote! {
+        fn finish(&mut self) -> Result<(), lox::io::Error> {
+            // We start the names with underscores in case the sink doesn't
+            // have any properties (for one elem) which would mean no checking
+            // code is generated which would cause a "unused variable" warning.
+            let _num_vertices = lox::traits::Mesh::num_vertices(&self.#mesh_field_name);
+            let _num_faces = lox::traits::Mesh::num_faces(&self.#mesh_field_name);
+
+            #vertex_position
+            #vertex_normal
+            #vertex_color
+            #face_normal
+            #face_color
+
+            Ok(())
         }
     }
 }
