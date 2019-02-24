@@ -1,4 +1,3 @@
-use cgmath::Point3;
 use failure::Error;
 
 #[allow(unused_imports)]
@@ -6,11 +5,13 @@ use lox::{
     MemSink,
     algo,
     ds::{FaceDelegateMesh, SharedVertexMesh, HalfEdgeMesh},
+    fat::MiniMesh,
     io::ply,
     map::VecMap,
     prelude::*,
 };
 
+type MyMesh = MiniMesh<FaceDelegateMesh>;
 
 fn main() -> Result<(), Error> {
     // Read CLI arguments
@@ -23,39 +24,4 @@ fn main() -> Result<(), Error> {
     ply::write(&output_file, &m)?;
 
     Ok(())
-}
-
-
-#[derive(Empty, MemSink)]
-struct MyMesh {
-    mesh: HalfEdgeMesh,
-    vertex_positions: VecMap<VertexHandle, Point3<f32>>,
-}
-
-
-
-
-
-
-
-
-
-
-// --- This stuff is boilerplate code that won't be necessary in the future ---
-
-use lox::{
-    io::{MemSource, PrimitiveType, Primitive},
-};
-
-impl MemSource for MyMesh {
-    type CoreMesh = HalfEdgeMesh;
-    fn core_mesh(&self) -> &Self::CoreMesh {
-        &self.mesh
-    }
-    fn vertex_position_type(&self) -> Option<PrimitiveType> {
-        Some(PrimitiveType::Float32)
-    }
-    fn vertex_position<T: Primitive>(&self, v: VertexHandle) -> Point3<T> {
-        self.vertex_positions[v].map(|s| T::from(s).unwrap())
-    }
 }

@@ -8,9 +8,16 @@
 fn disc4() {
     #[derive(lox::Empty, lox::MemSink)]
     struct MyMesh {
+        #[lox(core_mesh)]
         mesh: lox::ds::FaceDelegateMesh,
+
+        #[lox(vertex_position)]
         vertex_positions: lox::map::VecMap<lox::VertexHandle, lox::cgmath::Point3<f32>>,
+
+        #[lox(vertex_normal)]
         vertex_normals: lox::map::VecMap<lox::VertexHandle, lox::cgmath::Vector3<f32>>,
+
+        #[lox(face_normal)]
         face_normals: lox::map::VecMap<lox::FaceHandle, lox::cgmath::Vector3<f32>>,
     }
 
