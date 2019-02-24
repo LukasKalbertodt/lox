@@ -1,10 +1,10 @@
-#[allow(unused_imports)] // TODO
-use proc_macro2::{
-    TokenStream, Span,
-};
+//! Contains function to generate the `impl MemSink` for a type. Main function
+//! is `gen_impl`.
+
+use proc_macro2::{TokenStream, Span};
 use quote::{quote, quote_spanned};
 use syn::{
-    Error, Ident,
+    Ident,
     spanned::Spanned,
 };
 use super::{
@@ -13,7 +13,9 @@ use super::{
 };
 
 
-pub(crate) fn gen_impl(input: &Input) -> Result<TokenStream, Error> {
+/// Generates an `impl MemSink` block for the type defined by `input`. This is
+/// the main function for `derive(MemSink)`.
+pub(crate) fn gen_impl(input: &Input) -> TokenStream {
     let global_cast_mode = input.cast_mode.as_ref().map(|m| m.mode);
 
     // Core mesh
@@ -41,7 +43,7 @@ pub(crate) fn gen_impl(input: &Input) -> Result<TokenStream, Error> {
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
     // Combine everything.
-    let out = quote! {
+    quote! {
         impl #impl_generics lox::io::MemSink for #name #ty_generics #where_clause {
             #mesh_code
             #finish_code
@@ -52,9 +54,7 @@ pub(crate) fn gen_impl(input: &Input) -> Result<TokenStream, Error> {
             #face_normal_code
             #face_color_code
         }
-    };
-
-    Ok(out)
+    }
 }
 
 
@@ -95,6 +95,7 @@ fn gen_mesh_code(field: &CoreMeshField) -> TokenStream {
     }
 }
 
+/// Generates the code for `finish()`.
 fn gen_finish_code(input: &Input) -> TokenStream {
     fn gen_check(field_name: &Ident, prop_name: &str, expected: &Ident) -> TokenStream {
         let err_msg = format!("missing {} ({{}} provided, {{}} expected)", prop_name);
@@ -151,6 +152,14 @@ fn gen_finish_code(input: &Input) -> TokenStream {
     }
 }
 
+/// Generates the code for `prepare_*` and `set_*` for a given position or
+/// normal field.
+///
+/// The string parameters work as follows (the case is important!):
+/// - `elem`: either `"Face"` or `"Vertex"`
+/// - `prop`: either `"Position"` or `"Normal"`
+/// - `type_name`: `"Point3"` for positions, `"Vector3"` for normals
+/// - `trait_name`: `"Pos3Like"` for positions, `"Vec3Like"` for normals
 fn gen_prop_code(
     field: &PropField,
     elem: &str,
@@ -236,6 +245,10 @@ fn gen_prop_code(
         (check, elem)
     };
 
+
+    // Prepare the code calling the inner functions. These have different spans
+    // to improve error messages if the field's type does not satisfy the trait
+    // bounds.
     let field_name = &field.name;
     let ty = &field.ty;
     let prep_inner_call = quote_spanned!{ty.span()=>
@@ -245,6 +258,7 @@ fn gen_prop_code(
         _impl::<_, N>(&mut self.#field_name, v, position)
     };
 
+    // Combine everything
     quote! {
         // TODO: overwrite type wish
 

@@ -1,3 +1,5 @@
+//! Contains all code for custom derives.
+
 use quote::{quote, quote_spanned};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{
@@ -20,6 +22,7 @@ const DEFAULT_CAST_MODE: input::CastMode = input::CastMode::Lossless;
 const DEFAULT_COLOR_CAST_ALLOWED: bool = true;
 
 
+/// Generates the `impl Empty` code for the given input type definition.
 pub(crate) fn derive_empty(input: &DeriveInput) -> Result<TokenStream2, Error> {
     // Make sure this is a struct and pull out the fields.
     let fields = struct_fields(&input, "only structs can derive `Empty`")?;

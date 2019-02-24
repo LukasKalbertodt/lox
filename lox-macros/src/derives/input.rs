@@ -1,15 +1,20 @@
-#[allow(unused_imports)] // TODO
-use proc_macro2::{
-    TokenStream, Span,
-};
+//! Contains functionality to go from a raw `syn::DeriveInput` to a more high
+//! level and useful representation of the input type definition.
+//!
+//! The main symbol of this module is `Input` and `Input::from_syn`.
+
+use proc_macro2::Span;
 use syn::{
     Attribute, DeriveInput, Error, Ident, Type, Meta, NestedMeta, Lit, Generics,
     spanned::Spanned,
 };
 
 
+/// The different cast modes that users can specify for properties.
+///
+/// `None` means no casting allowed at all, all other variants correspond to
+/// the cast rigors in `lox::cast`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)] // TODO
 pub(crate) enum CastMode {
     None,
     Lossless,
@@ -19,6 +24,8 @@ pub(crate) enum CastMode {
 }
 
 impl CastMode {
+    /// Returns the cast mode corresponding to the input string or `None` if
+    /// the string is invalid.
     fn from_str(s: &str) -> Option<Self> {
         match s {
             "none" => Some(CastMode::None),
@@ -30,6 +37,7 @@ impl CastMode {
         }
     }
 
+    /// Returns the input string corresponding to this cast mode.
     pub(crate) fn to_str(&self) -> &'static str {
         match self {
             CastMode::None => "none",
@@ -40,6 +48,7 @@ impl CastMode {
         }
     }
 
+    /// Returns whether or not rounding is allowed by this mode.
     pub(crate) fn is_rounding_allowed(&self) -> bool {
         match self {
             CastMode::None => false,
@@ -51,6 +60,7 @@ impl CastMode {
     }
 }
 
+/// A cast mode with its span.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct SpannedCastMode {
     pub(crate) span: Span,
@@ -58,7 +68,9 @@ pub(crate) struct SpannedCastMode {
 }
 
 impl SpannedCastMode {
+    /// Tries to parse the cast mode from the given attribute.
     fn from_attr(ident: &Ident, lit: Option<&Lit>) -> Result<SpannedCastMode, Error> {
+        // Extract string literal (or error if it's something else)
         let lit = match lit {
             Some(Lit::Str(lit)) => lit,
             Some(lit) => bail!(
@@ -68,6 +80,7 @@ impl SpannedCastMode {
             None => bail!(ident.span(), "expected value (e.g. `cast = \"lossy\"`)"),
         };
 
+        // Check if the string is a correct cast mode
         let value = lit.value();
         match CastMode::from_str(&value) {
             Some(mode) => {
@@ -86,6 +99,7 @@ impl SpannedCastMode {
     }
 }
 
+/// The field used as the core mesh.
 #[derive(Debug)]
 pub(crate) struct CoreMeshField {
     pub(crate) span: Span,
@@ -93,8 +107,11 @@ pub(crate) struct CoreMeshField {
     pub(crate) ty: Type,
 }
 
+/// A field containing a color property.
 #[derive(Debug)]
 pub(crate) struct ColorPropField {
+    /// If `cast = ` is specified, this is `true` for `cast = "rounding"` and
+    /// `false` for `cast = "none"`.
     pub(crate) allow_cast: Option<bool>,
     pub(crate) span: Span,
     pub(crate) name: Ident,
@@ -102,6 +119,7 @@ pub(crate) struct ColorPropField {
 }
 
 
+/// A field containing a non-color property.
 #[derive(Debug)]
 pub(crate) struct PropField {
     pub(crate) cast_mode: Option<SpannedCastMode>,
@@ -110,9 +128,15 @@ pub(crate) struct PropField {
     pub(crate) ty: Type,
 }
 
+/// A higher level description of the type that a trait is derived for.
+///
+/// This type contains exactly the information needed by `derive(MemSink)` or
+/// `derive(MemSource)` in a way that's easy to use. This makes the code
+/// generation code much simpler than if it would use `syn::DeriveInput`
+/// directly.
 #[derive(Debug)]
-#[allow(dead_code)] // TODO
 pub(crate) struct Input {
+    /// The global cast mode, directly specified on the struct definition.
     pub(crate) cast_mode: Option<SpannedCastMode>,
     pub(crate) name: Ident,
     pub(crate) generics: Generics,
@@ -126,17 +150,17 @@ pub(crate) struct Input {
 }
 
 impl Input {
-    pub(crate) fn from_syn(input: &DeriveInput, derive: &str) -> Result<Self, Error> {
-        // Parse the attributes ofthe struct
+    pub(crate) fn from_syn(input: &DeriveInput, derive_name: &str) -> Result<Self, Error> {
+        // Parse the attributes of the struct
         let struct_attrs = parse_struct_attrs(&input.attrs)?;
-
 
         // Make sure the input is a struct and extract the fields from it
         let fields = match &input.data {
             syn::Data::Struct(s) => &s.fields,
-            _ => bail!(input.span(), "only structs can derive `{}`", derive),
+            _ => bail!(input.span(), "only structs can derive `{}`", derive_name),
         };
 
+        // Iterate through all fields and store important ones
         let mut core_mesh = None;
         let mut vertex_position = None;
         let mut vertex_normal = None;
@@ -150,7 +174,7 @@ impl Input {
                 let msg = format!(
                     "unit structs are currently not supported by `derive({})` (use a normal \
                         struct with named fields instead)",
-                    derive,
+                    derive_name,
                 );
                 Error::new(input.span(), msg)
             })?;
@@ -238,6 +262,7 @@ impl Input {
             }
         }
 
+        // Make sure a `core_mesh` field is present (only required field)
         let core_mesh = match core_mesh {
             Some(m) => m,
             None => {
@@ -245,7 +270,7 @@ impl Input {
                     input.ident.span(),
                     "no `core_mesh` field found, but a core mesh is required for `derive({})` \
                         (maybe you forgot to annotate `#[lox(core_mesh)]`?)",
-                    derive,
+                    derive_name,
                 );
             }
         };
@@ -264,6 +289,7 @@ impl Input {
     }
 }
 
+/// What a field is used for (annotated with `#[lox(...)]`)
 #[derive(Debug, Copy, Clone)]
 #[allow(dead_code)]
 enum FieldPurpose {
@@ -276,6 +302,8 @@ enum FieldPurpose {
 }
 
 impl FieldPurpose {
+    /// Returns the keyword that has to be used by the user to annotate this
+    /// purpose.
     fn keyword(&self) -> &'static str {
         match self {
             FieldPurpose::CoreMesh => "core_mesh",
@@ -288,7 +316,7 @@ impl FieldPurpose {
     }
 }
 
-/// All attributes we accept on a struct directly.
+/// All attributes we accept on a struct field.
 #[derive(Debug)]
 struct FieldAttrs {
     cast_mode: Option<SpannedCastMode>,
