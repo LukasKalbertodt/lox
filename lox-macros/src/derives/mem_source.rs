@@ -25,16 +25,16 @@ pub(crate) fn gen_impl(input: &Input) -> TokenStream {
     // Vertex properties
     let vertex_position_code = input.vertex_position.as_ref()
         .map(|f| gen_prop_code(f, "Vertex", "Position", "Point3", "Pos3Like", global_cast_mode));
-    // let vertex_normal_code = input.vertex_normal.as_ref()
-    //     .map(|f| gen_prop_code(f, "Vertex", "Normal", "Vector3", "Vec3Like", global_cast_mode));
+    let vertex_normal_code = input.vertex_normal.as_ref()
+        .map(|f| gen_prop_code(f, "Vertex", "Normal", "Vector3", "Vec3Like", global_cast_mode));
     // let vertex_color_code = input.vertex_color.as_ref()
     //     .map(|f| gen_color_prop_code(f, "Vertex", global_cast_mode));
 
-    // // Face properties
+    // Face properties
+    let face_normal_code = input.face_normal.as_ref()
+        .map(|f| gen_prop_code(f, "Face", "Normal", "Vector3", "Vec3Like", global_cast_mode));
     // let face_color_code = input.face_color.as_ref()
     //     .map(|f| gen_color_prop_code(f, "Face", global_cast_mode));
-    // let face_normal_code = input.face_normal.as_ref()
-    //     .map(|f| gen_prop_code(f, "Face", "Normal", "Vector3", "Vec3Like", global_cast_mode));
 
     // Prepare stuff for impl header.
     let name = &input.name;
@@ -46,9 +46,9 @@ pub(crate) fn gen_impl(input: &Input) -> TokenStream {
             #mesh_code
 
             #vertex_position_code
-            // #vertex_normal_code
+            #vertex_normal_code
             // #vertex_color_code
-            // #face_normal_code
+            #face_normal_code
             // #face_color_code
         }
     }

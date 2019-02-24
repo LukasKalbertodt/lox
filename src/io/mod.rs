@@ -930,7 +930,7 @@ pub trait MemSource {
 
 
     // ----- Vertex positions -------------------------------------------------
-    /// Returns the scalar type of the vertex positions of this source or
+    /// Returns the scalar type of the vertex positions of this source, or
     /// `None` if this source does not provide vertex positions.
     ///
     /// See [the trait documentation][MemSource] for important information!
@@ -941,9 +941,51 @@ pub trait MemSource {
     /// Returns the vertex position of the vertex with the given handle, or
     /// `None` if there is no position associated with that vertex.
     ///
-    /// See [the trait documentation][MemSource] for important
-    /// information!
+    /// See [the trait documentation][MemSource] for important information!
     fn vertex_position<T: Primitive>(&self, _v: VertexHandle) -> Result<Option<Point3<T>>, Error> {
-        panic!("requested non-existent vertex position from `MemSource`");
+        panic!(
+            "requested vertex position from `MemSource`, but this source doesn't \
+                contain vertex positions"
+        );
+    }
+
+    // ----- Vertex normals -------------------------------------------------
+    /// Returns the scalar type of the vertex normals of this source, or
+    /// `None` if this source does not provide vertex normals.
+    ///
+    /// See [the trait documentation][MemSource] for important information!
+    fn vertex_normal_type(&self) -> Option<PrimitiveType> {
+        None
+    }
+
+    /// Returns the vertex normal of the vertex with the given handle, or
+    /// `None` if there is no normal associated with that vertex.
+    ///
+    /// See [the trait documentation][MemSource] for important information!
+    fn vertex_normal<T: Primitive>(&self, _v: VertexHandle) -> Result<Option<Vector3<T>>, Error> {
+        panic!(
+            "requested vertex normal from `MemSource`, but this source doesn't \
+                contain vertex normals"
+        );
+    }
+
+    // ----- Face normals -------------------------------------------------
+    /// Returns the scalar type of the face normals of this source, or
+    /// `None` if this source does not provide face normals.
+    ///
+    /// See [the trait documentation][MemSource] for important information!
+    fn face_normal_type(&self) -> Option<PrimitiveType> {
+        None
+    }
+
+    /// Returns the face normal of the face with the given handle, or
+    /// `None` if there is no normal associated with that face.
+    ///
+    /// See [the trait documentation][MemSource] for important information!
+    fn face_normal<T: Primitive>(&self, _v: FaceHandle) -> Result<Option<Vector3<T>>, Error> {
+        panic!(
+            "requested face normal from `MemSource`, but this source doesn't \
+                contain face normals"
+        );
     }
 }
