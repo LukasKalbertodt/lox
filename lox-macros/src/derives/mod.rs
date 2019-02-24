@@ -12,6 +12,8 @@ use crate::util::struct_fields;
 
 pub(crate) mod input;
 pub(crate) mod mem_sink;
+pub(crate) mod mem_source;
+
 
 /// Specifies the default casting mode when the casting mode is not explicitly
 /// specifid.
