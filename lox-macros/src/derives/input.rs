@@ -89,7 +89,7 @@ impl SpannedCastMode {
 #[derive(Debug)]
 pub(crate) struct CoreMeshField {
     pub(crate) span: Span,
-    pub(crate) name: Option<Ident>,
+    pub(crate) name: Ident,
     pub(crate) ty: Type,
 }
 
@@ -97,7 +97,7 @@ pub(crate) struct CoreMeshField {
 pub(crate) struct ColorPropField {
     pub(crate) allow_cast: Option<bool>,
     pub(crate) span: Span,
-    pub(crate) name: Option<Ident>,
+    pub(crate) name: Ident,
     pub(crate) ty: Type,
 }
 
@@ -106,7 +106,7 @@ pub(crate) struct ColorPropField {
 pub(crate) struct PropField {
     pub(crate) cast_mode: Option<SpannedCastMode>,
     pub(crate) span: Span,
-    pub(crate) name: Option<Ident>,
+    pub(crate) name: Ident,
     pub(crate) ty: Type,
 }
 
@@ -145,10 +145,20 @@ impl Input {
         let mut face_color = None;
 
         for f in fields {
+            // Make sure the field is named and extract that name.
+            let ident = f.ident.as_ref().ok_or_else(|| {
+                let msg = format!(
+                    "unit structs are currently not supported by `derive({})` (use a normal \
+                        struct with named fields instead)",
+                    derive,
+                );
+                Error::new(input.span(), msg)
+            })?;
+
             macro_rules! check_dupe {
                 ($field:ident) => {
                     if $field.is_some() {
-                        bail!(f.ident.span(), "duplicate `{}` field", stringify!($field));
+                        bail!(ident.span(), "duplicate `{}` field", stringify!($field));
                     }
                 }
             }
@@ -159,7 +169,7 @@ impl Input {
                     $field = Some(PropField {
                         cast_mode: $attrs.cast_mode,
                         span: f.span(),
-                        name: f.ident.clone(),
+                        name: ident.clone(),
                         ty: f.ty.clone(),
                     });
                 }}
@@ -184,7 +194,7 @@ impl Input {
                     $field = Some(ColorPropField {
                         allow_cast: $attrs.cast_mode.map(|m| m.mode == CastMode::Rounding),
                         span: f.span(),
-                        name: f.ident.clone(),
+                        name: ident.clone(),
                         ty: f.ty.clone(),
                     });
                 }}
@@ -206,7 +216,7 @@ impl Input {
 
                         core_mesh = Some(CoreMeshField {
                             span: f.span(),
-                            name: f.ident.clone(),
+                            name: ident.clone(),
                             ty: f.ty.clone(),
                         });
                     }

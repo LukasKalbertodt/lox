@@ -120,15 +120,15 @@ fn gen_finish_code(input: &Input) -> TokenStream {
     let num_faces = ident!("_num_faces");
 
     let vertex_position = input.vertex_position.as_ref()
-        .map(|f| gen_check(f.name.as_ref().unwrap(), "vertex positions", &num_vertices));
+        .map(|f| gen_check(&f.name, "vertex positions", &num_vertices));
     let vertex_normal = input.vertex_normal.as_ref()
-        .map(|f| gen_check(f.name.as_ref().unwrap(), "vertex normals", &num_vertices));
+        .map(|f| gen_check(&f.name, "vertex normals", &num_vertices));
     let vertex_color = input.vertex_color.as_ref()
-        .map(|f| gen_check(f.name.as_ref().unwrap(), "vertex colors", &num_vertices));
+        .map(|f| gen_check(&f.name, "vertex colors", &num_vertices));
     let face_normal = input.face_normal.as_ref()
-        .map(|f| gen_check(f.name.as_ref().unwrap(), "face normals", &num_faces));
+        .map(|f| gen_check(&f.name, "face normals", &num_faces));
     let face_color = input.face_color.as_ref()
-        .map(|f| gen_check(f.name.as_ref().unwrap(), "face colors", &num_faces));
+        .map(|f| gen_check(&f.name, "face colors", &num_faces));
 
     // Combine everything
     let mesh_field_name = &input.core_mesh.name;
