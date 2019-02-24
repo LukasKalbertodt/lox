@@ -8,12 +8,12 @@ use syn::{
     spanned::Spanned,
 };
 use super::{
-    DEFAULT_COLOR_CAST_ALLOWED, DEFAULT_CAST_MODE2 as DEFAULT_CAST_MODE,
+    DEFAULT_COLOR_CAST_ALLOWED, DEFAULT_CAST_MODE,
     input::{CastMode, ColorPropField, CoreMeshField, Input, PropField},
 };
 
 
-pub(in crate::derives) fn gen_impl(input: &Input) -> Result<TokenStream, Error> {
+pub(crate) fn gen_impl(input: &Input) -> Result<TokenStream, Error> {
     let global_cast_mode = input.cast_mode.as_ref().map(|m| m.mode);
 
     // Core mesh

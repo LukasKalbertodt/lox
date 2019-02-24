@@ -6,6 +6,8 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use syn::DeriveInput;
 
+use crate::derives::input::Input;
+
 
 #[macro_use]
 mod util;
@@ -41,7 +43,8 @@ pub fn derive_empty(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(MemSink, attributes(lox))]
 pub fn derive_mem_sink(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
-    derives::derive_mem_sink(&input)
+    Input::from_syn(&input, "MemSink")
+        .and_then(|i| derives::mem_sink::gen_impl(&i))
         .unwrap_or_else(|e| e.to_compile_error())
         .into()
 }
