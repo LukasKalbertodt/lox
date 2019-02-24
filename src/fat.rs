@@ -19,7 +19,9 @@ use crate::{
 /// allowed.
 #[derive(Empty, MemSink, Debug)]
 pub struct MiniMesh<M: TriMeshMut> {
+    #[lox(core_mesh)]
     mesh: M,
-    #[lox(vertex_positions(cast = "lossy"))]
+
+    #[lox(vertex_position, cast = "lossy")]
     vertex_positions: VecMap<VertexHandle, Point3<f32>>,
 }
