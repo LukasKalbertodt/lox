@@ -3,7 +3,8 @@
 //!
 //! The main symbol of this module is `Input` and `Input::from_syn`.
 
-use proc_macro2::Span;
+use proc_macro2::{Span, TokenStream};
+use quote::quote;
 use syn::{
     Attribute, DeriveInput, Error, Ident, Type, Meta, NestedMeta, Lit, Generics,
     spanned::Spanned,
@@ -58,6 +59,19 @@ impl CastMode {
             CastMode::Lossy => true,
         }
     }
+
+    /// Returns a path to the cast rigor type in `lox` corresponding to the given
+    /// cast mode.
+    pub(crate) fn rigor_tokens(&self) -> Option<TokenStream> {
+        match self {
+            CastMode::None => None,
+            CastMode::Lossless => Some(quote! { lox::cast::Lossless }),
+            CastMode::Clamping => Some(quote! { lox::cast::AllowClamping }),
+            CastMode::Rounding => Some(quote! { lox::cast::AllowRounding }),
+            CastMode::Lossy => Some(quote! { lox::cast::Lossy }),
+        }
+    }
+
 }
 
 /// A cast mode with its span.

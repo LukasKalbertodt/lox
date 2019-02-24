@@ -184,7 +184,7 @@ fn gen_prop_code(
         .map(|m| m.mode)
         .or(global_cast_mode)
         .unwrap_or(DEFAULT_CAST_MODE);
-    let (check_code, new_elem_code) = if let Some(cast_rigor) = rigor_tokens(cast_mode) {
+    let (check_code, new_elem_code) = if let Some(cast_rigor) = cast_mode.rigor_tokens() {
         let check = quote! {
             let cast_possible = lox::cast::is_cast_possible::<
                 #cast_rigor,
@@ -417,17 +417,5 @@ fn gen_color_prop_code(
 
             #set_inner_call
         }
-    }
-}
-
-/// Returns a path to the cast rigor type in `lox` corresponding to the given
-/// cast mode.
-fn rigor_tokens(mode: CastMode) -> Option<TokenStream> {
-    match mode {
-        CastMode::None => None,
-        CastMode::Lossless => Some(quote! { lox::cast::Lossless }),
-        CastMode::Clamping => Some(quote! { lox::cast::AllowClamping }),
-        CastMode::Rounding => Some(quote! { lox::cast::AllowRounding }),
-        CastMode::Lossy => Some(quote! { lox::cast::Lossy }),
     }
 }
