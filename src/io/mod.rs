@@ -958,7 +958,7 @@ pub trait MemSource {
     /// `None` if there is no normal associated with that face.
     ///
     /// See [the trait documentation][MemSource] for important information!
-    fn face_normal<T: Primitive>(&self, _v: FaceHandle) -> Result<Option<Vector3<T>>, Error> {
+    fn face_normal<T: Primitive>(&self, _f: FaceHandle) -> Result<Option<Vector3<T>>, Error> {
         panic!(
             "requested face normal from `MemSource`, but this source doesn't \
                 contain face normals"
