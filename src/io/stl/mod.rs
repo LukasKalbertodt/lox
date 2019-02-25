@@ -40,7 +40,8 @@
 //!
 //! # Raw APIs
 //!
-//! TODO
+//! If you need full low-level control, you can use [`write_raw`][stl::write_raw]
+//! or [`Reader::read_raw`][stl::Reader::read_raw]. This is usually not necessary.
 
 use std::{
     convert::TryFrom,
