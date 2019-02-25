@@ -205,6 +205,9 @@ impl MeshMut for HalfEdgeMesh {
 
 impl TriMeshMut for HalfEdgeMesh {
     fn add_face(&mut self, [a, b, c]: [VertexHandle; 3]) -> FaceHandle {
+        assert_ne!(a, b, "vertices of new face are not unique");
+        assert_ne!(a, c, "vertices of new face are not unique");
+
         // ===================================================================
         // ===== Step 1: Find or add edges with dummy/old `next` handles
         // ===================================================================

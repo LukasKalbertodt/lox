@@ -483,6 +483,9 @@ impl TriMesh for FaceDelegateMesh {}
 
 impl TriMeshMut for FaceDelegateMesh {
     fn add_face(&mut self, vertex_handles: [VertexHandle; 3]) -> FaceHandle {
+        assert_ne!(vertex_handles[0], vertex_handles[1], "vertices of new face are not unique");
+        assert_ne!(vertex_handles[0], vertex_handles[2], "vertices of new face are not unique");
+
         let new_fh = self.faces.next_push_handle();
 
         // Create the array of vertex data stored in the face. The `next_face`
