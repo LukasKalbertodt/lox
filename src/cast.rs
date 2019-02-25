@@ -201,6 +201,15 @@ where
     Dst::try_cast_from(src)
 }
 
+/// [`try_cast`] with `NoCast` rigor. See that documentation for more info.
+/// This function is pretty useless in non-generic situations.
+pub fn try_no_cast<Src, Dst>(src: Src) -> Option<Dst>
+where
+    Dst: TryCastFrom<NoCast, Src>,
+{
+    Dst::try_cast_from(src)
+}
+
 /// [`try_cast`] with `Lossless` rigor. See that documentation for more info.
 pub fn try_lossless<Src, Dst>(src: Src) -> Option<Dst>
 where
@@ -245,6 +254,14 @@ where
 /// This trait is only implemented for the four different rigors defined in
 /// this module and cannot be implemented for own types.
 pub trait CastRigor: Sealed {}
+
+/// Cast rigor: no casting allowed at all.
+///
+/// This is purely used at type level and it's impossible to construct.
+#[derive(Debug)]
+pub enum NoCast {}
+impl Sealed for NoCast {}
+impl CastRigor for NoCast {}
 
 /// Cast rigor: neither clamping nor rounding is allowed.
 ///
@@ -352,6 +369,12 @@ where
 {
     fn cast_from(src: Src) -> Self {
         Dst::lossy_cast_from(src)
+    }
+}
+
+impl<T> CastFrom<NoCast, T> for T {
+    fn cast_from(src: T) -> Self {
+        src
     }
 }
 
@@ -933,8 +956,27 @@ mod tests {
     }
 
     #[test]
+    fn cast_try_no_cast() {
+        //                                 u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64
+        test!(try_no_cast, NoCast: u8   => y  n   n   n   n    n  n   n   n   n    n   n);
+        test!(try_no_cast, NoCast: u16  => n  y   n   n   n    n  n   n   n   n    n   n);
+        test!(try_no_cast, NoCast: u32  => n  n   y   n   n    n  n   n   n   n    n   n);
+        test!(try_no_cast, NoCast: u64  => n  n   n   y   n    n  n   n   n   n    n   n);
+        test!(try_no_cast, NoCast: u128 => n  n   n   n   y    n  n   n   n   n    n   n);
+
+        test!(try_no_cast, NoCast: i8   => n  n   n   n   n    y  n   n   n   n    n   n);
+        test!(try_no_cast, NoCast: i16  => n  n   n   n   n    n  y   n   n   n    n   n);
+        test!(try_no_cast, NoCast: i32  => n  n   n   n   n    n  n   y   n   n    n   n);
+        test!(try_no_cast, NoCast: i64  => n  n   n   n   n    n  n   n   y   n    n   n);
+        test!(try_no_cast, NoCast: i128 => n  n   n   n   n    n  n   n   n   y    n   n);
+
+        test!(try_no_cast, NoCast: f32  => n  n   n   n   n    n  n   n   n   n    y   n);
+        test!(try_no_cast, NoCast: f64  => n  n   n   n   n    n  n   n   n   n    n   y);
+    }
+
+    #[test]
     fn cast_try_lossless() {
-        //                          u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64
+        //                                    u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64
         test!(try_lossless, Lossless: u8   => y  y   y   y   y    n  y   y   y   y    y   y);
         test!(try_lossless, Lossless: u16  => n  y   y   y   y    n  n   y   y   y    y   y);
         test!(try_lossless, Lossless: u32  => n  n   y   y   y    n  n   n   y   y    n   y);
@@ -953,7 +995,7 @@ mod tests {
 
     #[test]
     fn cast_try_clamping() {
-        //                          u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64
+        //                                         u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64
         test!(try_clamping, AllowClamping: u8   => y  y   y   y   y    y  y   y   y   y    y   y);
         test!(try_clamping, AllowClamping: u16  => y  y   y   y   y    y  y   y   y   y    y   y);
         test!(try_clamping, AllowClamping: u32  => y  y   y   y   y    y  y   y   y   y    n   y);
@@ -972,7 +1014,7 @@ mod tests {
 
     #[test]
     fn cast_try_rounding() {
-        //                          u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64
+        //                                         u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64
         test!(try_rounding, AllowRounding: u8   => y  y   y   y   y    n  y   y   y   y    y   y);
         test!(try_rounding, AllowRounding: u16  => n  y   y   y   y    n  n   y   y   y    y   y);
         test!(try_rounding, AllowRounding: u32  => n  n   y   y   y    n  n   n   y   y    y   y);
@@ -991,7 +1033,7 @@ mod tests {
 
     #[test]
     fn cast_try_lossy() {
-        //                       u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64
+        //                              u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64
         test!(try_lossy, Lossy: u8   => y  y   y   y   y    y  y   y   y   y    y   y);
         test!(try_lossy, Lossy: u16  => y  y   y   y   y    y  y   y   y   y    y   y);
         test!(try_lossy, Lossy: u32  => y  y   y   y   y    y  y   y   y   y    y   y);
