@@ -184,11 +184,11 @@ fn gen_prop_code(
 
         fn #prop_fn<T: lox::io::Primitive>(
             &self,
-            v: VertexHandle,
-        ) -> Result<Option<Point3<T>>, lox::io::Error> {
+            v: #elem_handle,
+        ) -> Result<Option<#prop_type<T>>, lox::io::Error> {
             fn _impl<M, T: lox::io::Primitive>(
                 map: &M,
-                v: VertexHandle,
+                v: #elem_handle,
             ) -> Result<Option<#prop_type<T>>, lox::io::Error>
             where
                 M: lox::map::PropMap<#elem_handle>,
