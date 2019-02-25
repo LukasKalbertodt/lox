@@ -117,7 +117,7 @@ fn gen_prop_code(
             >();
 
             if !cast_possible {
-                return Err(io::Error::SourceIncompatible {
+                return Err(lox::io::Error::SourceIncompatible {
                     prop: lox::io::PropKind::#elem_prop,
                     requested_type: T::TY,
                 });
@@ -139,7 +139,7 @@ fn gen_prop_code(
         // "None" cast mode
         quote! {
             if !lox::util::are_same_type::<T, <M::Target as lox::prop::#trait_name>::Scalar>() {
-                return Err(io::Error::SourceIncompatible {
+                return Err(lox::io::Error::SourceIncompatible {
                     prop: lox::io::PropKind::#elem_prop,
                     requested_type: T::TY,
                 });
