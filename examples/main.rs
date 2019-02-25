@@ -1,18 +1,16 @@
-#![feature(proc_macro_hygiene, never_type)]
-#![allow(unused_imports)]
 
+#![allow(unused_imports)]
 use cgmath::{Point3, Vector3};
 use failure::{Error, ResultExt};
 
 use lox::{
+    MemSink, MemSource,
+    prelude::*,
     algo,
     ds::{FaceDelegateMesh, SharedVertexMesh},
-    io::{stl, ply, MemSink, StreamSource},
-    map::{ConstMap, FnMap, VecMap},
-    math::PrimitiveNum,
-    mesh,
-    prelude::*,
-    shape,
+    io::{self, stl, ply},
+    map::VecMap,
+    shape::Disc,
 };
 
 
@@ -35,41 +33,40 @@ fn main() {
 }
 
 fn run() -> Result<(), Error> {
-    let file = std::env::args().nth(1).expect("no filename given");
-    let mut m: SimpleMesh = ply::read(&file)?;
+    let m: SimpleMesh = if let Some(filename) = std::env::args().nth(1) {
+        io::read(filename)?
+    } else {
+        let disc = Disc { faces: 3, .. Disc::default() };
+        SimpleMesh::create_from(disc)?
+    };
 
-    // let new_pos = algo::smooth_simple(&m.mesh, &m.vertex_positions);
-    algo::sqrt3_subdivision(&mut m.mesh, &mut m.vertex_positions);
+    println!("#faces:    {}", m.mesh.num_faces());
+    println!("#vertices: {}", m.mesh.num_vertices());
+    // println!("{:#?}", m);
 
-    ply::Config::binary()
-        .into_writer(&m.mesh, &m.vertex_positions)
-        // .into_writer(&m.mesh, &new_pos)
-        .write_to_file("smoothed.ply")?;
+    stl::write("out.stl", &m)?;
 
     Ok(())
 }
 
 
-#[derive(Empty)]
+#[derive(Empty, MemSink, MemSource, Debug)]
 struct SimpleMesh {
+    #[lox(core_mesh)]
     mesh: FaceDelegateMesh,
+
+    #[lox(vertex_position)]
     vertex_positions: VecMap<VertexHandle, Point3<f32>>,
-}
 
-impl MemSink for SimpleMesh {
-    fn add_vertex(&mut self) -> VertexHandle {
-        self.mesh.add_vertex()
-    }
+    // #[lox(vertex_normal)]
+    // vertex_normals: VecMap<VertexHandle, Vector3<f32>>,
 
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
-        self.mesh.add_face(vertices)
-    }
+    // #[lox(vertex_color)]
+    // vertex_colors: VecMap<VertexHandle, [u8; 3]>,
 
-    fn set_vertex_position<N: PrimitiveNum>(
-        &mut self,
-        v: VertexHandle,
-        position: Point3<N>,
-    ) {
-        self.vertex_positions.insert(v, position.map(|s| s.to_f32().unwrap()));
-    }
+    // #[lox(face_normal)]
+    // face_normals: VecMap<FaceHandle, Vector3<f32>>,
+
+    // #[lox(face_color)]
+    // face_colors: VecMap<FaceHandle, (f32, f32, f32, f32)>,
 }
