@@ -9,23 +9,26 @@
 //! users and library authors to make all those modules look about the same.
 //!
 //! Here is an informal description of said interface:
+//! - **`fn read`**: has the same signature as [`io::read`] and works exactly
+//!   the same, except that it reads the file in the specific format and does
+//!   not guess the format.
+//! - **`fn write`**: has the same signature as [`io::write`] and works exactly
+//!   the same, except that it writes the file in the specific format and does
+//!   not guess the format.
+//! - **`Reader`**: a type that implements [`StreamSource`][io::StreamSource].
+//! - **`Writer`**: a type that implements [`StreamSink`][io::StreamSink].
 //! - **`const FILE_EXTENSIONS: &[&str]`**: a list of file name extensions used
 //!   by that format (usually, it's only one extension, thus one element in the
 //!   slice). The slice must contain at least one element. The first element is
 //!   the most commonly used/preferred extension.
-//! - **`fn read`**: has the same signature as [`io::read`] and works exactly
-//!   the same, except that it reads the file in the specific format and does
-//!   not guess the format.
 //! - **`is_file_start`**: checks if the given data is a valid start of a file
 //!   in the specific format. This is used to guess the file format of a given
-//!   file. If the file is <= 1024 bytes large, the full file is given to this
-//!   function, otherwise the first 1024 bytes are passed to `is_file_start`.
-//!   This function is only supposed to do quick checks: it shouldn't attempt
-//!   to parse the beginning of the file, but instead only look for magic
-//!   numbers or similar things.
+//!   file. If the file is ≤ 1024 bytes large, the full file is given to this
+//!   function, otherwise the first 1024 bytes are passed. This function is
+//!   only supposed to do quick checks: it shouldn't attempt to parse the
+//!   beginning of the file, but instead only look for magic numbers or similar
+//!   things.
 //! - TODO
-
-// #![allow(unused_imports)] // TODO
 
 use std::{
     fmt,
@@ -48,7 +51,7 @@ use crate::{
 };
 use self::{
     parse::ParseError,
-    util::{TypeWish, DefaultTypeWishes},
+    util::{TypeWish, DefaultTypeWishes, IsFormat},
 };
 
 pub mod parse;
@@ -59,6 +62,8 @@ pub mod util;
 #[cfg(test)]
 mod tests;
 
+
+// ----------------------------------------------------------------------------
 
 /// Reads the file with the given filename into an empty instance of type `T`
 /// and returns that instance.
@@ -150,80 +155,6 @@ pub fn write<T: MemSource, P: AsRef<Path>>(path: P, src: &T) -> Result<(), Error
     }
 
     inner(path.as_ref(), src)
-}
-
-// /// Types that can be transformed into a [`MeshWriter`].
-// pub trait IntoMeshWriter<'a, MeshT, PosM>
-// where
-//     MeshT: 'a + Mesh + TriVerticesOfFace,
-//     PosM: 'a + VertexPropMap,
-//     PosM::Target: Pos3Like,
-// {
-//     type Writer: MeshWriter;
-//     fn into_writer(self, mesh: &'a MeshT, vertex_positions: &'a PosM) -> Self::Writer;
-// }
-
-// /// Types that can serialize a mesh with vertex positions and potentially
-// /// additional properties. The mesh and properties are already stored within
-// /// the type.
-// ///
-// /// The main method of this trait is `write_to` which writes the mesh to a
-// /// given `io::Write` destination. There are some other provided methods for
-// /// easily writing to a file, to stdout and to memory.
-// pub trait MeshWriter {
-//     type Error: From<io::Error>;
-
-//     /// Writes the mesh and all mesh properties into the given `Write`
-//     /// instance.
-//     fn write_to(&self, writer: impl Write) -> Result<(), Self::Error>;
-
-//     /// Writes the mesh to the file given by the filename. Overwrites the file
-//     /// if it already exists.
-//     fn write_to_file(&self, path: impl AsRef<Path>) -> Result<(), Self::Error> {
-//         self.write_to(BufWriter::new(File::create(path)?))
-//     }
-
-//     /// Writes the mesh to stdout. Locks stdout for the time the mesh is being
-//     /// written.
-//     fn write_to_stdout(&self) -> Result<(), Self::Error> {
-//         let stdout = io::stdout();
-//         let lock = stdout.lock();
-//         self.write_to(lock)
-//     }
-
-//     /// Writes the mesh into a `Vec<u8>` which is returned on success.
-//     fn write_to_memory(&self) -> Result<Vec<u8>, Self::Error> {
-//         let mut w = Cursor::new(Vec::new());
-//         self.write_to(&mut w)?;
-//         Ok(w.into_inner())
-//     }
-// }
-
-/// The result of inspecting the start of the file to check if it's a file of a
-/// specific format.
-///
-/// This is returned by the `is_file_start` functions in each file format
-/// module.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IsFormat {
-    /// The file is very likely a file of the specified format.
-    ///
-    /// This should be returned when there are strong indicators of the
-    /// specified format (e.g. the magic number is found). The `is_file_start`
-    /// function is not required to already try parsing the file and properly
-    /// check for errors. Instead, quick and easy indicators should be used.
-    Probably,
-
-    /// The file could be a file of the specified format, but there is no clear
-    /// indicator that it is.
-    ///
-    /// This should be returned as rarely as possible. It's only necessary when
-    /// a file format does not have a magic number or something like that.
-    Maybe,
-
-    /// The file is definitely not valid in the specified format (e.g. a magic
-    /// number is not found).
-    No,
 }
 
 /// Represents one of the supported file formats.
@@ -373,6 +304,10 @@ impl FileEncoding {
 pub struct EncodingNotSupported;
 
 
+/// Enumerates the supported kinds of mesh properties.
+///
+/// New property kinds may be added with only minor version bumps, so you
+/// cannot match this enum exhaustively.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub enum PropKind {

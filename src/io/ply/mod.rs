@@ -17,7 +17,11 @@ use failure::Fail;
 
 use crate::{
     Empty,
-    io::{Error, FileEncoding, IsFormat, StreamSource, StreamSink, MemSink, MemSource, parse},
+    io::{
+        Error, FileEncoding, StreamSource, StreamSink, MemSink, MemSource,
+        parse,
+        util::IsFormat,
+    },
 };
 
 mod read;

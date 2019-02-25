@@ -90,3 +90,31 @@ impl_overwrite!(
     f32 => (f32, <DefaultTypeWishes as TypeWish>::Integer),
     f64 => (f64, <DefaultTypeWishes as TypeWish>::Integer),
 );
+
+
+/// The result of inspecting the start of the file to check if it's a file of a
+/// specific format.
+///
+/// This is returned by the `is_file_start` functions in each file format
+/// module.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IsFormat {
+    /// The file is very likely a file of the specified format.
+    ///
+    /// This should be returned when there are strong indicators of the
+    /// specified format (e.g. the magic number is found). The `is_file_start`
+    /// function is not required to already try parsing the file and properly
+    /// check for errors. Instead, quick and easy indicators should be used.
+    Probably,
+
+    /// The file could be a file of the specified format, but there is no clear
+    /// indicator that it is.
+    ///
+    /// This should be returned as rarely as possible. It's only necessary when
+    /// a file format does not have a magic number or something like that.
+    Maybe,
+
+    /// The file is definitely not valid in the specified format (e.g. a magic
+    /// number is not found).
+    No,
+}

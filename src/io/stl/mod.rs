@@ -52,7 +52,10 @@ use std::{
 use crate::{
     self as lox, // for proc macros
     Empty,
-    io::{FileEncoding, EncodingNotSupported, StreamSink, MemSink, MemSource, Error, IsFormat},
+    io::{
+        FileEncoding, EncodingNotSupported, StreamSink, MemSink, MemSource, Error,
+        util::IsFormat,
+    },
 };
 
 
