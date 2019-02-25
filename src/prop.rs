@@ -118,6 +118,21 @@ pub trait Vec3Like: Copy {
         V::from_coords(self.x(), self.y(), self.z())
     }
 
+    /// Maps all three scalar values with the given function and creates a new
+    /// value of type `V`.
+    ///
+    /// Sadly Rust can't handle HKTs yet, so this method is a bit shitty. It
+    /// would be nice to only map the scalars and not change the outer type.
+    /// But since that's not possible, the output is not `Self<T>`, but this
+    /// `V`. So you probably have to use type annotations somewhere.
+    fn map_scalar<V: Vec3Like>(&self, mut f: impl FnMut(Self::Scalar) -> V::Scalar) -> V {
+        V::from_coords(
+            f(self.x()),
+            f(self.y()),
+            f(self.z()),
+        )
+    }
+
     fn to_vector3(&self) -> Vector3<Self::Scalar> {
         self.convert()
     }
