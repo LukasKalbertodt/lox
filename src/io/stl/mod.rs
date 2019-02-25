@@ -66,7 +66,7 @@ mod write;
 mod tests;
 
 pub use self::read::Reader;
-pub use self::write::{Config, Writer};
+pub use self::write::{Config, Writer, write_raw};
 
 
 // ----------------------------------------------------------------------------

@@ -179,8 +179,12 @@ fn calc_normal(positions: &[[f32; 3]; 3]) -> [f32; 3] {
 // ===== Functions for body writing
 // ===============================================================================================
 
-/// The actual write implementation
-fn write_raw(
+/// Low level function to write STL files.
+///
+/// You usually don't need to use this function directly and instead use a high
+/// level interface. This function is still exposed to give you more or less
+/// complete control.
+pub fn write_raw(
     mut w: impl io::Write,
     config: &Config,
     num_triangles: u32,
