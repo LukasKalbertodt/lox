@@ -14,7 +14,7 @@ use crate::{
     prelude::*,
     io::{
         StreamSource, MemSink, Error,
-        parse::{self, ParseBuf, Buffer},
+        parse::{self, ParseBuf, ParseError, Buffer, Span},
     },
     util::MeshSizeHint,
 };
@@ -89,6 +89,14 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
             None
         };
 
+        let expected_len_if_binary = num_tris_if_binary.map(|num_tris_if_binary| {
+            // In binary format, each triangle is stored with 50 bytes
+            // (3 * 3 = 9 position floats => 36 bytes, 3 normal floats
+            // => 12 bytes, 2 bytes "attribute byte count"). The binary
+            // header is 84 bytes long.
+            num_tris_if_binary as u64 * 50 + 84
+        });
+
         // Jump back to the start of the stream/file
         reader.seek(io::SeekFrom::Start(0))?;
 
@@ -111,6 +119,7 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
         // follows.
         //
         // We use the following metric:
+        // - The file has to be at least 84 bytes long to be considered binary.
         // - If the file doesn't start with `solid`, it's binary.
         // - If there are some non-ASCII (>127) bytes at the beginning of the
         //   file, the file is binary.
@@ -119,16 +128,20 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
         //   file length, we assume it's a binary file. But if there is no such
         //   count (because the file is shorter than 84 bytes), the file is not
         //   binary.
-        let is_binary = !buf.raw_buf().starts_with(b"solid")
-            || buf.raw_buf().iter().take(1024).any(|b| !b.is_ascii())
-            || num_tris_if_binary.map(|num_tris_if_binary| {
-                // In binary format, each triangle is stored with 50 bytes
-                // (3 * 3 = 9 position floats => 36 bytes, 3 normal floats
-                // => 12 bytes, 2 bytes "attribute byte count"). The binary
-                // header is 84 bytes long.
-                let expected_len_if_binary = num_tris_if_binary as u64 * 50 + 84;
-                expected_len_if_binary == input_len
-            }).unwrap_or(false);
+        let is_binary = input_len >= 84 && (
+            !buf.raw_buf().starts_with(b"solid")
+                || buf.raw_buf().iter().take(1024).any(|b| !b.is_ascii())
+                || expected_len_if_binary.unwrap() == input_len
+        );
+
+        if is_binary {
+            if expected_len_if_binary.unwrap() != input_len {
+                return Err(ParseError::Custom(
+                    "triangle count in STL file is corrupted (disagrees with file length)".into(),
+                    Span::new(80, 84),
+                ).into());
+            }
+        }
 
         // Check if the file starts with `solid`. If yes, a string (the solid
         // name) is stored next.
@@ -138,7 +151,6 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
 
             // Read the solid name (until line break in ASCII case, 80 chars in
             // binary case).
-            parse::whitespace(&mut buf)?;
             let solid_name = if is_binary {
                 buf.with_bytes(
                     80 - buf.offset(),
