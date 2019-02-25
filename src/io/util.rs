@@ -213,7 +213,10 @@ macro_rules! old_impl_items {
         fn vertex_position_type(&self) -> Option<PrimitiveType> {
             self.original.vertex_position_type()
         }
-        fn vertex_position<T: Primitive>(&self, v: VertexHandle) -> Result<Option<Point3<T>>, Error> {
+        fn vertex_position<T: Primitive>(
+            &self,
+            v: VertexHandle,
+        ) -> Result<Option<Point3<T>>, Error> {
             self.original.vertex_position(v)
         }
     };
@@ -221,7 +224,10 @@ macro_rules! old_impl_items {
         fn vertex_normal_type(&self) -> Option<PrimitiveType> {
             self.original.vertex_normal_type()
         }
-        fn vertex_normal<T: Primitive>(&self, v: VertexHandle) -> Result<Option<Vector3<T>>, Error> {
+        fn vertex_normal<T: Primitive>(
+            &self,
+            v: VertexHandle,
+        ) -> Result<Option<Vector3<T>>, Error> {
             self.original.vertex_normal(v)
         }
     };

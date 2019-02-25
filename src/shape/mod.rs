@@ -102,7 +102,8 @@ impl StreamSource for Disc {
         // Add a new vertex and a new face in each iteration.
         for i in 1..self.faces {
             let angle = (
-                cast::rounding::<u32, VPosType<S>>(i) / cast::rounding::<u32, VPosType<S>>(self.faces)
+                cast::rounding::<u32, VPosType<S>>(i)
+                    / cast::rounding::<u32, VPosType<S>>(self.faces)
             ) * lit(2.0) * VPosType::<S>::PI();
             let position = center_pos + Vector3::new(
                 radius * angle.cos(),
