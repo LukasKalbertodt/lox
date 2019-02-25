@@ -128,6 +128,50 @@ pub enum IsFormat {
 /// Adds additional convenience methods to all types that implement
 /// `MemSource`. *Is reexported in `prelude`*.
 pub trait MemSourceExt {
+    /// Provides new vertex positions to the source. The returned source uses
+    /// the given vertex positions instead of the original.
+    ///
+    /// This also works if the original source does not offer vertex positions.
+    /// Note that you have to specify the cast rigor parameter `R` explicitly.
+    fn with_vertex_positions<'a, R, M>(
+        &'a self,
+        vertex_positions: &'a M,
+    ) -> SourceWithVertexPositions<'a, Self, M, R>
+    where
+        R: CastRigor,
+        M: PropMap<VertexHandle>,
+        M::Target: Pos3Like,
+        <M::Target as Pos3Like>::Scalar: Primitive,
+    {
+        SourceWithVertexPositions {
+            original: self,
+            vertex_positions,
+            _dummy: PhantomData,
+        }
+    }
+
+    /// Provides new vertex normals to the source. The returned source uses the
+    /// given vertex normals instead of the original.
+    ///
+    /// This also works if the original source does not offer vertex normals.
+    /// Note that you have to specify the cast rigor parameter `R` explicitly.
+    fn with_vertex_normals<'a, R, M>(
+        &'a self,
+        vertex_normals: &'a M,
+    ) -> SourceWithVertexNormals<'a, Self, M, R>
+    where
+        R: CastRigor,
+        M: PropMap<VertexHandle>,
+        M::Target: Vec3Like,
+        <M::Target as Vec3Like>::Scalar: Primitive,
+    {
+        SourceWithVertexNormals {
+            original: self,
+            vertex_normals,
+            _dummy: PhantomData,
+        }
+    }
+
     /// Provides new face normals to the source. The returned source uses the
     /// given face normals instead of the original.
     ///
@@ -157,13 +201,6 @@ impl<T: MemSource> MemSourceExt for T {}
 // ===========================================================================
 // ===== MemSource adaptors
 // ===========================================================================
-/// `MemSource` adaptor. See [`MemSourceExt::with_face_normals`].
-#[derive(Copy, Clone, Debug)]
-pub struct SourceWithFaceNormals<'a, S: ?Sized, M, R: CastRigor> {
-    original: &'a S,
-    face_normals: &'a M,
-    _dummy: PhantomData<R>,
-}
 
 macro_rules! old_impl_items {
     (core_mesh) => {
@@ -196,6 +233,93 @@ macro_rules! old_impl_items {
             self.original.face_normal(v)
         }
     };
+}
+
+
+/// `MemSource` adaptor. See [`MemSourceExt::with_vertex_positions`].
+#[derive(Copy, Clone, Debug)]
+pub struct SourceWithVertexPositions<'a, S: ?Sized, M, R: CastRigor> {
+    original: &'a S,
+    vertex_positions: &'a M,
+    _dummy: PhantomData<R>,
+}
+
+impl<S: ?Sized, M, R: CastRigor> MemSource for SourceWithVertexPositions<'_, S, M, R>
+where
+    S: MemSource,
+    M: PropMap<VertexHandle>,
+    M::Target: Pos3Like,
+    <M::Target as Pos3Like>::Scalar: Primitive,
+{
+    old_impl_items!(core_mesh);
+    old_impl_items!(vertex_normal);
+    old_impl_items!(face_normal);
+
+    fn vertex_position_type(&self) -> Option<PrimitiveType> {
+        Some(<M::Target as Pos3Like>::Scalar::TY)
+    }
+
+    fn vertex_position<T: Primitive>(&self, f: VertexHandle) -> Result<Option<Point3<T>>, Error> {
+        if !is_cast_possible::<R, <M::Target as Pos3Like>::Scalar, T>() {
+            return Err(Error::SourceIncompatible {
+                prop: PropKind::VertexNormal,
+                requested_type: T::TY,
+            });
+        }
+
+        let out = self.vertex_positions.get(f).map(|p| {
+            p.map_scalar(|s| try_cast::<R, _, _>(s).expect("internal bug in `lox::cast` module"))
+        });
+
+        Ok(out)
+    }
+}
+
+/// `MemSource` adaptor. See [`MemSourceExt::with_vertex_normals`].
+#[derive(Copy, Clone, Debug)]
+pub struct SourceWithVertexNormals<'a, S: ?Sized, M, R: CastRigor> {
+    original: &'a S,
+    vertex_normals: &'a M,
+    _dummy: PhantomData<R>,
+}
+
+impl<S: ?Sized, M, R: CastRigor> MemSource for SourceWithVertexNormals<'_, S, M, R>
+where
+    S: MemSource,
+    M: PropMap<VertexHandle>,
+    M::Target: Vec3Like,
+    <M::Target as Vec3Like>::Scalar: Primitive,
+{
+    old_impl_items!(core_mesh);
+    old_impl_items!(vertex_position);
+    old_impl_items!(face_normal);
+
+    fn vertex_normal_type(&self) -> Option<PrimitiveType> {
+        Some(<M::Target as Vec3Like>::Scalar::TY)
+    }
+
+    fn vertex_normal<T: Primitive>(&self, f: VertexHandle) -> Result<Option<Vector3<T>>, Error> {
+        if !is_cast_possible::<R, <M::Target as Vec3Like>::Scalar, T>() {
+            return Err(Error::SourceIncompatible {
+                prop: PropKind::VertexNormal,
+                requested_type: T::TY,
+            });
+        }
+
+        let out = self.vertex_normals.get(f).map(|p| {
+            p.map_scalar(|s| try_cast::<R, _, _>(s).expect("internal bug in `lox::cast` module"))
+        });
+
+        Ok(out)
+    }
+}
+
+/// `MemSource` adaptor. See [`MemSourceExt::with_face_normals`].
+#[derive(Copy, Clone, Debug)]
+pub struct SourceWithFaceNormals<'a, S: ?Sized, M, R: CastRigor> {
+    original: &'a S,
+    face_normals: &'a M,
+    _dummy: PhantomData<R>,
 }
 
 impl<S: ?Sized, M, R: CastRigor> MemSource for SourceWithFaceNormals<'_, S, M, R>
