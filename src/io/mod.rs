@@ -25,13 +25,12 @@
 //!   numbers or similar things.
 //! - TODO
 
-#![allow(unused_imports)] // TODO
+// #![allow(unused_imports)] // TODO
 
 use std::{
     fmt,
     fs::File,
-    marker::PhantomData,
-    io::{self, BufWriter, Cursor, Read, Write},
+    io::{self, Read},
     path::Path,
 };
 
@@ -41,16 +40,15 @@ use failure::Fail;
 use crate::{
     Mesh, TriVerticesOfFace,
     handle::{VertexHandle, FaceHandle, hsize},
-    map::VertexPropMap,
-    math::{PrimitiveFloat, PrimitiveNum},
-    prop::{ColorLike, PrimitiveColorChannel, Pos3Like},
+    math::PrimitiveNum,
+    prop::{ColorLike, PrimitiveColorChannel},
     sealed::Sealed,
     traits::Empty,
     util::{downcast_as, MeshSizeHint},
 };
 use self::{
     parse::ParseError,
-    util::{TypeWish, DefaultTypeWishes, WishFor},
+    util::{TypeWish, DefaultTypeWishes},
 };
 
 pub mod parse;
@@ -68,7 +66,8 @@ mod tests;
 /// This function tries to automatically determine the file format from the
 /// filename extension and the first few bytes of the file. If the format
 /// couldn't be determined because it's unknown or ambiguous,
-/// `Error::FormatUnknown` is returned.
+/// `Error::FormatUnknown` is returned. To explicitly specify the file format,
+/// use the `read` functions from the format modules (like `ply::read`).
 ///
 /// ```no_run
 /// use lox::{

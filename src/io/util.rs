@@ -1,7 +1,6 @@
 //! Small utility items used in the `io` module.
 
 use std::{
-    fmt,
     marker::PhantomData,
 };
 

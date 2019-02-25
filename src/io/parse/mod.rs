@@ -1,3 +1,5 @@
+#![allow(unused_imports)] // TODO
+
 use std::{
     fmt,
     io,
