@@ -14,52 +14,46 @@ use crate::{
     prelude::*,
     io::{
         StreamSource, MemSink, Error,
-        parse::{
-            self, ParseBuf, Buffer,
-        },
+        parse::{self, ParseBuf, Buffer},
     },
     util::MeshSizeHint,
 };
-use super::Encoding;
+use super::{Encoding, RawTriangle, RawResult};
 
-
-
-// ===========================================================================
-// ===== Parsing functions
-// ===========================================================================
-
-/// Parses three floats separated by whitespace. No leading or trailing
-/// whitespace is handled.
-fn vec3(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
-    let x = parse::ascii_f32(buf)?;
-    parse::whitespace(buf)?;
-    let y = parse::ascii_f32(buf)?;
-    parse::whitespace(buf)?;
-    let z = parse::ascii_f32(buf)?;
-    Ok([x, y, z])
-}
-
-/// Parses one ASCII line with a vertex (e.g. `vertex 2.0 0.1  1`)
-fn vertex(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
-    parse::line(buf, |buf| {
-        buf.expect_tag(b"vertex")?;
-        parse::whitespace(buf)?;
-        vec3(buf)
-    })
-}
 
 
 // ===========================================================================
 // ===== Definition of `Reader`
 // ===========================================================================
 
-/// A reader able to read binary and ASCII STL files.
+/// A reader able to read binary and ASCII STL files. Implements
+/// [`StreamSource`].
 ///
-/// You can create a reader with [`Reader::open`] or [`Reader::new`]. TODO: how
-/// to actually read data.
+/// You can create a reader with [`Reader::open`] or [`Reader::new`]. Then, to
+/// read mesh data,  you can either use the high level [`StreamSource`]
+/// interface or a `raw_*` method.
 ///
 /// The type parameter `U` is just used to configure the vertex-unifying
-/// behavior at compile time. See TODO add method
+/// behavior at compile time (which defaults to unify vertices). See
+/// [`without_vertex_unification`][Reader::without_vertex_unification] for more
+/// information.
+///
+/// # Example
+///
+/// ```no_run
+/// use lox::{
+///     prelude::*,
+///     ds::FaceDelegateMesh,
+///     fat::MiniMesh,
+///     io::stl::Reader,
+/// };
+///
+/// // We configure the reader to not unify the vertices. This means that the
+/// // resulting mesh only contains unconnected triangles.
+/// let reader = Reader::open("foo.stl")?.without_vertex_unification();
+/// let m = MiniMesh::<FaceDelegateMesh>::create_from(reader)?;
+/// # Ok::<_, lox::io::Error>(())
+/// ```
 pub struct Reader<R: io::Read + io::Seek, U: UnifyingMarker = UnifyVertices> {
     buf: Buffer<R>,
     solid_name: Option<String>,
@@ -182,7 +176,6 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
         })
     }
 
-
     /// Configures the reader to not unify vertices with the exact same
     /// position into one.
     ///
@@ -199,7 +192,7 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
     /// - Your mesh has vertices that have the exact same position but should
     ///   be treated as separate vertices (this is very rare)
     /// - Unifying the vertices is too slow for you (unifying makes the whole
-    ///   read process around 2.5 times slower)
+    ///   read process a couple of times slower)
     ///
     /// But if any of this is a problem for you, you should rather use a better
     /// file format instead of STL.
@@ -247,12 +240,13 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
 
     /// Reads the whole file into a [`RawResult`].
     ///
-    /// Usually you either want to use a higher level function (like TODO) or
-    /// [`Reader::read_raw`]. The latter is the streaming version of this
-    /// method which doesn't require a temporary storage ([`RawResult`]).
+    /// Usually you either want to use a higher level interface (via
+    /// [`StreamSource`]) or the method [`Reader::read_raw`]. The latter is the
+    /// streaming version of this method which doesn't require a temporary
+    /// storage ([`RawResult`]).
     pub fn into_raw_result(self) -> Result<RawResult, Error> {
         // Prepare the raw result with metadata and memory allocations.
-        let mut out = RawResult::new();
+        let mut out = RawResult::empty();
         out.solid_name = self.solid_name.clone();
         if let Some(tri_count) = self.triangle_count {
             out.triangles.reserve(tri_count as usize);
@@ -268,9 +262,31 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
     /// callback.
     ///
     /// This is a low level building block that you usually don't want to use
-    /// directly. TODO: High level? In particular, this method itself never
-    /// performs any vertex unification (regardless of the type parameter `U`).
+    /// directly. In particular, **this method itself never performs any vertex
+    /// unification** (regardless of the type parameter `U`). You usually want
+    /// to use the [`StreamSource`]) interface to actually read meshes from
+    /// this reader.
     pub fn read_raw(self, mut add_triangle: impl FnMut(RawTriangle)) -> Result<(), Error> {
+        /// Parses three floats separated by whitespace. No leading or trailing
+        /// whitespace is handled.
+        fn vec3(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
+            let x = parse::ascii_f32(buf)?;
+            parse::whitespace(buf)?;
+            let y = parse::ascii_f32(buf)?;
+            parse::whitespace(buf)?;
+            let z = parse::ascii_f32(buf)?;
+            Ok([x, y, z])
+        }
+
+        /// Parses one ASCII line with a vertex (e.g. `vertex 2.0 0.1  1`)
+        fn vertex(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
+            parse::line(buf, |buf| {
+                buf.expect_tag(b"vertex")?;
+                parse::whitespace(buf)?;
+                vec3(buf)
+            })
+        }
+
         let mut buf = self.buf;
 
         // ===== Parse body ==================================================
@@ -365,55 +381,6 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> fmt::Debug for Reader<R, U> {
     }
 }
 
-
-// ===========================================================================
-// ===== Definition of `RawTriangle` and `RawResult`
-// ===========================================================================
-
-/// One raw triangle in an STL file.
-///
-/// This type is used in [`RawResult`] and [`RawSink`]. If you don't use the low
-/// level `raw` methods, you probably don't care about this type.
-#[derive(Debug, Clone, Copy)]
-pub struct RawTriangle {
-    /// Face normal.
-    pub normal: [f32; 3],
-
-    /// The 3D positions of the vertices in CCW order (that is, when looking at
-    /// the face "from the outside").
-    pub vertices: [[f32; 3]; 3],
-
-    /// No one understands what this does. It's only stored in binary format
-    /// and is usually zero. Sometimes it's abused to store a 16bit color. You
-    /// shouldn't do that.
-    ///
-    /// If an ASCII file is parsed, this is just set to 0 (despite it being not
-    /// stored in the file).
-    pub attribute_byte_count: u16,
-}
-
-/// Holds the raw data from an STL file.
-///
-/// To obtain a `RawResult`, call [`Reader::into_raw_result`]. See its
-/// documentation for more information.
-#[derive(Debug, Clone)]
-pub struct RawResult {
-    /// The solid name if it's specified in the file.
-    pub solid_name: Option<String>,
-
-    /// All triangles from the file.
-    pub triangles: Vec<RawTriangle>,
-}
-
-impl RawResult {
-    /// Creates an instance with no name and no triangles.
-    pub fn new() -> Self {
-        Self {
-            solid_name: None,
-            triangles: Vec::new(),
-        }
-    }
-}
 
 // ===========================================================================
 // ===== Definition of unifying dummy types. Not actually public.
