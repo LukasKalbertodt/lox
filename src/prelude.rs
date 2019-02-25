@@ -15,6 +15,9 @@ pub use crate::{
     handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
     map::{PropMap, PropStore, PropStoreMut},
     prop::{Pos3Like, Vec3Like},
-    io::{StreamSource, MemSink},
+    io::{
+        StreamSource, StreamSink, MemSource, MemSink,
+        util::{MemSourceExt},
+    },
     util::{PointIteratorExt, TriArrayExt},
 };
