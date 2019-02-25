@@ -112,6 +112,46 @@ pub fn read<T: Empty + MemSink, P: AsRef<Path>>(path: P) -> Result<T, Error> {
     inner(path.as_ref())
 }
 
+/// Writes mesh defined by the given source to the file with the given filename
+/// (the file is created/overwritten).
+///
+/// This function tries to automatically determine the file format from the
+/// filename extension. If the format couldn't be determined because it's
+/// unknown or ambiguous, `Error::FormatUnknown` is returned. To explicitly
+/// specify the file format, use the `write` functions from the format modules
+/// (like `ply::write`).
+///
+/// ```no_run
+/// use lox::{
+///     prelude::*,
+///     ds::FaceDelegateMesh,
+///     fat::MiniMesh,
+///     io,
+/// };
+///
+/// let dummy = MiniMesh::<FaceDelegateMesh>::empty();
+/// io::write("foo.ply", &dummy)?;
+/// # Ok::<_, io::Error>(())
+/// ```
+pub fn write<T: MemSource, P: AsRef<Path>>(path: P, src: &T) -> Result<(), Error> {
+    // We have this inner method which takes a `&Path` directly to reduce the
+    // number of instantiations of the outer function. These "convenience"
+    // generics can actually often result in bloated binaries.
+    fn inner<T: MemSource>(path: &Path, src: &T) -> Result<(), Error> {
+        // Guess the file format from extension
+        let format = FileFormat::from_extension(path).ok_or(Error::FormatUnknown)?;
+
+        // Write the file
+        let file = io::BufWriter::new(File::create(path)?);
+        match format {
+            FileFormat::Stl => stl::Config::binary().into_writer(file).transfer_from(src),
+            FileFormat::Ply => unimplemented!(),
+        }
+    }
+
+    inner(path.as_ref(), src)
+}
+
 // /// Types that can be transformed into a [`MeshWriter`].
 // pub trait IntoMeshWriter<'a, MeshT, PosM>
 // where
