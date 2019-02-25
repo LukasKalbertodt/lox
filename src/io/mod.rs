@@ -74,13 +74,11 @@ mod tests;
 /// use lox::{
 ///     ds::FaceDelegateMesh,
 ///     fat::MiniMesh,
-///     io
+///     io,
 /// };
 ///
-/// # fn main() -> Result<(), failure::Error> {
 /// let mesh: MiniMesh<FaceDelegateMesh> = io::read("foo.ply")?;
-/// # Ok(())
-/// # }
+/// # Ok::<_, io::Error>(())
 /// ```
 pub fn read<T: Empty + MemSink, P: AsRef<Path>>(path: P) -> Result<T, Error> {
     // We have this inner method which takes a `&Path` directly to reduce the
