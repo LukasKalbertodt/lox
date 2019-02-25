@@ -97,8 +97,9 @@ fn gen_mesh_code(field: &CoreMeshField) -> TokenStream {
 
 /// Generates the code for `finish()`.
 fn gen_finish_code(input: &Input) -> TokenStream {
-    fn gen_check(field_name: &Ident, prop_name: &str, expected: &Ident) -> TokenStream {
-        let err_msg = format!("missing {} ({{}} provided, {{}} expected)", prop_name);
+    fn gen_check(field_name: &Ident, prop: &str, expected: &Ident) -> TokenStream {
+        let prop_kind = ident!("{}", prop);
+        let err_msg = "{} provided, {} expected";
         quote! {
             // We only have to check for the case where the number of
             // properties is less than the number of elements in the mesh. It
@@ -110,7 +111,10 @@ fn gen_finish_code(input: &Input) -> TokenStream {
                     lox::map::PropStore::num_props(&self.#field_name),
                     #expected,
                 );
-                return Err(lox::io::Error::DataIncomplete(msg));
+                return Err(lox::io::Error::DataIncomplete {
+                    prop: lox::io::PropKind::#prop_kind,
+                    msg,
+                });
             }
         }
     }
@@ -121,15 +125,15 @@ fn gen_finish_code(input: &Input) -> TokenStream {
     let num_faces = ident!("_num_faces");
 
     let vertex_position = input.vertex_position.as_ref()
-        .map(|f| gen_check(&f.name, "vertex positions", &num_vertices));
+        .map(|f| gen_check(&f.name, "VertexPosition", &num_vertices));
     let vertex_normal = input.vertex_normal.as_ref()
-        .map(|f| gen_check(&f.name, "vertex normals", &num_vertices));
+        .map(|f| gen_check(&f.name, "VertexNormal", &num_vertices));
     let vertex_color = input.vertex_color.as_ref()
-        .map(|f| gen_check(&f.name, "vertex colors", &num_vertices));
+        .map(|f| gen_check(&f.name, "VertexColor", &num_vertices));
     let face_normal = input.face_normal.as_ref()
-        .map(|f| gen_check(&f.name, "face normals", &num_faces));
+        .map(|f| gen_check(&f.name, "FaceNormal", &num_faces));
     let face_color = input.face_color.as_ref()
-        .map(|f| gen_check(&f.name, "face colors", &num_faces));
+        .map(|f| gen_check(&f.name, "FaceColor", &num_faces));
 
     // Combine everything
     let mesh_field_name = &input.core_mesh.name;

@@ -430,7 +430,10 @@ pub enum Error {
     /// - Check why the source does not provide the data the sink requires and
     ///   potentially use a source that provides that data.
     /// - If you own the sink: relax the restrictions of what data is required.
-    DataIncomplete(String),
+    DataIncomplete {
+        prop: PropKind,
+        msg: String,
+    },
 
     /// A file couldn't be opened because the file format was no specified and
     /// could not be automatically determined.
@@ -468,11 +471,12 @@ impl fmt::Display for Error {
                     requested_type,
                 )
             }
-            Error::DataIncomplete(details) => {
+            Error::DataIncomplete { prop, msg } => {
                 write!(
                     f,
-                    "source data is incomplete (sink requires more data): {}",
-                    details,
+                    "source data is incomplete (sink requires more data): missing {} ({})",
+                    prop.plural_form(),
+                    msg,
                 )
             }
             Error::FormatUnknown => write!(f, "unknown or ambiguous file format"),
