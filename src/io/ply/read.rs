@@ -35,6 +35,7 @@ use crate::{
     io::{
         StreamSource, MemSink, Primitive, Error,
         parse::{self, ParseError, Span, SpannedData, Buffer, ParseBuf},
+        util::IndexHandleMap,
     },
     util::debug_fmt_bytes,
 };
@@ -350,184 +351,358 @@ impl<R: io::Read> Reader<R> {
 }
 
 impl<R: io::Read> StreamSource for Reader<R> {
-    fn transfer_to<S: MemSink>(mut self, sink: &mut S) -> Result<(), Error> {
-        fn read_pos<T: FromBytes + Primitive, S: MemSink>(
-            sink: &mut S,
-            raw: &[u8],
-            handle: VertexHandle,
-            offsets: &[RawOffset; 3],
-        ) {
-            let x = T::from_bytes_ne(&raw[offsets[0].as_usize()..]);
-            let y = T::from_bytes_ne(&raw[offsets[1].as_usize()..]);
-            let z = T::from_bytes_ne(&raw[offsets[2].as_usize()..]);
-            sink.set_vertex_position(handle, Point3::new(x, y, z));
+    fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error> {
+        // This function is rather complicated. Why? Speed. Hopefully.
+        //
+        // The the basic idea is the following:
+        // - First, do some sanity checks and extract useful information for
+        //   properties we want to read (like the position of that property).
+        //   This is done directly in this function further below.
+        // - Define a `RawSink` that receives the data via `read_raw_into`
+        //   (this is the `HelperSink`).
+        // - Prepare everything that we can prepare beforehand: offsets into
+        //   raw data buffer and function pointer. Function pointers are the
+        //   important bit here: We can match over the type of a property and
+        //   use the pointer to the function instantiated with that type. Then
+        //   the function pointer just needs to be called and the type doesn't
+        //   need to be inspected anymore. All these things are stored in the
+        //   `HelperSink`.
+        // - Finally, start reading data via `HelperSink`. We also have a
+        //   function pointer (`elem_handler`) that points to the function
+        //   handling the current element (which in turn will call other
+        //   function pointers). This is updated on each `element_group_start`
+        //   call.
+
+        /// Some info created while sanity checking the header. This is passed
+        /// to `HelperSink` and is further processed there.
+        struct PropInfo {
+            vertex_position: Option<([PropIndex; 3], ScalarType)>,
+            vertex_indices: Option<(PropIndex, ScalarType)>,
+        }
+
+        /// Helper type alias for property handler functions.
+        type FnPropHandler<S> = fn(&mut S, &RawElement);
+
+        struct HelperSink<'a, S: MemSink> {
+            sink: &'a mut S,
+
+            /// This function is called for incoming new raw elements. The
+            /// function pointer is updated every time `element_group_start` is
+            /// called.
+            elem_handler: fn(&mut Self, &RawElement) -> Result<(), Error>,
+
+            // ----- State for the property handlers -----
+            // Not always valid! Reading these handles at the wrong time might
+            // return useless values.
+            curr_vertex_handle: VertexHandle,
+            curr_face_handle: FaceHandle,
+            // TODO: we could put the current element here, but we don't want
+            // to clone it and via reference brings lifetime problems...
+
+            // ----- State for vertex handling -----
+            vertex_handles: IndexHandleMap<VertexHandle>,
+            vertex_count: usize,
+
+            /// The position of the x, y and z property in the list of vertex
+            /// properties (usually 0, 1, 2)
+            vertex_position_idx: [PropIndex; 3],
+
+            /// Function to read the x, y, z properties
+            read_vertex_position: FnPropHandler<Self>,
+
+
+            // ----- State for face handling -----
+            face_handles: IndexHandleMap<FaceHandle>,
+            face_count: usize,
+
+            /// The position of the `vertex_indices` property in the list of
+            /// face properties (usually 0)
+            vertex_indices_idx: PropIndex,
+
+            /// Function to read the `vertex_indices` property and add the
+            /// face. Returns `Err(idx)` if an vertex index is not valid.
+            read_face_vertex_indices:
+                fn(&mut Self, RawOffset, &RawData) -> Result<FaceHandle, usize>,
+
+        }
+
+        impl<'a, S: MemSink> HelperSink<'a, S> {
+            fn new(sink: &'a mut S, info: PropInfo) -> Self {
+                // Return the function pointer of the method `$fun`
+                // instantiated with the primitive type `$ty`.
+                macro_rules! typed_fn_ptr {
+                    ($ty:ident, $fun:ident) => {
+                        match $ty {
+                            ScalarType::Char => Self::$fun::<i8>,
+                            ScalarType::UChar => Self::$fun::<u8>,
+                            ScalarType::Short => Self::$fun::<i16>,
+                            ScalarType::UShort => Self::$fun::<u16>,
+                            ScalarType::Int => Self::$fun::<i32>,
+                            ScalarType::UInt => Self::$fun::<u32>,
+                            ScalarType::Float => Self::$fun::<f32>,
+                            ScalarType::Double => Self::$fun::<f64>,
+                        }
+                    }
+                }
+
+                // For property `vertex_indices`
+                let (vertex_indices_idx, read_face_vertex_indices) = match info.vertex_indices {
+                    Some((offset, ty)) => {
+                        let fun = match ty {
+                            ScalarType::Char => Self::read_face_vertex_indices::<i8>,
+                            ScalarType::UChar => Self::read_face_vertex_indices::<u8>,
+                            ScalarType::Short => Self::read_face_vertex_indices::<i16>,
+                            ScalarType::UShort => Self::read_face_vertex_indices::<u16>,
+                            ScalarType::Int => Self::read_face_vertex_indices::<i32>,
+                            ScalarType::UInt => Self::read_face_vertex_indices::<u32>,
+
+                            // We check before that the type is an integer.
+                            ScalarType::Float | ScalarType::Double => unreachable!(),
+                        };
+
+                        (offset, fun)
+                    }
+                    None => (
+                        PropIndex(0),
+                        Self::vertex_indices_bug as fn(&mut _, _, &_) -> _,
+                    ),
+                };
+
+                // For properties x, y, z.
+                let (vertex_position_idx, read_vertex_position) = match info.vertex_position {
+                    Some((offset, ty)) => (offset, typed_fn_ptr!(ty, read_vertex_position)),
+                    None => ([PropIndex(0); 3], Self::noop as FnPropHandler<Self>),
+                };
+
+
+                Self {
+                    sink: sink,
+
+                    // It will be overwritten in `element_group_start`, but if
+                    // `read_raw_into` is buggy, this function might be called,
+                    // so we will panic in that case.
+                    elem_handler: HelperSink::bug_in_read_raw,
+
+                    // We initialize the handles to dummy values. They are
+                    // overwritten in `handle_vertex` and `handle_face`.
+                    curr_vertex_handle: VertexHandle::from_usize(0),
+                    curr_face_handle: FaceHandle::from_usize(0),
+
+                    vertex_handles: IndexHandleMap::new(),
+                    vertex_count: 0,
+
+                    vertex_position_idx,
+                    read_vertex_position,
+
+                    face_handles: IndexHandleMap::new(),
+                    face_count: 0,
+
+                    vertex_indices_idx,
+                    read_face_vertex_indices,
+                }
+            }
+
+
+            // ----- Element handler ------------------------------------------
+            /// Initial element handler. Will hopefully never be called.
+            fn bug_in_read_raw(&mut self, _: &RawElement) -> Result<(), Error> {
+                panic!(
+                    "bug in `ply::Reader::read_raw_into`: `element()` called \
+                        before `element_group_start`"
+                );
+            }
+
+            fn ignore_elem(&mut self, _: &RawElement) -> Result<(), Error> {
+                Ok(())
+            }
+
+            /// Called for each element in the `vertex` group.
+            fn handle_vertex(&mut self, elem: &RawElement) -> Result<(), Error> {
+                // Add vertex
+                let vh = self.sink.add_vertex();
+                self.vertex_handles.add(self.vertex_count, vh);
+                self.vertex_count += 1;
+                self.curr_vertex_handle = vh;
+
+                // Read vertex properties
+                (self.read_vertex_position)(self, elem);
+
+                Ok(())
+            }
+
+            /// Called for each element in the `face` group.
+            fn handle_face(&mut self, elem: &RawElement) -> Result<(), Error> {
+                // We checked before that this property is indeed a list
+                let vi_list = elem.decode_list_at(self.vertex_indices_idx).unwrap();
+
+                if vi_list.list_len != 3 {
+                    return Err(Error::InvalidInput(format!(
+                        "the face at position {} has {} vertices (right now, only triangular \
+                            faces are supported)",
+                        self.face_count,
+                        vi_list.list_len,
+                    )));
+                }
+
+                // Add face
+                let fh = (self.read_face_vertex_indices)(self, vi_list.data_offset, &elem.data)
+                    .map_err(|idx| {
+                        Error::InvalidInput(format!("invalid vertex index {} in PLY file", idx))
+                    })?;
+                self.face_handles.add(self.face_count, fh);
+                self.face_count += 1;
+                self.curr_face_handle = fh;
+
+                Ok(())
+            }
+
+            // ----- Vertex property handler ----------------------------------
+            /// Used for all properties that are not in the file: just do
+            /// nothing.
+            fn noop(&mut self, _: &RawElement) {}
+
+            /// Read the x, y and z property and pass the position to the sink.
+            fn read_vertex_position<T: Primitive + FromBytes>(&mut self, elem: &RawElement) {
+                let [x_idx, y_idx, z_idx] = self.vertex_position_idx;
+                let x = T::from_bytes_ne(&elem.data[elem.prop_infos[x_idx].offset..]);
+                let y = T::from_bytes_ne(&elem.data[elem.prop_infos[y_idx].offset..]);
+                let z = T::from_bytes_ne(&elem.data[elem.prop_infos[z_idx].offset..]);
+
+                self.sink.set_vertex_position(
+                    self.curr_vertex_handle,
+                    Point3::new(x, y, z),
+                );
+            }
+
+            // ----- face property handler ----------------------------------
+            /// Only dummy function that should never be called.
+            fn vertex_indices_bug(
+                &mut self,
+                _: RawOffset,
+                _: &RawData,
+            ) -> Result<FaceHandle, usize> {
+                panic!("internal bug in PLY reader")
+            }
+
+            /// Reads three values from the raw data at the specified offset,
+            /// interprets them as vertex indices and adds a face to the sink.
+            fn read_face_vertex_indices<T: Primitive + FromBytes + PlyInteger>(
+                &mut self,
+                offset: RawOffset,
+                data: &RawData,
+            ) -> Result<FaceHandle, usize> {
+                let a = T::from_bytes_ne(&data[offset + RawOffset(0 * T::SIZE as u32)..]);
+                let b = T::from_bytes_ne(&data[offset + RawOffset(1 * T::SIZE as u32)..]);
+                let c = T::from_bytes_ne(&data[offset + RawOffset(2 * T::SIZE as u32)..]);
+
+                let [a, b, c] = [a.as_usize(), b.as_usize(), c.as_usize()];
+                let vhs = [
+                    self.vertex_handles.get(a).ok_or(a)?,
+                    self.vertex_handles.get(b).ok_or(b)?,
+                    self.vertex_handles.get(c).ok_or(c)?,
+                ];
+                Ok(self.sink.add_face(vhs))
+            }
+        }
+
+        impl<S: MemSink> RawSink for HelperSink<'_, S> {
+            fn element_group_start(&mut self, def: &ElementDef) -> Result<(), Error> {
+                match &*def.name {
+                    "vertex" => self.elem_handler = Self::handle_vertex,
+                    "face" => self.elem_handler = Self::handle_face,
+                    _ => self.elem_handler = Self::ignore_elem,
+                }
+
+                Ok(())
+            }
+
+            fn element(&mut self, elem: &RawElement) -> Result<(), Error> {
+                (self.elem_handler)(self, elem)
+            }
         }
 
 
-        let buf = &mut self.buf;
-
-        let mut vertex_handles = Vec::new();
-
-        let read_element = match self.encoding {
-            Encoding::BinaryBigEndian => read_element_bbe::<Buffer<R>>,
-            Encoding::BinaryLittleEndian => read_element_ble::<Buffer<R>>,
-            Encoding::Ascii => read_element_ascii::<Buffer<R>>,
+        // ===== Interpret and collect header information (and do checks) =====
+        let mut prop_info = PropInfo {
+            vertex_position: None,
+            vertex_indices: None,
         };
 
-        // TODO: call size_hint
+        // Make sure the file contains vertices
+        let vertex_pos = self.elements.iter().position(|e| e.name == "vertex")
+            .ok_or_else(|| Error::InvalidInput("no 'vertex' elements in PLY file".into()))?;
+        let vertex_group = &self.elements[vertex_pos];
 
+        // Check vertex position
+        if let Some(px_idx) = vertex_group.prop_pos("x") {
+            let py_idx = vertex_group.prop_pos("y").ok_or(Error::InvalidInput(
+                "vertex has 'x' property, but no 'y' property (only 3D positions supported)".into()
+            ))?;
+            let pz_idx = vertex_group.prop_pos("z").ok_or(Error::InvalidInput(
+                "vertex has 'x' property, but no 'z' property (only 3D positions supported)".into()
+            ))?;
 
+            let px = &vertex_group.property_defs[px_idx];
+            let py = &vertex_group.property_defs[py_idx];
+            let pz = &vertex_group.property_defs[pz_idx];
 
-        // Iterate through each element group
-        // let mut raw = Vec::new();
-        // let mut starts = Vec::new();
-        for element_def in &self.elements {
-            let mut elem = RawElement {
-                data: Vec::new().into(),
-                prop_infos: element_def.property_defs
-                    .iter()
-                    .map(|def| RawPropertyInfo {
-                        offset: 0.into(),
-                        ty: def.ty,
-                        name: def.name.clone(),
-                    })
-                    .collect::<Vec<_>>()
-                    .into(),
-            };
-
-            let index = get_type_lens(element_def);
-
-            macro_rules! read_elem {
-                () => {{
-                    elem.data.clear();
-                    read_element(buf, &index, &mut elem)
-                        .expect("fucki wucki");
-                }}
+            if px.ty.is_list() {
+                return Err(Error::InvalidInput(
+                    "vertex property 'x' has a list type (only scalars allowed)".into()
+                ));
             }
 
-            match &*element_def.name {
-                "vertex" => {
-                    // Preparations for vertex parsing
-                    let pos_type = element_def.property_defs.iter()
-                        .find(|def| def.name == "x")
-                        .expect("no position data in PLY") // TODO
-                        .ty;
+            if px.ty != py.ty || px.ty != pz.ty {
+                return Err(Error::InvalidInput(
+                    "vertex properties 'x', 'y' and 'z' don't have the same type".into()
+                ));
+            }
 
-                    let x_index = element_def.property_defs.iter()
-                        .position(|def| def.name == "x")
-                        .expect("no position data in PLY"); // TODO
-                    let y_index = element_def.property_defs.iter()
-                        .position(|def| def.name == "y")
-                        .expect("no position data in PLY"); // TODO
-                    let z_index = element_def.property_defs.iter()
-                        .position(|def| def.name == "z")
-                        .expect("no position data in PLY"); // TODO
+            prop_info.vertex_position = Some((
+                [px_idx, py_idx, pz_idx],
+                px.ty.scalar_type(),
+            ))
+        }
 
-                    // TODO: make data structure to nicely get indices
-                    let x_index = PropIndex::from(x_index as u8);
-                    let y_index = PropIndex::from(y_index as u8);
-                    let z_index = PropIndex::from(z_index as u8);
+        // Check faces
+        if let Some(face_pos) = self.elements.iter().position(|e| e.name == "face") {
+            // Faces can only be in the file after vertices
+            if face_pos < vertex_pos {
+                return Err(Error::InvalidInput(
+                    "found 'face' elements before 'vertex' elements (that's now allowed)".into()
+                ));
+            }
 
+            let face_group = &self.elements[face_pos];
 
-                    let pos_type = match pos_type {
-                        PropertyType::Scalar(ty) => ty,
-                        PropertyType::List { .. } => panic!("bad position type") // TODO
-                    };
-                    let read_pos = match pos_type {
-                        ScalarType::Char => read_pos::<i8, S>,
-                        ScalarType::UChar => read_pos::<u8, S>,
-                        ScalarType::Short => read_pos::<i16, S>,
-                        ScalarType::UShort => read_pos::<u16, S>,
-                        ScalarType::Int => read_pos::<i32, S>,
-                        ScalarType::UInt => read_pos::<u32, S>,
-                        ScalarType::Float => read_pos::<f32, S>,
-                        ScalarType::Double => read_pos::<f64, S>,
-                    };
-
-                    for _ in 0..element_def.count {
-                        read_elem!();
-                        // println!("{:02x?}", raw);
-                        // println!("{:?}", starts);
-
-                        let handle = sink.add_vertex();
-                        vertex_handles.push(handle);
-                        let pos_offsets = [
-                            elem.prop_infos[x_index].offset,
-                            elem.prop_infos[y_index].offset,
-                            elem.prop_infos[z_index].offset,
-                        ];
-                        read_pos(sink, &elem.data, handle, &pos_offsets);
-                    }
+            // The property `vertex_indices` is required
+            if let Some(vi_idx) = face_group.prop_pos("vertex_indices") {
+                let vi = &face_group.property_defs[vi_idx];
+                if !vi.ty.is_list() {
+                    return Err(Error::InvalidInput(
+                        "'vertex_indices' property has a scalar type (must be a list)".into()
+                    ));
                 }
-                "face" => {
-                    // println!("----");
-                    // TODO: check "vertex" came before
 
-                    let vi_index = element_def.property_defs.iter()
-                        .position(|def| def.name == "vertex_indices")
-                        .expect("no vertex indices data in PLY"); // TODO
-                    // TODO: build a nice structure to find index
-                    let vi_index = PropIndex::from(vi_index as u8);
-
-                    fn read_vertex_handles<T: FromBytes + Into<u32>>(
-                        raw: &[u8],
-                    ) -> [u32; 3] {
-                        let a = T::from_bytes_ne(&raw[0 * T::SIZE..]).into();
-                        let b = T::from_bytes_ne(&raw[1 * T::SIZE..]).into();
-                        let c = T::from_bytes_ne(&raw[2 * T::SIZE..]).into();
-                        [a, b, c]
-                    }
-
-
-                    let vi_scalar_type = element_def.property_defs[vi_index].ty.scalar_type();
-                    let read_vertex_handles = match vi_scalar_type {
-                        ScalarType::Char | ScalarType::UChar => read_vertex_handles::<u8>,
-                        ScalarType::Short | ScalarType::UShort => read_vertex_handles::<u16>,
-                        ScalarType::Int | ScalarType::UInt => read_vertex_handles::<u32>,
-                        _ => unreachable!(), // TODO: actually check above
-                    };
-
-                    for _ in 0..element_def.count {
-                        read_elem!();
-                        // println!("{:02x?}", raw);
-                        // println!("{:?}", starts);
-                        let vi_list = elem.decode_list_at(vi_index)
-                            .expect("fucki wucki `vertex_indices` has to be list");
-
-                        if vi_list.list_len != 3 {
-                            panic!("fucki wucki no triangle");
-                        }
-
-                        let vis = read_vertex_handles(&elem.data[vi_list.data_offset..]);
-                        // println!("{:?}", vis);
-
-                        let handles = [
-                            // TODO: error handling
-                            *vertex_handles.get(vis[0] as usize)
-                                .expect("fucki wucki incorrect index"),
-                            *vertex_handles.get(vis[1] as usize)
-                                .expect("fucki wucki incorrect index"),
-                            *vertex_handles.get(vis[2] as usize)
-                                .expect("fucki wucki incorrect index"),
-                        ];
-
-                        sink.add_face(handles);
-
-
-                        // let handle = sink.add_vertex();
-                        // vertex_handles.push(handle);
-                        // read_pos(
-                        //     sink,
-                        //     &raw,
-                        //     handle,
-                        //     &[starts[x_index], starts[y_index], starts[z_index]],
-                        // );
-                    }
+                if vi.ty.scalar_type().is_floating_point() {
+                    return Err(Error::InvalidInput(
+                        "'vertex_indices' list has a floating point element type (only \
+                            integers are allowed)".into()
+                    ));
                 }
-                _ => unimplemented!()
+
+                prop_info.vertex_indices = Some((vi_idx, vi.ty.scalar_type()));
+            } else {
+                return Err(Error::InvalidInput(
+                    "'face' elements without 'vertex_indices' property".into()
+                ));
             }
         }
-        Ok(())
+
+        // ===== Read the data through our helper sink =====
+        // TODO: size hint
+        let mut helper_sink = HelperSink::new(sink, prop_info);
+        self.read_raw_into(&mut helper_sink)
     }
 }
 
@@ -1243,6 +1418,14 @@ pub struct ElementDef {
     pub property_defs: PropVec<PropertyDef>,
 }
 
+impl ElementDef {
+    fn prop_pos(&self, prop_name: &str) -> Option<PropIndex> {
+        self.property_defs.iter()
+            .position(|p| p.name == prop_name)
+            .map(|idx| PropIndex(idx as u8))
+    }
+}
+
 /// Te header definition of one property of an element.
 #[derive(Debug, Clone)]
 pub struct PropertyDef {
@@ -1272,6 +1455,10 @@ impl PropertyType {
             PropertyType::Scalar(scalar_type) => scalar_type,
             PropertyType::List { scalar_type, .. } => scalar_type,
         }
+    }
+
+    fn is_list(&self) -> bool {
+        self.len_type().is_some()
     }
 }
 
@@ -1393,6 +1580,27 @@ impl FromStr for ScalarType {
         }
     }
 }
+
+trait PlyInteger {
+    fn as_usize(&self) -> usize;
+}
+
+macro_rules! impl_ply_integer {
+    ($ty:ident) => {
+        impl PlyInteger for $ty {
+            fn as_usize(&self) -> usize {
+                *self as usize
+            }
+        }
+    }
+}
+
+impl_ply_integer!(u8);
+impl_ply_integer!(u16);
+impl_ply_integer!(u32);
+impl_ply_integer!(i8);
+impl_ply_integer!(i16);
+impl_ply_integer!(i32);
 
 /// One property value of some PLY type.
 ///
