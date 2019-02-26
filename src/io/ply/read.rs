@@ -161,7 +161,7 @@ impl<R: io::Read> Reader<R> {
 
 
         // ===== Parse elements and their properties =========================
-        let mut elements = Vec::new();
+        let mut elements: Vec<ElementDef> = Vec::new();
 
         // Line by line until we reach the end of the header
         while !buf.is_next(b"end_header")? {
@@ -170,11 +170,21 @@ impl<R: io::Read> Reader<R> {
 
                 // Element definition, e.g. `element vertex 8`
                 () if buf.is_next(b"element ")? => {
+                    let line_start = buf.offset();
+
                     buf.consume(b"element".len());
                     parse::whitespace(&mut buf)?;
 
                     let name = parse_ident(&mut buf)?;
                     parse::whitespace(&mut buf)?;
+
+                    // Make sure there is no other element with the same name
+                    if elements.iter().find(|e| e.name == name).is_some() {
+                        return Err(ParseError::Custom(
+                            format!("duplicate element definition for '{}'", name),
+                            Span::new(line_start, line_start +  "element".len()),
+                        ).into());
+                    }
 
                     let count = buf.take_until(|b| b == b' ' || b == b'\n', |n| {
                         match n.assert_ascii()?.parse::<u64>() {
