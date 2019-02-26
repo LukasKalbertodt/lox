@@ -30,6 +30,7 @@ use failure::Fail;
 use smallvec::SmallVec;
 
 use crate::{
+    self as lox, // for proc macros
     prelude::*,
     io::{
         StreamSource, MemSink, Primitive, Error,
@@ -40,6 +41,7 @@ use crate::{
 use super::Encoding;
 
 
+// ----------------------------------------------------------------------------
 
 // ===========================================================================
 // ===== Definition of `Reader`
@@ -282,7 +284,7 @@ impl<R: io::Read> Reader<R> {
 
     /// Reads the whole file into a [`RawResult`].
     pub fn into_raw_result(self) -> Result<RawResult, Error> {
-        let mut out = RawResult::new();
+        let mut out = RawResult::empty();
         self.read_raw_into(&mut out)?;
         Ok(out)
     }
@@ -1490,21 +1492,12 @@ impl RawSink for RawResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Empty)]
 pub struct RawResult {
     pub element_groups: Vec<RawElementGroup>,
 }
 
-impl RawResult {
-    /// Creates an instance with no name and no triangles.
-    pub fn new() -> Self {
-        Self {
-            element_groups: Vec::new(),
-        }
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RawElementGroup {
     pub def: ElementDef,
     pub elements: Vec<RawElement>,
