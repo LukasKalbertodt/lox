@@ -353,6 +353,22 @@ pub enum Error {
     /// reporting this as a parser bug.
     Parse(ParseError),
 
+    /// An error indicating that the input file is not valid.
+    ///
+    /// This is similar to but different from `Parse`: while a parse error is
+    /// something very much related to the low level syntax of the input file,
+    /// this `InvalidInput` rather represents logical errors in the file (like
+    /// faces not defining their vertices or wrong order of elements).
+    /// Furthmore, parse errors can usually point to the exact part of the file
+    /// where the error occured. These general input errors are more abstract
+    /// and often don't just belong to one specific span.
+    ///
+    /// If you encounter this error, here is what you can do: make sure your
+    /// input file is well-formed. If you are sure that your file is fine and
+    /// other programs can succesfully parse that file, please consider
+    /// reporting this as a parser bug.
+    InvalidInput(String),
+
     /// This error can be returned by a `MemSink` to signal that it is not able
     /// to handle incoming data.
     ///
@@ -426,6 +442,7 @@ impl fmt::Display for Error {
         match self {
             Error::Io(e) => write!(f, "IO error: {}", e),
             Error::Parse(e) => write!(f, "Parsing error: {}", e),
+            Error::InvalidInput(msg) => write!(f, "invalid input: {}", msg),
             Error::SinkIncompatible { prop, source_type } => {
                 write!(
                     f,
