@@ -314,7 +314,7 @@ impl<R: io::Read> Reader<R> {
 
         // Iterate through each element group
         for element_def in &self.elements {
-            sink.element_group_start(&element_def);
+            sink.element_group_start(&element_def)?;
 
             // Create index and half-initialized `elem` from the element
             // definition.
@@ -341,7 +341,7 @@ impl<R: io::Read> Reader<R> {
                 read_element(buf, &index, &mut elem)?;
 
                 // Send read properties to the sink.
-                sink.element(&elem);
+                sink.element(&elem)?;
             }
         }
 
@@ -1477,28 +1477,30 @@ pub trait RawSink {
     /// Is called when a new element group begins. `def` describes the layout
     /// of all elements in this group. This method is *always* called before
     /// `element` is called.
-    fn element_group_start(&mut self, def: &ElementDef);
+    fn element_group_start(&mut self, def: &ElementDef) -> Result<(), Error>;
 
     /// Is called for each element that is read. When called, the element
     /// belongs to the last element group (the last `element_group_start`
     /// call).
-    fn element(&mut self, elem: &RawElement);
+    fn element(&mut self, elem: &RawElement) -> Result<(), Error>;
 }
 
 impl RawSink for RawResult {
-    fn element_group_start(&mut self, def: &ElementDef) {
+    fn element_group_start(&mut self, def: &ElementDef) -> Result<(), Error> {
         self.element_groups.push(RawElementGroup {
             def: def.clone(),
             elements: vec![],
         });
+        Ok(())
     }
 
-    fn element(&mut self, elem: &RawElement) {
+    fn element(&mut self, elem: &RawElement) -> Result<(), Error> {
         self.element_groups
             .last_mut()
             .unwrap()
             .elements
             .push(elem.clone());
+        Ok(())
     }
 }
 
