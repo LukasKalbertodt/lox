@@ -5,10 +5,11 @@ use std::{
 };
 
 use cgmath::{Point3, Vector3};
+use stable_vec::StableVec;
 
 use crate::{
     cast::{try_cast, is_cast_possible, CastRigor},
-    handle::{VertexHandle, FaceHandle},
+    handle::{Handle, VertexHandle, FaceHandle},
     io::{Error, MemSource, PrimitiveType, Primitive, PropKind},
     map::PropMap,
     math::{PrimitiveFloat},
@@ -356,5 +357,164 @@ where
         });
 
         Ok(out)
+    }
+}
+
+/// Internal helper map to map from indices to handles.
+///
+/// When reading files, the files usually refer to vertices by index in the
+/// file. We also use indices (handles) to refer to vertices. However, we can't
+/// guarantee how meshes return handles. In most cases, meshes also return
+/// handles by just counting up (0, 1, 2, ...). But sometimes, in particular
+/// when the mesh already contains vertices, the handle values do not match the
+/// indices in the file. Thus, we need an index -> handle map.
+///
+/// But we don't want to have a huge overhead for a special case. Therefore,
+/// this type is optimized for the common case.
+#[derive(Debug)]
+pub(super) enum IndexHandleMap<H: Handle> {
+    /// All indices were equal to the handles and started at 0.
+    Block {
+        len: usize,
+    },
+    /// Something else
+    Arbitrary {
+        map: StableVec<H>,
+    },
+    // TODO: think about implementing another special case: handles start from
+    // an offset, but then just count up.
+}
+
+impl<H: Handle> IndexHandleMap<H> {
+    pub(super) fn new() -> Self {
+        IndexHandleMap::Block { len: 0 }
+    }
+
+    pub(super) fn add(&mut self, index: usize, handle: H) {
+        match self {
+            IndexHandleMap::Block { len } => {
+                // This is the expected case: handles and indices have the same
+                // value and are simply counting up.
+                if handle.to_usize() == index && *len == index {
+                    *len += 1;
+                } else {
+                    // This is bad: now we have to convert this simple map into
+                    // the arbitrary map. First transfer all old values.
+                    let mut map = StableVec::with_capacity(*len);
+                    for i in 0..*len {
+                        map.push(H::from_usize(i));
+                    }
+
+                    // Insert new value
+                    Self::insert_into_sv(&mut map, index, handle);
+
+                    *self = IndexHandleMap::Arbitrary { map };
+                }
+            }
+            IndexHandleMap::Arbitrary { map } => {
+                Self::insert_into_sv(map, index, handle);
+            }
+        }
+    }
+
+    pub(super) fn get(&self, index: usize) -> Option<H> {
+        match self {
+            IndexHandleMap::Block { len } => {
+                if index < *len {
+                    Some(H::from_usize(index))
+                } else {
+                    None
+                }
+            }
+            IndexHandleMap::Arbitrary { map } => {
+                map.get(index).cloned()
+            }
+        }
+    }
+
+    fn insert_into_sv(sv: &mut StableVec<H>, idx: usize, elem: H) {
+        if sv.has_element_at(idx) {
+            panic!("IndexHandleMap::insert called with the same index twice");
+        } else {
+            // Make sure `idx` is not out of bounds by growing the vector if
+            // necessary.
+            let next_index = sv.next_index();
+            if next_index <= idx {
+                sv.grow(1 + idx - next_index);
+            }
+
+            // We made sure that there is no element at `idx` and that `idx`
+            // is not out of bounds. So we can unwrap here.
+            sv.insert_into_hole(idx, elem).ok().unwrap();
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn index_map_nice() {
+        let fh = FaceHandle::from_usize;
+
+        let mut map = IndexHandleMap::new();
+        assert_eq!(map.get(0), None);
+        assert_eq!(map.get(1), None);
+
+        map.add(0, fh(0));
+        assert_eq!(map.get(0), Some(fh(0)));
+        assert_eq!(map.get(1), None);
+
+        map.add(1, fh(1));
+        assert_eq!(map.get(0), Some(fh(0)));
+        assert_eq!(map.get(1), Some(fh(1)));
+    }
+
+    #[test]
+    fn index_map_bad() {
+        let fh = FaceHandle::from_usize;
+
+        let mut map = IndexHandleMap::new();
+        map.add(0, fh(1));
+        assert_eq!(map.get(0), Some(fh(1)));
+        assert_eq!(map.get(1), None);
+        assert_eq!(map.get(2), None);
+
+        let mut map = IndexHandleMap::new();
+        map.add(1, fh(0));
+        assert_eq!(map.get(0), None);
+        assert_eq!(map.get(1), Some(fh(0)));
+        assert_eq!(map.get(2), None);
+
+        let mut map = IndexHandleMap::new();
+        map.add(0, fh(0));
+        map.add(1, fh(2));
+        assert_eq!(map.get(0), Some(fh(0)));
+        assert_eq!(map.get(1), Some(fh(2)));
+        assert_eq!(map.get(2), None);
+
+        let mut map = IndexHandleMap::new();
+        map.add(0, fh(0));
+        map.add(2, fh(1));
+        assert_eq!(map.get(0), Some(fh(0)));
+        assert_eq!(map.get(1), None);
+        assert_eq!(map.get(2), Some(fh(1)));
+
+        map.add(3, fh(2));
+        assert_eq!(map.get(0), Some(fh(0)));
+        assert_eq!(map.get(1), None);
+        assert_eq!(map.get(2), Some(fh(1)));
+        assert_eq!(map.get(3), Some(fh(2)));
+
+        map.add(6, fh(3));
+        assert_eq!(map.get(0), Some(fh(0)));
+        assert_eq!(map.get(1), None);
+        assert_eq!(map.get(2), Some(fh(1)));
+        assert_eq!(map.get(3), Some(fh(2)));
+        assert_eq!(map.get(4), None);
+        assert_eq!(map.get(4), None);
+        assert_eq!(map.get(6), Some(fh(3)));
     }
 }
