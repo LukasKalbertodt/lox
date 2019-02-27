@@ -24,7 +24,7 @@ use std::{
 };
 
 use byteorder::{ByteOrder, LittleEndian, NativeEndian, ReadBytesExt, WriteBytesExt};
-use cgmath::Point3;
+use cgmath::{Point3, Vector3};
 use derive_more::{Add, AddAssign, Deref, DerefMut, From, Sub, SubAssign};
 use failure::Fail;
 use smallvec::SmallVec;
@@ -377,6 +377,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
         /// to `HelperSink` and is further processed there.
         struct PropInfo {
             vertex_position: Option<([PropIndex; 3], ScalarType)>,
+            vertex_normal: Option<([PropIndex; 3], ScalarType)>,
             vertex_indices: Option<(PropIndex, ScalarType)>,
         }
 
@@ -409,6 +410,13 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
             /// Function to read the x, y, z properties
             read_vertex_position: FnPropHandler<Self>,
+
+            /// The position of the nx, ny and nz properties in the list of
+            /// vertex properties
+            vertex_normal_idx: [PropIndex; 3],
+
+            /// Function to read the nx, ny, nz properties
+            read_vertex_normal: FnPropHandler<Self>,
 
 
             // ----- State for face handling -----
@@ -468,9 +476,15 @@ impl<R: io::Read> StreamSource for Reader<R> {
                     ),
                 };
 
-                // For properties x, y, z.
+                // For vertex properties x, y, z.
                 let (vertex_position_idx, read_vertex_position) = match info.vertex_position {
                     Some((offset, ty)) => (offset, typed_fn_ptr!(ty, read_vertex_position)),
+                    None => ([PropIndex(0); 3], Self::noop as FnPropHandler<Self>),
+                };
+
+                // For vertex properties nx, ny, nz.
+                let (vertex_normal_idx, read_vertex_normal) = match info.vertex_normal {
+                    Some((offset, ty)) => (offset, typed_fn_ptr!(ty, read_vertex_normal)),
                     None => ([PropIndex(0); 3], Self::noop as FnPropHandler<Self>),
                 };
 
@@ -493,6 +507,9 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
                     vertex_position_idx,
                     read_vertex_position,
+
+                    vertex_normal_idx,
+                    read_vertex_normal,
 
                     face_handles: IndexHandleMap::new(),
                     face_count: 0,
@@ -526,6 +543,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
                 // Read vertex properties
                 (self.read_vertex_position)(self, elem);
+                (self.read_vertex_normal)(self, elem);
 
                 Ok(())
             }
@@ -571,6 +589,19 @@ impl<R: io::Read> StreamSource for Reader<R> {
                 self.sink.set_vertex_position(
                     self.curr_vertex_handle,
                     Point3::new(x, y, z),
+                );
+            }
+
+            /// Read the x, y and z property and pass the position to the sink.
+            fn read_vertex_normal<T: Primitive + FromBytes>(&mut self, elem: &RawElement) {
+                let [x_idx, y_idx, z_idx] = self.vertex_normal_idx;
+                let x = T::from_bytes_ne(&elem.data[elem.prop_infos[x_idx].offset..]);
+                let y = T::from_bytes_ne(&elem.data[elem.prop_infos[y_idx].offset..]);
+                let z = T::from_bytes_ne(&elem.data[elem.prop_infos[z_idx].offset..]);
+
+                self.sink.set_vertex_normal(
+                    self.curr_vertex_handle,
+                    Vector3::new(x, y, z),
                 );
             }
 
@@ -625,6 +656,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
         // ===== Interpret and collect header information (and do checks) =====
         let mut prop_info = PropInfo {
             vertex_position: None,
+            vertex_normal: None,
             vertex_indices: None,
         };
 
@@ -661,6 +693,37 @@ impl<R: io::Read> StreamSource for Reader<R> {
             prop_info.vertex_position = Some((
                 [px_idx, py_idx, pz_idx],
                 px.ty.scalar_type(),
+            ))
+        }
+
+        // Check vertex normal
+        if let Some(pnx_idx) = vertex_group.prop_pos("nx") {
+            let pny_idx = vertex_group.prop_pos("ny").ok_or(Error::InvalidInput(
+                "vertex has 'nx' property, but no 'ny' property (only 3D normals supported)".into()
+            ))?;
+            let pnz_idx = vertex_group.prop_pos("nz").ok_or(Error::InvalidInput(
+                "vertex has 'nx' property, but no 'nz' property (only 3D normals supported)".into()
+            ))?;
+
+            let pnx = &vertex_group.property_defs[pnx_idx];
+            let pny = &vertex_group.property_defs[pny_idx];
+            let pnz = &vertex_group.property_defs[pnz_idx];
+
+            if pnx.ty.is_list() {
+                return Err(Error::InvalidInput(
+                    "vertex property 'nx' has a list type (only scalars allowed)".into()
+                ));
+            }
+
+            if pnx.ty != pny.ty || pnx.ty != pnz.ty {
+                return Err(Error::InvalidInput(
+                    "vertex properties 'nx', 'ny' and 'nz' don't have the same type".into()
+                ));
+            }
+
+            prop_info.vertex_normal = Some((
+                [pnx_idx, pny_idx, pnz_idx],
+                pnx.ty.scalar_type(),
             ))
         }
 
