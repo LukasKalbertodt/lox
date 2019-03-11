@@ -440,20 +440,45 @@ impl<R: io::Read> StreamSource for Reader<R> {
         }
 
         impl<'a, S: MemSink> HelperSink<'a, S> {
-            fn new(sink: &'a mut S, info: PropInfo) -> Self {
-                // Return the function pointer of the method `$fun`
-                // instantiated with the primitive type `$ty`.
+            fn new(sink: &'a mut S, info: PropInfo) -> Result<Self, Error> {
+                // Call the sink's method `$prep_fn` with the primitive type
+                // `$ty` and `$count`, and return the function pointer of the
+                // method `$fun` instantiated with the primitive type `$ty`.
                 macro_rules! typed_fn_ptr {
-                    ($ty:ident, $fun:ident) => {
+                    ($ty:ident, $fun:ident, $prep_fn:ident, $count:expr) => {
                         match $ty {
-                            ScalarType::Char => Self::$fun::<i8>,
-                            ScalarType::UChar => Self::$fun::<u8>,
-                            ScalarType::Short => Self::$fun::<i16>,
-                            ScalarType::UShort => Self::$fun::<u16>,
-                            ScalarType::Int => Self::$fun::<i32>,
-                            ScalarType::UInt => Self::$fun::<u32>,
-                            ScalarType::Float => Self::$fun::<f32>,
-                            ScalarType::Double => Self::$fun::<f64>,
+                            ScalarType::Char => {
+                                sink.$prep_fn::<i8>($count)?;
+                                Self::$fun::<i8>
+                            },
+                            ScalarType::UChar => {
+                                sink.$prep_fn::<u8>($count)?;
+                                Self::$fun::<u8>
+                            },
+                            ScalarType::Short => {
+                                sink.$prep_fn::<i16>($count)?;
+                                Self::$fun::<i16>
+                            },
+                            ScalarType::UShort => {
+                                sink.$prep_fn::<u16>($count)?;
+                                Self::$fun::<u16>
+                            },
+                            ScalarType::Int => {
+                                sink.$prep_fn::<i32>($count)?;
+                                Self::$fun::<i32>
+                            },
+                            ScalarType::UInt => {
+                                sink.$prep_fn::<u32>($count)?;
+                                Self::$fun::<u32>
+                            },
+                            ScalarType::Float => {
+                                sink.$prep_fn::<f32>($count)?;
+                                Self::$fun::<f32>
+                            },
+                            ScalarType::Double => {
+                                sink.$prep_fn::<f64>($count)?;
+                                Self::$fun::<f64>
+                            },
                         }
                     }
                 }
@@ -483,18 +508,36 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
                 // For vertex properties x, y, z.
                 let (vertex_position_idx, read_vertex_position) = match info.vertex_position {
-                    Some((offset, ty)) => (offset, typed_fn_ptr!(ty, read_vertex_position)),
+                    Some((offset, ty)) => {
+                        let fn_ptr = typed_fn_ptr!(
+                            ty,
+                            read_vertex_position,
+                            prepare_vertex_positions,
+                            info.vertex_count
+                        );
+
+                        (offset, fn_ptr)
+                    }
                     None => ([PropIndex(0); 3], Self::noop as FnPropHandler<Self>),
                 };
 
                 // For vertex properties nx, ny, nz.
                 let (vertex_normal_idx, read_vertex_normal) = match info.vertex_normal {
-                    Some((offset, ty)) => (offset, typed_fn_ptr!(ty, read_vertex_normal)),
+                    Some((offset, ty)) => {
+                        let fn_ptr = typed_fn_ptr!(
+                            ty,
+                            read_vertex_normal,
+                            prepare_vertex_normals,
+                            info.vertex_count
+                        );
+
+                        (offset, fn_ptr)
+                    }
                     None => ([PropIndex(0); 3], Self::noop as FnPropHandler<Self>),
                 };
 
 
-                Self {
+                Ok(Self {
                     sink: sink,
 
                     // It will be overwritten in `element_group_start`, but if
@@ -521,7 +564,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
                     vertex_indices_idx,
                     read_face_vertex_indices,
-                }
+                })
             }
 
 
@@ -782,7 +825,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
             vertex_count: Some(prop_info.vertex_count),
             face_count: prop_info.face_count,
         });
-        let mut helper_sink = HelperSink::new(sink, prop_info);
+        let mut helper_sink = HelperSink::new(sink, prop_info)?;
         self.read_raw_into(&mut helper_sink)
     }
 }
