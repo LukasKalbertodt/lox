@@ -24,6 +24,7 @@ use crate::{
     },
 };
 
+pub mod raw;
 mod read;
 mod write;
 
@@ -31,11 +32,7 @@ mod write;
 mod tests;
 
 
-pub use self::read::{
-    ElementDef, Property, PropertyDef, PropertyType, PropIndex, RawElement,
-    RawElementGroup, RawElementIter, RawResult, RawSink, Reader, ScalarType,
-    ScalarTypeParseError, ListLenType, RawOffset,
-};
+pub use self::read::Reader;
 // pub use self::write::{Config, Writer};
 pub use self::write::Config;
 

@@ -11,8 +11,8 @@ use crate::{
     map::{ConstMap, FnMap, VecMap},
 };
 use super::{
-    Config, Encoding, Reader, PropertyType, ScalarType, PropIndex, Property,
-    ListLenType, RawOffset, RawResult, is_file_start,
+    Config, Encoding, Reader, is_file_start,
+    raw::{PropertyType, ScalarType, PropIndex, Property, ListLenType, RawOffset, RawResult},
 };
 
 // ===========================================================================
