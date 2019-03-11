@@ -1,3 +1,4 @@
+use cgmath::Point3;
 use failure::Error;
 
 use crate as lox;
@@ -5,6 +6,7 @@ use crate::{
     mesh,
     prelude::*,
     ds::SharedVertexMesh,
+    fat::MiniMesh,
     io::IsFormat,
     map::{ConstMap, FnMap, VecMap},
 };
@@ -244,6 +246,28 @@ fn read_raw_triangle_ascii() -> Result<(), Error> {
     Ok(())
 }
 
+/// We only need one test here (instead of one for ble, bbe and ascii) since
+/// the raw data was already checked above (in the `raw` tests).
+#[test]
+fn read_triangle() -> Result<(), Error> {
+    let input = include_test_file!("triangle_ble.ply");
+    let m = MiniMesh::<SharedVertexMesh>::create_from(Reader::new(input)?)?;
+
+    // Check the mesh and properties
+    let vh = VertexHandle::new;
+    let fh = FaceHandle::new;
+
+    assert_eq!(m.mesh.num_vertices(), 3);
+    assert_eq!(m.mesh.num_faces(), 1);
+    assert_eq!(m.mesh.vertices_of_face(fh(0)), [vh(0), vh(1), vh(2)]);
+
+    assert_eq!(m.vertex_positions.get_ref(vh(0)), Some(&Point3::new(0.0, 0.0, 0.0)));
+    assert_eq!(m.vertex_positions.get_ref(vh(1)), Some(&Point3::new(3.0, 5.0, 8.0)));
+    assert_eq!(m.vertex_positions.get_ref(vh(2)), Some(&Point3::new(1.942, 152.99, 0.007)));
+
+    Ok(())
+}
+
 fn check_triangle_extra_props(res: &RawResult) {
     let groups = &res.element_groups;
     assert_eq!(groups.len(), 2);
@@ -390,6 +414,28 @@ fn read_raw_triangle_with_extra_props_ascii() -> Result<(), Error> {
     let res = Reader::new(input)?.into_raw_result()?;
 
     check_triangle_extra_props(&res);
+
+    Ok(())
+}
+
+/// We only need one test here (instead of one for ble, bbe and ascii) since
+/// the raw data was already checked above (in the `raw` tests).
+#[test]
+fn read_triangle_with_extra_props_mini_mesh() -> Result<(), Error> {
+    let input = include_test_file!("triangle_with_extra_props_ble.ply");
+    let m = MiniMesh::<SharedVertexMesh>::create_from(Reader::new(input)?)?;
+
+    // Check the mesh and properties
+    let vh = VertexHandle::new;
+    let fh = FaceHandle::new;
+
+    assert_eq!(m.mesh.num_vertices(), 3);
+    assert_eq!(m.mesh.num_faces(), 1);
+    assert_eq!(m.mesh.vertices_of_face(fh(0)), [vh(0), vh(1), vh(2)]);
+
+    assert_eq!(m.vertex_positions.get_ref(vh(0)), Some(&Point3::new(0.0, 0.0, 0.0)));
+    assert_eq!(m.vertex_positions.get_ref(vh(1)), Some(&Point3::new(3.0, 5.0, 8.0)));
+    assert_eq!(m.vertex_positions.get_ref(vh(2)), Some(&Point3::new(1.942, 152.99, 0.007)));
 
     Ok(())
 }
