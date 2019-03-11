@@ -10,36 +10,20 @@
 //! needs, the raw API could help you. For reading files, the entry point is
 //! [`Reader::read_raw_into`]. For writing files: TODO.
 
-#![allow(unused_imports)] // TODO
-
 use std::{
-    cmp::min,
-    convert::TryInto,
     fmt,
-    fs::File,
-    marker::PhantomData,
-    io,
     ops,
-    path::Path,
     str::FromStr,
 };
 
-use byteorder::{ByteOrder, LittleEndian, NativeEndian, ReadBytesExt, WriteBytesExt};
-use cgmath::{Point3, Vector3};
-use derive_more::{Add, AddAssign, Deref, DerefMut, From, Sub, SubAssign};
-use failure::Fail;
+use byteorder::{ByteOrder, NativeEndian};
+use derive_more::{Add, AddAssign, From, Sub, SubAssign};
 use smallvec::SmallVec;
 
 use crate::{
     self as lox, // for proc macros
-    prelude::*,
-    handle::hsize,
-    io::{
-        StreamSource, MemSink, Primitive, Error,
-        parse::{self, ParseError, Span, SpannedData, Buffer, ParseBuf},
-        util::IndexHandleMap,
-    },
-    util::{debug_fmt_bytes, MeshSizeHint},
+    Empty,
+    io::Error,
 };
 
 

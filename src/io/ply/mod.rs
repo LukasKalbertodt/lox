@@ -13,13 +13,10 @@ use std::{
     path::Path,
 };
 
-use failure::Fail;
-
 use crate::{
     Empty,
     io::{
         Error, FileEncoding, StreamSource, StreamSink, MemSink, MemSource,
-        parse,
         util::IsFormat,
     },
 };

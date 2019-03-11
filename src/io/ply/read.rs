@@ -10,33 +10,23 @@
 //!
 //!
 
-#![allow(unused_imports)] // TODO
-
 use std::{
     cmp::min,
     convert::TryInto,
-    fmt,
     fs::File,
-    marker::PhantomData,
     io,
-    ops,
     path::Path,
-    str::FromStr,
 };
 
-use byteorder::{ByteOrder, LittleEndian, NativeEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{ByteOrder, NativeEndian, WriteBytesExt};
 use cgmath::{Point3, Vector3};
-use derive_more::{Add, AddAssign, Deref, DerefMut, From, Sub, SubAssign};
-use failure::Fail;
-use smallvec::SmallVec;
 
 use crate::{
-    self as lox, // for proc macros
     prelude::*,
     handle::hsize,
     io::{
         StreamSource, MemSink, Primitive, Error,
-        parse::{self, ParseError, Span, SpannedData, Buffer, ParseBuf},
+        parse::{self, ParseError, Span, Buffer, ParseBuf},
         util::IndexHandleMap,
     },
     util::{debug_fmt_bytes, MeshSizeHint},
@@ -44,9 +34,9 @@ use crate::{
 use super::{
     Encoding,
     raw::{
-        ElementDef, Property, PropertyDef, PropertyType, PropIndex, RawElement,
-        RawElementGroup, RawElementIter, ScalarType, RawResult, RawSink,
-        ScalarTypeParseError, ListLenType, RawOffset, RawPropertyInfo,
+        ElementDef, PropertyDef, PropertyType, PropIndex, RawElement,
+        ScalarType, RawResult, RawSink,
+        ListLenType, RawOffset, RawPropertyInfo,
         ScalarLen, RawData,
     },
 };
