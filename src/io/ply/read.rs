@@ -14,6 +14,7 @@
 
 use std::{
     cmp::min,
+    convert::TryInto,
     fmt,
     fs::File,
     marker::PhantomData,
@@ -32,12 +33,13 @@ use smallvec::SmallVec;
 use crate::{
     self as lox, // for proc macros
     prelude::*,
+    handle::hsize,
     io::{
         StreamSource, MemSink, Primitive, Error,
         parse::{self, ParseError, Span, SpannedData, Buffer, ParseBuf},
         util::IndexHandleMap,
     },
-    util::debug_fmt_bytes,
+    util::{debug_fmt_bytes, MeshSizeHint},
 };
 use super::Encoding;
 
@@ -376,8 +378,11 @@ impl<R: io::Read> StreamSource for Reader<R> {
         /// Some info created while sanity checking the header. This is passed
         /// to `HelperSink` and is further processed there.
         struct PropInfo {
+            vertex_count: hsize,
             vertex_position: Option<([PropIndex; 3], ScalarType)>,
             vertex_normal: Option<([PropIndex; 3], ScalarType)>,
+
+            face_count: Option<hsize>,
             vertex_indices: Option<(PropIndex, ScalarType)>,
         }
 
@@ -654,16 +659,25 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
 
         // ===== Interpret and collect header information (and do checks) =====
-        let mut prop_info = PropInfo {
-            vertex_position: None,
-            vertex_normal: None,
-            vertex_indices: None,
-        };
+        fn u64_to_hsize(v: u64, elem: &str) -> Result<hsize, Error> {
+            v.try_into().map_err(|_| Error::InvalidInput(
+                format!("too many {} (LOX meshes can only contain 2^32 elements)", elem)
+            ))
+        }
 
         // Make sure the file contains vertices
         let vertex_pos = self.elements.iter().position(|e| e.name == "vertex")
             .ok_or_else(|| Error::InvalidInput("no 'vertex' elements in PLY file".into()))?;
         let vertex_group = &self.elements[vertex_pos];
+
+        let vertex_count = u64_to_hsize(vertex_group.count, "vertices")?;
+        let mut prop_info = PropInfo {
+            vertex_count,
+            vertex_position: None,
+            vertex_normal: None,
+            face_count: None,
+            vertex_indices: None,
+        };
 
         // Check vertex position
         if let Some(px_idx) = vertex_group.prop_pos("x") {
@@ -693,7 +707,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
             prop_info.vertex_position = Some((
                 [px_idx, py_idx, pz_idx],
                 px.ty.scalar_type(),
-            ))
+            ));
         }
 
         // Check vertex normal
@@ -724,7 +738,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
             prop_info.vertex_normal = Some((
                 [pnx_idx, pny_idx, pnz_idx],
                 pnx.ty.scalar_type(),
-            ))
+            ));
         }
 
         // Check faces
@@ -737,6 +751,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
             }
 
             let face_group = &self.elements[face_pos];
+            prop_info.face_count = Some(u64_to_hsize(face_group.count, "faces")?);
 
             // The property `vertex_indices` is required
             if let Some(vi_idx) = face_group.prop_pos("vertex_indices") {
@@ -763,7 +778,10 @@ impl<R: io::Read> StreamSource for Reader<R> {
         }
 
         // ===== Read the data through our helper sink =====
-        // TODO: size hint
+        sink.size_hint(MeshSizeHint {
+            vertex_count: Some(prop_info.vertex_count),
+            face_count: prop_info.face_count,
+        });
         let mut helper_sink = HelperSink::new(sink, prop_info);
         self.read_raw_into(&mut helper_sink)
     }
