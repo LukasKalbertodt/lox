@@ -473,10 +473,10 @@ impl ListLenType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScalarType {
     Char,
-    UChar,
     Short,
-    UShort,
     Int,
+    UChar,
+    UShort,
     UInt,
     Float,
     Double,
@@ -510,10 +510,10 @@ impl ScalarType {
     pub fn len(&self) -> ScalarLen {
         match self {
             ScalarType::Char => ScalarLen::One,
-            ScalarType::UChar => ScalarLen::One,
             ScalarType::Short => ScalarLen::Two,
-            ScalarType::UShort => ScalarLen::Two,
             ScalarType::Int => ScalarLen::Four,
+            ScalarType::UChar => ScalarLen::One,
+            ScalarType::UShort => ScalarLen::Two,
             ScalarType::UInt => ScalarLen::Four,
             ScalarType::Float => ScalarLen::Four,
             ScalarType::Double => ScalarLen::Eight,
@@ -542,10 +542,10 @@ impl FromStr for ScalarType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "char" => Ok(ScalarType::Char),
-            "uchar" => Ok(ScalarType::UChar),
             "short" => Ok(ScalarType::Short),
-            "ushort" => Ok(ScalarType::UShort),
             "int" => Ok(ScalarType::Int),
+            "uchar" => Ok(ScalarType::UChar),
+            "ushort" => Ok(ScalarType::UShort),
             "uint" => Ok(ScalarType::UInt),
             "float" => Ok(ScalarType::Float),
             "double" => Ok(ScalarType::Double),
@@ -563,18 +563,18 @@ impl FromStr for ScalarType {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Property {
     Char(i8),
-    UChar(u8),
     Short(i16),
-    UShort(u16),
     Int(i32),
+    UChar(u8),
+    UShort(u16),
     UInt(u32),
     Float(f32),
     Double(f64),
     CharList(SmallVec<[i8; 16]>),
-    UCharList(SmallVec<[u8; 16]>),
     ShortList(SmallVec<[i16; 8]>),
-    UShortList(SmallVec<[u16; 8]>),
     IntList(SmallVec<[i32; 4]>),
+    UCharList(SmallVec<[u8; 16]>),
+    UShortList(SmallVec<[u16; 8]>),
     UIntList(SmallVec<[u32; 4]>),
     FloatList(SmallVec<[f32; 4]>),
     DoubleList(SmallVec<[f64; 2]>),
@@ -586,10 +586,10 @@ impl Property {
     pub fn as_integer(&self) -> Option<i64> {
         match *self {
             Property::Char(v) => Some(v.into()),
-            Property::UChar(v) => Some(v.into()),
             Property::Short(v) => Some(v.into()),
-            Property::UShort(v) => Some(v.into()),
             Property::Int(v) => Some(v.into()),
+            Property::UChar(v) => Some(v.into()),
+            Property::UShort(v) => Some(v.into()),
             Property::UInt(v) => Some(v.into()),
             _ => None,
         }
