@@ -20,17 +20,24 @@ use std::{
 };
 
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
+use cgmath::{Point3, Vector3};
 
 use crate::{
     handle::{FaceHandle, Handle, VertexHandle},
     map::{FnMap, PropMap, FacePropMap, VertexPropMap},
     prop::{Pos3Like, Vec3Like},
     // io::{IntoMeshWriter, MeshWriter, StreamSink, MemSource, PrimitiveType},
-    io::{Error, StreamSink, MemSource, PrimitiveType},
+    io::{Error, StreamSink, MemSource, Primitive, PrimitiveType, PropKind},
     traits::*,
     util::TriArrayExt,
 };
-use super::{Encoding, Serialize, SingleSerialize, PropSerializer, PropType};
+use super::{
+    Encoding, Serialize, SingleSerialize, PropSerializer, PropType,
+    raw::{
+        ElementDef, RawSource, Serializer, PropVec, PropertyDef, PropertyType,
+        ScalarType, ListLenType,
+    },
+};
 
 
 
@@ -71,8 +78,8 @@ impl Config {
         self
     }
 
-    pub fn into_sink<W: io::Write>(self, writer: W) -> Sink<W> {
-        Sink {
+    pub fn into_writer<W: io::Write>(self, writer: W) -> Writer<W> {
+        Writer {
             config: self,
             writer,
         }
@@ -106,55 +113,232 @@ impl Config {
 // ===============================================================================================
 // ===== PLY Sink
 // ===============================================================================================
-/// The [`StreamSink`] for PLY files. Is created via [`Config::into_sink`].
+/// A writer able to write binary and ASCII PLY files. Implements
+/// [`StreamSink`].
 #[derive(Debug)]
-pub struct Sink<W: io::Write> {
+pub struct Writer<W: io::Write> {
     config: Config,
     writer: W,
 }
 
-impl<W: io::Write> StreamSink for Sink<W> {
-    fn transfer_from<S: MemSource>(self, _src: &S) -> Result<(), Error> {
-        unimplemented!()
-        // macro_rules! pos_fn {
-        //     ($orig_type:ident) => {{
-        //         let fun = |vh| {
-        //             src.vertex_position::<$orig_type>(vh)
-        //                 .map(|opt| opt.map(|p| p.convert()))
-        //         };
-        //         Box::new(fun) as Box<dyn Fn(VertexHandle) -> [f32; 3]>
-        //     }}
-        // }
+impl<W: io::Write> Writer<W> {
+    /// Creates a new PLY writer with the given PLY config which will write to
+    /// the given `io::Write` instance.
+    pub fn new(config: Config, writer: W) -> Self {
+        Self { config, writer }
+    }
 
-        // let pos_type = src.vertex_position_type().expect("fucky wucky"); // TODO
-        // let vertex_positions = match pos_type {
-        //     PrimitiveType::Uint8 => pos_fn!(u8),
-        //     PrimitiveType::Int8 => pos_fn!(i8),
-        //     PrimitiveType::Uint16 => pos_fn!(u16),
-        //     PrimitiveType::Int16 => pos_fn!(i16),
-        //     PrimitiveType::Uint32 => pos_fn!(u32),
-        //     PrimitiveType::Int32 => pos_fn!(i32),
-        //     PrimitiveType::Float32 => pos_fn!(f32),
-        //     PrimitiveType::Float64 => pos_fn!(f64),
-        // };
+    /// Low level function to write PLY files.
+    ///
+    /// You usually don't need to use this function directly and instead use a high
+    /// level interface. This function is still exposed to give you more or less
+    /// complete control.
+    pub fn write_raw(
+        mut self,
+        header: &[ElementDef],
+        source: impl RawSource,
+    ) -> Result<(), Error> {
+        let w = &mut self.writer;
 
-        // write(
-        //     self.writer,
-        //     &self.config,
-        //     src.core_mesh().num_vertices(),
-        //     src.core_mesh().num_faces(),
-        //     src.core_mesh().vertex_handles(),
-        //     src.core_mesh().face_handles(),
-        //     |fh| src.core_mesh().vertices_of_face(fh),
-        //     &ListPosElem {
-        //         map: &FnMap(|vh| Some(vertex_positions(vh))),
-        //         tail: EmptyList,
-        //     },
-        //     &EmptyList,
-        // )
+        // ===================================================================
+        // ===== Write header (this part is always ASCII)
+        // ===================================================================
+        // Magic signature
+        w.write_all(b"ply\n")?;
+
+        // The line defining the format of the file
+        let format_line = match self.config.encoding {
+            Encoding::Ascii => b"format ascii 1.0\n" as &[_],
+            Encoding::BinaryBigEndian => b"format binary_big_endian 1.0\n",
+            Encoding::BinaryLittleEndian => b"format binary_little_endian 1.0\n",
+        };
+        w.write_all(format_line)?;
+
+        // Add all comments
+        for comment in &self.config.comments {
+            writeln!(w, "comment {}", comment)?;
+        }
+
+        // Define all elements with their properties
+        println!("{:#?}", header);
+        for element_def in header {
+            writeln!(w, "element {} {}", element_def.name, element_def.count)?;
+            for prop in &*element_def.property_defs {
+                match prop.ty {
+                    PropertyType::Scalar(ty) => {
+                        writeln!(w, "property {} {}", ty.ply_type_name(), prop.name)?;
+                    }
+                    PropertyType::List { scalar_type, len_type } => {
+                        writeln!(
+                            w,
+                            "property list {} {} {}",
+                            len_type.to_scalar_type().ply_type_name(),
+                            scalar_type.ply_type_name(),
+                            prop.name,
+                        )?;
+
+                    }
+                }
+            }
+        }
+
+        w.write_all(b"end_header\n")?;
+
+
+        // ===================================================================
+        // ===== Write body
+        // ===================================================================
+
+        match self.config.encoding {
+            Encoding::Ascii => source.serialize_into(AsciiSerializer::new(w)),
+            Encoding::BinaryBigEndian => source.serialize_into(BinaryBeSerializer::new(w)),
+            Encoding::BinaryLittleEndian => source.serialize_into(BinaryLeSerializer::new(w)),
+        }
     }
 }
 
+impl<W: io::Write> StreamSink for Writer<W> {
+    fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Error> {
+        // Random notes:
+        // - The order of header fields have to match the order of adding
+        //   properties
+
+        let mesh = src.core_mesh();
+
+        // ====================================================================
+        // ===== Create header description
+        // ====================================================================
+
+        // ----- Vertex element -----------------
+        let mut vertex_def = ElementDef {
+            name: "vertex".into(),
+            count: mesh.num_vertices().into(),
+            property_defs: PropVec::new(),
+        };
+
+        if let Some(ty) = src.vertex_position_type() {
+            let ty = PropertyType::Scalar(closest_ply_type(ty));
+            vertex_def.property_defs.push(PropertyDef { ty, name: "x".into() });
+            vertex_def.property_defs.push(PropertyDef { ty, name: "y".into() });
+            vertex_def.property_defs.push(PropertyDef { ty, name: "z".into() });
+        }
+
+        // ----- Face element -----------------
+        let mut face_def = ElementDef {
+            name: "face".into(),
+            count: mesh.num_faces().into(),
+            property_defs: PropVec::new(),
+        };
+        face_def.property_defs.push(PropertyDef {
+            ty: PropertyType::List {
+                len_type: ListLenType::UChar,
+                scalar_type: ScalarType::UInt,
+            },
+            name: "vertex_indices".into(),
+        });
+
+
+        // ====================================================================
+        // ===== Body writing implementation
+        // ====================================================================
+
+        struct HelperSource<'a, SrcT: MemSource>(&'a SrcT);
+
+        impl<SrcT: MemSource> RawSource for HelperSource<'_, SrcT> {
+            fn serialize_into<S: Serializer>(self, mut ser: S) -> Result<(), Error> {
+                let src = self.0;
+                let mesh = src.core_mesh();
+
+                // ===========================================================
+                // ===== Prepare function pointers
+                // ===========================================================
+                type FnPtr<S> = fn(&mut S) -> Result<(), Error>;
+                fn vertex_noop<S, SrcT>(
+                    _: &mut S,
+                    _: &SrcT,
+                    _: VertexHandle,
+                ) -> Result<(), Error> {
+                    Ok(())
+                }
+
+                // ----- Vertex positions ------------------------------------
+                fn write_vertex_position<S: Serializer, SrcT: MemSource, P: Primitive>(
+                    ser: &mut S,
+                    src: &SrcT,
+                    handle: VertexHandle,
+                ) -> Result<(), Error> {
+                    let pos = src.vertex_position::<P>(handle).and_then(|opt| {
+                        opt.ok_or_else(|| Error::DataIncomplete {
+                            prop: PropKind::VertexPosition,
+                            msg: format!("no position for {:?} while writing PLY", handle),
+                        })
+                    })?;
+
+                    ser.add(pos.x)?;
+                    ser.add(pos.y)?;
+                    ser.add(pos.z)?;
+
+                    Ok(())
+                }
+
+                let write_v_position = match src.vertex_position_type().map(closest_ply_type) {
+                    None => vertex_noop::<S, SrcT>,
+                    Some(ScalarType::Char) => write_vertex_position::<S, SrcT, i8>,
+                    Some(ScalarType::Short) => write_vertex_position::<S, SrcT, i16>,
+                    Some(ScalarType::Int) => write_vertex_position::<S, SrcT, i32>,
+                    Some(ScalarType::UChar) => write_vertex_position::<S, SrcT, u8>,
+                    Some(ScalarType::UShort) => write_vertex_position::<S, SrcT, u16>,
+                    Some(ScalarType::UInt) => write_vertex_position::<S, SrcT, u32>,
+                    Some(ScalarType::Float) => write_vertex_position::<S, SrcT, f32>,
+                    Some(ScalarType::Double) => write_vertex_position::<S, SrcT, f64>,
+                };
+
+
+                // ===========================================================
+                // ===== Write all the data
+                // ===========================================================
+                for vh in mesh.vertex_handles() {
+                    write_v_position(&mut ser, src, vh)?;
+
+                    ser.end_element()?;
+                }
+
+                for fh in mesh.face_handles() {
+                    // Vertex indices
+                    // TODO: use indirect map in case mesh handles are shitty
+                    let [a, b, c] = mesh.vertices_of_face(fh);
+                    ser.add_u8(3)?;
+                    ser.add_u32(a.idx())?;
+                    ser.add_u32(b.idx())?;
+                    ser.add_u32(c.idx())?;
+
+                    ser.end_element()?;
+                }
+
+                Ok(())
+            }
+        }
+
+        // ...
+        self.write_raw(&[vertex_def, face_def], HelperSource(src))
+    }
+}
+
+/// Returns the PLY scalar type that most closely matches the given
+/// `PrimitiveType`. Right now, the mapping is 1:1 (always perfect), but this
+/// might change when additional primitive types are added.
+fn closest_ply_type(ty: PrimitiveType) -> ScalarType {
+    match ty {
+        PrimitiveType::Uint8 => ScalarType::UChar,
+        PrimitiveType::Int8 => ScalarType::Char,
+        PrimitiveType::Uint16 => ScalarType::UShort,
+        PrimitiveType::Int16 => ScalarType::Short,
+        PrimitiveType::Uint32 => ScalarType::UInt,
+        PrimitiveType::Int32 => ScalarType::Int,
+        PrimitiveType::Float32 => ScalarType::Float,
+        PrimitiveType::Float64 => ScalarType::Double,
+    }
+}
 
 // ===============================================================================================
 // ===== PLY Writer
@@ -467,7 +651,7 @@ where
 // }
 
 // ===============================================================================================
-// ===== Definition of blocks (including implementation of `PropSerializer`)
+// ===== Definition of ASCII and binary serializers
 // ===============================================================================================
 
 /// A block holds all properties for one specific element. In the ASCII format
@@ -484,96 +668,77 @@ pub trait Block {
     fn finish(self) -> Result<(), Error>;
 }
 
-/// A PLY block which inserts spaces and newline seperators and serializes
-/// values as ASCII text.
+
 #[derive(Debug)]
-struct AsciiBlock<'a, W: Write> {
+struct AsciiSerializer<'a, W: Write> {
     writer: &'a mut W,
-    at_start: bool,
+    at_start_of_line: bool,
 }
 
-impl<'a, W: Write> AsciiBlock<'a, W> {
+impl<'a, W: Write> AsciiSerializer<'a, W> {
     fn new(w: &'a mut W) -> Self {
         Self {
             writer: w,
-            at_start: true,
+            at_start_of_line: true,
         }
     }
-}
 
-impl<W: Write> Block for AsciiBlock<'_, W> {
-    fn add(&mut self, prop: &impl Serialize) -> Result<(), Error> {
-        if self.at_start {
-            self.at_start = false;
+    fn write_seperator(&mut self) -> Result<(), Error> {
+        if self.at_start_of_line {
+            self.at_start_of_line = false;
         } else {
             self.writer.write_all(b" ")?;
         }
 
-        prop.serialize(self)
-    }
-
-    fn finish(self) -> Result<(), Error> {
-        self.writer.write_all(b"\n")?;
         Ok(())
     }
 }
 
-impl<W: Write> PropSerializer for &mut AsciiBlock<'_, W> {
-    fn serialize_i8(self, v: i8) -> Result<(), Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
+impl<W: io::Write> Serializer for AsciiSerializer<'_, W> {
+    fn add_i8(&mut self, v: i8) -> Result<(), Error> {
+        self.write_seperator()?;
+        write!(self.writer, "{}", v)?;
+        Ok(())
     }
-    fn serialize_i16(self, v: i16) -> Result<(), Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
+    fn add_i16(&mut self, v: i16) -> Result<(), Error> {
+        self.write_seperator()?;
+        write!(self.writer, "{}", v)?;
+        Ok(())
     }
-    fn serialize_i32(self, v: i32) -> Result<(), Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
+    fn add_i32(&mut self, v: i32) -> Result<(), Error> {
+        self.write_seperator()?;
+        write!(self.writer, "{}", v)?;
+        Ok(())
     }
-    fn serialize_u8(self, v: u8) -> Result<(), Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
+    fn add_u8(&mut self, v: u8) -> Result<(), Error> {
+        self.write_seperator()?;
+        write!(self.writer, "{}", v)?;
+        Ok(())
     }
-    fn serialize_u16(self, v: u16) -> Result<(), Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
+    fn add_u16(&mut self, v: u16) -> Result<(), Error> {
+        self.write_seperator()?;
+        write!(self.writer, "{}", v)?;
+        Ok(())
     }
-    fn serialize_u32(self, v: u32) -> Result<(), Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
+    fn add_u32(&mut self, v: u32) -> Result<(), Error> {
+        self.write_seperator()?;
+        write!(self.writer, "{}", v)?;
+        Ok(())
     }
-    fn serialize_f32(self, v: f32) -> Result<(), Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
+    fn add_f32(&mut self, v: f32) -> Result<(), Error> {
+        self.write_seperator()?;
+        write!(self.writer, "{}", v)?;
+        Ok(())
     }
-    fn serialize_f64(self, v: f64) -> Result<(), Error> {
-        write!(self.writer, "{}", v).map_err(|e| e.into())
-    }
-
-    fn serialize_fixed_len_seq<'a, I, E>(self, values: I) -> Result<(), Error>
-    where
-        I: IntoIterator<Item = &'a E>,
-        E: 'a + SingleSerialize,
-    {
-        // Fixed sized sequences don't need to encode the length for each
-        // property.
-        self.at_start = true;
-        for v in values {
-            self.add(v)?;
-        }
-
+    fn add_f64(&mut self, v: f64) -> Result<(), Error> {
+        self.write_seperator()?;
+        write!(self.writer, "{}", v)?;
         Ok(())
     }
 
-    fn serialize_dyn_len_seq<'a, I, E>(self, values: I) -> Result<(), Error>
-    where
-        I: IntoIterator<Item = &'a E>,
-        I::IntoIter: ExactSizeIterator,
-        E: 'a + SingleSerialize,
-    {
-        let iter = values.into_iter();
-
-        self.at_start = true;
-        self.add(&(iter.len() as u32))?;
-
-        for v in iter {
-            self.add(v)?;
-        }
-
+    fn end_element(&mut self) -> Result<(), Error> {
+        self.writer.write_all(b"\n")?;
+        self.at_start_of_line = true;
         Ok(())
     }
 }
@@ -594,155 +759,39 @@ macro_rules! gen_binary_block {
             }
         }
 
-        impl<W: Write> Block for $name<'_, W> {
-            fn add(&mut self, prop: &impl Serialize) -> Result<(), Error> {
-                prop.serialize(self)
-            }
-
-            fn finish(self) -> Result<(), Error> {
-                Ok(())
-            }
-        }
-
-        impl<W: Write> PropSerializer for &mut $name<'_, W> {
-            fn serialize_i8(self, v: i8) -> Result<(), Error> {
+        impl<W: io::Write> Serializer for $name<'_, W> {
+            fn add_i8(&mut self, v: i8) -> Result<(), Error> {
                 self.writer.write_i8(v).map_err(|e| e.into())
             }
-            fn serialize_i16(self, v: i16) -> Result<(), Error> {
+            fn add_i16(&mut self, v: i16) -> Result<(), Error> {
                 self.writer.write_i16::<$endianess>(v).map_err(|e| e.into())
             }
-            fn serialize_i32(self, v: i32) -> Result<(), Error> {
+            fn add_i32(&mut self, v: i32) -> Result<(), Error> {
                 self.writer.write_i32::<$endianess>(v).map_err(|e| e.into())
             }
-            fn serialize_u8(self, v: u8) -> Result<(), Error> {
+            fn add_u8(&mut self, v: u8) -> Result<(), Error> {
                 self.writer.write_u8(v).map_err(|e| e.into())
             }
-            fn serialize_u16(self, v: u16) -> Result<(), Error> {
+            fn add_u16(&mut self, v: u16) -> Result<(), Error> {
                 self.writer.write_u16::<$endianess>(v).map_err(|e| e.into())
             }
-            fn serialize_u32(self, v: u32) -> Result<(), Error> {
+            fn add_u32(&mut self, v: u32) -> Result<(), Error> {
                 self.writer.write_u32::<$endianess>(v).map_err(|e| e.into())
             }
-            fn serialize_f32(self, v: f32) -> Result<(), Error> {
+            fn add_f32(&mut self, v: f32) -> Result<(), Error> {
                 self.writer.write_f32::<$endianess>(v).map_err(|e| e.into())
             }
-            fn serialize_f64(self, v: f64) -> Result<(), Error> {
+            fn add_f64(&mut self, v: f64) -> Result<(), Error> {
                 self.writer.write_f64::<$endianess>(v).map_err(|e| e.into())
             }
 
-            fn serialize_fixed_len_seq<'a, I, E>(self, values: I) -> Result<(), Error>
-            where
-                I: IntoIterator<Item = &'a E>,
-                E: 'a + SingleSerialize,
-            {
-                // Fixed sized sequences don't need to encode the length for each
-                // property.
-                for v in values {
-                    self.add(v)?;
-                }
-
-                Ok(())
-            }
-
-            fn serialize_dyn_len_seq<'a, I, E>(self, values: I) -> Result<(), Error>
-            where
-                I: IntoIterator<Item = &'a E>,
-                I::IntoIter: ExactSizeIterator,
-                E: 'a + SingleSerialize,
-            {
-                let iter = values.into_iter();
-
-                self.add(&(iter.len() as u32))?;
-
-                for v in iter {
-                    self.add(v)?;
-                }
-
+            fn end_element(&mut self) -> Result<(), Error> {
+                // NOOP
                 Ok(())
             }
         }
     }
 }
 
-gen_binary_block!(BinaryBeBlock, BigEndian);
-gen_binary_block!(BinaryLeBlock, LittleEndian);
-
-
-fn write(
-    mut w: impl Write,
-    config: &Config,
-    num_vertices: u32,
-    num_faces: u32,
-    vertices: impl Iterator<Item = VertexHandle>,
-    faces: impl Iterator<Item = FaceHandle>,
-    vertices_of_face: impl Fn(FaceHandle) -> [VertexHandle; 3],
-    vertex_props: &impl PropList<VertexHandle>,
-    face_props: &impl PropList<FaceHandle>,
-) -> Result<(), Error> {
-    // ===================================================================
-    // ===== Write header (this part is always ASCII)
-    // ===================================================================
-    // Magic signature
-    w.write_all(b"ply\n")?;
-
-    // The line defining the format of the file
-    let format_line = match config.encoding {
-        Encoding::Ascii => b"format ascii 1.0\n" as &[_],
-        Encoding::BinaryBigEndian => b"format binary_big_endian 1.0\n",
-        Encoding::BinaryLittleEndian => b"format binary_little_endian 1.0\n",
-    };
-    w.write_all(format_line)?;
-
-    // Add all comments
-    for comment in &config.comments {
-        writeln!(w, "comment {}", comment)?;
-    }
-
-    // Define `vertex` element with all properties
-    writeln!(w, "element vertex {}", num_vertices)?;
-    vertex_props.write_header(&mut w)?;
-
-    // Define `face` element with all properties
-    writeln!(w, "element face {}", num_faces)?;
-    writeln!(w, "property list uchar uint vertex_indices")?;
-    face_props.write_header(&mut w)?;
-
-    w.write_all(b"end_header\n")?;
-
-
-    // ===================================================================
-    // ===== Write body
-    // ===================================================================
-    macro_rules! do_with_block {
-        ($block:ident) => {{
-            // Write all vertex properties
-            for vh in vertices {
-                let mut block = $block::new(&mut w);
-                vertex_props.write_block(vh, &mut block)?;
-                block.finish()?;
-            }
-
-            for fh in faces {
-                let mut block = $block::new(&mut w);
-
-                // Write special `vertex_indices` data
-                let indices = vertices_of_face(fh);
-                block.add(&3u8)?;
-                block.add(&indices.map(|i| i.idx()))?;
-
-                // Write all properties
-                face_props.write_block(fh, &mut block)?;
-
-                block.finish()?;
-            }
-        }}
-    }
-
-    match config.encoding {
-        Encoding::Ascii => do_with_block!(AsciiBlock),
-        Encoding::BinaryBigEndian => do_with_block!(BinaryBeBlock),
-        Encoding::BinaryLittleEndian => do_with_block!(BinaryLeBlock),
-    }
-
-    Ok(())
-}
+gen_binary_block!(BinaryBeSerializer, BigEndian);
+gen_binary_block!(BinaryLeSerializer, LittleEndian);

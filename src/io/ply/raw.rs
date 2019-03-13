@@ -23,7 +23,7 @@ use smallvec::SmallVec;
 use crate::{
     self as lox, // for proc macros
     Empty,
-    io::Error,
+    io::{Error, Primitive, PrimitiveType},
 };
 
 
@@ -354,6 +354,12 @@ impl ops::DerefMut for RawData {
 #[derive(Debug, Clone, From)]
 pub struct PropVec<T>(Vec<T>);
 
+impl<T> PropVec<T> {
+    pub fn new() -> Self {
+        Self(vec![])
+    }
+}
+
 impl<T> ops::Index<PropIndex> for PropVec<T> {
     type Output = T;
     fn index(&self, idx: PropIndex) -> &Self::Output {
@@ -519,6 +525,21 @@ impl ScalarType {
             ScalarType::Double => ScalarLen::Eight,
         }
     }
+
+    /// Returns the type name used in the header (e.g. `short`). This is simply
+    /// the variant name in lowercase.
+    pub fn ply_type_name(&self) -> &'static str {
+        match *self {
+            ScalarType::Char => "char",
+            ScalarType::Short => "short",
+            ScalarType::Int => "int",
+            ScalarType::UChar => "uchar",
+            ScalarType::UShort => "ushort",
+            ScalarType::UInt => "uint",
+            ScalarType::Float => "float",
+            ScalarType::Double => "double",
+        }
+    }
 }
 
 impl fmt::Display for ScalarTypeParseError {
@@ -676,4 +697,35 @@ pub struct RawResult {
 pub struct RawElementGroup {
     pub def: ElementDef,
     pub elements: Vec<RawElement>,
+}
+
+
+pub trait RawSource {
+    fn serialize_into<S: Serializer>(self, ser: S) -> Result<(), Error>;
+}
+
+pub trait Serializer {
+    fn add_i8(&mut self, v: i8) -> Result<(), Error>;
+    fn add_i16(&mut self, v: i16) -> Result<(), Error>;
+    fn add_i32(&mut self, v: i32) -> Result<(), Error>;
+    fn add_u8(&mut self, v: u8) -> Result<(), Error>;
+    fn add_u16(&mut self, v: u16) -> Result<(), Error>;
+    fn add_u32(&mut self, v: u32) -> Result<(), Error>;
+    fn add_f32(&mut self, v: f32) -> Result<(), Error>;
+    fn add_f64(&mut self, v: f64) -> Result<(), Error>;
+
+    fn end_element(&mut self) -> Result<(), Error>;
+
+    fn add<P: Primitive>(&mut self, v: P) -> Result<(), Error> {
+        match P::TY {
+            PrimitiveType::Int8 => self.add_i8(v.downcast_as().unwrap()),
+            PrimitiveType::Int16 => self.add_i16(v.downcast_as().unwrap()),
+            PrimitiveType::Int32 => self.add_i32(v.downcast_as().unwrap()),
+            PrimitiveType::Uint8 => self.add_u8(v.downcast_as().unwrap()),
+            PrimitiveType::Uint16 => self.add_u16(v.downcast_as().unwrap()),
+            PrimitiveType::Uint32 => self.add_u32(v.downcast_as().unwrap()),
+            PrimitiveType::Float32 => self.add_f32(v.downcast_as().unwrap()),
+            PrimitiveType::Float64 => self.add_f64(v.downcast_as().unwrap()),
+        }
+    }
 }

@@ -64,7 +64,7 @@ pub fn write<T: MemSource, P: AsRef<Path>>(path: P, src: &T) -> Result<(), Error
     let file = io::BufWriter::new(File::create(path)?);
 
     Config::binary()
-        .into_sink(file)
+        .into_writer(file)
         .transfer_from(src)
 }
 
