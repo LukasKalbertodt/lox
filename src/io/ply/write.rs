@@ -186,6 +186,7 @@ impl<W: io::Write> StreamSink for Writer<W> {
             property_defs: PropVec::new(),
         };
 
+        // Position: x y z
         if let Some(ty) = src.vertex_position_type() {
             let ty = PropertyType::Scalar(closest_ply_type(ty));
             vertex_def.property_defs.push(PropertyDef { ty, name: "x".into() });
@@ -193,12 +194,23 @@ impl<W: io::Write> StreamSink for Writer<W> {
             vertex_def.property_defs.push(PropertyDef { ty, name: "z".into() });
         }
 
+        // Normal: nx ny nz
+        if let Some(ty) = src.vertex_normal_type() {
+            let ty = PropertyType::Scalar(closest_ply_type(ty));
+            vertex_def.property_defs.push(PropertyDef { ty, name: "nx".into() });
+            vertex_def.property_defs.push(PropertyDef { ty, name: "ny".into() });
+            vertex_def.property_defs.push(PropertyDef { ty, name: "nz".into() });
+        }
+
+
         // ----- Face element -----------------
         let mut face_def = ElementDef {
             name: "face".into(),
             count: mesh.num_faces().into(),
             property_defs: PropVec::new(),
         };
+
+        // Connectivity: vertex_indices
         face_def.property_defs.push(PropertyDef {
             ty: PropertyType::List {
                 len_type: ListLenType::UChar,
@@ -206,6 +218,14 @@ impl<W: io::Write> StreamSink for Writer<W> {
             },
             name: "vertex_indices".into(),
         });
+
+        // Normal: nx ny nz
+        if let Some(ty) = src.face_normal_type() {
+            let ty = PropertyType::Scalar(closest_ply_type(ty));
+            face_def.property_defs.push(PropertyDef { ty, name: "nx".into() });
+            face_def.property_defs.push(PropertyDef { ty, name: "ny".into() });
+            face_def.property_defs.push(PropertyDef { ty, name: "nz".into() });
+        }
 
 
         // ====================================================================
@@ -230,6 +250,30 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     Ok(())
                 }
 
+                fn face_noop<S, SrcT>(
+                    _: &mut S,
+                    _: &SrcT,
+                    _: FaceHandle,
+                ) -> Result<(), Error> {
+                    Ok(())
+                }
+
+                macro_rules! make_fn_ptr {
+                    ($ty:expr, $fun:ident, $noop:ident $(,)?) => {
+                        match $ty {
+                            None => $noop::<S, SrcT>,
+                            Some(ScalarType::Char) => $fun::<S, SrcT, i8>,
+                            Some(ScalarType::Short) => $fun::<S, SrcT, i16>,
+                            Some(ScalarType::Int) => $fun::<S, SrcT, i32>,
+                            Some(ScalarType::UChar) => $fun::<S, SrcT, u8>,
+                            Some(ScalarType::UShort) => $fun::<S, SrcT, u16>,
+                            Some(ScalarType::UInt) => $fun::<S, SrcT, u32>,
+                            Some(ScalarType::Float) => $fun::<S, SrcT, f32>,
+                            Some(ScalarType::Double) => $fun::<S, SrcT, f64>,
+                        }
+                    }
+                }
+
                 // ----- Vertex positions ------------------------------------
                 fn write_vertex_position<S: Serializer, SrcT: MemSource, P: Primitive>(
                     ser: &mut S,
@@ -250,17 +294,63 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     Ok(())
                 }
 
-                let write_v_position = match src.vertex_position_type().map(closest_ply_type) {
-                    None => vertex_noop::<S, SrcT>,
-                    Some(ScalarType::Char) => write_vertex_position::<S, SrcT, i8>,
-                    Some(ScalarType::Short) => write_vertex_position::<S, SrcT, i16>,
-                    Some(ScalarType::Int) => write_vertex_position::<S, SrcT, i32>,
-                    Some(ScalarType::UChar) => write_vertex_position::<S, SrcT, u8>,
-                    Some(ScalarType::UShort) => write_vertex_position::<S, SrcT, u16>,
-                    Some(ScalarType::UInt) => write_vertex_position::<S, SrcT, u32>,
-                    Some(ScalarType::Float) => write_vertex_position::<S, SrcT, f32>,
-                    Some(ScalarType::Double) => write_vertex_position::<S, SrcT, f64>,
-                };
+                let write_v_position = make_fn_ptr!(
+                    src.vertex_position_type().map(closest_ply_type),
+                    write_vertex_position,
+                    vertex_noop,
+                );
+
+                // ----- Vertex normals --------------------------------------
+                fn write_vertex_normal<S: Serializer, SrcT: MemSource, P: Primitive>(
+                    ser: &mut S,
+                    src: &SrcT,
+                    handle: VertexHandle,
+                ) -> Result<(), Error> {
+                    let pos = src.vertex_normal::<P>(handle).and_then(|opt| {
+                        opt.ok_or_else(|| Error::DataIncomplete {
+                            prop: PropKind::VertexNormal,
+                            msg: format!("no normal for {:?} while writing PLY", handle),
+                        })
+                    })?;
+
+                    ser.add(pos.x)?;
+                    ser.add(pos.y)?;
+                    ser.add(pos.z)?;
+
+                    Ok(())
+                }
+
+                let write_v_normal = make_fn_ptr!(
+                    src.vertex_normal_type().map(closest_ply_type),
+                    write_vertex_normal,
+                    vertex_noop,
+                );
+
+                // ----- Face normals ----------------------------------------
+                fn write_face_normal<S: Serializer, SrcT: MemSource, P: Primitive>(
+                    ser: &mut S,
+                    src: &SrcT,
+                    handle: FaceHandle,
+                ) -> Result<(), Error> {
+                    let pos = src.face_normal::<P>(handle).and_then(|opt| {
+                        opt.ok_or_else(|| Error::DataIncomplete {
+                            prop: PropKind::FaceNormal,
+                            msg: format!("no normal for {:?} while writing PLY", handle),
+                        })
+                    })?;
+
+                    ser.add(pos.x)?;
+                    ser.add(pos.y)?;
+                    ser.add(pos.z)?;
+
+                    Ok(())
+                }
+
+                let write_f_normal = make_fn_ptr!(
+                    src.face_normal_type().map(closest_ply_type),
+                    write_face_normal,
+                    face_noop,
+                );
 
 
                 // ===========================================================
@@ -268,6 +358,7 @@ impl<W: io::Write> StreamSink for Writer<W> {
                 // ===========================================================
                 for vh in mesh.vertex_handles() {
                     write_v_position(&mut ser, src, vh)?;
+                    write_v_normal(&mut ser, src, vh)?;
 
                     ser.end_element()?;
                 }
@@ -280,6 +371,8 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     ser.add_u32(a.idx())?;
                     ser.add_u32(b.idx())?;
                     ser.add_u32(c.idx())?;
+
+                    write_f_normal(&mut ser, src, fh)?;
 
                     ser.end_element()?;
                 }
