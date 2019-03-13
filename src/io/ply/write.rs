@@ -12,27 +12,20 @@
 //!
 //!
 
-#![allow(dead_code)] // TODO
 
 use std::{
-    collections::HashSet,
     io::{self, Write},
 };
 
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
-use cgmath::{Point3, Vector3};
 
 use crate::{
     handle::{FaceHandle, Handle, VertexHandle},
-    map::{FnMap, PropMap, FacePropMap, VertexPropMap},
-    prop::{Pos3Like, Vec3Like},
-    // io::{IntoMeshWriter, MeshWriter, StreamSink, MemSource, PrimitiveType},
     io::{Error, StreamSink, MemSource, Primitive, PrimitiveType, PropKind},
     traits::*,
-    util::TriArrayExt,
 };
 use super::{
-    Encoding, Serialize, SingleSerialize, PropSerializer, PropType,
+    Encoding,
     raw::{
         ElementDef, RawSource, Serializer, PropVec, PropertyDef, PropertyType,
         ScalarType, ListLenType,
@@ -85,29 +78,6 @@ impl Config {
         }
     }
 }
-
-// impl<'a, MeshT, PosM> IntoMeshWriter<'a, MeshT, PosM> for Config
-// where
-//     MeshT: 'a + TriMesh + TriVerticesOfFace,
-//     PosM: 'a + VertexPropMap,
-//     PosM::Target: Pos3Like,
-//     <PosM::Target as Pos3Like>::Scalar: SingleSerialize,
-// {
-//     type Writer = Writer<'a, MeshT, ListPosElem<'a, PosM, EmptyList>, EmptyList>;
-//     fn into_writer(self, mesh: &'a MeshT, vertex_positions: &'a PosM) -> Self::Writer {
-//         Writer {
-//             config: self,
-//             mesh,
-//             vertex_props: ListPosElem {
-//                 map: vertex_positions,
-//                 tail: EmptyList,
-//             },
-//             vertex_prop_names: ["x", "y", "z"].iter().map(|s| s.to_string()).collect(),
-//             face_props: EmptyList,
-//             face_prop_names: HashSet::new(),
-//         }
-//     }
-// }
 
 
 // ===============================================================================================
@@ -252,7 +222,6 @@ impl<W: io::Write> StreamSink for Writer<W> {
                 // ===========================================================
                 // ===== Prepare function pointers
                 // ===========================================================
-                type FnPtr<S> = fn(&mut S) -> Result<(), Error>;
                 fn vertex_noop<S, SrcT>(
                     _: &mut S,
                     _: &SrcT,
@@ -340,334 +309,10 @@ fn closest_ply_type(ty: PrimitiveType) -> ScalarType {
     }
 }
 
-// ===============================================================================================
-// ===== PLY Writer
-// ===============================================================================================
-
-// #[derive(Debug)]
-// pub struct Writer<'a, MeshT, VertexPropsT, FacePropsT>
-// where
-//     MeshT: TriMesh + TriVerticesOfFace,
-//     VertexPropsT: PropList<VertexHandle>,
-//     FacePropsT: PropList<FaceHandle>,
-// {
-//     config: Config,
-//     mesh: &'a MeshT,
-//     vertex_props: VertexPropsT,
-//     vertex_prop_names: HashSet<String>,
-//     face_props: FacePropsT,
-//     face_prop_names: HashSet<String>,
-// }
-
-// impl<'a, MeshT, VertexPropsT, FacePropsT> Writer<'a, MeshT, VertexPropsT, FacePropsT>
-// where
-//     MeshT: TriMesh + TriVerticesOfFace,
-//     VertexPropsT: 'a + PropList<VertexHandle>,
-//     FacePropsT: 'a + PropList<FaceHandle>,
-// {
-//     /// Adds the given vertex property to the PLY file. The given string is used
-//     /// as property name.
-//     pub fn add_vertex_prop<MapT>(mut self, name: impl Into<String>, map: &'a MapT)
-//         -> Writer<'a, MeshT, impl 'a + PropList<VertexHandle>, FacePropsT>
-//     where
-//         MapT: 'a + VertexPropMap,
-//         MapT::Target: Serialize,
-//     {
-//         let name = name.into();
-//         self.add_vertex_prop_name(name.clone());
-
-//         Writer {
-//             config: self.config,
-//             mesh: self.mesh,
-//             vertex_props: ListSingleElem {
-//                 name,
-//                 map,
-//                 tail: self.vertex_props,
-//             },
-//             vertex_prop_names: self.vertex_prop_names,
-//             face_props: self.face_props,
-//             face_prop_names: self.face_prop_names,
-//         }
-//     }
-
-//     /// Adds the given face property to the PLY file. The given string is used
-//     /// as property name.
-//     pub fn add_face_prop<MapT>(mut self, name: impl Into<String>, map: &'a MapT)
-//         -> Writer<'a, MeshT, VertexPropsT, impl 'a + PropList<FaceHandle>>
-//     where
-//         MapT: 'a + FacePropMap,
-//         MapT::Target: Serialize,
-//     {
-//         let name = name.into();
-//         self.add_face_prop_name(name.clone());
-
-//         Writer {
-//             config: self.config,
-//             mesh: self.mesh,
-//             vertex_props: self.vertex_props,
-//             vertex_prop_names: self.vertex_prop_names,
-//             face_props: ListSingleElem {
-//                 name: name.into(),
-//                 map,
-//                 tail: self.face_props,
-//             },
-//             face_prop_names: self.face_prop_names,
-//         }
-//     }
-
-//     /// Adds the given map as vertex normals. The normal will be serialized
-//     /// with the three property names `nx`, `ny` and `nz`.
-//     pub fn with_vertex_normals<MapT>(mut self, map: &'a MapT)
-//         -> Writer<'a, MeshT, impl 'a + PropList<VertexHandle>, FacePropsT>
-//     where
-//         MapT: 'a + VertexPropMap,
-//         MapT::Target: Vec3Like,
-//         <MapT::Target as Vec3Like>::Scalar: SingleSerialize,
-//     {
-//         self.add_vertex_prop_name("nx".into());
-//         self.add_vertex_prop_name("ny".into());
-//         self.add_vertex_prop_name("nz".into());
-
-//         Writer {
-//             config: self.config,
-//             mesh: self.mesh,
-//             vertex_props: ListVertexNormalElem {
-//                 map,
-//                 tail: self.vertex_props,
-//             },
-//             vertex_prop_names: self.vertex_prop_names,
-//             face_props: self.face_props,
-//             face_prop_names: self.face_prop_names,
-//         }
-//     }
-
-//     fn add_vertex_prop_name(&mut self, name: String) {
-//         let is_new = self.vertex_prop_names.insert(name.clone());
-//         if !is_new {
-//             panic!(
-//                 "attempt to add a vertex property to PLY file with name '{}', \
-//                     but that name is already used",
-//                 name,
-//             );
-//         }
-//     }
-
-//     fn add_face_prop_name(&mut self, name: String) {
-//         let is_new = self.face_prop_names.insert(name.clone());
-//         if !is_new {
-//             panic!(
-//                 "attempt to add a face property to PLY file with name '{}', \
-//                     but that name is already used",
-//                     name,
-//             );
-//         }
-//     }
-
-//     // TODO: color (just add another list element type like `PosElem`)
-// }
-
-// impl<MeshT, VertexPropsT, FacePropsT> MeshWriter for Writer<'_, MeshT, VertexPropsT, FacePropsT>
-// where // TODO: remove once implied bounds land
-//     MeshT: TriMesh + TriVerticesOfFace,
-//     VertexPropsT: PropList<VertexHandle>,
-//     FacePropsT: PropList<FaceHandle>,
-// {
-//     type Error = Error;
-
-//     fn write_to(&self, w: impl Write) -> Result<(), Self::Error> {
-//         write(
-//             w,
-//             &self.config,
-//             self.mesh.num_vertices(),
-//             self.mesh.num_faces(),
-//             self.mesh.vertices().map(|v| v.handle()),
-//             self.mesh.faces().map(|f| f.handle()),
-//             |fh| self.mesh.vertices_of_face(fh),
-//             &self.vertex_props,
-//             &self.face_props,
-//         )
-//     }
-// }
-
-
-// ===============================================================================================
-// ===== Helper stuff for the heterogeneous list stored inside the MeshWriter
-// ===============================================================================================
-
-/// A heterogenous list of property maps with a PLY field name. For internal
-/// use, you don't have to worry about this!
-///
-/// The lists are basically stored backwards, because adding something to the
-/// back of the list is kind of a hassle (not algorithmically, but realizing
-/// this in Rust's type system). So all operations recurse first and then do
-/// their work. This makes tail recursion impossible, but tail recursion isn't
-/// a thing in Rust anyway.
-pub trait PropList<H: Handle> {
-    fn write_header(&self, w: &mut impl Write) -> Result<(), Error>;
-    fn write_block(&self, handle: H, block: &mut impl Block) -> Result<(), Error>;
-}
-
-
-// ----- EmptyList --------------------------------------------------------
-#[derive(Debug)]
-pub struct EmptyList;
-
-impl<H: Handle> PropList<H> for EmptyList {
-    fn write_header(&self, _: &mut impl Write) -> Result<(), Error> {
-        Ok(())
-    }
-    fn write_block(&self, _: H, _: &mut impl Block) -> Result<(), Error> {
-        Ok(())
-    }
-}
-
-
-// ----- ListPosElem --------------------------------------------------------
-#[derive(Debug)]
-pub struct ListPosElem<'m, MapT, TailT> {
-    map: &'m MapT,
-    tail: TailT,
-}
-
-impl<MapT, TailT> PropList<VertexHandle> for ListPosElem<'_, MapT, TailT>
-where
-    TailT: PropList<VertexHandle>,
-    MapT: VertexPropMap,
-    MapT::Target: Pos3Like,
-    <MapT::Target as Pos3Like>::Scalar: SingleSerialize,
-{
-    fn write_header(&self, w: &mut impl Write) -> Result<(), Error> {
-        self.tail.write_header(w)?;
-
-        let ty = <<MapT::Target as Pos3Like>::Scalar as SingleSerialize>::SINGLE_TYPE;
-        let ty = ty.ply_type_name();
-        writeln!(w, "property {} x", ty)?;
-        writeln!(w, "property {} y", ty)?;
-        writeln!(w, "property {} z", ty)?;
-
-        Ok(())
-    }
-
-    fn write_block(&self, handle: VertexHandle, block: &mut impl Block) -> Result<(), Error> {
-        self.tail.write_block(handle, {block})?;
-
-        let pos = self.map.get(handle).unwrap_or_else(|| {
-            panic!("vertex position PropMap incomplete: no value for handle {:?}", handle);
-        });
-
-        block.add(&pos.x())?;
-        block.add(&pos.y())?;
-        block.add(&pos.z())?;
-
-        Ok(())
-    }
-}
-
-// // ----- ListPosElem --------------------------------------------------------
-// #[derive(Debug)]
-// pub struct ListVertexNormalElem<'m, MapT, TailT> {
-//     map: &'m MapT,
-//     tail: TailT,
-// }
-
-// impl<MapT, TailT> PropList<VertexHandle> for ListVertexNormalElem<'_, MapT, TailT>
-// where
-//     TailT: PropList<VertexHandle>,
-//     MapT: VertexPropMap,
-//     MapT::Target: Vec3Like,
-//     <MapT::Target as Vec3Like>::Scalar: SingleSerialize,
-// {
-//     fn write_header(&self, w: &mut impl Write) -> Result<(), Error> {
-//         self.tail.write_header(w)?;
-
-//         let ty = <<MapT::Target as Vec3Like>::Scalar as SingleSerialize>::SINGLE_TYPE;
-//         let ty = ty.ply_type_name();
-//         writeln!(w, "property {} nx", ty)?;
-//         writeln!(w, "property {} ny", ty)?;
-//         writeln!(w, "property {} nz", ty)?;
-
-//         Ok(())
-//     }
-
-//     fn write_block(&self, handle: VertexHandle, block: &mut impl Block) -> Result<(), Error> {
-//         self.tail.write_block(handle, {block})?;
-
-//         let pos = self.map.get(handle).unwrap_or_else(|| {
-//             panic!("face normal PropMap incomplete: no value for handle {:?}", handle);
-//         });
-
-//         block.add(&pos.x())?;
-//         block.add(&pos.y())?;
-//         block.add(&pos.z())?;
-
-//         Ok(())
-//     }
-// }
-
-
-// // ----- ListSingleElem ------------------------------------------------------
-// #[derive(Debug)]
-// pub struct ListSingleElem<'a , TailT, MapT: 'a> {
-//     name: String,
-//     map: &'a MapT,
-//     tail: TailT,
-// }
-
-// impl<H: Handle, TailT: PropList<H>, MapT> PropList<H> for ListSingleElem<'_, TailT, MapT>
-// where
-//     MapT: PropMap<H>,
-//     MapT::Target: Serialize,
-// {
-//     fn write_header(&self, w: &mut impl Write) -> Result<(), Error> {
-//         self.tail.write_header(w)?;
-
-//         match <MapT::Target as Serialize>::TYPE {
-//             PropType::Single(ty) => {
-//                 writeln!(w, "property {} {}", ty.ply_type_name(), self.name)?;
-//             }
-//             PropType::DynLenSeq(ty) => {
-//                 writeln!(w, "property list uint {} {}", ty.ply_type_name(), self.name)?;
-//             }
-//             PropType::FixedLenSeq { len, ty } => {
-//                 for i in 0..len {
-//                     writeln!(w, "property {} {}[{}]", ty.ply_type_name(), self.name, i)?;
-//                 }
-//             }
-//         }
-
-//         Ok(())
-//     }
-
-//     fn write_block(&self, handle: H, block: &mut impl Block) -> Result<(), Error> {
-//         self.tail.write_block(handle, {block})?;
-
-//         let prop = self.map.get(handle).unwrap_or_else(|| {
-//             panic!("PropMap for '{}' incomplete: no value for handle {:?}", self.name, handle);
-//         });
-//         block.add(&*prop)?;
-
-//         Ok(())
-//     }
-// }
 
 // ===============================================================================================
 // ===== Definition of ASCII and binary serializers
 // ===============================================================================================
-
-/// A block holds all properties for one specific element. In the ASCII format
-/// this equivalent to "one line". This trait generalizes over property
-/// seperators and block terminators (' ' and '\n' for ASCII, nothing for
-/// binary formats).
-pub trait Block {
-    /// Adds the given property to the block. This function is in charge of
-    /// inserting seperators when necessary.
-    fn add(&mut self, prop: &impl Serialize) -> Result<(), Error>;
-
-    /// Finishes the block. Writes '\n' for ASCII format, does nothing for
-    /// binary formats.
-    fn finish(self) -> Result<(), Error>;
-}
-
 
 #[derive(Debug)]
 struct AsciiSerializer<'a, W: Write> {
