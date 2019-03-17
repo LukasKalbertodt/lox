@@ -33,8 +33,8 @@ pub(crate) fn gen_impl(input: &Input) -> TokenStream {
     // Face properties
     let face_normal_code = input.face_normal.as_ref()
         .map(|f| gen_prop_code(f, "Face", "Normal", "Vector3", "Vec3Like", global_cast_mode));
-    // let face_color_code = input.face_color.as_ref()
-    //     .map(|f| gen_color_prop_code(f, "Face", global_cast_mode));
+    let face_color_code = input.face_color.as_ref()
+        .map(|f| gen_color_prop_code(f, "Face", global_cast_mode));
 
     // Prepare stuff for impl header.
     let name = &input.name;
@@ -49,7 +49,7 @@ pub(crate) fn gen_impl(input: &Input) -> TokenStream {
             #vertex_normal_code
             #vertex_color_code
             #face_normal_code
-            // #face_color_code
+            #face_color_code
         }
     }
 }
