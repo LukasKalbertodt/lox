@@ -1072,9 +1072,9 @@ pub trait MemSource {
     }
 
     // ----- Vertex colors --------------------------------------------------
-    /// Returns the color description (including channel type and whether or
-    /// not an alpha channel is present) of the vertex colors of this source,
-    /// or `None` if this source does not provide vertex colors.
+    /// Returns the color type (including channel type and whether or not an
+    /// alpha channel is present) of the vertex colors of this source, or
+    /// `None` if this source does not provide vertex colors.
     ///
     /// See [the trait documentation][MemSource] for important information!
     fn vertex_color_type(&self) -> Option<ColorType> {
@@ -1113,6 +1113,31 @@ pub trait MemSource {
         panic!(
             "requested face normal from `MemSource`, but this source doesn't \
                 contain face normals"
+        );
+    }
+
+    // ----- Face colors --------------------------------------------------
+    /// Returns the color type (including channel type and whether or not an
+    /// alpha channel is present) of the face colors of this source, or `None`
+    /// if this source does not provide face colors.
+    ///
+    /// See [the trait documentation][MemSource] for important information!
+    fn face_color_type(&self) -> Option<ColorType> {
+        None
+    }
+
+    /// Returns the face color of the face with the given handle, or `None`
+    /// if there is no color associated with that face.
+    ///
+    /// See [the trait documentation][MemSource] for important information!
+    fn face_color<C>(&self, _f: FaceHandle) -> Result<Option<C>, Error>
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
+        panic!(
+            "requested face color from `MemSource`, but this source doesn't \
+                contain face colors"
         );
     }
 }
