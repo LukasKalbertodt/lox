@@ -10,6 +10,7 @@ cargo-fuzz = true
 
 [dependencies.lox]
 path = ".."
+
 [dependencies.libfuzzer-sys]
 git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
 
@@ -20,3 +21,7 @@ members = ["."]
 [[bin]]
 name = "stl-parser"
 path = "fuzz_targets/stl-parser.rs"
+
+[[bin]]
+name = "ply-parser"
+path = "fuzz_targets/ply-parser.rs"

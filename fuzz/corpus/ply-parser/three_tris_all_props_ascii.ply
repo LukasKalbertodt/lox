@@ -1,0 +1,30 @@
+ply
+format ascii 1.0
+element vertex 5
+property double x
+property double y
+property double z
+property float nx
+property float ny
+property float nz
+property uchar red
+property uchar green
+property uchar blue
+element face 3
+property list uchar uint vertex_indices
+property float nx
+property float ny
+property float nz
+property uchar red
+property uchar green
+property uchar blue
+property uchar alpha
+end_header
+0.011 0.021 0.031 0.011 0.021 1.031 0 101 202
+0.012 1.022 0.032 0.012 0.022 1.032 3 104 205
+1.013 0.023 0.033 0.013 0.023 1.033 6 107 208
+1.014 1.024 0.034 0.014 0.024 1.034 9 110 211
+0.515 0.525 0.035 0.015 0.025 1.035 12 113 214
+3 0 2 4 0.041 0.051 1.061 15 116 217 224
+3 0 4 1 0.042 0.052 1.062 18 119 220 225
+3 2 3 4 0.043 0.053 1.063 21 122 223 226

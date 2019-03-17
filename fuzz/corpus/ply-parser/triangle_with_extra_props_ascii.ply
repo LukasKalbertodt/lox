@@ -1,0 +1,19 @@
+ply
+format ascii 1.0
+element vertex 3
+property float x
+property float y
+property float z
+property double foo[0]
+property double foo[1]
+property double foo[2]
+property list uint char bar
+property ushort baz
+element face 1
+property list uchar uint vertex_indices
+property float cats
+end_header
+0 0 0 0.93 0.2 0.3 0 0
+3 5 8 0.93 0.2 0.3 1 -1 3
+1.942 152.99 0.007 0.93 0.2 0.3 2 3 8 6
+3 0 1 2 -99.123
