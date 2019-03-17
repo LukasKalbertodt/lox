@@ -58,8 +58,8 @@ use super::{
 ///
 /// To actually read body data, there are basically two possibilities: (a) via
 /// the high level [`StreamSource`] API (you probably want that), or (b) via
-/// the low level [`read_raw_into`][Reader::read_raw_into] API (you only need
-/// to do that in very special situations).
+/// the low level [`read_raw`][Reader::read_raw] API (you only need to do that
+/// in very special situations).
 #[derive(Debug)]
 pub struct Reader<R: io::Read> {
     buf: Buffer<R>,
@@ -312,10 +312,10 @@ impl<R: io::Read> Reader<R> {
     ///
     /// This function should only be used for quick testing as `RawResult` is a
     /// very space inefficient and fairly slow representation of a PLY file.
-    /// Use [`read_raw_into`][Reader::read_raw_into] to do anything important.
+    /// Use [`read_raw`][Reader::read_raw] to do anything important.
     pub fn into_raw_result(self) -> Result<RawResult, Error> {
         let mut out = RawResult::empty();
-        self.read_raw_into(&mut out)?;
+        self.read_raw(&mut out)?;
         Ok(out)
     }
 
@@ -329,7 +329,7 @@ impl<R: io::Read> Reader<R> {
     ///
     /// **Note**: this function is *really hard* to use. It is purposefully
     /// very low level. This should be your last resort.
-    pub fn read_raw_into(mut self, sink: &mut impl RawSink) -> Result<(), Error> {
+    pub fn read_raw(mut self, sink: &mut impl RawSink) -> Result<(), Error> {
         let buf = &mut self.buf;
 
         // Store function point to actual element reading function (that way we
@@ -385,7 +385,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
         // - First, do some sanity checks and extract useful information for
         //   properties we want to read (like the position of that property).
         //   This is done directly in this function further below.
-        // - Define a `RawSink` that receives the data via `read_raw_into`
+        // - Define a `RawSink` that receives the data via `read_raw`
         //   (this is the `HelperSink`).
         // - Prepare everything that we can prepare beforehand: offsets into
         //   raw data buffer and function pointer. Function pointers are the
@@ -617,7 +617,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
                     sink: sink,
 
                     // It will be overwritten in `element_group_start`, but if
-                    // `read_raw_into` is buggy, this function might be called,
+                    // `read_raw` is buggy, this function might be called,
                     // so we will panic in that case.
                     elem_handler: HelperSink::bug_in_read_raw,
 
@@ -653,7 +653,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
             /// Initial element handler. Will hopefully never be called.
             fn bug_in_read_raw(&mut self, _: &RawElement) -> Result<(), Error> {
                 panic!(
-                    "bug in `ply::Reader::read_raw_into`: `element()` called \
+                    "bug in `ply::Reader::read_raw`: `element()` called \
                         before `element_group_start`"
                 );
             }
@@ -1034,7 +1034,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
             face_count: prop_info.face_count,
         });
         let mut helper_sink = HelperSink::new(sink, prop_info)?;
-        self.read_raw_into(&mut helper_sink)
+        self.read_raw(&mut helper_sink)
     }
 }
 
