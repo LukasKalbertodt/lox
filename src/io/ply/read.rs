@@ -376,18 +376,19 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
         /// Some info created while sanity checking the header. This is passed
         /// to `HelperSink` and is further processed there.
+        ///
+        /// For colors: the bool denotes if an alpha channel present. If not,
+        /// the last prop index is garbage.
         struct PropInfo {
             vertex_count: hsize,
             vertex_position: Option<([PropIndex; 3], ScalarType)>,
             vertex_normal: Option<([PropIndex; 3], ScalarType)>,
-
-            /// bool denotes if alpha channel present. If not, the last prop
-            /// index is garbage.
             vertex_color: Option<([PropIndex; 4], bool)>,
 
             face_count: Option<hsize>,
             vertex_indices: Option<(PropIndex, ScalarType)>,
             face_normal: Option<([PropIndex; 3], ScalarType)>,
+            face_color: Option<([PropIndex; 4], bool)>,
         }
 
         /// Helper type alias for property handler functions.
@@ -454,6 +455,13 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
             /// Function to read the nx, ny, nz properties
             read_face_normal: FnPropHandler<Self>,
+
+            /// The position of the red, green, blue and alpha properties in
+            /// the list of face properties (alpha value potentially garbage)
+            face_color_idx: [PropIndex; 4],
+
+            /// Function to read the red, green, blue and alpha properties
+            read_face_color: FnPropHandler<Self>,
         }
 
         impl<'a, S: MemSink> HelperSink<'a, S> {
@@ -563,6 +571,17 @@ impl<R: io::Read> StreamSource for Reader<R> {
                     info.face_count.unwrap(),
                 );
 
+                // For face properties red, green, blue, [alpha]
+                let (face_color_idx, read_face_color) = match info.face_color {
+                    Some((offset, alpha)) => {
+                        let fun = match alpha {
+                            true => Self::read_face_color::<[u8; 4]> as FnPropHandler<Self>,
+                            false => Self::read_face_color::<[u8; 3]> as FnPropHandler<Self>,
+                        };
+                        (offset, fun)
+                    }
+                    None => ([PropIndex(0); 4], Self::noop as FnPropHandler<Self>),
+                };
 
 
                 Ok(Self {
@@ -595,6 +614,8 @@ impl<R: io::Read> StreamSource for Reader<R> {
                     read_face_vertex_indices,
                     face_normal_idx,
                     read_face_normal,
+                    face_color_idx,
+                    read_face_color,
                 })
             }
 
@@ -653,6 +674,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
                 // Face properties
                 (self.read_face_normal)(self, elem);
+                (self.read_face_color)(self, elem);
 
                 Ok(())
             }
@@ -743,6 +765,20 @@ impl<R: io::Read> StreamSource for Reader<R> {
                     self.curr_face_handle,
                     Vector3::new(x, y, z),
                 );
+            }
+
+            fn read_face_color<C: ColorLike<Channel = u8>>(&mut self, elem: &RawElement) {
+                let [r_idx, g_idx, b_idx, a_idx] = self.face_color_idx;
+                let r = elem.data[elem.prop_infos[r_idx].offset];
+                let g = elem.data[elem.prop_infos[g_idx].offset];
+                let b = elem.data[elem.prop_infos[b_idx].offset];
+
+                if C::HAS_ALPHA {
+                    let a = elem.data[elem.prop_infos[a_idx].offset];
+                    self.sink.set_face_color(self.curr_face_handle, [r, g, b, a]);
+                } else {
+                    self.sink.set_face_color(self.curr_face_handle, [r, g, b]);
+                }
             }
         }
 
@@ -916,6 +952,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
             face_count: None,
             vertex_indices: None,
             face_normal: None,
+            face_color: None,
         };
 
         // Check faces
@@ -955,6 +992,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
             // Check other face properties
             prop_info.face_normal = check_vec_like(&face_group, "nx", "ny", "nz", "face")?;
+            prop_info.face_color = check_color(&face_group, "face")?;
         }
 
         // ===== Read the data through our helper sink =====
