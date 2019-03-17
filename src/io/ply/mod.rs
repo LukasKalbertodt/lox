@@ -2,11 +2,6 @@
 //!
 //! TODO: explain everything.
 
-// TODO PLY things:
-// - Figure out colors (write and read)
-// - How to name the `Serializer`? Maybe `WriterBuilder`?
-
-#![allow(unused_imports)] // TODO
 use std::{
     io,
     fs::File,

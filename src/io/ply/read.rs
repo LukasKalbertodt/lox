@@ -1,6 +1,6 @@
 //! Parsing PLY files.
 //!
-//! Random notes on parsing:
+//! # Random notes on parsing and the file format
 //!
 //! - The "specification" talks about "carriage-return terminated lines", but
 //!   this is incorrect, as in: all files I could find end their lines with
@@ -49,9 +49,17 @@ use super::{
 // ===== Definition of `Reader`
 // ===========================================================================
 
-/// A reader able to read PLY files.
+/// A reader able to read binary and ASCII PLY files. Implements [`StreamSource`].
 ///
-/// You can create a reader with [`Reader::open`] or [`Reader::new`]. TODO
+/// You can create a reader with [`Reader::open`] or [`Reader::new`]. Both
+/// methods will parse the header of the PLY file. There are a couple of
+/// methods to get information about the parsed header, but you usually don't
+/// need to use those.
+///
+/// To actually read body data, there are basically two possibilities: (a) via
+/// the high level [`StreamSource`] API (you probably want that), or (b) via
+/// the low level [`read_raw_into`][Reader::read_raw_into] API (you only need
+/// to do that in very special situations).
 #[derive(Debug)]
 pub struct Reader<R: io::Read> {
     buf: Buffer<R>,
@@ -289,12 +297,22 @@ impl<R: io::Read> Reader<R> {
     }
 
     /// Returns all comments in the PLY file (in the order as they appear in
-    /// the file).
+    /// the file header).
     pub fn comments(&self) -> &[String] {
         &self.comments
     }
 
+    /// Returns the raw definitions of all elements in the file (in the order
+    /// as they appear in the header).
+    pub fn elements(&self) -> &[ElementDef] {
+        &self.elements
+    }
+
     /// Reads the whole file into a [`RawResult`].
+    ///
+    /// This function should only be used for quick testing as `RawResult` is a
+    /// very space inefficient and fairly slow representation of a PLY file.
+    /// Use [`read_raw_into`][Reader::read_raw_into] to do anything important.
     pub fn into_raw_result(self) -> Result<RawResult, Error> {
         let mut out = RawResult::empty();
         self.read_raw_into(&mut out)?;
@@ -304,10 +322,18 @@ impl<R: io::Read> Reader<R> {
     /// Reads the whole file into the given raw sink.
     ///
     /// This is a low level building block that you usually don't want to use
-    /// directly.
+    /// directly. This function is only exposed to give you full control in
+    /// rare situation where you might need it. That way you never have to
+    /// write your own parser, even if you want to do very exotic things. The
+    /// `StreamSource` API is built on top of this function.
+    ///
+    /// **Note**: this function is *really hard* to use. It is purposefully
+    /// very low level. This should be your last resort.
     pub fn read_raw_into(mut self, sink: &mut impl RawSink) -> Result<(), Error> {
         let buf = &mut self.buf;
 
+        // Store function point to actual element reading function (that way we
+        // avoid branches in the hot loop).
         let read_element = match self.encoding {
             Encoding::BinaryBigEndian => read_element_bbe::<Buffer<R>>,
             Encoding::BinaryLittleEndian => read_element_ble::<Buffer<R>>,
@@ -466,6 +492,9 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
         impl<'a, S: MemSink> HelperSink<'a, S> {
             fn new(sink: &'a mut S, info: PropInfo) -> Result<Self, Error> {
+                // Calls the `prepare_` function and returns the offset as well
+                // as the function pointer to the function monomorphized with
+                // the correct type.
                 macro_rules! get_offset_and_fptr {
                     ($info:expr, $fun:ident, $prep_fn:ident, $count:expr $(,)?) => {
                         match $info {
@@ -811,25 +840,28 @@ impl<R: io::Read> StreamSource for Reader<R> {
             xs: &str,
             ys: &str,
             zs: &str,
+            props: &str,
             elem: &str,
         ) -> Result<Option<([PropIndex; 3], ScalarType)>, Error> {
             if let Some(px_idx) = group.prop_pos(xs) {
                 let py_idx = group.prop_pos(ys).ok_or(Error::InvalidInput(
                     format!(
                         "{} has '{}' property, but no '{}' property \
-                            (only 3D positions supported)",
+                            (only 3D {} supported)",
                         elem,
                         xs,
                         ys,
+                        props,
                     )
                 ))?;
                 let pz_idx = group.prop_pos(zs).ok_or(Error::InvalidInput(
                     format!(
                         "{} has '{}' property, but no '{}' property \
-                            (only 3D positions supported)",
+                            (only 3D {} supported)",
                         elem,
                         xs,
                         zs,
+                        props,
                     )
                 ))?;
 
@@ -946,8 +978,8 @@ impl<R: io::Read> StreamSource for Reader<R> {
         let vertex_count = u64_to_hsize(vertex_group.count, "vertices")?;
         let mut prop_info = PropInfo {
             vertex_count,
-            vertex_position: check_vec_like(&vertex_group, "x", "y", "z", "vertex")?,
-            vertex_normal: check_vec_like(&vertex_group, "nx", "ny", "nz", "vertex")?,
+            vertex_position: check_vec_like(&vertex_group, "x", "y", "z", "positions", "vertex")?,
+            vertex_normal: check_vec_like(&vertex_group, "nx", "ny", "nz", "normals", "vertex")?,
             vertex_color: check_color(&vertex_group, "vertex")?,
             face_count: None,
             vertex_indices: None,
@@ -991,7 +1023,8 @@ impl<R: io::Read> StreamSource for Reader<R> {
             }
 
             // Check other face properties
-            prop_info.face_normal = check_vec_like(&face_group, "nx", "ny", "nz", "face")?;
+            prop_info.face_normal
+                = check_vec_like(&face_group, "nx", "ny", "nz", "normals", "face")?;
             prop_info.face_color = check_color(&face_group, "face")?;
         }
 

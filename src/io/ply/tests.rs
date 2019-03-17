@@ -8,7 +8,7 @@ use crate::{
     ds::SharedVertexMesh,
     fat::MiniMesh,
     io::IsFormat,
-    map::{ConstMap, FnMap, VecMap},
+    map::VecMap,
 };
 use super::{
     Config, Encoding, Reader, is_file_start,
@@ -569,3 +569,5 @@ fn read_three_tris_all_props_bbe() -> Result<(), Error> {
     check_three_tris_all_props(&m);
     Ok(())
 }
+
+// TODO: read tests where the mesh hands out strange handles

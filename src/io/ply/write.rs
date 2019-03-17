@@ -9,7 +9,9 @@
 //! - The specs say "The header is a series of carriage-return terminated
 //!   lines", but the example files used by the specs and all files in the wild
 //!   use `'\n'` as terminator and not `'\r'` (carriage-return).
-//!
+//! - For ASCII encoding we simply use the `fmt::Display` impl of all types.
+//!   It's not clear if that's OK, but I haven't encountered any issues
+//!   regarding this with other programs so far.
 //!
 
 
@@ -20,13 +22,12 @@ use std::{
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 
 use crate::{
-    handle::{hsize, FaceHandle, Handle, VertexHandle},
+    handle::{hsize, FaceHandle, VertexHandle},
     io::{
-        Error, StreamSink, MemSource, Primitive, PrimitiveType, PropKind,
-        PrimitiveColorChannelType, ColorType,
+        Error, StreamSink, MemSource, Primitive, PrimitiveType, PropKind, ColorType,
         util::HandleIndexMap,
     },
-    prop::{ColorLike, PrimitiveColorChannel},
+    prop::ColorLike,
     traits::*,
     util::TriArrayExt,
 };
@@ -44,6 +45,12 @@ use super::{
 // ===== PLY Config
 // ===============================================================================================
 
+/// Used to configure and create a [`Writer`].
+///
+/// This is used to configure basic settings for the file to be written. Most
+/// importantly, this is the file encoding. Additionally, you can add comments
+/// to the file header. With [`Config::into_writer`] you can create a
+/// [`Writer`] that can be used as streaming sink.
 #[derive(Clone, Debug)]
 pub struct Config {
     encoding: Encoding,
@@ -51,15 +58,22 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn ascii() -> Self {
-        Self::new(Encoding::Ascii)
-    }
-
     /// Creates a new configuration with binary encoding (native endianess).
     pub fn binary() -> Self {
         Self::new(Encoding::native_binary())
     }
 
+    /// Creates a new configuration with ASCII encoding. *Try avoid using ASCII
+    /// encoding!*
+    ///
+    /// ASCII encoding is usually a lot less space efficient and a lot slower
+    /// to read and write. Therefore you should instead using a binary
+    /// encoding. The PLY file header is always ASCII.
+    pub fn ascii() -> Self {
+        Self::new(Encoding::Ascii)
+    }
+
+    /// Creates a new configuration with the given encoding.
     pub fn new(encoding: Encoding) -> Self {
         Self {
             encoding,
@@ -67,8 +81,12 @@ impl Config {
         }
     }
 
-    /// Adds a `comment` line to the file header. The given string must not
-    /// contain `'\n'` or else this method panics.
+    /// Adds a `comment` line to the file header.
+    ///
+    /// The given string must not contain `'\n'` or else this method panics.
+    /// Note that there are probably other characters that could invalidate the
+    /// file header or at least confuse some parsers. You should thus take care
+    /// what strings you pass in.
     pub fn add_comment(mut self, comment: impl Into<String>) -> Self {
         let comment = comment.into();
 
@@ -78,6 +96,8 @@ impl Config {
         self
     }
 
+    /// Creates a writer with the given `io::Write` instance and `self` as
+    /// configuration.
     pub fn into_writer<W: io::Write>(self, writer: W) -> Writer<W> {
         Writer {
             config: self,
@@ -92,6 +112,37 @@ impl Config {
 // ===============================================================================================
 /// A writer able to write binary and ASCII PLY files. Implements
 /// [`StreamSink`].
+///
+/// There are two ways to write data: (a) using the high level API
+/// [`StreamSink`] (you probably want to do that), or (b) using the low level
+/// API via [`write_raw`][Writer::write_raw] (you only need to do that in very
+/// special situations).
+///
+///
+/// # Example
+///
+/// ```
+/// use std::{
+///     fs::File,
+///     io::BufWriter,
+/// };
+/// use lox::io::{
+///     Error, StreamSink, MemSource,
+///     ply::{Config, Writer},
+/// };
+///
+/// fn write_both_encodings(src: &impl MemSource) -> Result<(), Error> {
+///     // We use `BufWriter` here because unbuffered file access is usually a
+///     // lot slower.
+///     let file_a = File::create("mesh_ascii.ply")?;
+///     Config::ascii().into_writer(BufWriter::new(file_a)).transfer_from(src)?;
+///
+///     let file_b = File::create("mesh_binary.ply")?;
+///     Config::binary().into_writer(BufWriter::new(file_b)).transfer_from(src)?;
+///
+///     Ok(())
+/// }
+/// ```
 #[derive(Debug)]
 pub struct Writer<W: io::Write> {
     config: Config,
@@ -107,9 +158,15 @@ impl<W: io::Write> Writer<W> {
 
     /// Low level function to write PLY files.
     ///
-    /// You usually don't need to use this function directly and instead use a high
-    /// level interface. This function is still exposed to give you more or less
-    /// complete control.
+    /// You usually don't need to use this function directly and instead use a
+    /// high level interface. This function is still exposed to give you almost
+    /// full control. That way, users of this library never have to rewrite the
+    /// abstraction over encodings and the actual writing themselves but can
+    /// instead use this function. The `StreamSink` interface is built on top
+    /// of this function.
+    ///
+    /// **Note**: this function is *not* easy to use. It is purposefully very
+    /// low level. This should be your last resort.
     pub fn write_raw(
         mut self,
         header: &[ElementDef],
@@ -504,7 +561,8 @@ impl<W: io::Write> StreamSink for Writer<W> {
             }
         }
 
-        // ...
+
+        // Actually start the write operation.
         self.write_raw(&[vertex_def, face_def], HelperSource(src))
     }
 }
@@ -529,6 +587,8 @@ fn closest_ply_type(ty: PrimitiveType) -> ScalarType {
 // ===============================================================================================
 // ===== Definition of ASCII and binary serializers
 // ===============================================================================================
+// These serializers are just used to abstract over the encoding (and things
+// like separators and line endings).
 
 #[derive(Debug)]
 struct AsciiSerializer<'a, W: Write> {
@@ -544,7 +604,7 @@ impl<'a, W: Write> AsciiSerializer<'a, W> {
         }
     }
 
-    fn write_seperator(&mut self) -> Result<(), Error> {
+    fn write_separator(&mut self) -> Result<(), Error> {
         if self.at_start_of_line {
             self.at_start_of_line = false;
         } else {
@@ -557,42 +617,42 @@ impl<'a, W: Write> AsciiSerializer<'a, W> {
 
 impl<W: io::Write> Serializer for AsciiSerializer<'_, W> {
     fn add_i8(&mut self, v: i8) -> Result<(), Error> {
-        self.write_seperator()?;
+        self.write_separator()?;
         write!(self.writer, "{}", v)?;
         Ok(())
     }
     fn add_i16(&mut self, v: i16) -> Result<(), Error> {
-        self.write_seperator()?;
+        self.write_separator()?;
         write!(self.writer, "{}", v)?;
         Ok(())
     }
     fn add_i32(&mut self, v: i32) -> Result<(), Error> {
-        self.write_seperator()?;
+        self.write_separator()?;
         write!(self.writer, "{}", v)?;
         Ok(())
     }
     fn add_u8(&mut self, v: u8) -> Result<(), Error> {
-        self.write_seperator()?;
+        self.write_separator()?;
         write!(self.writer, "{}", v)?;
         Ok(())
     }
     fn add_u16(&mut self, v: u16) -> Result<(), Error> {
-        self.write_seperator()?;
+        self.write_separator()?;
         write!(self.writer, "{}", v)?;
         Ok(())
     }
     fn add_u32(&mut self, v: u32) -> Result<(), Error> {
-        self.write_seperator()?;
+        self.write_separator()?;
         write!(self.writer, "{}", v)?;
         Ok(())
     }
     fn add_f32(&mut self, v: f32) -> Result<(), Error> {
-        self.write_seperator()?;
+        self.write_separator()?;
         write!(self.writer, "{}", v)?;
         Ok(())
     }
     fn add_f64(&mut self, v: f64) -> Result<(), Error> {
-        self.write_seperator()?;
+        self.write_separator()?;
         write!(self.writer, "{}", v)?;
         Ok(())
     }
@@ -606,7 +666,6 @@ impl<W: io::Write> Serializer for AsciiSerializer<'_, W> {
 
 macro_rules! gen_binary_block {
     ($name:ident, $endianess:ident) => {
-        /// A PLY block which doesn't insert separators and serializes everything binary.
         #[derive(Debug)]
         struct $name<'a, W: Write> {
             writer: &'a mut W,
