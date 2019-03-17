@@ -157,6 +157,18 @@ pub fn write<T: MemSource, P: AsRef<Path>>(path: P, src: &T) -> Result<(), Error
     inner(path.as_ref(), src)
 }
 
+
+// TODO: add the following trait once GATs are available. Implement trait for
+// `Config` types. Then we can also add a bunch of useful functions such as
+// `write_to_mem`.
+//
+// trait IntoWriter {
+//     type Writer<W: io::Write>;
+//     fn into_writer<W: io::Write>(self) -> Self::Writer<W>;
+
+//     // fn into_file_writer()
+// }
+
 /// Represents one of the supported file formats.
 ///
 /// New file formats may be added with only minor version bumps, so you cannot
@@ -258,6 +270,25 @@ impl FileFormat {
             FileFormat::Stl => stl::FILE_EXTENSIONS[0],
         }
     }
+
+    /// Returns the writer object of the given format.
+    ///
+    /// The writer is already monomorphized with the underlying `io::Write`
+    /// object plus the source type. This has the disadvantage that you have to
+    /// already specify the types on this method. But we do get a significant
+    /// speed advantage. See [`DynStreamSink`] for more information.
+    pub fn writer<'a, SrcT, W>(&self, w: W) -> Box<dyn DynStreamSink<SrcT> + 'a>
+    where
+        SrcT: MemSource,
+        W: 'a + io::Write,
+    {
+        match self {
+            FileFormat::Stl => Box::new(stl::Config::binary().into_writer(w)),
+            FileFormat::Ply => Box::new(ply::Config::binary().into_writer(w)),
+        }
+    }
+
+    // TODO: add `writer_with_encoding`
 }
 
 impl fmt::Display for FileFormat {
@@ -881,6 +912,42 @@ pub trait MemSink {
 
 pub trait StreamSink {
     fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Error>;
+}
+
+/// A object-safe [`StreamSink`] companion trait. This is only useful for use
+/// as trait-object.
+///
+/// The trait `StreamSink` has a method with generic parameter and thus is not
+/// object-safe (i.e. cannot be made into a trait-object). This is OK for most
+/// uses, but sometimes a dynamically dispatched sink is necessary. That's what
+/// this trait is for. It moves the generic `SrcT` parameter from the method to
+/// the trait to make it possible ot have a `dyn DynStreamSink<MySource>`.
+///
+/// Having the source type as a trait parameter does restrict the potential
+/// usages of this trait. In other words: you either have to know the type of
+/// your writer or the type of your source.
+///
+/// Why is that? Speed. A typical mesh transfer operation has many interactions
+/// between the underlying `io::Write` instance, the actual writing algorithm
+/// and the source. Making any of these frequent calls virtual would slow down
+/// the operation significantly. The design of this trait is a compromise: you
+/// can provide all the type parameters up-front to monomorphize all calls and
+/// still have a trait object.
+///
+/// This trait is automatically implemented for all types that implement
+/// [`StreamSink`].
+pub trait DynStreamSink<SrcT: MemSource> {
+    fn transfer_from(self: Box<Self>, src: &SrcT) -> Result<(), Error>;
+}
+
+impl<T, SrcT> DynStreamSink<SrcT> for T
+where
+    T: StreamSink,
+    SrcT: MemSource,
+{
+    fn transfer_from(self: Box<Self>, src: &SrcT) -> Result<(), Error> {
+        StreamSink::transfer_from(*self, src)
+    }
 }
 
 
