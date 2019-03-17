@@ -20,9 +20,13 @@ use std::{
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 
 use crate::{
-    handle::{FaceHandle, Handle, VertexHandle},
-    io::{Error, StreamSink, MemSource, Primitive, PrimitiveType, PropKind},
+    handle::{hsize, FaceHandle, Handle, VertexHandle},
+    io::{
+        Error, StreamSink, MemSource, Primitive, PrimitiveType, PropKind,
+        util::HandleIndexMap,
+    },
     traits::*,
+    util::TriArrayExt,
 };
 use super::{
     Encoding,
@@ -356,7 +360,11 @@ impl<W: io::Write> StreamSink for Writer<W> {
                 // ===========================================================
                 // ===== Write all the data
                 // ===========================================================
-                for vh in mesh.vertex_handles() {
+                let mut indices_map = HandleIndexMap::new();
+
+                for (i, vh) in mesh.vertex_handles().enumerate() {
+                    indices_map.add(vh, i as hsize);
+
                     write_v_position(&mut ser, src, vh)?;
                     write_v_normal(&mut ser, src, vh)?;
 
@@ -365,13 +373,14 @@ impl<W: io::Write> StreamSink for Writer<W> {
 
                 for fh in mesh.face_handles() {
                     // Vertex indices
-                    // TODO: use indirect map in case mesh handles are shitty
-                    let [a, b, c] = mesh.vertices_of_face(fh);
+                    let [a, b, c] = mesh.vertices_of_face(fh)
+                        .map(|vh| indices_map.get(vh).unwrap());
                     ser.add_u8(3)?;
-                    ser.add_u32(a.idx())?;
-                    ser.add_u32(b.idx())?;
-                    ser.add_u32(c.idx())?;
+                    ser.add_u32(a)?;
+                    ser.add_u32(b)?;
+                    ser.add_u32(c)?;
 
+                    // Other face properties
                     write_f_normal(&mut ser, src, fh)?;
 
                     ser.end_element()?;
