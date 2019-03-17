@@ -34,90 +34,88 @@ fn test_is_file_start() {
 // ===== Writing
 // ===========================================================================
 
-// fn triangle_mesh() -> (SharedVertexMesh, VecMap<VertexHandle, [f32; 3]>) {
-//     mesh! {
-//         type: SharedVertexMesh,
-//         vertices: [
-//             v0: ([0.0f32, 0.0, 0.0]),
-//             v1: ([3.0, 5.0, 8.0]),
-//             v2: ([1.942, 152.99, 0.007]),
-//         ],
-//         faces: [
-//             [v0, v1, v2],
-//         ],
-//     }
-// }
+fn triangle_mesh() -> MiniMesh<SharedVertexMesh> {
+    let (mesh, vertex_positions) = mesh! {
+        type: SharedVertexMesh,
+        vertices: [
+            v0: (Point3::new(0.0f32, 0.0, 0.0)),
+            v1: (Point3::new(3.0, 5.0, 8.0)),
+            v2: (Point3::new(1.942, 152.99, 0.007)),
+        ],
+        faces: [
+            [v0, v1, v2],
+        ],
+    };
 
-// #[test]
-// fn write_triangle_ascii() -> Result<(), Error> {
-//     let (mesh, positions) = triangle_mesh();
+    MiniMesh { mesh, vertex_positions }
+}
 
-//     let res = Config::ascii()
-//         .into_writer(&mesh, &positions)
-//         .write_to_memory()?;
+fn to_mem(config: Config, mesh: &MiniMesh<SharedVertexMesh>) -> Result<Vec<u8>, Error> {
+    let mut v = Vec::new();
+    config.into_writer(&mut v).transfer_from(mesh)?;
+    Ok(v)
+}
 
-//     assert_eq_file!(&res, "triangle_ascii.ply");
-//     Ok(())
-// }
+#[test]
+fn write_triangle_ascii() -> Result<(), Error> {
+    let res = to_mem(Config::ascii(), &triangle_mesh())?;
+    assert_eq_file!(&res, "triangle_ascii.ply");
+    Ok(())
+}
 
-// #[test]
-// fn write_triangle_bbe() -> Result<(), Error> {
-//     let (mesh, positions) = triangle_mesh();
+#[test]
+fn write_triangle_bbe() -> Result<(), Error> {
+    let res = to_mem(Config::new(Encoding::BinaryBigEndian), &triangle_mesh())?;
+    assert_eq_file!(&res, "triangle_bbe.ply");
+    Ok(())
+}
 
-//     let res = Config::new(Encoding::BinaryBigEndian)
-//         .into_writer(&mesh, &positions)
-//         .write_to_memory()?;
-
-//     assert_eq_file!(&res, "triangle_bbe.ply");
-//     Ok(())
-// }
-
-// #[test]
-// fn write_triangle_ble() -> Result<(), Error> {
-//     let (mesh, positions) = triangle_mesh();
-
-//     let res = Config::new(Encoding::BinaryLittleEndian)
-//         .into_writer(&mesh, &positions)
-//         .write_to_memory()?;
-
-//     assert_eq_file!(&res, "triangle_ble.ply");
-//     Ok(())
-// }
+#[test]
+fn write_triangle_ble() -> Result<(), Error> {
+    let res = to_mem(Config::new(Encoding::BinaryLittleEndian), &triangle_mesh())?;
+    assert_eq_file!(&res, "triangle_ble.ply");
+    Ok(())
+}
 
 
-// #[test]
-// fn write_triangle_with_comments_ascii() -> Result<(), Error> {
-//     let (mesh, positions) = triangle_mesh();
+#[test]
+fn write_triangle_with_comments_ascii() -> Result<(), Error> {
+    let config = Config::ascii()
+        .add_comment("My name is Tom")
+        .add_comment("Yes we can have multiple comments :)")
+        .add_comment(
+            "Comments appear in the file in the same order as they are added with `add_comment`"
+        );
+    let res = to_mem(config, &triangle_mesh())?;
+    assert_eq_file!(&res, "triangle_with_comments_ascii.ply");
+    Ok(())
+}
 
-//     let res = Config::ascii()
-//         .add_comment("My name is Tom")
-//         .add_comment("Yes we can have multiple comments :)")
-//         .add_comment(
-//             "Comments appear in the file in the same order as they are added with `add_comment`"
-//         )
-//         .into_writer(&mesh, &positions)
-//         .write_to_memory()?;
+#[test]
+fn write_triangle_with_comments_bbe() -> Result<(), Error> {
+    let config = Config::new(Encoding::BinaryBigEndian)
+        .add_comment("My name is Tom")
+        .add_comment("Yes we can have multiple comments :)")
+        .add_comment(
+            "Comments appear in the file in the same order as they are added with `add_comment`"
+        );
+    let res = to_mem(config, &triangle_mesh())?;
+    assert_eq_file!(&res, "triangle_with_comments_bbe.ply");
+    Ok(())
+}
 
-//     assert_eq_file!(&res, "triangle_with_comments_ascii.ply");
-//     Ok(())
-// }
-
-// #[test]
-// fn write_triangle_with_comments_bbe() -> Result<(), Error> {
-//     let (mesh, positions) = triangle_mesh();
-
-//     let res = Config::new(Encoding::BinaryBigEndian)
-//         .add_comment("My name is Tom")
-//         .add_comment("Yes we can have multiple comments :)")
-//         .add_comment(
-//             "Comments appear in the file in the same order as they are added with `add_comment`"
-//         )
-//         .into_writer(&mesh, &positions)
-//         .write_to_memory()?;
-
-//     assert_eq_file!(&res, "triangle_with_comments_bbe.ply");
-//     Ok(())
-// }
+#[test]
+fn write_triangle_with_comments_ble() -> Result<(), Error> {
+    let config = Config::new(Encoding::BinaryLittleEndian)
+        .add_comment("My name is Tom")
+        .add_comment("Yes we can have multiple comments :)")
+        .add_comment(
+            "Comments appear in the file in the same order as they are added with `add_comment`"
+        );
+    let res = to_mem(config, &triangle_mesh())?;
+    assert_eq_file!(&res, "triangle_with_comments_ble.ply");
+    Ok(())
+}
 
 // fn triangle_with_extra_props(encoding: Encoding) -> Result<Vec<u8>, Error> {
 //     let (mesh, positions, bar) = mesh! {
