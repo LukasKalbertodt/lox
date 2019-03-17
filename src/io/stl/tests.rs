@@ -129,6 +129,9 @@ fn read_cube_binary() -> Result<(), Error> {
     Ok(())
 }
 
+// TODO:
+// - reading with unification (into MiniMesh)
+// - reading with half full mesh (and maybe mesh that assigns strange handles)
 
 // ===========================================================================
 // ===== Writing
@@ -184,3 +187,7 @@ fn write_triangle_binary() -> Result<(), Error> {
 
     Ok(())
 }
+
+// TODO:
+// - multiple faces
+// - reading with mesh with some deleted elements
