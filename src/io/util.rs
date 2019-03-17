@@ -9,9 +9,9 @@ use stable_vec::StableVec;
 
 use crate::{
     cast::{try_cast, is_cast_possible, CastRigor},
-    handle::{Handle, VertexHandle, FaceHandle},
+    handle::{hsize, Handle, VertexHandle, FaceHandle},
     io::{Error, MemSource, PrimitiveType, Primitive, PropKind},
-    map::PropMap,
+    map::{PropMap, PropStoreMut, VecMap},
     math::{PrimitiveFloat},
     prop::{Pos3Like, Vec3Like},
 };
@@ -400,7 +400,7 @@ impl<H: Handle> IndexHandleMap<H> {
                 } else {
                     // This is bad: now we have to convert this simple map into
                     // the arbitrary map. First transfer all old values.
-                    let mut map = StableVec::with_capacity(*len);
+                    let mut map = StableVec::with_capacity(*len + 1);
                     for i in 0..*len {
                         map.push(H::from_usize(i));
                     }
@@ -450,13 +450,77 @@ impl<H: Handle> IndexHandleMap<H> {
     }
 }
 
+/// Internal helper map to map from handles to indices.
+///
+/// This is [`IndexHandleMap`] the other way around. See its documentation for
+/// more information.
+#[derive(Debug)]
+pub(super) enum HandleIndexMap<H: Handle> {
+    /// All indices were equal to the handles and started at 0.
+    Block {
+        len: hsize,
+    },
+    /// Something else
+    Arbitrary {
+        map: VecMap<H, hsize>,
+    },
+}
+
+impl<H: Handle> HandleIndexMap<H> {
+    pub(super) fn new() -> Self {
+        HandleIndexMap::Block { len: 0 }
+    }
+
+    pub(super) fn add(&mut self, handle: H, index: hsize) {
+        match self {
+            HandleIndexMap::Block { len } => {
+                // This is the expected case: handles and indices have the same
+                // value and are simply counting up.
+                if handle.idx() == index && *len == index {
+                    *len += 1;
+                } else {
+                    // This is bad: now we have to convert this simple map into
+                    // the arbitrary map. First transfer all old values.
+                    let mut map = VecMap::with_capacity(*len + 1);
+                    for i in 0..*len {
+                        map.insert(H::new(i), i);
+                    }
+
+                    // Insert new value
+                    map.insert(handle, index);
+
+                    *self = HandleIndexMap::Arbitrary { map };
+                }
+            }
+            HandleIndexMap::Arbitrary { map } => {
+                map.insert(handle, index);
+            }
+        }
+    }
+
+    pub(super) fn get(&self, handle: H) -> Option<hsize> {
+        match self {
+            HandleIndexMap::Block { len } => {
+                if handle.idx() < *len {
+                    Some(handle.idx())
+                } else {
+                    None
+                }
+            }
+            HandleIndexMap::Arbitrary { map } => {
+                map.get(handle).map(|boo| *boo)
+            }
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn index_map_nice() {
+    fn index_handle_map_nice() {
         let fh = FaceHandle::from_usize;
 
         let mut map = IndexHandleMap::new();
@@ -473,7 +537,7 @@ mod tests {
     }
 
     #[test]
-    fn index_map_bad() {
+    fn index_handle_map_bad() {
         let fh = FaceHandle::from_usize;
 
         let mut map = IndexHandleMap::new();
@@ -516,5 +580,68 @@ mod tests {
         assert_eq!(map.get(4), None);
         assert_eq!(map.get(4), None);
         assert_eq!(map.get(6), Some(fh(3)));
+    }
+
+    #[test]
+    fn handle_index_map_nice() {
+        let fh = FaceHandle::new;
+
+        let mut map = HandleIndexMap::new();
+        assert_eq!(map.get(fh(0)), None);
+        assert_eq!(map.get(fh(1)), None);
+
+        map.add(fh(0), 0);
+        assert_eq!(map.get(fh(0)), Some(0));
+        assert_eq!(map.get(fh(1)), None);
+
+        map.add(fh(1), 1);
+        assert_eq!(map.get(fh(0)), Some(0));
+        assert_eq!(map.get(fh(1)), Some(1));
+    }
+
+    #[test]
+    fn handle_index_map_bad() {
+        let fh = FaceHandle::from_usize;
+
+        let mut map = HandleIndexMap::new();
+        map.add(fh(0), 1);
+        assert_eq!(map.get(fh(0)), Some(1));
+        assert_eq!(map.get(fh(1)), None);
+        assert_eq!(map.get(fh(2)), None);
+
+        let mut map = HandleIndexMap::new();
+        map.add(fh(1), 0);
+        assert_eq!(map.get(fh(0)), None);
+        assert_eq!(map.get(fh(1)), Some(0));
+        assert_eq!(map.get(fh(2)), None);
+
+        let mut map = HandleIndexMap::new();
+        map.add(fh(0), 0);
+        map.add(fh(1), 2);
+        assert_eq!(map.get(fh(0)), Some(0));
+        assert_eq!(map.get(fh(1)), Some(2));
+        assert_eq!(map.get(fh(2)), None);
+
+        let mut map = HandleIndexMap::new();
+        map.add(fh(0), 0);
+        map.add(fh(2), 1);
+        assert_eq!(map.get(fh(0)), Some(0));
+        assert_eq!(map.get(fh(1)), None);
+        assert_eq!(map.get(fh(2)), Some(1));
+
+        map.add(fh(3), 2);
+        assert_eq!(map.get(fh(0)), Some(0));
+        assert_eq!(map.get(fh(1)), None);
+        assert_eq!(map.get(fh(2)), Some(1));
+        assert_eq!(map.get(fh(3)), Some(2));
+
+        map.add(fh(6), 3);
+        assert_eq!(map.get(fh(0)), Some(0));
+        assert_eq!(map.get(fh(1)), None);
+        assert_eq!(map.get(fh(2)), Some(1));
+        assert_eq!(map.get(fh(3)), Some(2));
+        assert_eq!(map.get(fh(4)), None);
+        assert_eq!(map.get(fh(4)), None);
+        assert_eq!(map.get(fh(6)), Some(3));
     }
 }
