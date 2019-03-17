@@ -387,6 +387,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
             face_count: Option<hsize>,
             vertex_indices: Option<(PropIndex, ScalarType)>,
+            face_normal: Option<([PropIndex; 3], ScalarType)>,
         }
 
         /// Helper type alias for property handler functions.
@@ -447,6 +448,12 @@ impl<R: io::Read> StreamSource for Reader<R> {
             read_face_vertex_indices:
                 fn(&mut Self, RawOffset, &RawData) -> Result<FaceHandle, usize>,
 
+            /// The position of the nx, ny and nz properties in the list of
+            /// face properties
+            face_normal_idx: [PropIndex; 3],
+
+            /// Function to read the nx, ny, nz properties
+            read_face_normal: FnPropHandler<Self>,
         }
 
         impl<'a, S: MemSink> HelperSink<'a, S> {
@@ -558,6 +565,21 @@ impl<R: io::Read> StreamSource for Reader<R> {
                     None => ([PropIndex(0); 4], Self::noop as FnPropHandler<Self>),
                 };
 
+                // For face properties nx, ny, nz.
+                let (face_normal_idx, read_face_normal) = match info.face_normal {
+                    Some((offset, ty)) => {
+                        let fn_ptr = typed_fn_ptr!(
+                            ty,
+                            read_face_normal,
+                            prepare_face_normals,
+                            info.face_count.unwrap()
+                        );
+
+                        (offset, fn_ptr)
+                    }
+                    None => ([PropIndex(0); 3], Self::noop as FnPropHandler<Self>),
+                };
+
 
                 Ok(Self {
                     sink: sink,
@@ -589,6 +611,9 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
                     vertex_indices_idx,
                     read_face_vertex_indices,
+
+                    face_normal_idx,
+                    read_face_normal,
                 })
             }
 
@@ -644,6 +669,9 @@ impl<R: io::Read> StreamSource for Reader<R> {
                 self.face_handles.add(self.face_count, fh);
                 self.face_count += 1;
                 self.curr_face_handle = fh;
+
+                // Face properties
+                (self.read_face_normal)(self, elem);
 
                 Ok(())
             }
@@ -722,6 +750,19 @@ impl<R: io::Read> StreamSource for Reader<R> {
                 ];
                 Ok(self.sink.add_face(vhs))
             }
+
+            /// Read the x, y and z property and pass the position to the sink.
+            fn read_face_normal<T: Primitive + FromBytes>(&mut self, elem: &RawElement) {
+                let [x_idx, y_idx, z_idx] = self.face_normal_idx;
+                let x = T::from_bytes_ne(&elem.data[elem.prop_infos[x_idx].offset..]);
+                let y = T::from_bytes_ne(&elem.data[elem.prop_infos[y_idx].offset..]);
+                let z = T::from_bytes_ne(&elem.data[elem.prop_infos[z_idx].offset..]);
+
+                self.sink.set_face_normal(
+                    self.curr_face_handle,
+                    Vector3::new(x, y, z),
+                );
+            }
         }
 
         impl<S: MemSink> RawSink for HelperSink<'_, S> {
@@ -761,6 +802,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
             vertex_color: None,
             face_count: None,
             vertex_indices: None,
+            face_normal: None,
         };
 
         // Check vertex position
@@ -910,6 +952,39 @@ impl<R: io::Read> StreamSource for Reader<R> {
             } else {
                 return Err(Error::InvalidInput(
                     "'face' elements without 'vertex_indices' property".into()
+                ));
+            }
+
+            // Check face normal
+            if let Some(pnx_idx) = face_group.prop_pos("nx") {
+                let pny_idx = face_group.prop_pos("ny").ok_or(Error::InvalidInput(
+                    "face has 'nx' property, but no 'ny' property (only 3D normals supported)"
+                        .into()
+                ))?;
+                let pnz_idx = face_group.prop_pos("nz").ok_or(Error::InvalidInput(
+                    "face has 'nx' property, but no 'nz' property (only 3D normals supported)"
+                        .into()
+                ))?;
+
+                let pnx = &face_group.property_defs[pnx_idx];
+                let pny = &face_group.property_defs[pny_idx];
+                let pnz = &face_group.property_defs[pnz_idx];
+
+                if pnx.ty.is_list() {
+                    return Err(Error::InvalidInput(
+                        "face property 'nx' has a list type (only scalars allowed)".into()
+                    ));
+                }
+
+                if pnx.ty != pny.ty || pnx.ty != pnz.ty {
+                    return Err(Error::InvalidInput(
+                        "face properties 'nx', 'ny' and 'nz' don't have the same type".into()
+                    ));
+                }
+
+                prop_info.face_normal = Some((
+                    [pnx_idx, pny_idx, pnz_idx],
+                    pnx.ty.scalar_type(),
                 ));
             }
         }
