@@ -1,9 +1,9 @@
-use cgmath::Point3;
+use cgmath::{Point3, Vector3};
 use failure::Error;
 
-use crate as lox;
 use crate::{
-    mesh,
+    self as lox, // for proc-macros
+    mesh, MemSource, MemSink,
     prelude::*,
     ds::SharedVertexMesh,
     fat::MiniMesh,
@@ -50,7 +50,7 @@ fn triangle_mesh() -> MiniMesh<SharedVertexMesh> {
     MiniMesh { mesh, vertex_positions }
 }
 
-fn to_mem(config: Config, mesh: &MiniMesh<SharedVertexMesh>) -> Result<Vec<u8>, Error> {
+fn to_mem(config: Config, mesh: &impl MemSource) -> Result<Vec<u8>, Error> {
     let mut v = Vec::new();
     config.into_writer(&mut v).transfer_from(mesh)?;
     Ok(v)
@@ -117,49 +117,91 @@ fn write_triangle_with_comments_ble() -> Result<(), Error> {
     Ok(())
 }
 
-// fn triangle_with_extra_props(encoding: Encoding) -> Result<Vec<u8>, Error> {
-//     let (mesh, positions, bar) = mesh! {
-//         type: SharedVertexMesh,
-//         vertices: [
-//             v0: ([0.0f32, 0.0, 0.0], vec![]),
-//             v1: ([3.0, 5.0, 8.0], vec![-1i8]),
-//             v2: ([1.942, 152.99, 0.007], vec![3, 8]),
-//         ],
-//         faces: [
-//             [v0, v1, v2],
-//         ],
-//     };
+#[derive(Empty, MemSink, MemSource, Debug)]
+struct FullMesh {
+    #[lox(core_mesh)]
+    mesh: SharedVertexMesh,
 
-//     let res = Config::new(encoding)
-//         .into_writer(&mesh, &positions)
-//         .add_vertex_prop("foo", &ConstMap([0.93f64, 0.2, 0.3]))
-//         .add_vertex_prop("bar", &FnMap(|h| bar.get(h).map(|v| v.into_inner().as_slice())))
-//         .add_vertex_prop("baz", &FnMap(|h: VertexHandle| Some(3 * h.to_usize() as u16)))
-//         .add_face_prop("cats", &ConstMap(-99.123f32))
-//         .write_to_memory()?;
-//     Ok(res)
-// }
+    #[lox(vertex_position)]
+    vertex_positions: VecMap<VertexHandle, Point3<f64>>,
 
-// #[test]
-// fn write_triangle_with_extra_props_ascii() -> Result<(), Error> {
-//     let res = triangle_with_extra_props(Encoding::Ascii)?;
-//     assert_eq_file!(&res, "triangle_with_extra_props_ascii.ply");
-//     Ok(())
-// }
+    #[lox(vertex_normal)]
+    vertex_normals: VecMap<VertexHandle, Vector3<f32>>,
 
-// #[test]
-// fn write_triangle_with_extra_props_bbe() -> Result<(), Error> {
-//     let res = triangle_with_extra_props(Encoding::BinaryBigEndian)?;
-//     assert_eq_file!(&res, "triangle_with_extra_props_bbe.ply");
-//     Ok(())
-// }
+    #[lox(vertex_color)]
+    vertex_colors: VecMap<VertexHandle, [u8; 3]>,
 
-// #[test]
-// fn write_triangle_with_extra_props_ble() -> Result<(), Error> {
-//     let res = triangle_with_extra_props(Encoding::BinaryLittleEndian)?;
-//     assert_eq_file!(&res, "triangle_with_extra_props_ble.ply");
-//     Ok(())
-// }
+    #[lox(face_normal)]
+    face_normals: VecMap<FaceHandle, Vector3<f32>>,
+
+    #[lox(face_color)]
+    face_colors: VecMap<FaceHandle, [u8; 4]>,
+}
+
+fn three_tris_all_props() -> FullMesh {
+    //
+    //    (1)       (3)
+    //     | \     / |
+    //     |  \   /  |
+    //     |   (4)   |
+    //     |  /   \  |
+    //     | /     \ |
+    //    (0)-------(2)
+    //
+    let (
+        mesh,
+        vertex_positions,
+        vertex_normals,
+        vertex_colors,
+        face_normals,
+        face_colors
+    ) = mesh! {
+        type: SharedVertexMesh,
+        vertices: [
+            v0: (
+                Point3::new(0.011, 0.021, 0.031),
+                Vector3::new(0.011, 0.021, 1.031),
+                [0, 101, 202],
+            ),
+            v1: (
+                Point3::new(0.012, 1.022, 0.032),
+                Vector3::new(0.012, 0.022, 1.032),
+                [3, 104, 205]
+            ),
+            v2: (
+                Point3::new(1.013, 0.023, 0.033),
+                Vector3::new(0.013, 0.023, 1.033),
+                [6, 107, 208]
+            ),
+            v3: (
+                Point3::new(1.014, 1.024, 0.034),
+                Vector3::new(0.014, 0.024, 1.034),
+                [9, 110, 211]
+            ),
+            v4: (
+                Point3::new(0.515, 0.525, 0.035),
+                Vector3::new(0.015, 0.025, 1.035),
+                [12, 113, 214]
+            ),
+        ],
+        faces: [
+            [v0, v2, v4]: (Vector3::new(0.041, 0.051, 1.061), [15, 116, 217, 224]),
+            [v0, v4, v1]: (Vector3::new(0.042, 0.052, 1.062), [18, 119, 220, 225]),
+            [v2, v3, v4]: (Vector3::new(0.043, 0.053, 1.063), [21, 122, 223, 226]),
+        ],
+    };
+
+    FullMesh { mesh, vertex_positions, vertex_normals, vertex_colors, face_normals, face_colors }
+}
+
+#[test]
+fn write_three_tris_all_props_ascii() -> Result<(), Error> {
+    let res = to_mem(Config::ascii(), &three_tris_all_props())?;
+    assert_eq_file!(&res, "three_tris_all_props_ascii.ply");
+    Ok(())
+}
+
+// TODO: add test with mesh with some deleted faces & vertices
 
 
 // ===========================================================================
