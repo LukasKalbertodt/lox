@@ -55,8 +55,9 @@ impl Config {
         Self::new(Encoding::Ascii)
     }
 
+    /// Creates a new configuration with binary encoding (native endianess).
     pub fn binary() -> Self {
-        Self::new(Encoding::BinaryBigEndian)
+        Self::new(Encoding::native_binary())
     }
 
     pub fn new(encoding: Encoding) -> Self {

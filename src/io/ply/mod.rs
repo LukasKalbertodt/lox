@@ -84,6 +84,18 @@ pub enum Encoding {
     BinaryLittleEndian,
 }
 
+impl Encoding {
+    /// Returns the binary encoding with native endianess (little endian on
+    /// x86).
+    pub fn native_binary() -> Self {
+        if cfg!(target_endian = "big") {
+            Encoding::BinaryBigEndian
+        } else {
+            Encoding::BinaryLittleEndian
+        }
+    }
+}
+
 impl From<FileEncoding> for Encoding {
     fn from(src: FileEncoding) -> Self {
         match src {
