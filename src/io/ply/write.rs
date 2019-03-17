@@ -246,6 +246,20 @@ impl<W: io::Write> StreamSink for Writer<W> {
             face_def.property_defs.push(PropertyDef { ty, name: "nz".into() });
         }
 
+        // Color: red green blue [alpha]
+        if let Some(desc) = src.face_color_type() {
+            // In theory, you can store float colors in PLY, but in practice
+            // everyone expects `uchar` as color channel type.
+            let ty = PropertyType::Scalar(ScalarType::UChar);
+            face_def.property_defs.push(PropertyDef { ty, name: "red".into() });
+            face_def.property_defs.push(PropertyDef { ty, name: "green".into() });
+            face_def.property_defs.push(PropertyDef { ty, name: "blue".into() });
+
+            if desc.alpha {
+                face_def.property_defs.push(PropertyDef { ty, name: "alpha".into() });
+            }
+        }
+
 
         // ====================================================================
         // ===== Body writing implementation
@@ -419,6 +433,40 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     face_noop,
                 );
 
+                // ----- Face colors --------------------------------------
+                fn write_face_color<S: Serializer, SrcT: MemSource, C: ColorLike>(
+                    ser: &mut S,
+                    src: &SrcT,
+                    handle: FaceHandle,
+                ) -> Result<(), Error>
+                where
+                    C::Channel: Primitive,
+                {
+                    let color = src.face_color::<C>(handle).and_then(|opt| {
+                        opt.ok_or_else(|| Error::DataIncomplete {
+                            prop: PropKind::FaceColor,
+                            msg: format!("no color for {:?} while writing PLY", handle),
+                        })
+                    })?;
+
+                    ser.add(color.red())?;
+                    ser.add(color.green())?;
+                    ser.add(color.blue())?;
+
+                    // The branches are optimized away here
+                    if C::HAS_ALPHA {
+                        ser.add(color.alpha().unwrap())?;
+                    }
+
+                    Ok(())
+                }
+
+                let write_f_color = make_color_fn_ptr!(
+                    src.face_color_type(),
+                    write_face_color,
+                    face_noop,
+                );
+
 
                 // ===========================================================
                 // ===== Write all the data
@@ -446,6 +494,7 @@ impl<W: io::Write> StreamSink for Writer<W> {
 
                     // Other face properties
                     write_f_normal(&mut ser, src, fh)?;
+                    write_f_color(&mut ser, src, fh)?;
 
                     ser.end_element()?;
                 }
