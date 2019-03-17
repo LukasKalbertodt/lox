@@ -27,8 +27,8 @@ pub(crate) fn gen_impl(input: &Input) -> TokenStream {
         .map(|f| gen_prop_code(f, "Vertex", "Position", "Point3", "Pos3Like", global_cast_mode));
     let vertex_normal_code = input.vertex_normal.as_ref()
         .map(|f| gen_prop_code(f, "Vertex", "Normal", "Vector3", "Vec3Like", global_cast_mode));
-    // let vertex_color_code = input.vertex_color.as_ref()
-    //     .map(|f| gen_color_prop_code(f, "Vertex", global_cast_mode));
+    let vertex_color_code = input.vertex_color.as_ref()
+        .map(|f| gen_color_prop_code(f, "Vertex", global_cast_mode));
 
     // Face properties
     let face_normal_code = input.face_normal.as_ref()
@@ -47,7 +47,7 @@ pub(crate) fn gen_impl(input: &Input) -> TokenStream {
 
             #vertex_position_code
             #vertex_normal_code
-            // #vertex_color_code
+            #vertex_color_code
             #face_normal_code
             // #face_color_code
         }
@@ -194,6 +194,107 @@ fn gen_prop_code(
                 M: lox::map::PropMap<#elem_handle>,
                 M::Target: lox::prop::#trait_name,
                 <M::Target as lox::prop::#trait_name>::Scalar: lox::io::Primitive,
+            {
+                #inner_body
+            }
+
+            #inner_call
+        }
+    }
+}
+
+/// Generates the code for `{elem}_color_type` and `{elem}_color` methods for a
+/// given color field.
+///
+/// The parameter `elem` as to be one of `"Face"` or `"Vertex"`.
+fn gen_color_prop_code(
+    field: &ColorPropField,
+    elem: &str,
+    global_cast_mode: Option<CastMode>,
+) -> TokenStream {
+    // Create idents
+    let elem_prop = ident!("{}Color", elem);
+    let elem_handle = ident!("{}Handle", elem);
+    let prop_color_fn = ident!("{}_color_type", elem.to_lowercase());
+    let prop_fn = ident!("{}_color", elem.to_lowercase());
+
+
+    // Generate the code to check whether the source color type can be cast
+    // into the requested type (respecting the specified cast modes) and to
+    // perform that cast if possible.
+    let rounding_allowed = field.allow_cast
+        .or_else(|| global_cast_mode.map(|m| m.is_rounding_allowed()))
+        .unwrap_or(DEFAULT_COLOR_CAST_ALLOWED);
+    let inner_body = if rounding_allowed {
+        // Just cast it via `ColorLike::cast`
+        quote! {
+            Ok(map.get(handle).map(|c| lox::prop::ColorLike::cast(&*c)))
+        }
+    } else {
+        quote! {
+            let is_same_type = lox::util::are_same_type::<
+                <C as lox::prop::ColorLike>::Channel,
+                <M::Target as lox::prop::ColorLike>::Channel,
+            >();
+
+            if !is_same_type {
+                return Err(lox::io::Error::SourceIncompatible {
+                    prop: lox::io::PropKind::#elem_prop,
+                    requested_type: <
+                        <C as lox::prop::ColorLike>::Channel
+                            as lox::io::Primitive
+                    >::TY,
+                });
+            }
+
+            Ok(
+                map.get(handle).map(|color| {
+                    lox::prop::ColorLike::map_channel(&*color, |c| {
+                        // A few lines above we checked that the cast is indeed
+                        // possible. If this fails, there is a bug in lox.
+                        lox::util::downcast_as(c).expect("internal bug in `lox::cast` module")
+                    })
+                })
+            )
+        }
+    };
+
+
+    // Prepare the code calling the inner functions. These have different spans
+    // to improve error messages if the field's type does not satisfy the trait
+    // bounds.
+    let field_name = &field.name;
+    let field_ty = &field.ty;
+    let inner_call = quote_spanned!{field_ty.span()=>
+        _impl::<_, C>(&self.#field_name, handle)
+    };
+    let type_fn_body = quote_spanned!{field_ty.span()=>
+        lox::io::ColorType::from_color_like::<
+            <#field_ty as lox::map::PropMap<#elem_handle>>::Target
+        >()
+    };
+
+    // Combine everything
+    quote! {
+        fn #prop_color_fn(&self) -> Option<lox::io::ColorType> {
+            std::option::Option::Some(#type_fn_body)
+        }
+
+        fn #prop_fn<C>(&self, handle: #elem_handle) -> Result<Option<C>, lox::io::Error>
+        where
+            C: lox::prop::ColorLike,
+            C::Channel: lox::io::Primitive,
+        {
+            fn _impl<M, C>(
+                map: &M,
+                handle: #elem_handle,
+            ) -> Result<Option<C>, lox::io::Error>
+            where
+                M: lox::map::PropMap<#elem_handle>,
+                M::Target: lox::prop::ColorLike,
+                <M::Target as lox::prop::ColorLike>::Channel: lox::io::Primitive,
+                C: lox::prop::ColorLike,
+                C::Channel: lox::io::Primitive,
             {
                 #inner_body
             }
