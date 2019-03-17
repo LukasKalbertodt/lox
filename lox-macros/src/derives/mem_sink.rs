@@ -338,10 +338,15 @@ fn gen_color_prop_code(
         )
     } else {
         let check = quote! {
-            if !lox::util::are_same_type::<C, <T::Output as lox::prop::ColorLike>::Channel>() {
+            let is_same_type = lox::util::are_same_type::<
+                C::Channel,
+                <T::Output as lox::prop::ColorLike>::Channel,
+            >();
+
+            if !is_same_type {
                 return Err(lox::io::Error::SinkIncompatible {
                     prop: lox::io::PropKind::#elem_color,
-                    source_type: <C as lox::io::Primitive>::TY,
+                    source_type: <C::Channel as lox::io::Primitive>::TY,
                 });
             }
         };
@@ -369,7 +374,7 @@ fn gen_color_prop_code(
     let field_name = &field.name;
     let ty = &field.ty;
     let prep_inner_call = quote_spanned!{ty.span()=>
-        _impl::<_, C>(&mut self.#field_name, count, alpha)
+        _impl::<_, C>(&mut self.#field_name, count)
     };
     let set_inner_call = quote_spanned!{ty.span()=>
         _impl::<_, C>(&mut self.#field_name, v, color)
@@ -377,20 +382,23 @@ fn gen_color_prop_code(
 
     // Combine everything
     quote! {
-        fn #prep_fn_name<C: lox::prop::PrimitiveColorChannel + lox::io::Primitive>(
+        fn #prep_fn_name<C>(
             &mut self,
             count: lox::handle::hsize,
-            alpha: bool,
-        ) -> Result<(), lox::io::Error> {
-            fn _impl<T, C: lox::prop::PrimitiveColorChannel + lox::io::Primitive>(
+        ) -> Result<(), lox::io::Error>
+        where
+            C: lox::prop::ColorLike,
+            C::Channel: lox::io::Primitive,
+        {
+            fn _impl<T, C>(
                 map: &mut T,
                 count: lox::handle::hsize,
-                _alpha: bool,
             ) -> Result<(), lox::io::Error>
             where
                 T: lox::map::PropStoreMut<lox::handle::#elem_handle>,
                 T::Output: lox::prop::ColorLike,
-
+                C: lox::prop::ColorLike,
+                C::Channel: lox::io::Primitive,
             {
                 // TODO: check alpha channel and return maybe error if mismatch
                 #check_type
@@ -401,20 +409,26 @@ fn gen_color_prop_code(
             #prep_inner_call
         }
 
-        fn #set_fn_name<C: lox::prop::PrimitiveColorChannel + lox::io::Primitive>(
+        fn #set_fn_name<C>(
             &mut self,
             v: #elem_handle,
-            color: lox::io::Color<C>,
-        ) {
-            fn _impl<T, C: lox::prop::PrimitiveColorChannel + lox::io::Primitive>(
+            color: C,
+        )
+        where
+            C: lox::prop::ColorLike,
+            C::Channel: lox::io::Primitive,
+        {
+            fn _impl<T, C>(
                 map: &mut T,
                 v: lox::#elem_handle,
-                color: lox::io::Color<C>,
+                color: C,
             )
             where
                 T: lox::map::PropStoreMut<lox::handle::#elem_handle>,
                 T::Target: lox::prop::ColorLike,
                 <T::Target as lox::prop::ColorLike>::Channel: lox::io::Primitive,
+                C: lox::prop::ColorLike,
+                C::Channel: lox::io::Primitive,
             {
                 map.insert(v, #new_value);
             }

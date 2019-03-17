@@ -735,40 +735,6 @@ impl ColorType {
     }
 }
 
-/// Specific color type used in IO traits. Alpha is optional.
-#[derive(Clone, Copy, Debug)]
-pub struct Color<C: PrimitiveColorChannel> {
-    pub r: C,
-    pub g: C,
-    pub b: C,
-    pub a: Option<C>,
-}
-
-impl<C: PrimitiveColorChannel> ColorLike for Color<C> {
-    type Channel = C;
-    const HAS_ALPHA: bool = true; // TODO: this is BS and the `Color` type should be deleted.
-
-    fn from_rgb(r: Self::Channel, g: Self::Channel, b: Self::Channel) -> Self {
-        Self { r, g, b, a: None }
-    }
-    fn from_rgba(r: Self::Channel, g: Self::Channel, b: Self::Channel, a: Self::Channel) -> Self {
-        Self { r, g, b, a: Some(a) }
-    }
-    fn red(&self) -> Self::Channel {
-        self.r
-    }
-    fn green(&self) -> Self::Channel {
-        self.g
-    }
-    fn blue(&self) -> Self::Channel {
-        self.b
-    }
-    fn alpha(&self) -> Option<Self::Channel> {
-        self.a
-    }
-}
-
-
 
 // ==========================================================================
 // ===== {Streaming/Mem}-Sinks and Sources
@@ -932,22 +898,21 @@ pub trait MemSink {
 
     // ----- Vertex colors --------------------------------------------------
     /// Informs the sink that the source will provide at least `count` many
-    /// vertex colors with the color channel type `C`. `alpha` specified
-    /// whether the provided colors will have an alpha channel.
-    fn prepare_vertex_colors<C: PrimitiveColorChannel + Primitive>(
-        &mut self,
-        _count: hsize,
-        _alpha: bool,
-    ) -> Result<(), Error> {
+    /// vertex colors with the color type `C`.
+    fn prepare_vertex_colors<C>(&mut self, _count: hsize) -> Result<(), Error>
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
         Ok(())
     }
 
-    /// Sets the color (with color channel type `C`) of the vertex `v`.
-    fn set_vertex_color<C: PrimitiveColorChannel + Primitive>(
-        &mut self,
-        _v: VertexHandle,
-        _color: Color<C>,
-    ) {}
+    /// Sets the color (with color type `C`) of the vertex `v`.
+    fn set_vertex_color<C>(&mut self, _v: VertexHandle, _color: C)
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {}
 
 
     // ----- Face normals ----------------------------------------------------
@@ -970,22 +935,21 @@ pub trait MemSink {
 
     // ----- Face colors ----------------------------------------------------
     /// Informs the sink that the source will provide at least `count` many
-    /// face colors with the color channel type `C`. `alpha` specified whether
-    /// the provided colors will have an alpha channel.
-    fn prepare_face_colors<C: PrimitiveColorChannel + Primitive>(
-        &mut self,
-        _count: hsize,
-        _alpha: bool,
-    ) -> Result<(), Error> {
+    /// face colors with the color type `C`.
+    fn prepare_face_colors<C>(&mut self, _count: hsize) -> Result<(), Error>
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
         Ok(())
     }
 
-    /// Sets the color (with color channel type `C`) of the face `f`.
-    fn set_face_color<C: PrimitiveColorChannel + Primitive>(
-        &mut self,
-        _f: FaceHandle,
-        _color: Color<C>,
-    ) {}
+    /// Sets the color (with color type `C`) of the face `f`.
+    fn set_face_color<C>(&mut self, _f: FaceHandle, _color: C)
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {}
 }
 
 pub trait StreamSink {
