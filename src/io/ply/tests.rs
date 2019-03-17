@@ -201,6 +201,21 @@ fn write_three_tris_all_props_ascii() -> Result<(), Error> {
     Ok(())
 }
 
+#[test]
+fn write_three_tris_all_props_ble() -> Result<(), Error> {
+    let res = to_mem(Config::new(Encoding::BinaryLittleEndian), &three_tris_all_props())?;
+    assert_eq_file!(&res, "three_tris_all_props_ble.ply");
+    Ok(())
+}
+
+#[test]
+fn write_three_tris_all_props_bbe() -> Result<(), Error> {
+    let res = to_mem(Config::new(Encoding::BinaryBigEndian), &three_tris_all_props())?;
+    assert_eq_file!(&res, "three_tris_all_props_bbe.ply");
+    Ok(())
+}
+
+
 // TODO: add test with mesh with some deleted faces & vertices
 
 
