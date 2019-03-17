@@ -616,6 +616,20 @@ pub trait Primitive: PrimitiveNum + Sealed {
     /// The type represented as this [`PrimitiveType`] value.
     const TY: PrimitiveType;
 
+    /// Returns the channel type represented at runtime by
+    /// [`PrimitiveColorChannelType`] for `Primitive` types thare are also a
+    /// [`PrimitiveColorChannel`].
+    fn channel_type() -> PrimitiveColorChannelType
+    where
+        Self: PrimitiveColorChannel,
+    {
+        // We can unwrap here: we control all impls for this trait and we know
+        // that `TY` always has the correct type. Since this method is bounded
+        // by `Self: PrimitiveColorChannel`, we know for sure that `TY` is a
+        // valid color channel type.
+        PrimitiveColorChannelType::from_primitive_type(Self::TY).unwrap()
+    }
+
     /// Returns the primitive as a [`PrimitiveValue`] (basically dynamic
     /// typing).
     ///
@@ -657,6 +671,69 @@ impl_primitive!(i32, Int32);
 impl_primitive!(f32, Float32);
 impl_primitive!(f64, Float64);
 
+// ===========================================================================
+// ===== Colors
+// ===========================================================================
+
+/// Represents the type of an IO color channel (subset of [`PrimitiveType`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrimitiveColorChannelType {
+    Uint8,
+    Uint16,
+    Uint32,
+    Float32,
+    Float64,
+}
+
+impl PrimitiveColorChannelType {
+    pub fn to_primitive_type(&self) -> PrimitiveType {
+        match self {
+            PrimitiveColorChannelType::Uint8 => PrimitiveType::Uint8,
+            PrimitiveColorChannelType::Uint16 => PrimitiveType::Uint16,
+            PrimitiveColorChannelType::Uint32 => PrimitiveType::Uint32,
+            PrimitiveColorChannelType::Float32 => PrimitiveType::Float32,
+            PrimitiveColorChannelType::Float64 => PrimitiveType::Float64,
+        }
+    }
+
+    pub fn from_primitive_type(src: PrimitiveType) -> Option<Self> {
+        match src {
+            PrimitiveType::Uint8 => Some(PrimitiveColorChannelType::Uint8),
+            PrimitiveType::Uint16 => Some(PrimitiveColorChannelType::Uint16),
+            PrimitiveType::Uint32 => Some(PrimitiveColorChannelType::Uint32),
+            PrimitiveType::Float32 => Some(PrimitiveColorChannelType::Float32),
+            PrimitiveType::Float64 => Some(PrimitiveColorChannelType::Float64),
+            _ => None,
+        }
+    }
+}
+
+/// Specifies the channel type of a color type as well as whether the color
+/// type contains an alpha channel.
+#[derive(Debug, Clone, Copy)]
+pub struct ColorType {
+    /// Whether or not the color type contains an alpha channel.
+    pub alpha: bool,
+
+    /// Runtime representation of the channel's type.
+    pub channel_type: PrimitiveColorChannelType,
+}
+
+impl ColorType {
+    /// Takes the type level information of `C` ([`ColorLike::HAS_ALPHA`] and
+    /// [`ColorLike::Channel`]) and creates runtime information (a `ColorType`
+    /// instance) from it.
+    pub fn from_color_like<C>() -> Self
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
+        Self {
+            alpha: C::HAS_ALPHA,
+            channel_type: C::Channel::channel_type(),
+        }
+    }
+}
 
 /// Specific color type used in IO traits. Alpha is optional.
 #[derive(Clone, Copy, Debug)]
@@ -669,6 +746,7 @@ pub struct Color<C: PrimitiveColorChannel> {
 
 impl<C: PrimitiveColorChannel> ColorLike for Color<C> {
     type Channel = C;
+    const HAS_ALPHA: bool = true; // TODO: this is BS and the `Color` type should be deleted.
 
     fn from_rgb(r: Self::Channel, g: Self::Channel, b: Self::Channel) -> Self {
         Self { r, g, b, a: None }
@@ -964,7 +1042,7 @@ where
 /// The `*_type` method gives two pieces of information: (a) does the source
 /// provide this property, and (b) what type does that property have. If the
 /// source does *not* provide a property "foo", then calling the method `foo()`
-/// will always panic. Thus, a sink using this interace should always call the
+/// will always panic. Thus, a sink using this interface should always call the
 /// `*_type` method first to check if the property is provided.
 ///
 /// The type returned by the `*_type` method is merely a recommendation for the
@@ -1026,6 +1104,31 @@ pub trait MemSource {
         panic!(
             "requested vertex normal from `MemSource`, but this source doesn't \
                 contain vertex normals"
+        );
+    }
+
+    // ----- Vertex colors --------------------------------------------------
+    /// Returns the color description (including channel type and whether or
+    /// not an alpha channel is present) of the vertex colors of this source,
+    /// or `None` if this source does not provide vertex colors.
+    ///
+    /// See [the trait documentation][MemSource] for important information!
+    fn vertex_color_type(&self) -> Option<ColorType> {
+        None
+    }
+
+    /// Returns the vertex color of the vertex with the given handle, or `None`
+    /// if there is no color associated with that vertex.
+    ///
+    /// See [the trait documentation][MemSource] for important information!
+    fn vertex_color<C>(&self, _v: VertexHandle) -> Result<Option<C>, Error>
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
+        panic!(
+            "requested vertex color from `MemSource`, but this source doesn't \
+                contain vertex colors"
         );
     }
 

@@ -232,6 +232,9 @@ pub trait ColorLike: Copy {
     /// The type of each channel.
     type Channel: PrimitiveColorChannel;
 
+    /// Whether or not this color type stores an alpha channel.
+    const HAS_ALPHA: bool;
+
     /// Creates a color value with the specified values for the RGB channels.
     ///
     /// If the color type stores an alpha channel, it should be set to an
@@ -258,6 +261,7 @@ pub trait ColorLike: Copy {
     /// Returns the alpha channel of this color value, if that channel is
     /// stored.
     fn alpha(&self) -> Option<Self::Channel> {
+        assert!(!Self::HAS_ALPHA);
         None
     }
 
@@ -307,6 +311,7 @@ pub trait ColorLike: Copy {
 
 impl<T: PrimitiveColorChannel> ColorLike for (T, T, T) {
     type Channel = T;
+    const HAS_ALPHA: bool = false;
     fn from_rgb(r: Self::Channel, g: Self::Channel, b: Self::Channel) -> Self {
         (r, g, b)
     }
@@ -317,6 +322,7 @@ impl<T: PrimitiveColorChannel> ColorLike for (T, T, T) {
 
 impl<T: PrimitiveColorChannel> ColorLike for [T; 3] {
     type Channel = T;
+    const HAS_ALPHA: bool = false;
     fn from_rgb(r: Self::Channel, g: Self::Channel, b: Self::Channel) -> Self {
         [r, g, b]
     }
@@ -327,6 +333,7 @@ impl<T: PrimitiveColorChannel> ColorLike for [T; 3] {
 
 impl<T: PrimitiveColorChannel> ColorLike for (T, T, T, T) {
     type Channel = T;
+    const HAS_ALPHA: bool = true;
     fn from_rgb(r: Self::Channel, g: Self::Channel, b: Self::Channel) -> Self {
         Self::from_rgba(r, g, b, T::MAX_INTENSITY)
     }
@@ -341,6 +348,7 @@ impl<T: PrimitiveColorChannel> ColorLike for (T, T, T, T) {
 
 impl<T: PrimitiveColorChannel> ColorLike for [T; 4] {
     type Channel = T;
+    const HAS_ALPHA: bool = true;
     fn from_rgb(r: Self::Channel, g: Self::Channel, b: Self::Channel) -> Self {
         Self::from_rgba(r, g, b, T::MAX_INTENSITY)
     }
