@@ -29,6 +29,7 @@ use crate::{
         parse::{self, ParseError, Span, Buffer, ParseBuf},
         util::IndexHandleMap,
     },
+    prop::ColorLike,
     util::{debug_fmt_bytes, MeshSizeHint},
 };
 use super::{
@@ -380,6 +381,10 @@ impl<R: io::Read> StreamSource for Reader<R> {
             vertex_position: Option<([PropIndex; 3], ScalarType)>,
             vertex_normal: Option<([PropIndex; 3], ScalarType)>,
 
+            /// bool denotes if alpha channel present. If not, the last prop
+            /// index is garbage.
+            vertex_color: Option<([PropIndex; 4], bool)>,
+
             face_count: Option<hsize>,
             vertex_indices: Option<(PropIndex, ScalarType)>,
         }
@@ -420,6 +425,13 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
             /// Function to read the nx, ny, nz properties
             read_vertex_normal: FnPropHandler<Self>,
+
+            /// The position of the red, green, blue and alpha properties in
+            /// the list of vertex properties (alpha value potentially garbage)
+            vertex_color_idx: [PropIndex; 4],
+
+            /// Function to read the red, green, blue and alpha properties
+            read_vertex_color: FnPropHandler<Self>,
 
 
             // ----- State for face handling -----
@@ -534,6 +546,18 @@ impl<R: io::Read> StreamSource for Reader<R> {
                     None => ([PropIndex(0); 3], Self::noop as FnPropHandler<Self>),
                 };
 
+                // For vertex properties red, green, blue, [alpha]
+                let (vertex_color_idx, read_vertex_color) = match info.vertex_color {
+                    Some((offset, alpha)) => {
+                        let fun = match alpha {
+                            true => Self::read_vertex_color::<[u8; 4]> as FnPropHandler<Self>,
+                            false => Self::read_vertex_color::<[u8; 3]> as FnPropHandler<Self>,
+                        };
+                        (offset, fun)
+                    }
+                    None => ([PropIndex(0); 4], Self::noop as FnPropHandler<Self>),
+                };
+
 
                 Ok(Self {
                     sink: sink,
@@ -556,6 +580,9 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
                     vertex_normal_idx,
                     read_vertex_normal,
+
+                    vertex_color_idx,
+                    read_vertex_color,
 
                     face_handles: IndexHandleMap::new(),
                     face_count: 0,
@@ -590,6 +617,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
                 // Read vertex properties
                 (self.read_vertex_position)(self, elem);
                 (self.read_vertex_normal)(self, elem);
+                (self.read_vertex_color)(self, elem);
 
                 Ok(())
             }
@@ -649,6 +677,20 @@ impl<R: io::Read> StreamSource for Reader<R> {
                     self.curr_vertex_handle,
                     Vector3::new(x, y, z),
                 );
+            }
+
+            fn read_vertex_color<C: ColorLike<Channel = u8>>(&mut self, elem: &RawElement) {
+                let [r_idx, g_idx, b_idx, a_idx] = self.vertex_color_idx;
+                let r = elem.data[elem.prop_infos[r_idx].offset];
+                let g = elem.data[elem.prop_infos[g_idx].offset];
+                let b = elem.data[elem.prop_infos[b_idx].offset];
+
+                if C::HAS_ALPHA {
+                    let a = elem.data[elem.prop_infos[a_idx].offset];
+                    self.sink.set_vertex_color(self.curr_vertex_handle, [r, g, b, a]);
+                } else {
+                    self.sink.set_vertex_color(self.curr_vertex_handle, [r, g, b]);
+                }
             }
 
             // ----- face property handler ----------------------------------
@@ -716,6 +758,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
             vertex_count,
             vertex_position: None,
             vertex_normal: None,
+            vertex_color: None,
             face_count: None,
             vertex_indices: None,
         };
@@ -779,6 +822,59 @@ impl<R: io::Read> StreamSource for Reader<R> {
             prop_info.vertex_normal = Some((
                 [pnx_idx, pny_idx, pnz_idx],
                 pnx.ty.scalar_type(),
+            ));
+        }
+
+        // Check vertex color
+        if let Some(red_idx) = vertex_group.prop_pos("red") {
+            let green_idx = vertex_group.prop_pos("green").ok_or(Error::InvalidInput(
+                "vertex has 'red' property, but no 'green' property \
+                    (only RGB and RGBA colors supported)".into()
+            ))?;
+            let blue_idx = vertex_group.prop_pos("blue").ok_or(Error::InvalidInput(
+                "vertex has 'red' property, but no 'blue' property \
+                    (only RGB and RGBA colors supported)".into()
+            ))?;
+
+            let red = &vertex_group.property_defs[red_idx];
+            let green = &vertex_group.property_defs[green_idx];
+            let blue = &vertex_group.property_defs[blue_idx];
+
+            let check_type = |name, ty: PropertyType| {
+                if ty.is_list() {
+                    return Err(Error::InvalidInput(
+                        format!("vertex property '{}' is a list (should be scalar 'uchar')", name)
+                    ));
+                }
+
+                if ty.scalar_type() != ScalarType::UChar {
+                    return Err(Error::InvalidInput(
+                        format!(
+                            "vertex property '{}' has type '{}' (should be 'uchar')",
+                            name,
+                            ty.scalar_type().ply_type_name(),
+                        )
+                    ));
+                }
+
+                Ok(())
+            };
+
+            check_type("red", red.ty)?;
+            check_type("green", green.ty)?;
+            check_type("blue", blue.ty)?;
+
+            let (alpha_idx, alpha) = if let Some(alpha_idx) = vertex_group.prop_pos("alpha") {
+                let alpha = &vertex_group.property_defs[alpha_idx];
+                check_type("alpha", alpha.ty)?;
+                (alpha_idx, true)
+            } else {
+                (PropIndex(0), false)
+            };
+
+            prop_info.vertex_color = Some((
+                [red_idx, green_idx, blue_idx, alpha_idx],
+                alpha,
             ));
         }
 
