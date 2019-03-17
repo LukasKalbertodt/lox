@@ -23,8 +23,10 @@ use crate::{
     handle::{hsize, FaceHandle, Handle, VertexHandle},
     io::{
         Error, StreamSink, MemSource, Primitive, PrimitiveType, PropKind,
+        PrimitiveColorChannelType, ColorType,
         util::HandleIndexMap,
     },
+    prop::{ColorLike, PrimitiveColorChannel},
     traits::*,
     util::TriArrayExt,
 };
@@ -134,7 +136,6 @@ impl<W: io::Write> Writer<W> {
         }
 
         // Define all elements with their properties
-        println!("{:#?}", header);
         for element_def in header {
             writeln!(w, "element {} {}", element_def.name, element_def.count)?;
             for prop in &*element_def.property_defs {
@@ -204,6 +205,20 @@ impl<W: io::Write> StreamSink for Writer<W> {
             vertex_def.property_defs.push(PropertyDef { ty, name: "nx".into() });
             vertex_def.property_defs.push(PropertyDef { ty, name: "ny".into() });
             vertex_def.property_defs.push(PropertyDef { ty, name: "nz".into() });
+        }
+
+        // Color: red green blue [alpha]
+        if let Some(desc) = src.vertex_color_type() {
+            // In theory, you can store float colors in PLY, but in practice
+            // everyone expects `uchar` as color channel type.
+            let ty = PropertyType::Scalar(ScalarType::UChar);
+            vertex_def.property_defs.push(PropertyDef { ty, name: "red".into() });
+            vertex_def.property_defs.push(PropertyDef { ty, name: "green".into() });
+            vertex_def.property_defs.push(PropertyDef { ty, name: "blue".into() });
+
+            if desc.alpha {
+                vertex_def.property_defs.push(PropertyDef { ty, name: "alpha".into() });
+            }
         }
 
 
@@ -278,6 +293,20 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     }
                 }
 
+                macro_rules! make_color_fn_ptr {
+                    ($desc:expr, $fn_rgb:ident, $noop:ident $(,)?) => {
+                        match $desc {
+                            None => $noop::<S, SrcT>,
+                            Some(ColorType { alpha: false, .. }) => {
+                                $fn_rgb::<S, SrcT, [u8; 3]>
+                            }
+                            Some(ColorType { alpha: true, .. }) => {
+                                $fn_rgb::<S, SrcT, [u8; 4]>
+                            }
+                        }
+                    }
+                }
+
                 // ----- Vertex positions ------------------------------------
                 fn write_vertex_position<S: Serializer, SrcT: MemSource, P: Primitive>(
                     ser: &mut S,
@@ -330,6 +359,40 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     vertex_noop,
                 );
 
+                // ----- Vertex colors --------------------------------------
+                fn write_vertex_color<S: Serializer, SrcT: MemSource, C: ColorLike>(
+                    ser: &mut S,
+                    src: &SrcT,
+                    handle: VertexHandle,
+                ) -> Result<(), Error>
+                where
+                    C::Channel: Primitive,
+                {
+                    let color = src.vertex_color::<C>(handle).and_then(|opt| {
+                        opt.ok_or_else(|| Error::DataIncomplete {
+                            prop: PropKind::VertexColor,
+                            msg: format!("no color for {:?} while writing PLY", handle),
+                        })
+                    })?;
+
+                    ser.add(color.red())?;
+                    ser.add(color.green())?;
+                    ser.add(color.blue())?;
+
+                    // The branches are optimized away here
+                    if C::HAS_ALPHA {
+                        ser.add(color.alpha().unwrap())?;
+                    }
+
+                    Ok(())
+                }
+
+                let write_v_color = make_color_fn_ptr!(
+                    src.vertex_color_type(),
+                    write_vertex_color,
+                    vertex_noop,
+                );
+
                 // ----- Face normals ----------------------------------------
                 fn write_face_normal<S: Serializer, SrcT: MemSource, P: Primitive>(
                     ser: &mut S,
@@ -367,6 +430,7 @@ impl<W: io::Write> StreamSink for Writer<W> {
 
                     write_v_position(&mut ser, src, vh)?;
                     write_v_normal(&mut ser, src, vh)?;
+                    write_v_color(&mut ser, src, vh)?;
 
                     ser.end_element()?;
                 }
