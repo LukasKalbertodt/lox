@@ -10,14 +10,17 @@
 //! Now you have all important traits in scope.
 
 pub use crate::{
-    Mesh, TriMesh, MeshMut, TriMeshMut, TriVerticesOfFace, Empty,
-    FacesAroundVertex, VerticesAroundVertex, TriFacesAroundFace,
+    Empty, MemSource, MemSink,
     handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
     map::{PropMap, PropStore, PropStoreMut},
     prop::{Pos3Like, Vec3Like},
     io::{
         StreamSource, StreamSink, MemSource, MemSink,
         util::{MemSourceExt},
+    },
+    traits::{
+        Mesh, TriMesh, MeshMut, TriMeshMut, TriVerticesOfFace,
+        Empty, FacesAroundVertex, VerticesAroundVertex, TriFacesAroundFace,
     },
     util::{PointIteratorExt, TriArrayExt},
 };

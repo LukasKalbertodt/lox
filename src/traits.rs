@@ -106,7 +106,7 @@ pub trait MeshMut: Mesh {
     ///
     /// ```
     /// # //TODO: make it run
-    /// use lox::MeshMut;
+    /// use lox::traits::MeshMut;
     ///
     /// fn add_two_vertices(mesh: &mut impl MeshMut) {
     ///     let a = mesh.add_vertex();
@@ -128,7 +128,7 @@ pub trait MeshMut: Mesh {
     ///
     /// ```
     /// # //TODO: make it run
-    /// use lox::MeshMut;
+    /// use lox::traits::MeshMut;
     ///
     /// fn add_two_vertices(mesh: &mut impl MeshMut) {
     ///     mesh.add_vertex();
@@ -144,7 +144,7 @@ pub trait MeshMut: Mesh {
     ///
     /// ```
     /// # //TODO: make it run
-    /// use lox::TriMeshMut;
+    /// use lox::traits::TriMeshMut;
     ///
     /// fn add_two_vertices(mesh: &mut impl TriMeshMut) {
     ///     let a = mesh.add_vertex();

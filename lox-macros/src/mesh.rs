@@ -94,7 +94,7 @@ impl MeshInput {
             // that the user does not have a local submodule called `lox` since
             // with uniform paths, that would lead to a ambiguity error.
             use lox::{
-                MeshMut, TriMeshMut, Empty,
+                traits::{MeshMut, TriMeshMut, Empty},
                 map::{PropStoreMut, VecMap},
             };
 

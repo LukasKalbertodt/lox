@@ -18,12 +18,6 @@ pub struct SharedVertexMesh {
     faces: VecMap<FaceHandle, [VertexHandle; 3]>,
 }
 
-impl SharedVertexMesh {
-    pub fn new() -> Self {
-        Self::empty()
-    }
-}
-
 impl Mesh for SharedVertexMesh {
     fn num_vertices(&self) -> hsize {
         self.vertices.num_elements()

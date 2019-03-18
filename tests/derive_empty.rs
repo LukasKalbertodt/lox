@@ -9,7 +9,7 @@ fn unit_like() {
     #[derive(lox::Empty)]
     struct UnitLike;
 
-    let _ = <UnitLike as lox::Empty>::empty();
+    let _ = <UnitLike as lox::traits::Empty>::empty();
 }
 
 
@@ -25,9 +25,9 @@ fn unnamed() {
     struct UnnamedTwo(lox::ds::SharedVertexMesh, lox::map::VecMap<lox::FaceHandle, u32>);
 
 
-    let _ = <UnnamedEmpty as lox::Empty>::empty();
-    let _ = <UnnamedSingle as lox::Empty>::empty();
-    let _ = <UnnamedTwo as lox::Empty>::empty();
+    let _ = <UnnamedEmpty as lox::traits::Empty>::empty();
+    let _ = <UnnamedSingle as lox::traits::Empty>::empty();
+    let _ = <UnnamedTwo as lox::traits::Empty>::empty();
 }
 
 
@@ -50,7 +50,7 @@ fn named() {
     }
 
 
-    let _ = <NamedEmpty as lox::Empty>::empty();
-    let _ = <NamedSingle as lox::Empty>::empty();
-    let _ = <NamedTwo as lox::Empty>::empty();
+    let _ = <NamedEmpty as lox::traits::Empty>::empty();
+    let _ = <NamedSingle as lox::traits::Empty>::empty();
+    let _ = <NamedTwo as lox::traits::Empty>::empty();
 }

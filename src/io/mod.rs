@@ -108,12 +108,11 @@ use cgmath::{Point3, Vector3};
 use failure::Fail;
 
 use crate::{
-    Mesh, TriVerticesOfFace,
     handle::{VertexHandle, FaceHandle, hsize},
     math::PrimitiveNum,
     prop::{ColorLike, PrimitiveColorChannel},
     sealed::Sealed,
-    traits::Empty,
+    traits::{Empty, Mesh, TriVerticesOfFace},
     util::MeshSizeHint,
 };
 use self::{

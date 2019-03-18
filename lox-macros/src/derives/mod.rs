@@ -41,7 +41,7 @@ pub(crate) fn derive_empty(input: &DeriveInput) -> Result<TokenStream2, Error> {
                 let name = &f.ident;
                 let ty = &f.ty;
                 quote_spanned! {f.span()=>
-                    #name: <#ty as lox::Empty>::empty()
+                    #name: <#ty as lox::traits::Empty>::empty()
                 }
             });
 
@@ -55,7 +55,7 @@ pub(crate) fn derive_empty(input: &DeriveInput) -> Result<TokenStream2, Error> {
             let field_initializer = fields.unnamed.iter().map(|f| {
                 let ty = &f.ty;
                 quote_spanned! {f.span()=>
-                    <#ty as lox::Empty>::empty()
+                    <#ty as lox::traits::Empty>::empty()
                 }
             });
 
@@ -69,7 +69,7 @@ pub(crate) fn derive_empty(input: &DeriveInput) -> Result<TokenStream2, Error> {
 
     // Combine everything.
     let out = quote! {
-        impl #impl_generics lox::Empty for #name #ty_generics #where_clause {
+        impl #impl_generics lox::traits::Empty for #name #ty_generics #where_clause {
             fn empty() -> Self {
                 #body
             }
