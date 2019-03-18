@@ -44,7 +44,7 @@ fn run() -> Result<(), Error> {
     println!("#vertices: {}", m.mesh.num_vertices());
     // println!("{:#?}", m);
 
-    io::write_file("out.ply", &m)?;
+    io::write_file(&m, "out.ply")?;
 
     Ok(())
 }

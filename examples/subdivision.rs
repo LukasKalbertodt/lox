@@ -17,7 +17,7 @@ fn main() -> Result<(), Error> {
     // Read, smooth, write
     let mut m: MyMesh = io::read_file(&input_file)?;
     algo::sqrt3_subdivision(&mut m.mesh, &mut m.vertex_positions);
-    io::write_file(&output_file, &m)?;
+    io::write_file(&m, &output_file)?;
 
     Ok(())
 }

@@ -288,10 +288,10 @@ where
 /// };
 ///
 /// let dummy = MiniMesh::<FaceDelegateMesh>::empty();
-/// io::write_file("foo.ply", &dummy)?;
+/// io::write_file(&dummy, "foo.ply")?;
 /// # Ok::<_, io::Error>(())
 /// ```
-pub fn write_file<SrcT, P>(path: P, src: &SrcT) -> Result<(), Error>
+pub fn write_file<SrcT, P>(src: &SrcT, path: P) -> Result<(), Error>
 where
     SrcT: MemSource,
     P: AsRef<Path>,
