@@ -8,7 +8,7 @@
 //!
 //! You usually can just use the high level API, but if you have very special
 //! needs, the raw API could help you. For reading files, the entry point is
-//! [`Reader::read_raw_into`]. For writing files: TODO.
+//! [`Reader::read_raw`]. For writing files, it's [`Writer::write_raw`].
 
 use std::{
     fmt,
@@ -28,7 +28,279 @@ use crate::{
 
 
 // ===========================================================================
-// ===== `RawElement` definitions
+// ===== RawSink
+// ===========================================================================
+/// A type that can accept raw data from a PLY file. This is used for
+/// [`Reader::read_raw`][super::Reader::read_raw].
+// TODO: implement for `Writer`?
+pub trait RawSink {
+    /// Is called when a new element group begins.
+    ///
+    /// `def` describes the layout of all elements in this group. This method
+    /// is *always* called before `element` is called.
+    fn element_group_start(&mut self, def: &ElementDef) -> Result<(), Error>;
+
+    /// Is called for each element that is read. When called, the element
+    /// belongs to the last element group (the last `element_group_start`
+    /// call).
+    fn element(&mut self, elem: &RawElement) -> Result<(), Error>;
+}
+
+/// A type that can provide raw body data for a PLY file. Used for
+/// [`Writer::write_raw`][super::Writer::write_raw].
+// TODO: implement for `Reader` (?) and `RawStorage`!
+pub trait RawSource {
+    /// Is only called once with some "serializer". The source is then required
+    /// to write correct data through the serializer.
+    ///
+    /// Again, this is a low level interface and the implementor of `RawSource`
+    /// has to make sure to write correct data. Lists have to be serialized
+    /// correctly by first writing the length with the correct type and then
+    /// the elements.
+    fn serialize_into<S: Serializer>(self, ser: S) -> Result<(), Error>;
+}
+
+/// Abstraction over a PLY encoding. is used by [`RawSource`] to write data.
+pub trait Serializer {
+    fn add_i8(&mut self, v: i8) -> Result<(), Error>;
+    fn add_i16(&mut self, v: i16) -> Result<(), Error>;
+    fn add_i32(&mut self, v: i32) -> Result<(), Error>;
+    fn add_u8(&mut self, v: u8) -> Result<(), Error>;
+    fn add_u16(&mut self, v: u16) -> Result<(), Error>;
+    fn add_u32(&mut self, v: u32) -> Result<(), Error>;
+    fn add_f32(&mut self, v: f32) -> Result<(), Error>;
+    fn add_f64(&mut self, v: f64) -> Result<(), Error>;
+
+    /// Call this whenever one element is finished. This is used for the line
+    /// break in ASCII encoding.
+    fn end_element(&mut self) -> Result<(), Error>;
+
+    /// Convenience function which can be called with any `Primitive`. Calls
+    /// the correct `add_*` function.
+    fn add<P: Primitive>(&mut self, v: P) -> Result<(), Error> {
+        match P::TY {
+            PrimitiveType::Int8 => self.add_i8(v.downcast_as().unwrap()),
+            PrimitiveType::Int16 => self.add_i16(v.downcast_as().unwrap()),
+            PrimitiveType::Int32 => self.add_i32(v.downcast_as().unwrap()),
+            PrimitiveType::Uint8 => self.add_u8(v.downcast_as().unwrap()),
+            PrimitiveType::Uint16 => self.add_u16(v.downcast_as().unwrap()),
+            PrimitiveType::Uint32 => self.add_u32(v.downcast_as().unwrap()),
+            PrimitiveType::Float32 => self.add_f32(v.downcast_as().unwrap()),
+            PrimitiveType::Float64 => self.add_f64(v.downcast_as().unwrap()),
+        }
+    }
+}
+
+
+
+
+// ===========================================================================
+// ===== Data structures to hold header data of a PLY file
+// ===========================================================================
+/// The header definition of one element group.
+#[derive(Debug, Clone)]
+pub struct ElementDef {
+    pub name: String,
+
+    /// Number of elements in this group.
+    pub count: u64,
+
+    /// Definitions for all properties of elements in this group.
+    pub property_defs: PropVec<PropertyDef>,
+}
+
+impl ElementDef {
+    pub fn prop_pos(&self, prop_name: &str) -> Option<PropIndex> {
+        self.property_defs.iter()
+            .position(|p| p.name == prop_name)
+            .map(|idx| PropIndex(idx as u8))
+    }
+}
+
+/// Te header definition of one property of an element.
+#[derive(Debug, Clone)]
+pub struct PropertyDef {
+    pub ty: PropertyType,
+    pub name: String,
+}
+
+/// The type of a PLY property: either a list or a scalar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PropertyType {
+    Scalar(ScalarType),
+    List {
+        len_type: ListLenType,
+        scalar_type: ScalarType,
+    }
+}
+
+impl PropertyType {
+    /// Returns the `len_type` of the list, or `None` if `self` is a scalar
+    /// value.
+    pub fn len_type(&self) -> Option<ListLenType> {
+        match self {
+            PropertyType::Scalar(_) => None,
+            PropertyType::List { len_type, .. } => Some(*len_type),
+        }
+    }
+
+    /// Returns the scalar type of the list or the scalar.
+    pub fn scalar_type(&self) -> ScalarType {
+        match *self {
+            PropertyType::Scalar(scalar_type) => scalar_type,
+            PropertyType::List { scalar_type, .. } => scalar_type,
+        }
+    }
+
+    /// Returns `true` if this type is a list type.
+    pub fn is_list(&self) -> bool {
+        self.len_type().is_some()
+    }
+}
+
+/// A subset of `ScalarType`: types that can be used to store the length of a
+/// list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListLenType {
+    UChar,
+    UShort,
+    UInt,
+}
+
+impl ListLenType {
+    /// Returns the given type as `ListLenType`, or `None` if the given scalar
+    /// type is not a valid list length type.
+    pub fn from_scalar_type(ty: ScalarType) -> Option<Self> {
+        match ty {
+            ScalarType::UChar => Some(ListLenType::UChar),
+            ScalarType::UShort => Some(ListLenType::UShort),
+            ScalarType::UInt => Some(ListLenType::UInt),
+            _ => None,
+        }
+    }
+
+    pub fn to_scalar_type(self) -> ScalarType {
+        match self {
+            ListLenType::UChar => ScalarType::UChar,
+            ListLenType::UShort => ScalarType::UShort,
+            ListLenType::UInt => ScalarType::UInt,
+        }
+    }
+
+    /// Returns the number of bytes this type occupies.
+    pub fn len(&self) -> ScalarLen {
+        match self {
+            ListLenType::UChar => ScalarLen::One,
+            ListLenType::UShort => ScalarLen::Two,
+            ListLenType::UInt => ScalarLen::Four,
+        }
+    }
+}
+
+/// All allowed PLY scalar types
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScalarType {
+    Char,
+    Short,
+    Int,
+    UChar,
+    UShort,
+    UInt,
+    Float,
+    Double,
+}
+
+impl ScalarType {
+    /// Returns `true` if and only if the type is either `float` or `double`.
+    pub fn is_floating_point(&self) -> bool {
+        *self == ScalarType::Float || *self == ScalarType::Double
+    }
+
+    /// Returns `true` if and only if the type is one of `uchar`, `ushort` or
+    /// `uint`.
+    pub fn is_unsigned_integer(&self) -> bool {
+        match self {
+            ScalarType::UChar | ScalarType::UShort | ScalarType::UInt => true,
+            _ => false,
+        }
+    }
+
+    /// Returns `true` if and only if the type is one of `char`, `short` or
+    /// `int`.
+    pub fn is_signed_integer(&self) -> bool {
+        match self {
+            ScalarType::Char | ScalarType::Short | ScalarType::Int => true,
+            _ => false,
+        }
+    }
+
+    /// Returns the number of bytes this type occupies.
+    pub fn len(&self) -> ScalarLen {
+        match self {
+            ScalarType::Char => ScalarLen::One,
+            ScalarType::Short => ScalarLen::Two,
+            ScalarType::Int => ScalarLen::Four,
+            ScalarType::UChar => ScalarLen::One,
+            ScalarType::UShort => ScalarLen::Two,
+            ScalarType::UInt => ScalarLen::Four,
+            ScalarType::Float => ScalarLen::Four,
+            ScalarType::Double => ScalarLen::Eight,
+        }
+    }
+
+    /// Returns the type name used in the header (e.g. `short`). This is simply
+    /// the variant name in lowercase.
+    pub fn ply_type_name(&self) -> &'static str {
+        match *self {
+            ScalarType::Char => "char",
+            ScalarType::Short => "short",
+            ScalarType::Int => "int",
+            ScalarType::UChar => "uchar",
+            ScalarType::UShort => "ushort",
+            ScalarType::UInt => "uint",
+            ScalarType::Float => "float",
+            ScalarType::Double => "double",
+        }
+    }
+}
+
+impl FromStr for ScalarType {
+    type Err = ScalarTypeParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "char" => Ok(ScalarType::Char),
+            "short" => Ok(ScalarType::Short),
+            "int" => Ok(ScalarType::Int),
+            "uchar" => Ok(ScalarType::UChar),
+            "ushort" => Ok(ScalarType::UShort),
+            "uint" => Ok(ScalarType::UInt),
+            "float" => Ok(ScalarType::Float),
+            "double" => Ok(ScalarType::Double),
+            other => Err(ScalarTypeParseError(other.to_string())),
+        }
+    }
+}
+
+/// The error emitted when the `FromStr` implementation for `ScalarType` cannot
+/// parse the given string.
+pub struct ScalarTypeParseError(String);
+
+impl fmt::Display for ScalarTypeParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "\"{}\" is not a valid PLY scalar type", self.0)
+    }
+}
+
+impl fmt::Debug for ScalarTypeParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+
+
+// ===========================================================================
+// ===== `RawElement` and body data definitions
 // ===========================================================================
 
 /// Represents on element with all its property values.
@@ -87,6 +359,9 @@ impl RawElement {
 
     /// Decodes the property at the given index and returns it as dynamically
     /// typed `Property` value.
+    ///
+    /// This should be just used for testing or debugging. Storing many values
+    /// as `Property` is space-inefficient and slow.
     fn prop_at(&self, idx: PropIndex) -> Property {
         fn read_scalar(buf: &[u8], ty: ScalarType) -> Property {
             match ty {
@@ -137,6 +412,9 @@ impl RawElement {
     }
 
     /// Returns an iterator over all properties of this element.
+    ///
+    /// This iterator iterates over `Property` values and thus should also only
+    /// be used for debugging or testing.
     pub fn iter(&self) -> RawElementIter<'_> {
         RawElementIter {
             elem: self,
@@ -234,7 +512,7 @@ impl ops::AddAssign<ScalarLen> for RawOffset {
     }
 }
 
-/// Length of an STL scalar value in bytes.
+/// Length of a PLY scalar value in bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScalarLen {
     One = 1,
@@ -383,200 +661,13 @@ impl<T> ops::DerefMut for PropVec<T> {
 
 
 // ===========================================================================
-// ===== Data structures to hold header and body data of a PLY file
+// ===== Dynamically typed values and body data: `Property` & `RawStorage`
 // ===========================================================================
-/// The header definition of one element group.
-#[derive(Debug, Clone)]
-pub struct ElementDef {
-    pub name: String,
-
-    /// Number of elements in this group.
-    pub count: u64,
-
-    /// Definitions for all properties of elements in this group.
-    pub property_defs: PropVec<PropertyDef>,
-}
-
-impl ElementDef {
-    pub fn prop_pos(&self, prop_name: &str) -> Option<PropIndex> {
-        self.property_defs.iter()
-            .position(|p| p.name == prop_name)
-            .map(|idx| PropIndex(idx as u8))
-    }
-}
-
-/// Te header definition of one property of an element.
-#[derive(Debug, Clone)]
-pub struct PropertyDef {
-    pub ty: PropertyType,
-    pub name: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PropertyType {
-    Scalar(ScalarType),
-    List {
-        len_type: ListLenType,
-        scalar_type: ScalarType,
-    }
-}
-
-impl PropertyType {
-    pub fn len_type(&self) -> Option<ListLenType> {
-        match self {
-            PropertyType::Scalar(_) => None,
-            PropertyType::List { len_type, .. } => Some(*len_type),
-        }
-    }
-
-    pub fn scalar_type(&self) -> ScalarType {
-        match *self {
-            PropertyType::Scalar(scalar_type) => scalar_type,
-            PropertyType::List { scalar_type, .. } => scalar_type,
-        }
-    }
-
-    pub fn is_list(&self) -> bool {
-        self.len_type().is_some()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ListLenType {
-    UChar,
-    UShort,
-    UInt,
-}
-
-impl ListLenType {
-    pub fn from_scalar_type(ty: ScalarType) -> Option<Self> {
-        match ty {
-            ScalarType::UChar => Some(ListLenType::UChar),
-            ScalarType::UShort => Some(ListLenType::UShort),
-            ScalarType::UInt => Some(ListLenType::UInt),
-            _ => None,
-        }
-    }
-
-    pub fn to_scalar_type(self) -> ScalarType {
-        match self {
-            ListLenType::UChar => ScalarType::UChar,
-            ListLenType::UShort => ScalarType::UShort,
-            ListLenType::UInt => ScalarType::UInt,
-        }
-    }
-
-    /// Returns the number of bytes this type occupies.
-    pub fn len(&self) -> ScalarLen {
-        match self {
-            ListLenType::UChar => ScalarLen::One,
-            ListLenType::UShort => ScalarLen::Two,
-            ListLenType::UInt => ScalarLen::Four,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScalarType {
-    Char,
-    Short,
-    Int,
-    UChar,
-    UShort,
-    UInt,
-    Float,
-    Double,
-}
-
-impl ScalarType {
-    /// Returns `true` if and only if the type is either `float` or `double`.
-    pub fn is_floating_point(&self) -> bool {
-        *self == ScalarType::Float || *self == ScalarType::Double
-    }
-
-    /// Returns `true` if and only if the type is one of `uchar`, `ushort` or
-    /// `uint`.
-    pub fn is_unsigned_integer(&self) -> bool {
-        match self {
-            ScalarType::UChar | ScalarType::UShort | ScalarType::UInt => true,
-            _ => false,
-        }
-    }
-
-    /// Returns `true` if and only if the type is one of `char`, `short` or
-    /// `int`.
-    pub fn is_signed_integer(&self) -> bool {
-        match self {
-            ScalarType::Char | ScalarType::Short | ScalarType::Int => true,
-            _ => false,
-        }
-    }
-
-    /// Returns the number of bytes this type occupies.
-    pub fn len(&self) -> ScalarLen {
-        match self {
-            ScalarType::Char => ScalarLen::One,
-            ScalarType::Short => ScalarLen::Two,
-            ScalarType::Int => ScalarLen::Four,
-            ScalarType::UChar => ScalarLen::One,
-            ScalarType::UShort => ScalarLen::Two,
-            ScalarType::UInt => ScalarLen::Four,
-            ScalarType::Float => ScalarLen::Four,
-            ScalarType::Double => ScalarLen::Eight,
-        }
-    }
-
-    /// Returns the type name used in the header (e.g. `short`). This is simply
-    /// the variant name in lowercase.
-    pub fn ply_type_name(&self) -> &'static str {
-        match *self {
-            ScalarType::Char => "char",
-            ScalarType::Short => "short",
-            ScalarType::Int => "int",
-            ScalarType::UChar => "uchar",
-            ScalarType::UShort => "ushort",
-            ScalarType::UInt => "uint",
-            ScalarType::Float => "float",
-            ScalarType::Double => "double",
-        }
-    }
-}
-
-impl fmt::Display for ScalarTypeParseError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "\"{}\" is not a valid PLY scalar type", self.0)
-    }
-}
-
-impl fmt::Debug for ScalarTypeParseError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(self, f)
-    }
-}
-
-/// The error emitted when the `FromStr` implementation for `ScalarType` cannot
-/// parse the given string.
-pub struct ScalarTypeParseError(String);
-
-impl FromStr for ScalarType {
-    type Err = ScalarTypeParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "char" => Ok(ScalarType::Char),
-            "short" => Ok(ScalarType::Short),
-            "int" => Ok(ScalarType::Int),
-            "uchar" => Ok(ScalarType::UChar),
-            "ushort" => Ok(ScalarType::UShort),
-            "uint" => Ok(ScalarType::UInt),
-            "float" => Ok(ScalarType::Float),
-            "double" => Ok(ScalarType::Double),
-            other => Err(ScalarTypeParseError(other.to_string())),
-        }
-    }
-}
-
 
 /// One property value of some PLY type.
+///
+/// This is a fairly space inefficient representation of properties and it's
+/// pretty slow. This should only be used for debugging and testing.
 ///
 /// The sizes of the smallvecs are choosen so that the inline variant won't
 /// inflict a size overhead (on x64). This still means that the most common
@@ -649,27 +740,21 @@ impl Property {
     }
 }
 
-
-
-
-// ===========================================================================
-// ===== RawSink
-// ===========================================================================
-/// A type that can accept raw data from a PLY file. This is mainly used for
-/// [`Reader::read_raw_into`].
-pub trait RawSink {
-    /// Is called when a new element group begins. `def` describes the layout
-    /// of all elements in this group. This method is *always* called before
-    /// `element` is called.
-    fn element_group_start(&mut self, def: &ElementDef) -> Result<(), Error>;
-
-    /// Is called for each element that is read. When called, the element
-    /// belongs to the last element group (the last `element_group_start`
-    /// call).
-    fn element(&mut self, elem: &RawElement) -> Result<(), Error>;
+/// Contains all contents of a PLY file. Implements [`RawSink`].
+#[derive(Debug, Clone, Empty)]
+pub struct RawStorage {
+    /// Usually there are two element groups: "vertex" and "face".
+    pub element_groups: Vec<RawElementGroup>,
 }
 
-impl RawSink for RawResult {
+/// Represents one element group with header and body data.
+#[derive(Debug, Clone)]
+pub struct RawElementGroup {
+    pub def: ElementDef,
+    pub elements: Vec<RawElement>,
+}
+
+impl RawSink for RawStorage {
     fn element_group_start(&mut self, def: &ElementDef) -> Result<(), Error> {
         self.element_groups.push(RawElementGroup {
             def: def.clone(),
@@ -685,47 +770,5 @@ impl RawSink for RawResult {
             .elements
             .push(elem.clone());
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Empty)]
-pub struct RawResult {
-    pub element_groups: Vec<RawElementGroup>,
-}
-
-#[derive(Debug, Clone)]
-pub struct RawElementGroup {
-    pub def: ElementDef,
-    pub elements: Vec<RawElement>,
-}
-
-
-pub trait RawSource {
-    fn serialize_into<S: Serializer>(self, ser: S) -> Result<(), Error>;
-}
-
-pub trait Serializer {
-    fn add_i8(&mut self, v: i8) -> Result<(), Error>;
-    fn add_i16(&mut self, v: i16) -> Result<(), Error>;
-    fn add_i32(&mut self, v: i32) -> Result<(), Error>;
-    fn add_u8(&mut self, v: u8) -> Result<(), Error>;
-    fn add_u16(&mut self, v: u16) -> Result<(), Error>;
-    fn add_u32(&mut self, v: u32) -> Result<(), Error>;
-    fn add_f32(&mut self, v: f32) -> Result<(), Error>;
-    fn add_f64(&mut self, v: f64) -> Result<(), Error>;
-
-    fn end_element(&mut self) -> Result<(), Error>;
-
-    fn add<P: Primitive>(&mut self, v: P) -> Result<(), Error> {
-        match P::TY {
-            PrimitiveType::Int8 => self.add_i8(v.downcast_as().unwrap()),
-            PrimitiveType::Int16 => self.add_i16(v.downcast_as().unwrap()),
-            PrimitiveType::Int32 => self.add_i32(v.downcast_as().unwrap()),
-            PrimitiveType::Uint8 => self.add_u8(v.downcast_as().unwrap()),
-            PrimitiveType::Uint16 => self.add_u16(v.downcast_as().unwrap()),
-            PrimitiveType::Uint32 => self.add_u32(v.downcast_as().unwrap()),
-            PrimitiveType::Float32 => self.add_f32(v.downcast_as().unwrap()),
-            PrimitiveType::Float64 => self.add_f64(v.downcast_as().unwrap()),
-        }
     }
 }

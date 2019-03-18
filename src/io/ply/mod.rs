@@ -1,6 +1,47 @@
-//! Reading from and writing to PLY files (Polygon File Format).
+//! The PLY file format.
 //!
-//! TODO: explain everything.
+//! PLY is a popular and flexible file format often used for meshes and point
+//! clouds. It is able to store all kinds of mesh properties, including normals
+//! and colors. In fact, arbitrary properties of different types can be
+//! attached to any element. There can even be arbitrary elements (usually
+//! `vertex` and `face`). Because everything is so flexible, there are some
+//! convention on how to call important properties. For example, vertex
+//! positions are stored in three properties called `x`, `y` and `z`.
+//!
+//! PLY files can be encoded as ASCII or as binary with either big or small
+//! endianess. While the ASCII encoding is space-inefficient (as usual), the
+//! binary formats are very close to be memory-optimal. The only very minor
+//! waste is that the number of vertices per face is always stored -- which is
+//! not necessary in the triangle-only case. But this only wastes one byte per
+//! face.
+//!
+//! The only disadvantage of this flexibility is the parsing and writing
+//! complexity. Since all elements and properties can be arbitrarily defined
+//! (e.g. `x`, `y` and `z` properties don't have to be in that order) and due
+//! to the dynamic typing (there are 8 different scalar types), it's not easy
+//! to parse the PLY format in a fast way. However, I think this implementation
+//! is fairly well optimized and should perform fine or even faster than in
+//! other mesh libraries.
+//!
+//! ### Links:
+//! - ["Specification"](http://paulbourke.net/dataformats/ply/)
+//! - [Wikipedia](https://en.wikipedia.org/wiki/PLY_(file_format))
+//!
+//!
+//! # Reading and writing
+//!
+//! Most of the time you don't even need to look into this module, but can
+//! instead use the functions in the `io` module, like [`read`] or [`write`].
+//! If you need a bit more control, take a look at [`Writer`][ply::Writer] and
+//! [`Reader`][ply::Reader].
+//!
+//!
+//! # Raw APIs
+//!
+//! If you need full low-level control, you can use
+//! [`Writer::write_raw`][ply::Writer::write_raw] or
+//! [`Reader::read_raw`][ply::Reader::read_raw]. However, this is usually not
+//! necessary.
 
 use std::{
     io,

@@ -36,7 +36,7 @@ use super::{
     Encoding,
     raw::{
         ElementDef, PropertyDef, PropertyType, PropIndex, RawElement,
-        ScalarType, RawResult, RawSink,
+        ScalarType, RawStorage, RawSink,
         ListLenType, RawOffset, RawPropertyInfo,
         ScalarLen, RawData,
     },
@@ -308,13 +308,14 @@ impl<R: io::Read> Reader<R> {
         &self.elements
     }
 
-    /// Reads the whole file into a [`RawResult`].
+    /// Reads the whole file into a [`RawStorage`].
     ///
-    /// This function should only be used for quick testing as `RawResult` is a
-    /// very space inefficient and fairly slow representation of a PLY file.
-    /// Use [`read_raw`][Reader::read_raw] to do anything important.
-    pub fn into_raw_result(self) -> Result<RawResult, Error> {
-        let mut out = RawResult::empty();
+    /// In most cases, you want to use [`read_raw`][Reader::read_raw] instead
+    /// of this function as `read_raw` is a streaming version of this function
+    /// and requires no temporary storage. `into_raw_storage` is mostly
+    /// intended for testing and debugging.
+    pub fn into_raw_storage(self) -> Result<RawStorage, Error> {
+        let mut out = RawStorage::empty();
         self.read_raw(&mut out)?;
         Ok(out)
     }
@@ -329,6 +330,37 @@ impl<R: io::Read> Reader<R> {
     ///
     /// **Note**: this function is *really hard* to use. It is purposefully
     /// very low level. This should be your last resort.
+    ///
+    ///
+    /// # Example
+    ///
+    /// Given the following PLY file (ASCII for this example):
+    ///
+    /// ```text
+    /// ply
+    /// format ascii 1.0
+    /// element vertex 3
+    /// property float x
+    /// property float y
+    /// property float z
+    /// element face 1
+    /// property list uchar uint vertex_indices
+    /// end_header
+    /// 0 1 2
+    /// 3 5 8
+    /// 0.1 0.2 0.3
+    /// 3 0 1 2
+    /// ```
+    ///
+    /// This would lead to the following calls to the given `RawSink` (in this
+    /// order):
+    ///
+    /// - `element_group_start`: for `vertex` element with three properties
+    /// - `element`: first vertex (`0 1 2`)
+    /// - `element`: second vertex (`3 5 8`)
+    /// - `element`: third vertex (`0.1 0.2 0.3`)
+    /// - `element_group_start`: for `face` element with one property
+    /// - `element`: the face
     pub fn read_raw(mut self, sink: &mut impl RawSink) -> Result<(), Error> {
         let buf = &mut self.buf;
 
