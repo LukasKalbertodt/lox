@@ -7,7 +7,6 @@
 #![feature(proc_macro_hygiene)]
 #![feature(try_blocks)]
 #![feature(bind_by_move_pattern_guards)]
-#![feature(try_from)]
 #![feature(specialization)]
 #![feature(non_exhaustive)]
 #![feature(associated_type_defaults)]
