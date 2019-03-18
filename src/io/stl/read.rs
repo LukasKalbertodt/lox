@@ -54,7 +54,7 @@ use super::{Encoding, RawTriangle, RawResult};
 /// let m = MiniMesh::<FaceDelegateMesh>::create_from(reader)?;
 /// # Ok::<_, lox::io::Error>(())
 /// ```
-pub struct Reader<R: io::Read + io::Seek, U: UnifyingMarker = UnifyVertices> {
+pub struct Reader<R: io::Read, U: UnifyingMarker = UnifyVertices> {
     buf: Buffer<R>,
     solid_name: Option<String>,
     triangle_count: Option<u32>,
@@ -71,34 +71,98 @@ impl Reader<File, UnifyVertices> {
     }
 }
 
-impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
+impl<R: io::Read> Reader<R, UnifyVertices> {
     /// Creates a new `Reader` from the given `io::Read` instance and parses
     /// the header of the given input.
     ///
     /// If you want to open a file, rather use [`Reader::open`].
     pub fn new(mut reader: R) -> Result<Self, Error> {
-        // Determine length of input.
-        let input_len = reader.seek(io::SeekFrom::End(0))?;
+        // First, we have to find out the encoding of this file. Since STL is a
+        // pretty bad format, there is no clear indicator for the encoding.
+        // There are only certain hints in one or the other direction. We
+        // consider four data points:
+        //
+        // - Starts with "solid"? (`starts_with_solid`)
+        //     - No => binary (or corrupted)
+        //     - Yes => Could be both
+        // - Are there some non-ASCII chars in first 1024 bytes? (`non_ascii_bytes`)
+        //     - No => Could be both (though, binary is very unlikely)
+        //     - Yes => Binary (or corrupted)
+        // - Does the triangle count matches the file length? (`count_match`)
+        //     - `TooShort` => ASCII (or corrupted)
+        //     - `Mismatch` => ASCII (or corrupted)
+        //     - `Match` => Could be both (though, ASCII is very unlikely)
+        //
+        // First, we check all of these four things. One problem: the latter
+        // two points can only be checked if `R` is also `io::Seek`. To get
+        // that information we use the `SeekHelper` trait.
 
-        // Pretend the file is binary and read the number of triangles at
-        // offset 80 (if the file is even long enough).
-        let num_tris_if_binary = if input_len >= 84 {
-            reader.seek(io::SeekFrom::Start(80))?;
-            Some(reader.read_u32::<LittleEndian>()?)
-        } else {
-            None
-        };
+        enum CountMatch {
+            /// When `R` does not implement `Seek`
+            NoInfo,
 
-        let expected_len_if_binary = num_tris_if_binary.map(|num_tris_if_binary| {
-            // In binary format, each triangle is stored with 50 bytes
-            // (3 * 3 = 9 position floats => 36 bytes, 3 normal floats
-            // => 12 bytes, 2 bytes "attribute byte count"). The binary
-            // header is 84 bytes long.
-            num_tris_if_binary as u64 * 50 + 84
-        });
+            /// File is shorter than 84 bytes.
+            TooShort,
 
-        // Jump back to the start of the stream/file
-        reader.seek(io::SeekFrom::Start(0))?;
+            /// The file length expected from the triangle count does *not*
+            /// match the actual file length.
+            Mismatch,
+
+            /// The file length expected from the triangle count matches the
+            /// actual file length.
+            Match,
+        }
+
+
+        // ===================================================================
+        // ===== Helper trait to specialize for `Seek` readers
+        // ===================================================================
+        trait SeekHelper {
+            /// Returns whether the file length is >= 84 and whether or not the
+            /// triangle count at offset 80 matches the file length. Or in
+            /// other words: returns `(longer_than_84, count_match)`. If the
+            /// type `R` does not implement `Seek`, `None` is returned.
+            fn check_length(&mut self) -> Result<CountMatch, Error>;
+        }
+
+        impl<R: io::Read> SeekHelper for R {
+            default fn check_length(&mut self) -> Result<CountMatch, Error> {
+                Ok(CountMatch::NoInfo)
+            }
+        }
+
+        impl<R: io::Read + io::Seek> SeekHelper for R {
+            fn check_length(&mut self) -> Result<CountMatch, Error> {
+                // Determine length of input.
+                let input_len = self.seek(io::SeekFrom::End(0))?;
+
+                if input_len < 84 {
+                    return Ok(CountMatch::TooShort);
+                }
+
+                // Pretend the file is binary and read the number of triangles
+                // at offset 80 .
+                self.seek(io::SeekFrom::Start(80))?;
+                let num_triangles = self.read_u32::<LittleEndian>()?;
+                self.seek(io::SeekFrom::Start(0))?; // Jump back to the start
+
+                // In binary format, each triangle is stored with 50 bytes:
+                // - 3 * 3 = 9 position floats => 36 bytes
+                // - 3 normal floats => 12 bytes
+                // - 2 bytes "attribute byte count"
+                //
+                //  The binary header is 84 bytes long.
+                let expected_len_if_binary = num_triangles as u64 * 50 + 84;
+
+                if expected_len_if_binary == input_len {
+                    Ok(CountMatch::Match)
+                } else {
+                    Ok(CountMatch::Mismatch)
+                }
+            }
+        }
+
+        let count_match = reader.check_length()?;
 
         // Wrap reader into parse buffer.
         let mut buf = Buffer::new(reader)?;
@@ -107,41 +171,46 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
         // than that). We want to inspect those bytes.
         buf.saturating_prepare(1024)?;
 
-        // We need to figure out if this file is binary or ASCII. This is
-        // actually harder than it sounds because there is no clear metric.
-        //
-        // An ASCII file starts with `solid <name>` where `<name>` can be an
-        // arbitrary string, even arbitrarily long. The name is delimited by a
-        // newline.
-        //
-        // A binary file starts with a 80 byte header that has no significance
-        // and may contain arbitrary ASCII data. Afterwards, a big binary blob
-        // follows.
-        //
-        // We use the following metric:
-        // - The file has to be at least 84 bytes long to be considered binary.
-        // - If the file doesn't start with `solid`, it's binary.
-        // - If there are some non-ASCII (>127) bytes at the beginning of the
-        //   file, the file is binary.
-        // - If the expected file length calculated from the triangle count at
-        //   offset 80 (only stored if the file is binary) matches the real
-        //   file length, we assume it's a binary file. But if there is no such
-        //   count (because the file is shorter than 84 bytes), the file is not
-        //   binary.
-        let is_binary = input_len >= 84 && (
-            !buf.raw_buf().starts_with(b"solid")
-                || buf.raw_buf().iter().take(1024).any(|b| !b.is_ascii())
-                || expected_len_if_binary.unwrap() == input_len
-        );
+        let starts_with_solid = buf.raw_buf().starts_with(b"solid");
+        let non_ascii_bytes = buf.raw_buf().iter().take(1024).any(|b| !b.is_ascii());
 
-        if is_binary {
-            if expected_len_if_binary.unwrap() != input_len {
+        let is_binary = match (starts_with_solid, non_ascii_bytes, count_match) {
+            // ----- Binary --------------------------------------------------
+            // Even if we have no length info, non-ASCII bytes are strong
+            // indicator.
+            (true, true, CountMatch::NoInfo) => true,
+            (false, true, CountMatch::NoInfo) => true,
+
+            // A count/length match is a very strong indicator and we don't
+            // cary about anything else.
+            (_, _, CountMatch::Match) => true,
+
+            // Is binary or corrupted -> we assume binary.
+            (false, false, CountMatch::NoInfo) => false,
+
+
+            // ----- ASCII ---------------------------------------------------
+            (true, false, CountMatch::NoInfo) => false,
+            (true, false, CountMatch::TooShort) => false,
+            (true, false, CountMatch::Mismatch) => false,
+
+
+            // ----- Assume binary, but error --------------------------------
+            (_, _, CountMatch::TooShort) => {
                 return Err(ParseError::Custom(
-                    "triangle count in STL file is corrupted (disagrees with file length)".into(),
+                    "corrupted binary STL file: file is shorter than 84 bytes".into(),
+                    Span::new(0, 0),
+                ).into());
+            }
+            (_, _, CountMatch::Mismatch) => {
+                return Err(ParseError::Custom(
+                    "corrupted binary STL file: triangle count at offset 80 disagrees with \
+                        file length".into(),
                     Span::new(80, 84),
                 ).into());
             }
-        }
+        };
+
 
         // Check if the file starts with `solid`. If yes, a string (the solid
         // name) is stored next.
@@ -176,14 +245,17 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
         };
 
         // In the binary case, we still need to skip the remaining header.
-        if is_binary {
-            buf.skip(84 - buf.offset())?;
-        }
+        let triangle_count = if is_binary {
+            buf.skip(80 - buf.offset())?;
+            Some(buf.read_u32::<LittleEndian>()?)
+        } else {
+            None
+        };
 
         Ok(Self {
             buf,
             solid_name,
-            triangle_count: num_tris_if_binary.filter(|_| is_binary),
+            triangle_count,
             _dummy: PhantomData,
         })
     }
@@ -222,7 +294,7 @@ impl<R: io::Read + io::Seek> Reader<R, UnifyVertices> {
     }
 }
 
-impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
+impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
     /// Returns the name of the solid. If no solid name was stored in the file,
     /// `None` is returned.
     pub fn solid_name(&self) -> Option<&str> {
@@ -382,7 +454,7 @@ impl<R: io::Read + io::Seek, U: UnifyingMarker> Reader<R, U> {
     }
 }
 
-impl<R: io::Read + io::Seek, U: UnifyingMarker> fmt::Debug for Reader<R, U> {
+impl<R: io::Read, U: UnifyingMarker> fmt::Debug for Reader<R, U> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Reader")
             .field("buf", &self.buf)
@@ -506,11 +578,7 @@ impl VertexAdder for UnifyingAdder {
 }
 
 
-impl<R, U> StreamSource for Reader<R, U>
-where
-    R: io::Read + io::Seek,
-    U: UnifyingMarker,
-{
+impl<R: io::Read, U: UnifyingMarker> StreamSource for Reader<R, U> {
     fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error> {
         let mut vertex_adder = U::Adder::new();
 
