@@ -2,7 +2,6 @@ use std::{
     cmp::{max, min},
     fmt,
     io::{self, Read},
-    ops,
 };
 
 use crate::io::Error;

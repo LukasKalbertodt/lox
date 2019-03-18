@@ -1,9 +1,12 @@
-#![allow(unused_imports)] // TODO
+//! Functionality for parsing mesh file formats.
+//!
+//! For users of the `lox` library, this module is fairly useless. The only
+//! thing it exposes is the error and span type. You don't need to worry about
+//! this module.
 
 use std::{
     fmt,
     io,
-    ops,
 };
 
 use failure::Fail;
@@ -193,7 +196,7 @@ pub(crate) trait ParseBuf: io::Read {
 
 /// A slice of input data with its span in the input stream.
 #[derive(Debug)]
-pub struct SpannedData<'a> {
+pub(crate) struct SpannedData<'a> {
     pub data: &'a [u8],
     pub span: Span,
 }
