@@ -100,6 +100,85 @@ impl<W: io::Write> Writer<W> {
     pub fn new(config: Config, writer: W) -> Self {
         Self { config, writer }
     }
+
+
+    /// Low level function to write STL files.
+    ///
+    /// You usually don't need to use this function directly and instead use a
+    /// high level interface. This function is still exposed to give you more
+    /// or less complete control.
+    pub fn write_raw(
+        self,
+        num_triangles: u32,
+        triangles: impl IntoIterator<Item = Result<RawTriangle, Error>>,
+    ) -> Result<(), Error> {
+        let config = self.config;
+        let mut w = self.writer;
+        if config.encoding == Encoding::Ascii {
+            // ===============================================================
+            // ===== STL ASCII
+            // ===============================================================
+            writeln!(w, "solid {}", config.solid_name)?;
+
+            for triangle in triangles {
+                let triangle = triangle?;
+
+                // Write face normal
+                write!(w, "  facet normal ")?;
+                write_ascii_vector(&mut w, triangle.normal)?;
+                writeln!(w, "")?;
+
+                // Write all vertex positions
+                writeln!(w, "    outer loop")?;
+                for &vertex_pos in &triangle.vertices {
+
+                    write!(w, "      vertex ")?;
+                    write_ascii_vector(&mut w, vertex_pos)?;
+                    writeln!(w, "")?;
+                }
+
+                writeln!(w, "    endloop")?;
+                writeln!(w, "  endfacet")?;
+            }
+
+            writeln!(w, "endsolid {}", config.solid_name)?;
+        } else {
+            // ===============================================================
+            // ===== STL binary
+            // ===============================================================
+            // First, a 80 bytes useless header that must not begin with "solid".
+            // We try to fit the solid name in it.
+            let name_len = cmp::min(config.solid_name.len(), 76);
+            let signature = format!("LOX {}", &config.solid_name[..name_len]);
+            let padding = vec![b' '; 80 - signature.len()];
+            w.write_all(signature.as_bytes())?;
+            w.write_all(&padding)?;
+
+            // Next, number of triangles
+            w.write_u32::<LittleEndian>(num_triangles)?;
+
+            for triangle in triangles {
+                let triangle = triangle?;
+
+                // Write face normal
+                w.write_f32::<LittleEndian>(triangle.normal[0])?;
+                w.write_f32::<LittleEndian>(triangle.normal[1])?;
+                w.write_f32::<LittleEndian>(triangle.normal[2])?;
+
+                // Write all vertex positions
+                for &[x, y, z] in &triangle.vertices {
+                    w.write_f32::<LittleEndian>(x)?;
+                    w.write_f32::<LittleEndian>(y)?;
+                    w.write_f32::<LittleEndian>(z)?;
+                }
+
+                // Write "attribute byte count".
+                w.write_u16::<LittleEndian>(triangle.attribute_byte_count)?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl<W: io::Write> StreamSink for Writer<W> {
@@ -155,7 +234,7 @@ impl<W: io::Write> StreamSink for Writer<W> {
             })
         });
 
-        write_raw(self.writer, &self.config, mesh.num_faces(), triangles)
+        self.write_raw(mesh.num_faces(), triangles)
     }
 }
 
@@ -178,83 +257,6 @@ fn calc_normal(positions: &[[f32; 3]; 3]) -> [f32; 3] {
 // ===============================================================================================
 // ===== Functions for body writing
 // ===============================================================================================
-
-/// Low level function to write STL files.
-///
-/// You usually don't need to use this function directly and instead use a high
-/// level interface. This function is still exposed to give you more or less
-/// complete control.
-pub fn write_raw(
-    mut w: impl io::Write,
-    config: &Config,
-    num_triangles: u32,
-    triangles: impl IntoIterator<Item = Result<RawTriangle, Error>>,
-) -> Result<(), Error> {
-    if config.encoding == Encoding::Ascii {
-        // ===============================================================
-        // ===== STL ASCII
-        // ===============================================================
-        writeln!(w, "solid {}", config.solid_name)?;
-
-        for triangle in triangles {
-            let triangle = triangle?;
-
-            // Write face normal
-            write!(w, "  facet normal ")?;
-            write_ascii_vector(&mut w, triangle.normal)?;
-            writeln!(w, "")?;
-
-            // Write all vertex positions
-            writeln!(w, "    outer loop")?;
-            for &vertex_pos in &triangle.vertices {
-
-                write!(w, "      vertex ")?;
-                write_ascii_vector(&mut w, vertex_pos)?;
-                writeln!(w, "")?;
-            }
-
-            writeln!(w, "    endloop")?;
-            writeln!(w, "  endfacet")?;
-        }
-
-        writeln!(w, "endsolid {}", config.solid_name)?;
-    } else {
-        // ===============================================================
-        // ===== STL binary
-        // ===============================================================
-        // First, a 80 bytes useless header that must not begin with "solid".
-        // We try to fit the solid name in it.
-        let name_len = cmp::min(config.solid_name.len(), 76);
-        let signature = format!("LOX {}", &config.solid_name[..name_len]);
-        let padding = vec![b' '; 80 - signature.len()];
-        w.write_all(signature.as_bytes())?;
-        w.write_all(&padding)?;
-
-        // Next, number of triangles
-        w.write_u32::<LittleEndian>(num_triangles)?;
-
-        for triangle in triangles {
-            let triangle = triangle?;
-
-            // Write face normal
-            w.write_f32::<LittleEndian>(triangle.normal[0])?;
-            w.write_f32::<LittleEndian>(triangle.normal[1])?;
-            w.write_f32::<LittleEndian>(triangle.normal[2])?;
-
-            // Write all vertex positions
-            for &[x, y, z] in &triangle.vertices {
-                w.write_f32::<LittleEndian>(x)?;
-                w.write_f32::<LittleEndian>(y)?;
-                w.write_f32::<LittleEndian>(z)?;
-            }
-
-            // Write "attribute byte count".
-            w.write_u16::<LittleEndian>(triangle.attribute_byte_count)?;
-        }
-    }
-
-    Ok(())
-}
 
 /// Writes the three values of the given vector (in STL ASCII encoding,
 /// separated
