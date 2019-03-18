@@ -62,6 +62,10 @@ mod tests;
 
 // ----------------------------------------------------------------------------
 
+// ===========================================================================
+// ===== Convenience `read_*` and `write_*` functions
+// ===========================================================================
+
 /// Reads from the given reader into an empty instance of type `SinkT` and
 /// returns that instance.
 ///
@@ -251,17 +255,9 @@ where
 }
 
 
-
-// TODO: add the following trait once GATs are available. Implement trait for
-// `Config` types. Then we can also add a bunch of useful functions such as
-// `write_to_mem`.
-//
-// trait IntoWriter {
-//     type Writer<W: io::Write>;
-//     fn into_writer<W: io::Write>(self) -> Self::Writer<W>;
-
-//     // fn into_file_writer()
-// }
+// ===========================================================================
+// ===== `FileFormat`, `Error` and other types
+// ===========================================================================
 
 /// Represents one of the supported file formats.
 ///
@@ -427,41 +423,6 @@ impl fmt::Display for FileFormat {
         }.fmt(f)
     }
 }
-
-/// Describes the encoding of the main data of a mesh file.
-///
-/// Not every format has to support all of these encodings (in fact, many
-/// formats only support one encoding).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FileEncoding {
-    /// Everything is stored as an ASCII string. Generally, ASCII encodings are
-    /// fairly space-inefficient.
-    Ascii,
-
-    /// Binary encoding where all numeric types are stored in big endian
-    /// layout.
-    BinaryBigEndian,
-
-    /// Binary encoding where all numeric types are stored in little endian
-    /// layout.
-    BinaryLittleEndian,
-}
-
-impl FileEncoding {
-    pub fn binary_native() -> Self {
-        #[cfg(target_endian = "big")]
-        { FileEncoding::BinaryBigEndian }
-
-        #[cfg(target_endian = "little")]
-        { FileEncoding::BinaryLittleEndian }
-    }
-}
-
-/// A simple unit-like error type that is used for `TryFrom<FileEncoding>`
-/// impls of format specific `Encoding` types.
-#[derive(Debug, Clone, Copy)]
-pub struct EncodingNotSupported;
-
 
 /// Enumerates the supported kinds of mesh properties.
 ///
@@ -647,7 +608,6 @@ impl From<ParseError> for Error {
 }
 
 
-
 // ==========================================================================
 // ===== Primitives
 // ==========================================================================
@@ -730,7 +690,6 @@ impl PrimitiveValue {
         }
     }
 }
-
 
 /// Abstracts over all IO primitive types.
 ///
@@ -1298,3 +1257,15 @@ pub trait MemSource {
         );
     }
 }
+
+
+// TODO: add the following trait once GATs are available. Implement trait for
+// `Config` types. Then we can also add a bunch of useful functions such as
+// `write_to_mem`.
+//
+// trait IntoWriter {
+//     type Writer<W: io::Write>;
+//     fn into_writer<W: io::Write>(self) -> Self::Writer<W>;
+
+//     // fn into_file_writer()
+// }
