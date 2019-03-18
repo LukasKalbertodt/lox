@@ -1,4 +1,74 @@
+//! Reading and writing meshes in different formats.
+//!
+//! This module contains everything to serialize and deserialize meshes in
+//! different file formats from files or other sources of data. The full module
+//! is quite large and a bit complex, but most of the time, you don't need to
+//! fully understand everything. See the next "Quick Start" section for a brief
+//! introduction.
+//!
+//! # Quick start
+//!
+//! To read or write meshes, you need a type that can store your mesh data and
+//! implements [`MemSink`][io::MemSink] or [`MemSource`][io::MemSource],
+//! respectively. You want to either use a type from the [`fat`] module or
+//! write your own type and then `#[derive(MemSink, MemSource)]` for it. Most
+//! examples in this modules use types from the `fat` module. (See the next
+//! section for more details about the sink/source traits.)
+//!
+//! There are multiple ways to actually read or write. **You most certainly are
+//! looking for [`read_file`][io::read_file] or
+//! [`write_file`][io::write_file].** If you don't read from/write to a file,
+//! there are four other convenience functions: [`read_from`][io::read_from],
+//! [`read_from_mem`][io::read_from_mem], [`write_to`][io::write_to] and
+//! [`write_to_mem`][io::write_to_mem].
+//!
+//! Here is a simple example of your basic small program using IO:
+//!
+//! ```no_run
+//! use lox::{
+//!     ds::FaceDelegateMesh,
+//!     fat::MiniMesh,
+//!     io,
+//! };
+//!
+//!
+//! // Read a mesh file (a PLY file in this case)
+//! let mut m: MiniMesh<FaceDelegateMesh> = io::read_file("input.ply")?;
+//!
+//! // ... do something with the mesh here
+//!
+//! // Write the resulting mesh
+//! io::write_file(&m, "output.ply")?;
+//!
+//! # Ok::<_, io::Error>(())
+//! ```
+//!
+//!
+//! # Sources and Sinks
+//!
 //! TODO
+//!
+//!
+//! # File Formats
+//!
+//! This section tries to answer the question "which file format should I
+//! choose?" by comparing the different formats. Quick answer: **the PLY format
+//! is a good default choice for most situations.** And whatever format you
+//! choose, do not use ASCII encoding unless you have a good reason to (this
+//! encoding is very space inefficient and slow).
+//!
+//! The following table shows a comparison. `✔*` means that the property is
+//! non-optional.
+//!
+//! | Format | Connectivity | Memory Efficiency | V-Normal | V-Color | F-Normal | F-Color |
+//! | ------ | ------------ | ----------------- | -------- | ------- | -------- | ------- |
+//! | PLY   | shared vertex | good              | ✔        | ✔      | ✔        | ✔      |
+//! | STL   | triangle soup | bad               | ✘        | ✘      | ✔*       | ✘      |
+//!
+//! More formats will be added in the future.
+//!
+//! All available file formats are listed by the enum
+//! [`FileFormat`][io::FileFormat]. It also defines a few very useful methods.
 //!
 //!
 
