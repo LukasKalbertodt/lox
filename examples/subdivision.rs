@@ -6,7 +6,7 @@ use lox::{
     algo,
     ds::{FaceDelegateMesh, SharedVertexMesh, HalfEdgeMesh},
     fat::MiniMesh,
-    io::ply,
+    io,
     map::VecMap,
     prelude::*,
 };
@@ -19,9 +19,9 @@ fn main() -> Result<(), Error> {
     let output_file = std::env::args().nth(2).expect("no output filename given");
 
     // Read, smooth, write
-    let mut m: MyMesh = ply::read(&input_file)?;
+    let mut m: MyMesh = io::read_file(&input_file)?;
     algo::sqrt3_subdivision(&mut m.mesh, &mut m.vertex_positions);
-    ply::write(&output_file, &m)?;
+    io::write(&output_file, &m)?;
 
     Ok(())
 }

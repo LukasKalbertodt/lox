@@ -33,7 +33,7 @@
 use std::{
     fmt,
     fs::File,
-    io::{self, Read},
+    io::{self, Read, Seek, SeekFrom},
     path::Path,
 };
 
@@ -65,14 +65,46 @@ mod tests;
 
 // ----------------------------------------------------------------------------
 
-/// Reads the file with the given filename into an empty instance of type `T`
-/// and returns that instance.
+/// Reads from the given reader into an empty instance of type `SinkT` and
+/// returns that instance.
+///
+/// If you want to read from files, [`read_file`] is the more convenient
+/// function. If you still want to use this function to read from a file, you
+/// don't need to wrap the file into a `BufReader` as the reading will be
+/// buffered internally anyway.
+///
+/// ```no_run
+/// use std::io::stdin;
+/// use lox::{
+///     ds::SharedVertexMesh,
+///     fat::MiniMesh,
+///     io::{self, FileFormat},
+/// };
+///
+/// // Reading from stdin
+/// let mesh: MiniMesh<SharedVertexMesh> = io::read_from(FileFormat::Ply, stdin())?;
+/// # Ok::<_, io::Error>(())
+/// ```
+pub fn read_from<SinkT, R>(format: FileFormat, reader: R) -> Result<SinkT, Error>
+where
+    SinkT: Empty + MemSink,
+    R: io::Read,
+{
+    let mut out = SinkT::empty();
+    format.reader(reader)?.transfer_to(&mut out)?;
+    out.finish()?;
+    Ok(out)
+}
+
+
+/// Reads the file with the given filename into an empty instance of type
+/// `SinkT` and returns that instance.
 ///
 /// This function tries to automatically determine the file format from the
 /// filename extension and the first few bytes of the file. If the format
 /// couldn't be determined because it's unknown or ambiguous,
 /// `Error::FormatUnknown` is returned. To explicitly specify the file format,
-/// use the `read` functions from the format modules (like `ply::read`).
+/// use the [`read_from`] function.
 ///
 /// ```no_run
 /// use lox::{
@@ -81,10 +113,14 @@ mod tests;
 ///     io,
 /// };
 ///
-/// let mesh: MiniMesh<FaceDelegateMesh> = io::read("foo.ply")?;
+/// let mesh: MiniMesh<FaceDelegateMesh> = io::read_file("foo.ply")?;
 /// # Ok::<_, io::Error>(())
 /// ```
-pub fn read<T: Empty + MemSink, P: AsRef<Path>>(path: P) -> Result<T, Error> {
+pub fn read_file<SinkT, P>(path: P) -> Result<SinkT, Error>
+where
+    SinkT: Empty + MemSink,
+    P: AsRef<Path>,
+{
     // We have this inner method which takes a `&Path` directly to reduce the
     // number of instantiations of the outer function. These "convenience"
     // generics can actually often result in bloated binaries.
@@ -100,6 +136,7 @@ pub fn read<T: Empty + MemSink, P: AsRef<Path>>(path: P) -> Result<T, Error> {
                 // Read the first 1024 bytes
                 let mut buf = Vec::new();
                 Read::by_ref(&mut file).take(1024).read_to_end(&mut buf)?;
+                file.seek(SeekFrom::Start(0))?; // back to the beginning
 
                 // Guess from the data or just error that we couldn't find the
                 // format.
@@ -107,15 +144,23 @@ pub fn read<T: Empty + MemSink, P: AsRef<Path>>(path: P) -> Result<T, Error> {
             }
         };
 
-        // Read the file into the specified sink
-        match format {
-            FileFormat::Ply => T::create_from(ply::Reader::new(file)?),
-            FileFormat::Stl => T::create_from(stl::Reader::new(file)?),
-        }
+        read_from(format, file)
     }
 
     inner(path.as_ref())
 }
+
+/// Reads from the given bytes into an empty instance of type `SinkT` and
+/// returns that instance.
+///
+/// This is just a convenience wrapper for [`read_from`].
+pub fn read_from_mem<SinkT>(format: FileFormat, data: &[u8]) -> Result<SinkT, Error>
+where
+    SinkT: Empty + MemSink,
+{
+    read_from(format, io::Cursor::new(data))
+}
+
 
 /// Writes mesh defined by the given source to the file with the given filename
 /// (the file is created/overwritten).

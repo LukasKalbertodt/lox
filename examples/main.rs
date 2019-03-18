@@ -34,7 +34,7 @@ fn main() {
 
 fn run() -> Result<(), Error> {
     let m: SimpleMesh = if let Some(filename) = std::env::args().nth(1) {
-        io::read(filename)?
+        io::read_file(filename)?
     } else {
         let disc = Disc { faces: 3, .. Disc::default() };
         SimpleMesh::create_from(disc)?
