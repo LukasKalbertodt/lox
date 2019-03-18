@@ -12,7 +12,7 @@ use crate::{
 };
 use super::{
     Config, Encoding, Reader, is_file_start,
-    raw::{PropertyType, ScalarType, PropIndex, Property, ListLenType, RawOffset, RawResult},
+    raw::{PropertyType, ScalarType, PropIndex, Property, ListLenType, RawOffset, RawStorage},
 };
 
 // ===========================================================================
@@ -274,7 +274,7 @@ fn write_three_tris_all_props_bbe() -> Result<(), Error> {
 // ===== Reading
 // ===========================================================================
 
-fn check_triangle(res: &RawResult) {
+fn check_triangle(res: &RawStorage) {
     let groups = &res.element_groups;
     assert_eq!(groups.len(), 2);
 
@@ -325,7 +325,7 @@ fn check_triangle(res: &RawResult) {
 #[test]
 fn read_raw_triangle_bbe() -> Result<(), Error> {
     let input = include_test_file!("triangle_bbe.ply");
-    let res = Reader::new(input)?.into_raw_result()?;
+    let res = Reader::new(input)?.into_raw_storage()?;
 
     check_triangle(&res);
 
@@ -335,7 +335,7 @@ fn read_raw_triangle_bbe() -> Result<(), Error> {
 #[test]
 fn read_raw_triangle_ble() -> Result<(), Error> {
     let input = include_test_file!("triangle_ble.ply");
-    let res = Reader::new(input)?.into_raw_result()?;
+    let res = Reader::new(input)?.into_raw_storage()?;
 
     check_triangle(&res);
 
@@ -345,7 +345,7 @@ fn read_raw_triangle_ble() -> Result<(), Error> {
 #[test]
 fn read_raw_triangle_ascii() -> Result<(), Error> {
     let input = include_test_file!("triangle_ascii.ply");
-    let res = Reader::new(input)?.into_raw_result()?;
+    let res = Reader::new(input)?.into_raw_storage()?;
 
     check_triangle(&res);
 
@@ -374,7 +374,7 @@ fn read_triangle() -> Result<(), Error> {
     Ok(())
 }
 
-fn check_triangle_extra_props(res: &RawResult) {
+fn check_triangle_extra_props(res: &RawStorage) {
     let groups = &res.element_groups;
     assert_eq!(groups.len(), 2);
 
@@ -495,7 +495,7 @@ fn check_triangle_extra_props(res: &RawResult) {
 #[test]
 fn read_raw_triangle_with_extra_props_bbe() -> Result<(), Error> {
     let input = include_test_file!("triangle_with_extra_props_bbe.ply");
-    let res = Reader::new(input)?.into_raw_result()?;
+    let res = Reader::new(input)?.into_raw_storage()?;
 
     check_triangle_extra_props(&res);
 
@@ -506,7 +506,7 @@ fn read_raw_triangle_with_extra_props_bbe() -> Result<(), Error> {
 #[test]
 fn read_raw_triangle_with_extra_props_ble() -> Result<(), Error> {
     let input = include_test_file!("triangle_with_extra_props_ble.ply");
-    let res = Reader::new(input)?.into_raw_result()?;
+    let res = Reader::new(input)?.into_raw_storage()?;
 
     check_triangle_extra_props(&res);
 
@@ -517,7 +517,7 @@ fn read_raw_triangle_with_extra_props_ble() -> Result<(), Error> {
 #[test]
 fn read_raw_triangle_with_extra_props_ascii() -> Result<(), Error> {
     let input = include_test_file!("triangle_with_extra_props_ascii.ply");
-    let res = Reader::new(input)?.into_raw_result()?;
+    let res = Reader::new(input)?.into_raw_storage()?;
 
     check_triangle_extra_props(&res);
 
