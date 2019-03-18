@@ -13,7 +13,7 @@ pub use crate::{
     Empty, MemSource, MemSink,
     handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
     map::{PropMap, PropStore, PropStoreMut},
-    prop::{Pos3Like, Vec3Like},
+    prop::{ColorLike, Pos3Like, Vec3Like},
     io::{
         StreamSource, StreamSink, MemSource, MemSink,
         util::{MemSourceExt},
