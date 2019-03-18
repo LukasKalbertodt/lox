@@ -44,7 +44,7 @@ use crate::{
     prop::{ColorLike, PrimitiveColorChannel},
     sealed::Sealed,
     traits::Empty,
-    util::{downcast_as, MeshSizeHint},
+    util::MeshSizeHint,
 };
 use self::{
     parse::ParseError,
@@ -725,16 +725,6 @@ pub trait Primitive: PrimitiveNum + Sealed {
     /// t.to_primitive_value().ty()` is always true for all primitives `t` with
     /// type `T`.
     fn to_primitive_value(&self) -> PrimitiveValue;
-
-    /// Returns `Some(self)` if `T == Self`, or `None` otherwise.
-    ///
-    /// This method is useful to convert a generic value into a value of a
-    /// specific type.
-    ///
-    /// TODO: remove and replace all uses by `util::downcast_as`.
-    fn downcast_as<T: Primitive>(self) -> Option<T> {
-        downcast_as(self)
-    }
 }
 
 macro_rules! impl_primitive {

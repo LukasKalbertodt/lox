@@ -24,6 +24,7 @@ use crate::{
     self as lox, // for proc macros
     Empty,
     io::{Error, Primitive, PrimitiveType},
+    util::downcast_as,
 };
 
 
@@ -79,14 +80,14 @@ pub trait Serializer {
     /// the correct `add_*` function.
     fn add<P: Primitive>(&mut self, v: P) -> Result<(), Error> {
         match P::TY {
-            PrimitiveType::Int8 => self.add_i8(v.downcast_as().unwrap()),
-            PrimitiveType::Int16 => self.add_i16(v.downcast_as().unwrap()),
-            PrimitiveType::Int32 => self.add_i32(v.downcast_as().unwrap()),
-            PrimitiveType::Uint8 => self.add_u8(v.downcast_as().unwrap()),
-            PrimitiveType::Uint16 => self.add_u16(v.downcast_as().unwrap()),
-            PrimitiveType::Uint32 => self.add_u32(v.downcast_as().unwrap()),
-            PrimitiveType::Float32 => self.add_f32(v.downcast_as().unwrap()),
-            PrimitiveType::Float64 => self.add_f64(v.downcast_as().unwrap()),
+            PrimitiveType::Int8 => self.add_i8(downcast_as(v).unwrap()),
+            PrimitiveType::Int16 => self.add_i16(downcast_as(v).unwrap()),
+            PrimitiveType::Int32 => self.add_i32(downcast_as(v).unwrap()),
+            PrimitiveType::Uint8 => self.add_u8(downcast_as(v).unwrap()),
+            PrimitiveType::Uint16 => self.add_u16(downcast_as(v).unwrap()),
+            PrimitiveType::Uint32 => self.add_u32(downcast_as(v).unwrap()),
+            PrimitiveType::Float32 => self.add_f32(downcast_as(v).unwrap()),
+            PrimitiveType::Float64 => self.add_f64(downcast_as(v).unwrap()),
         }
     }
 }
