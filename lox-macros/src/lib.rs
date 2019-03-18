@@ -29,8 +29,10 @@ pub fn mesh(input: TokenStream) -> TokenStream {
 
 /// Custom derive for the `Empty` trait.
 ///
-/// Only works on structs. All fields must implement `Empty` in order for this
-/// to work.
+/// See [the documentation of the `Empty` trait in `lox`][trait] for more information
+/// about this derive.
+///
+/// [trait]: ../lox/traits/trait.Empty.html
 #[proc_macro_derive(Empty)]
 pub fn derive_empty(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
