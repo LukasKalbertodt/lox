@@ -23,38 +23,33 @@
 //! # Reading
 //!
 //! Most of the time, you don't even need to look in this module as you can
-//! simply use [`io::read`][read] to read mesh files. If however, you want to
-//! only read `stl` files, you can use [`stl::read()`] instead. If you need
+//! simply use [`io::read_file`][read_file] to read mesh files. If you need
 //! more control over the reading process, take a look at [the STL
 //! `Reader`][stl::Reader].
 //!
 //!
 //! # Writing
 //!
-//! You can usually just use [`io::write`][write] to write meshes to files. If
-//! however, you want to only write `stl` files and don't want to specify the
-//! file format via the file extension, you can use [`stl::write()`] instead.
-//! If you need more control over the writing process, take a look at [the STL
-//! `Writer`][stl::Writer].
+//! You can usually just use [`io::write_file`][write_file] to write meshes to
+//! files. If you need more control over the writing process, take a look at
+//! [the STL `Writer`][stl::Writer].
 //!
 //!
 //! # Raw APIs
 //!
-//! If you need full low-level control, you can use [`write_raw`][stl::write_raw]
-//! or [`Reader::read_raw`][stl::Reader::read_raw]. This is usually not necessary.
+//! If you need full low-level control, you can use
+//! [`Writer::write_raw`][stl::Writer::write_raw] or
+//! [`Reader::read_raw`][stl::Reader::read_raw]. This is usually not necessary.
 
 use std::{
     convert::TryFrom,
-    fs::File,
-    io,
-    path::Path,
 };
 
 use crate::{
     self as lox, // for proc macros
     Empty,
     io::{
-        FileEncoding, EncodingNotSupported, StreamSink, MemSink, MemSource, Error,
+        FileEncoding, EncodingNotSupported,
         util::IsFormat,
     },
 };
@@ -88,67 +83,6 @@ pub(super) fn is_file_start(data: &[u8]) -> IsFormat {
         IsFormat::No
     }
 }
-
-/// Like [`io::read`][lox::io::read], but always reads the file as STL file
-/// (vertices are being unified).
-///
-/// If you need more control about how and what to read, take a look at
-/// [`Reader`].
-///
-///
-/// # Example
-///
-/// ```no_run
-/// use lox::{
-///     ds::FaceDelegateMesh,
-///     fat::MiniMesh,
-///     io::stl,
-/// };
-///
-/// let mesh: MiniMesh<FaceDelegateMesh> = stl::read("foo.stl")?;
-///
-/// // This also tries to read the file as STL (and will return an error, since
-/// // the file is probably not a valid STL file).
-/// let mesh: MiniMesh<FaceDelegateMesh> = stl::read("foo.other-format")?;
-/// # Ok::<_, lox::io::Error>(())
-/// ```
-pub fn read<T: Empty + MemSink, P: AsRef<Path>>(path: P) -> Result<T, Error> {
-    T::create_from(Reader::open(path)?)
-}
-
-/// Like [`io::write`][lox::io::write], but always writes the file as binary
-/// STL file.
-///
-/// If you need more control about how and what to write, take a look at
-/// [`Writer`].
-///
-///
-/// # Example
-///
-/// ```no_run
-/// use lox::{
-///     prelude::*,
-///     ds::FaceDelegateMesh,
-///     fat::MiniMesh,
-///     io::stl,
-/// };
-///
-/// let mesh = MiniMesh::<FaceDelegateMesh>::empty(); // dummy mesh
-/// stl::write("foo.stl", &mesh)?;
-///
-/// // This also writes the mesh as STL file, regardless of the file name. No
-/// // idea why you would do such a thing though.
-/// stl::write("foo.other-format", &mesh)?;
-/// # Ok::<_, lox::io::Error>(())
-/// ```
-pub fn write<T: MemSource, P: AsRef<Path>>(path: P, src: &T) -> Result<(), Error> {
-    let file = io::BufWriter::new(File::create(path)?);
-
-    Config::binary()
-        .into_writer(file)
-        .transfer_from(src)
-}
-
 
 /// The two different encodings of STL files.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

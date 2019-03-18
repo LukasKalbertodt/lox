@@ -31,9 +31,9 @@
 //! # Reading and writing
 //!
 //! Most of the time you don't even need to look into this module, but can
-//! instead use the functions in the `io` module, like [`read`] or [`write`].
-//! If you need a bit more control, take a look at [`Writer`][ply::Writer] and
-//! [`Reader`][ply::Reader].
+//! instead use the functions in the `io` module, like [`read_file`] or
+//! [`write_file`]. If you need a bit more control, take a look at
+//! [`Writer`][ply::Writer] and [`Reader`][ply::Reader].
 //!
 //!
 //! # Raw APIs
@@ -43,16 +43,9 @@
 //! [`Reader::read_raw`][ply::Reader::read_raw]. However, this is usually not
 //! necessary.
 
-use std::{
-    io,
-    fs::File,
-    path::Path,
-};
-
 use crate::{
-    Empty,
     io::{
-        Error, FileEncoding, StreamSink, MemSink, MemSource,
+        FileEncoding,
         util::IsFormat,
     },
 };
@@ -82,25 +75,6 @@ pub(super) fn is_file_start(data: &[u8]) -> IsFormat {
     } else {
         IsFormat::No
     }
-}
-
-/// Reads the PLY file with the given filename into an empty instance of `T`
-/// and returns that instance.
-///
-/// If you need more control about how and what to read, take a look at
-/// [`Reader`].
-///
-/// TODO: Example
-pub fn read<T: Empty + MemSink, P: AsRef<Path>>(path: P) -> Result<T, Error> {
-    T::create_from(Reader::open(path)?)
-}
-
-pub fn write<T: MemSource, P: AsRef<Path>>(path: P, src: &T) -> Result<(), Error> {
-    let file = io::BufWriter::new(File::create(path)?);
-
-    Config::binary()
-        .into_writer(file)
-        .transfer_from(src)
 }
 
 
