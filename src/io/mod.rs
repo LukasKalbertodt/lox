@@ -1,34 +1,31 @@
 //! TODO
 //!
 //!
-//! # Informal interface of format submodules
-//!
-//! All submodules that represent a file format (e.g. `ply`) have a similar
-//! interface: they export many symbols with the same name. This interface is
-//! not checked by the compiler (no traits are involved), but it's useful for
-//! users and library authors to make all those modules look about the same.
-//!
-//! Here is an informal description of said interface:
-//! - **`fn read`**: has the same signature as [`io::read`] and works exactly
-//!   the same, except that it reads the file in the specific format and does
-//!   not guess the format.
-//! - **`fn write`**: has the same signature as [`io::write`] and works exactly
-//!   the same, except that it writes the file in the specific format and does
-//!   not guess the format.
-//! - **`Reader`**: a type that implements [`StreamSource`][io::StreamSource].
-//! - **`Writer`**: a type that implements [`StreamSink`][io::StreamSink].
-//! - **`const FILE_EXTENSIONS: &[&str]`**: a list of file name extensions used
-//!   by that format (usually, it's only one extension, thus one element in the
-//!   slice). The slice must contain at least one element. The first element is
-//!   the most commonly used/preferred extension.
-//! - **`is_file_start`**: checks if the given data is a valid start of a file
-//!   in the specific format. This is used to guess the file format of a given
-//!   file. If the file is ≤ 1024 bytes large, the full file is given to this
-//!   function, otherwise the first 1024 bytes are passed. This function is
-//!   only supposed to do quick checks: it shouldn't attempt to parse the
-//!   beginning of the file, but instead only look for magic numbers or similar
-//!   things.
-//! - TODO
+
+// ----- Informal interface of format submodules ------------------------------
+//
+// All submodules that represent a file format (e.g. `ply`) have a similar
+// interface: they export many symbols with the same name. This interface is
+// not checked by the compiler (no traits are involved), but it's useful for
+// users and library authors to make all those modules look about the same.
+//
+// Here is an informal description of said interface:
+// - **`Config`**: a type with `into_writer` method. Should be public.
+// - **`Reader`**: a type that implements [`StreamSource`][io::StreamSource].
+//   Should be public.
+// - **`Writer`**: a type that implements [`StreamSink`][io::StreamSink].
+//   Should be public.
+// - **`const FILE_EXTENSIONS: &[&str]`**: a list of file name extensions used
+//   by that format (usually, it's only one extension, thus one element in the
+//   slice). The slice must contain at least one element. The first element is
+//   the most commonly used/preferred extension. Should be `pub(super)`.
+// - **`is_file_start`**: checks if the given data is a valid start of a file
+//   in the specific format. This is used to guess the file format of a given
+//   file. If the file is ≤ 1024 bytes large, the full file is given to this
+//   function, otherwise the first 1024 bytes are passed. This function is
+//   only supposed to do quick checks: it shouldn't attempt to parse the
+//   beginning of the file, but instead only look for magic numbers or similar
+//   things. Should be `pub(super)`.
 
 use std::{
     fmt,
