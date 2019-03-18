@@ -302,6 +302,26 @@ impl FileFormat {
         }
     }
 
+    /// Returns the reader object of the given format.
+    ///
+    /// The reader is already monomorphized with the underlying `io::Read`
+    /// object plus the sink type. This has the disadvantage that you have to
+    /// already specify the types on this method. But we do get a significant
+    /// speed advantage. See [`DynStreamSource`] for more information.
+    pub fn reader<'a, SinkT, R>(&self, r: R) -> Result<Box<dyn DynStreamSource<SinkT> + 'a>, Error>
+    where
+        SinkT: MemSink,
+        R: 'a + io::Read,
+    {
+        let out = match self {
+            FileFormat::Stl => Box::new(stl::Reader::new(r)?)
+                as Box<dyn DynStreamSource<SinkT> + 'a>,
+            FileFormat::Ply => Box::new(ply::Reader::new(r)?),
+        };
+
+        Ok(out)
+    }
+
     // TODO: add `writer_with_encoding`
 }
 
@@ -755,7 +775,36 @@ impl ColorType {
 // ==========================================================================
 
 pub trait StreamSource {
-    fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error>;
+    fn transfer_to<SinkT: MemSink>(self, sink: &mut SinkT) -> Result<(), Error>;
+}
+
+/// An object-safe [`StreamSource`] companion trait. This is only useful for
+/// use as trait-object.
+///
+/// The trait `StreamSource` has a method with generic parameter and thus is
+/// not object-safe (i.e. cannot be made into a trait-object). This is OK for
+/// most uses, but sometimes a dynamically dispatched source is necessary.
+/// That's what this trait is for. It moves the generic `SinkT` parameter from
+/// the method to the trait to make it possible ot have a
+/// `dyn DynStreamSink<MySource>`.
+///
+/// For more information, see [`DynStreamSink`] which works exactly like this
+/// trait (but for sinks).
+///
+/// This trait is automatically implemented for all types that implement
+/// [`StreamSource`].
+pub trait DynStreamSource<SinkT: MemSink> {
+    fn transfer_to(self: Box<Self>, sink: &mut SinkT) -> Result<(), Error>;
+}
+
+impl<T, SinkT> DynStreamSource<SinkT> for T
+where
+    SinkT: MemSink,
+    T: StreamSource,
+{
+    fn transfer_to(self: Box<Self>, sink: &mut SinkT) -> Result<(), Error> {
+        StreamSource::transfer_to(*self, sink)
+    }
 }
 
 /// A type that can receive and store mesh data in any order.
@@ -970,7 +1019,7 @@ pub trait StreamSink {
     fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Error>;
 }
 
-/// A object-safe [`StreamSink`] companion trait. This is only useful for use
+/// An object-safe [`StreamSink`] companion trait. This is only useful for use
 /// as trait-object.
 ///
 /// The trait `StreamSink` has a method with generic parameter and thus is not
