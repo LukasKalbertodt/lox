@@ -1,14 +1,10 @@
 use failure::Error;
 
-#[allow(unused_imports)]
 use lox::{
-    MemSink,
     algo,
-    ds::{FaceDelegateMesh, SharedVertexMesh, HalfEdgeMesh},
+    ds::FaceDelegateMesh,
     fat::MiniMesh,
     io,
-    map::VecMap,
-    prelude::*,
 };
 
 type MyMesh = MiniMesh<FaceDelegateMesh>;
