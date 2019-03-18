@@ -29,9 +29,9 @@ fn from_extension_none() {
 }
 
 #[test]
-fn extension() {
-    assert_eq!(FileFormat::Ply.extension(), "ply");
-    assert_eq!(FileFormat::Stl.extension(), "stl");
+fn extensions() {
+    assert_eq!(FileFormat::Ply.extensions(), ["ply"]);
+    assert_eq!(FileFormat::Stl.extensions(), ["stl"]);
 }
 
 #[test]

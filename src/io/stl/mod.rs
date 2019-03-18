@@ -73,11 +73,11 @@ pub use self::write::{Config, Writer};
 // ----------------------------------------------------------------------------
 
 /// File name extentions used for this file format: `.stl`.
-pub const FILE_EXTENSIONS: &[&str] = &["stl"];
+pub(super) const FILE_EXTENSIONS: &[&str] = &["stl"];
 
 /// Check if the given data from the start of the file is a valid STL file
 /// start.
-pub fn is_file_start(data: &[u8]) -> IsFormat {
+pub(super) fn is_file_start(data: &[u8]) -> IsFormat {
     if data.len() >= 5 && &data[..5] == b"solid" {
         IsFormat::Probably
     } else if data.len() >= 84 {

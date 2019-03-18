@@ -72,11 +72,11 @@ pub use self::write::{Config, Writer};
 // ----------------------------------------------------------------------------
 
 /// File name extentions used for this file format: `.ply`.
-pub const FILE_EXTENSIONS: &[&str] = &["ply"];
+pub(super) const FILE_EXTENSIONS: &[&str] = &["ply"];
 
 /// Check if the given data from the start of the file is a valid PLY file
 /// start.
-pub fn is_file_start(data: &[u8]) -> IsFormat {
+pub(super) fn is_file_start(data: &[u8]) -> IsFormat {
     if data.len() >= 4 && &data[..4] == b"ply\n" {
         IsFormat::Probably
     } else {

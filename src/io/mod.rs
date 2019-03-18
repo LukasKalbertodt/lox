@@ -255,19 +255,33 @@ impl FileFormat {
         }
     }
 
-    /// Returns the file name extension used for this file format (e.g. `"ply"`
-    /// for `Ply`).
+    /// Returns the file name extensions used for this file format (e.g.
+    /// `["ply"]` for `Ply`).
     ///
-    /// If there are multiple extensions that can be used for this file format,
-    /// the recommended or most used one is returned. The returned extension is
-    /// always lowercase.
-    pub fn extension(&self) -> &'static str {
-        // We can just return the first element, as our informal module
-        // interface requires that to be the recommended extesion (see module
-        // documentation).
+    /// Sometimes multiple extensions can be used for a file format. The
+    /// recommended or most used one is always the first element in the
+    /// returned slice. The returned extension is always lowercase. The
+    /// returned slice is never empty.
+    pub fn extensions(&self) -> &'static [&'static str] {
         match self {
-            FileFormat::Ply => ply::FILE_EXTENSIONS[0],
-            FileFormat::Stl => stl::FILE_EXTENSIONS[0],
+            FileFormat::Ply => ply::FILE_EXTENSIONS,
+            FileFormat::Stl => stl::FILE_EXTENSIONS,
+        }
+    }
+
+    /// Checks if the given data is a valid start of a file in the specific
+    /// format.
+    ///
+    /// This method only does quick checks and does not attempt to already
+    /// parse the header.
+    ///
+    /// The given `data` has to be at least 1024 bytes long if the file is >=
+    /// 1024 bytes long; otherwise `data` must contain the full file. It is
+    /// passed to the `is_file_start` functions from the format submodules.
+    pub fn is_file_start(&self, data: &[u8]) -> IsFormat {
+        match self {
+            FileFormat::Ply => ply::is_file_start(data),
+            FileFormat::Stl => stl::is_file_start(data),
         }
     }
 
