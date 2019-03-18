@@ -162,14 +162,51 @@ where
 }
 
 
-/// Writes mesh defined by the given source to the file with the given filename
-/// (the file is created/overwritten).
+/// Writes the mesh defined by `src` with the given format to the given writer.
+///
+/// If possible, (native) binary encoding is used. If you really need to write
+/// a file in ASCII encoding, use the corresponding `Writer` type in the file
+/// format module.
+///
+/// If you want to write to files, [`write_file`] is the more convenient
+/// function. If you still want to use this function to write to a file, you
+/// should wrap the file into a `BufWriter` as unbuffered write operations are
+/// fairly slow.
+///
+/// ```
+/// use std::io::stdout;
+/// use lox::{
+///     prelude::*,
+///     ds::SharedVertexMesh,
+///     fat::MiniMesh,
+///     io::{self, FileFormat},
+/// };
+///
+/// // Writing to stdout
+/// let dummy = MiniMesh::<SharedVertexMesh>::empty();
+/// io::write_to(FileFormat::Ply, &dummy, stdout())?;
+/// # Ok::<_, io::Error>(())
+/// ```
+pub fn write_to<SrcT, W>(format: FileFormat, src: &SrcT, writer: W) -> Result<(), Error>
+where
+    SrcT: MemSource,
+    W: io::Write,
+{
+    format.writer(writer).transfer_from(src)
+}
+
+
+/// Writes the mesh defined by `src` to the file with the given filename (the
+/// file is created/overwritten).
 ///
 /// This function tries to automatically determine the file format from the
 /// filename extension. If the format couldn't be determined because it's
 /// unknown or ambiguous, `Error::FormatUnknown` is returned. To explicitly
-/// specify the file format, use the `write` functions from the format modules
-/// (like `ply::write`).
+/// specify the file format, use the [`write_to`] function.
+///
+/// If possible, (native) binary encoding is used. If you really need to write
+/// a file in ASCII encoding, use the corresponding `Writer` type in the file
+/// format module.
 ///
 /// ```no_run
 /// use lox::{
@@ -180,10 +217,14 @@ where
 /// };
 ///
 /// let dummy = MiniMesh::<FaceDelegateMesh>::empty();
-/// io::write("foo.ply", &dummy)?;
+/// io::write_file("foo.ply", &dummy)?;
 /// # Ok::<_, io::Error>(())
 /// ```
-pub fn write<T: MemSource, P: AsRef<Path>>(path: P, src: &T) -> Result<(), Error> {
+pub fn write_file<SrcT, P>(path: P, src: &SrcT) -> Result<(), Error>
+where
+    SrcT: MemSource,
+    P: AsRef<Path>,
+{
     // We have this inner method which takes a `&Path` directly to reduce the
     // number of instantiations of the outer function. These "convenience"
     // generics can actually often result in bloated binaries.
@@ -193,14 +234,25 @@ pub fn write<T: MemSource, P: AsRef<Path>>(path: P, src: &T) -> Result<(), Error
 
         // Write the file
         let file = io::BufWriter::new(File::create(path)?);
-        match format {
-            FileFormat::Stl => stl::Config::binary().into_writer(file).transfer_from(src),
-            FileFormat::Ply => unimplemented!(),
-        }
+        write_to(format, src, file)
     }
 
     inner(path.as_ref(), src)
 }
+
+/// Writes the mesh defined by `src` with the given format to memory (into a
+/// `Vec<u8>`).
+///
+/// This is just a convenience wrapper for [`read_from`].
+pub fn write_to_mem<SrcT>(format: FileFormat, src: &SrcT) -> Result<Vec<u8>, Error>
+where
+    SrcT: MemSource,
+{
+    let mut v = Vec::new();
+    write_to(format, src, &mut v)?;
+    Ok(v)
+}
+
 
 
 // TODO: add the following trait once GATs are available. Implement trait for
@@ -454,7 +506,7 @@ pub enum Error {
     /// An error while parsing input data.
     ///
     /// Whenever a file (or generally, a stream) is parsed as a specific format
-    /// and the file isn't valid, this error is returned. See [`parse::Error`]
+    /// and the file isn't valid, this error is returned. See [`ParseError`]
     /// for more information.
     ///
     /// If you encounter this error, here is what you can do: make sure your
@@ -491,7 +543,7 @@ pub enum Error {
     /// If you encounter this error, here is what you can do:
     /// - If you own the sink: either change the type of your properties or use
     ///   a more relaxed casting mode (if you derived `MemSink`, you can add
-    ///   `#[lox(vertex_position(cast = lossy))])` to your vertex position
+    ///   `#[lox(vertex_position(cast = "lossy"))])` to your vertex position
     ///   field.
     /// - Otherwise: choose a different sink that supports your source's data
     ///   or choose a different source that only provides data compatible with
