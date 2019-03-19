@@ -15,5 +15,6 @@ matrix:
       script:
         - cargo build --all --verbose || travis_terminate 1
         - cargo test --all --verbose || travis_terminate 1
+        - cargo doc --no-deps --verbose || travis_terminate 1
       # speeds up travis build
       cache: cargo
