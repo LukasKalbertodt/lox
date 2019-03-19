@@ -9,14 +9,6 @@ use lox::{
 };
 
 
-pub fn encoding_str(encoding: FileEncoding) -> &'static str {
-    match encoding {
-        FileEncoding::Ascii => "ASCII",
-        FileEncoding::BinaryLittleEndian => "little endian binary",
-        FileEncoding::BinaryBigEndian => "big endian binary",
-    }
-}
-
 /// The encoding the user requested.
 #[derive(Debug, Clone, Copy)]
 pub enum EncodingRequest {

@@ -1,5 +1,4 @@
 use std::{
-    convert::{TryInto},
     fs::File,
     io::{Seek, Read, SeekFrom, BufWriter},
     time::Instant,
@@ -24,7 +23,6 @@ mod util;
 
 use crate::{
     opt::Opt,
-    util::encoding_str,
 };
 
 
@@ -156,7 +154,7 @@ fn load_file(opt: &Opt) -> Result<AnyMesh, Error> {
                             "{}: {} ({} encoding)",
                             Color::Blue.bold().paint("⟨ℹ⟩ Source format"),
                             file_format,
-                            encoding_str(FileEncoding::from(reader.encoding())),
+                            FileEncoding::from(reader.encoding()),
                         );
 
                         Box::new(reader) as Box<dyn DynStreamSource<_>>
@@ -208,26 +206,15 @@ fn write_file(opt: &Opt, data: &AnyMesh) -> Result<(), Error> {
         "{}: {} ({} encoding)",
         Color::Blue.bold().paint("⟨ℹ⟩ Target format"),
         file_format,
-        encoding_str(encoding),
+        encoding,
     );
 
     let file = BufWriter::new(File::create(&opt.target)?);
+    let writer = file_format.writer_with_encoding(encoding, file).unwrap();
 
-    match file_format {
-        FileFormat::Ply => {
-            unimplemented!()
-        }
-        FileFormat::Stl => {
-            print!("⟨￩⟩ Writing mesh ...");
-
-            stl::Config::new(encoding.try_into().unwrap())
-                .into_writer(file)
-                .transfer_from(data)?;
-
-            println!(" done");
-        }
-        _ => bail!("File format '{}' not supported", file_format),
-    }
+    print!("⟨￩⟩ Writing mesh ...");
+    writer.transfer_from(data)?;
+    println!(" done");
 
     Ok(())
 }
