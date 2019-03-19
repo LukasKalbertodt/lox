@@ -12,6 +12,8 @@
 #![feature(associated_type_defaults)]
 
 #![deny(missing_debug_implementations)]
+#![deny(intra_doc_link_resolution_failure)]
+
 
 pub extern crate cgmath;
 

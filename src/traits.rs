@@ -144,7 +144,7 @@ pub trait MeshMut: Mesh {
     fn add_vertex(&mut self) -> VertexHandle;
 
     /// Removes all vertices of this mesh. This can be more efficient than
-    /// calling [`remvove_vertex`](TODO) for each vertex individually.
+    /// calling `remove_vertex` (TODO: link) for each vertex individually.
     ///
     /// The caller of this method has to make sure that all vertices of this
     /// mesh are unconnected. In other words, there must not be any edges or
@@ -185,7 +185,7 @@ pub trait MeshMut: Mesh {
     fn remove_all_vertices(&mut self);
 
     /// Removes all faces of this mesh. This can be more efficient than calling
-    /// [`remvove_face`](TODO) for each face individually.
+    /// `remove_face` (TODO: link) for each face individually.
     fn remove_all_faces(&mut self);
 
     /// Reserves memory for `count` additional vertices.
