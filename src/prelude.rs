@@ -15,7 +15,7 @@ pub use crate::{
     map::{PropMap, PropStore, PropStoreMut},
     prop::{ColorLike, Pos3Like, Vec3Like},
     io::{
-        StreamSource, StreamSink, MemSource, MemSink,
+        StreamSource, StreamSink, MemSource, MemSink, DynStreamSource, DynStreamSink,
         util::{MemSourceExt},
     },
     traits::{
