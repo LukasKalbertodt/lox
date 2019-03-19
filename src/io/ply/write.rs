@@ -60,7 +60,7 @@ pub struct Config {
 impl Config {
     /// Creates a new configuration with binary encoding (native endianess).
     pub fn binary() -> Self {
-        Self::new(Encoding::native_binary())
+        Self::new(Encoding::binary_native())
     }
 
     /// Creates a new configuration with ASCII encoding. *Try avoid using ASCII

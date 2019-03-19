@@ -94,7 +94,7 @@ pub enum Encoding {
 impl Encoding {
     /// Returns the binary encoding with native endianess (little endian on
     /// x86).
-    pub fn native_binary() -> Self {
+    pub fn binary_native() -> Self {
         if cfg!(target_endian = "big") {
             Encoding::BinaryBigEndian
         } else {
