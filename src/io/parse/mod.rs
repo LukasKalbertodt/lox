@@ -18,7 +18,7 @@ use crate::{
 
 mod buf;
 
-pub(crate) use buf::Buffer;
+pub(crate) use buf::{Buffer, MAX_BUFFER_SIZE};
 
 
 /// A parse buffer: a buffered reader that offers methods for parsing binary or
@@ -249,15 +249,12 @@ impl fmt::Display for Span {
 #[derive(Debug, Fail)]
 pub enum ParseError {
     /// Data was expected, but EOF was encountered at the given offset.
-    #[fail(display = "unexpected EOF while parsing (at {})", _0)]
     UnexpectedEof(usize),
 
     /// EOF was expected, but additional data was found.
-    #[fail(display = "expected EOF, but additional data was found")]
     UnexpectedAdditionalData,
 
     /// ASCII data was expected, but non-ASCII bytes were found.
-    #[fail(display = "unexpected non-ASCII data at {}", _0)]
     NotAscii(Span),
 
     /// The internal parse buffer got too big (larger than
@@ -267,16 +264,52 @@ pub enum ParseError {
     /// time. So this either means a very degenerate file was loaded or the
     /// parser is buggy. In either way, we don't want to die the slow OOM
     /// death, but rather error right away.
-    #[fail(
-        display = "parsing lookahead got too big (due to a really degenerated \
-            file or a parser bug)"
-    )]
-    LookAheadTooBig,
+    ///
+    /// Sometimes the parser can point to a part of the input file that caused
+    /// the large lookahead. This is usually some kind of length field (which
+    /// was probably corrupted to contain a really huge length). That's what
+    /// the span is for.
+    LookAheadTooBig(Option<Span>),
 
     /// A custom error message with an attached span.
-    #[fail(display = "{} (at {})", _0, _1)]
     Custom(String, Span)
 }
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ParseError::UnexpectedEof(at) => {
+                write!(f, "unexpected EOF while parsing (at {})", at)
+            }
+            ParseError::UnexpectedAdditionalData => {
+                write!(f, "expected EOF, but additional data was found")
+            }
+            ParseError::NotAscii(span) => {
+                write!(f, "unexpected non-ASCII data at {}", span)
+            }
+            ParseError::LookAheadTooBig(len_span) => {
+                if let Some(len_span) = len_span {
+                    write!(
+                        f,
+                        "parsing lookahead got too big (probably due to a \
+                            corrupted length field at {})",
+                        len_span,
+                    )
+                } else {
+                    write!(
+                        f,
+                        "parsing lookahead got too big (due to a really degenerated \
+                            file or a parser bug)",
+                    )
+                }
+            }
+            ParseError::Custom(msg, span) => {
+                write!(f, "{} (at {})", msg, span)
+            }
+        }
+    }
+}
+
 
 /// Something that decides when to stop traversing a byte stream. Used for
 /// `ParseBuf::skip_until` and `ParseBuf::take_until`.

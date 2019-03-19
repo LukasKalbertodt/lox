@@ -12,7 +12,7 @@
 
 use std::{
     cmp::min,
-    convert::TryInto,
+    convert::{TryFrom, TryInto},
     fs::File,
     io,
     path::Path,
@@ -26,7 +26,7 @@ use crate::{
     handle::hsize,
     io::{
         StreamSource, MemSink, Primitive, Error,
-        parse::{self, ParseError, Span, Buffer, ParseBuf},
+        parse::{self, ParseError, Span, Buffer, ParseBuf, MAX_BUFFER_SIZE},
         util::IndexHandleMap,
     },
     prop::ColorLike,
@@ -1182,6 +1182,8 @@ fn read_element_binary_native(
         let len: RawOffset = match *prop_len {
             TypeLen::Scalar(len) => len.into(),
             TypeLen::List { len_len, scalar_len } => {
+                let offset_before = buf.offset();
+
                 // Read the list lenght. The type of this property is a list
                 // (the index says so), so we can unwrap here.
                 let list_len = read_binary_len(
@@ -1192,7 +1194,11 @@ fn read_element_binary_native(
                 )?;
                 offset += len_len;
 
-                RawOffset::from(list_len * (scalar_len.as_u8() as u32))
+                let data_len = list_data_len(list_len, scalar_len).ok_or_else(|| {
+                    let span = Span::new(offset_before, buf.offset());
+                    ParseError::LookAheadTooBig(Some(span))
+                })?;
+                RawOffset::from(data_len)
             }
         };
 
@@ -1220,6 +1226,8 @@ fn read_element_binary_swapped(
                 raw_elem.data[start..].reverse();
             }
             TypeLen::List { len_len, scalar_len } => {
+                let offset_before = buf.offset();
+
                 // Read the list lenght. The type of this property is a list
                 // (the index says so), so we can unwrap here.
                 let list_len = read_binary_len(
@@ -1231,7 +1239,10 @@ fn read_element_binary_swapped(
 
                 // Calculate the total list length and load the raw data (still
                 // in non-native endianess).
-                let data_len = list_len * (scalar_len as u32);
+                let data_len = list_data_len(list_len, scalar_len).ok_or_else(|| {
+                    let span = Span::new(offset_before, buf.offset());
+                    ParseError::LookAheadTooBig(Some(span))
+                })?;
                 read_bytes_into(buf, data_len as usize, &mut raw_elem.data)?;
 
                 // Swap bytes of list elements
@@ -1246,6 +1257,12 @@ fn read_element_binary_swapped(
     }
 
     Ok(())
+}
+
+fn list_data_len(list_len: u32, scalar_len: ScalarLen) -> Option<u32> {
+    u32::try_from((list_len as u64) * (scalar_len as u64))
+        .ok()
+        .filter(|data_len| (*data_len as usize) < MAX_BUFFER_SIZE)
 }
 
 // Reads until the next whitespace or linebreak and tries to parse the string
