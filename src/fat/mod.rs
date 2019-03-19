@@ -12,6 +12,10 @@ use crate::{
     map::{PropMap, VecMap},
     traits::{TriMeshMut, TriVerticesOfFace},
 };
+pub use self::any::AnyMesh;
+
+pub mod any;
+
 
 
 /// A fat mesh that only stores connectivity and `f32` vertex positions.
