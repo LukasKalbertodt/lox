@@ -18,7 +18,7 @@ use crate::{
     },
     util::MeshSizeHint,
 };
-use super::{Encoding, RawTriangle, RawResult};
+use super::{Encoding, RawTriangle, RawStorage};
 
 
 
@@ -322,15 +322,15 @@ impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
         self.triangle_count
     }
 
-    /// Reads the whole file into a [`RawResult`].
+    /// Reads the whole file into a [`RawStorage`].
     ///
     /// Usually you either want to use a higher level interface (via
     /// [`StreamSource`]) or the method [`Reader::read_raw`]. The latter is the
     /// streaming version of this method which doesn't require a temporary
-    /// storage ([`RawResult`]).
-    pub fn into_raw_result(self) -> Result<RawResult, Error> {
+    /// storage ([`RawStorage`]).
+    pub fn into_raw_storage(self) -> Result<RawStorage, Error> {
         // Prepare the raw result with metadata and memory allocations.
-        let mut out = RawResult::empty();
+        let mut out = RawStorage::empty();
         out.solid_name = self.solid_name.clone();
         if let Some(tri_count) = self.triangle_count {
             out.triangles.reserve(tri_count as usize);

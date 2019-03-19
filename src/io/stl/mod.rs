@@ -89,12 +89,12 @@ pub enum Encoding {
 
 
 // ===========================================================================
-// ===== Raw data structures (`RawTriangle` and `RawResult`)
+// ===== Raw data structures (`RawTriangle` and `RawStorage`)
 // ===========================================================================
 
 /// A raw triangle in an STL file.
 ///
-/// This type is used in [`RawResult`]. If you don't use the low level `raw`
+/// This type is used in [`RawStorage`]. If you don't use the low level `raw`
 /// methods, you probably don't care about this type.
 #[derive(Debug, Clone, Copy)]
 pub struct RawTriangle {
@@ -116,11 +116,11 @@ pub struct RawTriangle {
 
 /// Holds the raw data from an STL file.
 ///
-/// To obtain a `RawResult`, call [`Reader::into_raw_result`]. See its
+/// To obtain a `RawStorage`, call [`Reader::into_raw_storage`]. See its
 /// documentation for more information. If you don't use the low level `raw`
 /// methods, you probably don't care about this type.
 #[derive(Empty, Debug, Clone)]
-pub struct RawResult {
+pub struct RawStorage {
     /// The solid name if it's specified in the file.
     pub solid_name: Option<String>,
 

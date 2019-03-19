@@ -10,5 +10,5 @@ fuzz_target!(|data: &[u8]| {
     // we also ignore the returned `Result` as it's fine if the parser says
     // "this is not a valid STL file".
     let data = Cursor::new(data);
-    let _ = Reader::new(data).map(|r| r.into_raw_result());
+    let _ = Reader::new(data).map(|r| r.into_raw_storage());
 });

@@ -11,7 +11,7 @@ use crate::{
     io::IsFormat,
     map::VecMap,
 };
-use super::{RawResult, Reader, Config, is_file_start};
+use super::{RawStorage, Reader, Config, is_file_start};
 
 
 // ===========================================================================
@@ -32,7 +32,7 @@ fn test_is_file_start() {
 // ===========================================================================
 // ===== Reading
 // ===========================================================================
-fn check_flat_data(res: &RawResult) {
+fn check_flat_data(res: &RawStorage) {
     assert_eq!(res.triangles.len(), 3);
 
     assert_eq!(res.triangles[0].normal, [0.0, 0.0, 1.0]);
@@ -61,7 +61,7 @@ fn check_flat_data(res: &RawResult) {
 #[test]
 fn read_flat_ascii() -> Result<(), Error> {
     let input = include_test_file!("flat_ascii.stl");
-    let res = Reader::new(input)?.into_raw_result()?;
+    let res = Reader::new(input)?.into_raw_storage()?;
 
     assert_eq!(res.solid_name, Some("MYSOLID".to_string()));
     check_flat_data(&res);
@@ -72,7 +72,7 @@ fn read_flat_ascii() -> Result<(), Error> {
 #[test]
 fn read_flat_binary() -> Result<(), Error> {
     let input = include_test_file!("flat_binary.stl");
-    let res = Reader::new(input)?.into_raw_result()?;
+    let res = Reader::new(input)?.into_raw_storage()?;
 
     assert_eq!(res.solid_name, None);
     check_flat_data(&res);
@@ -80,7 +80,7 @@ fn read_flat_binary() -> Result<(), Error> {
     Ok(())
 }
 
-fn check_cube_data(res: &RawResult) {
+fn check_cube_data(res: &RawStorage) {
     assert_eq!(res.triangles.len(), 12);
 
     // We only check the face at the very start, very end and somewhere in the
@@ -110,7 +110,7 @@ fn check_cube_data(res: &RawResult) {
 #[test]
 fn read_cube_ascii() -> Result<(), Error> {
     let input = include_test_file!("cube_ascii.stl");
-    let res = Reader::new(input)?.into_raw_result()?;
+    let res = Reader::new(input)?.into_raw_storage()?;
 
     assert_eq!(res.solid_name, Some("vcg".to_string()));
     check_cube_data(&res);
@@ -121,7 +121,7 @@ fn read_cube_ascii() -> Result<(), Error> {
 #[test]
 fn read_cube_binary() -> Result<(), Error> {
     let input = include_test_file!("cube_binary.stl");
-    let res = Reader::new(input)?.into_raw_result()?;
+    let res = Reader::new(input)?.into_raw_storage()?;
 
     assert_eq!(res.solid_name, Some("peter".to_string()));
     check_cube_data(&res);
