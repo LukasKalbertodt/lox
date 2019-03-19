@@ -1,6 +1,6 @@
 [package]
 name = "lox-fuzz"
-version = "0.0.1"
+version = "0.0.0"
 authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
 publish = false
 edition = "2018"
@@ -13,10 +13,6 @@ path = ".."
 
 [dependencies.libfuzzer-sys]
 git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
-
-# Prevent this from interfering with workspaces
-[workspace]
-members = ["."]
 
 [[bin]]
 name = "stl-parser"
