@@ -1152,7 +1152,7 @@ fn read_binary_len(
     match ty {
         ListLenType::UChar => buf.with_bytes(1, |b| {
             out.extend_from_slice(&b.data);
-            Ok(b.data[offset] as u32)
+            Ok(b.data[0] as u32)
         }),
         ListLenType::UShort => buf.with_bytes(2, |b| {
             out.extend_from_slice(&b.data);
