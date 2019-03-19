@@ -46,7 +46,42 @@
 //!
 //! # Sources and Sinks
 //!
-//! TODO
+//! There are four traits at the core of this module:
+//! [`MemSource`][io::MemSource], [`StreamSource`][io::StreamSource],
+//! [`MemSink`][io::MemSink] and [`StreamSink`][io::StreamSink]. They abstract
+//! over all types that can provide or receive mesh data (connecitvity *and*
+//! property data). The `Mem*` variants can provide or receive data in
+//! arbitrary order (random access), while the `Stream*` variants cannot and
+//! are restricted to one particular access pattern. This has the following
+//! consequences:
+//!
+//! - We cannot transfer data from a `StreamSource` to a `StreamSink`, because
+//!   the source generally provides data in a different order than the sink
+//!   expects. Thus, at least one `Mem*` is required to transfer data.
+//! - When transferring mesh data from a source to a sink, the `Stream*`
+//!   variant has complete control over the order of data.
+//!
+//! As an example for different access orders, consider the mesh formats PLY
+//! and OBJ. Say we want to store vertices with a position and a normal. PLY
+//! stores a list of vertices where each vertex contains all its properties. On
+//! the other hand, OBJ stores all vertex positions, and *then* all vertex
+//! normals. In short:
+//!
+//! - PLY: `pos0 normal0 pos1 normal1 ... posn normaln`
+//! - OBJ: `pos0 pos1 ... posn normal0 normal1 ... normaln`
+//!
+//! You can't convert a PLY file to an OBJ file without having a temporary
+//! buffer containing all mesh data. Of course, a PLY to PLY conversion would
+//! work without temporary buffer, but this is a special case; if you want to
+//! avoid the temporary buffer there, you can't use the `Source`/`Sink` API.
+//!
+//! Apart from files, there are some other implementors of the `Stream*`
+//! traits. For example, there are many algorithms creating meshes
+//! algorithmically, e.g. simple shapes (see [`shape` module][crate::shape]) or
+//! triangulating iso-surfaces (compare: marching cubes and similar
+//! algorithms). These algorithms also create data in a specific order and
+//! cannot provide random access without having all data in memory already.
+//!
 //!
 //!
 //! # File Formats
@@ -57,8 +92,10 @@
 //! choose, do not use ASCII encoding unless you have a good reason to (this
 //! encoding is very space inefficient and slow).
 //!
-//! The following table shows a comparison. `✔*` means that the property is
-//! non-optional.
+//! The following table shows a comparison. Symbol explanation for properties:
+//! - `✘`: property *not* supported (cannot be stored in the file)
+//! - `✔`: property supported (can be stored in the file)
+//! - `✔*`: non-optional property (always has to be stored in the file)
 //!
 //! | Format | Connectivity | Memory Efficiency | V-Normal | V-Color | F-Normal | F-Color |
 //! | ------ | ------------ | ----------------- | -------- | ------- | -------- | ------- |
@@ -886,7 +923,27 @@ impl ColorType {
 // ===== {Streaming/Mem}-Sinks and Sources
 // ==========================================================================
 
+/// A type that stores mesh data which can only be accessed in the order
+/// defined by this type.
+///
+/// This trait is mostly implemented by `Reader` types for specific file
+/// formats or algorithms that create mesh data on the fly (like types in the
+/// [`shape` module][crate::shape]).
+///
+/// The mesh data can be transferred to a [`MemSink`]. The important part is
+/// that the `StreamSource` can decide in what order the mesh data is
+/// transferred. The `MemSink` has to be able to accept the data in any order.
 pub trait StreamSource {
+    /// Transfers all of the mesh data in this source to the given sink.
+    ///
+    /// **For users of this method**: this function does not call
+    /// [`MemSink::finish`] to make it possible to chain multiple `transfer_to`
+    /// calls. Just remember to call `finish()` after your last `transfer_to`
+    /// call!
+    ///
+    /// **For implementors of this method**: there are several rules about the
+    /// interaction with the sink. See the documentation of [`MemSink`] for
+    /// more information about how to use its methods.
     fn transfer_to<SinkT: MemSink>(self, sink: &mut SinkT) -> Result<(), Error>;
 }
 
@@ -906,6 +963,8 @@ pub trait StreamSource {
 /// This trait is automatically implemented for all types that implement
 /// [`StreamSource`].
 pub trait DynStreamSource<SinkT: MemSink> {
+    /// Like [`StreamSource::transfer_to`], but the `SinkT` parameter is
+    /// already fixed in the trait.
     fn transfer_to(self: Box<Self>, sink: &mut SinkT) -> Result<(), Error>;
 }
 
@@ -948,7 +1007,7 @@ where
 /// There are some rules for the methods concerning properties: for each
 /// property (e.g. `vertex_position` or `face_normal`), the `prepare_*` method
 /// has to be called by the source before the `set_*` method can be called.
-/// Additionally, the `N` type parameter must be the same for all calls of
+/// Additionally, the type parameter must be the same for all calls of
 /// `prepare_*` and `set_*` of one property. The sink can rely on these rules.
 ///
 /// The handles passed to `set_` methods have to be handles returned
@@ -1127,8 +1186,22 @@ pub trait MemSink {
     {}
 }
 
+/// A type that can receive mesh data in an order defined by this type.
+///
+/// This trait is mostly implemented by `Writer` types for specific file
+/// formats.
+///
+/// The mesh data is transferred from a [`MemSource`]. The important part is
+/// that the `StreamSink` can decide in what order the mesh data is
+/// transferred. The `MemSource` has to be able to provide the data in any
+/// order (random access).
 pub trait StreamSink {
-    fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Error>;
+    /// Transfers all mesh data from `src` to this sink.
+    ///
+    /// **For implementors of this method**: take a look at the documentation
+    /// of [`MemSource`] for more information on how to interact with the
+    /// source. There are some important rules regarding this interaction.
+    fn transfer_from<SrcT: MemSource>(self, src: &SrcT) -> Result<(), Error>;
 }
 
 /// An object-safe [`StreamSink`] companion trait. This is only useful for use
@@ -1168,7 +1241,11 @@ where
 }
 
 
-/// ...
+/// A type that can provide mesh data in any order (random access).
+///
+/// This trait is mostly used to transfer mesh data to a [`StreamSink`]. In
+/// this kind of transfer, the `StreamSink` determines the order of the data,
+/// while the `MemSource` has to be able to provide the data in any order.
 ///
 ///
 /// # Rules regarding property methods
@@ -1202,7 +1279,10 @@ where
 /// All property methods have a default implemention which returns `None` and
 /// panics in `*_type` and `*` respectively.
 pub trait MemSource {
+    /// The type of the core mesh.
     type CoreMesh: Mesh + TriVerticesOfFace;
+
+    /// Returns the core mesh (storing the connectivity).
     fn core_mesh(&self) -> &Self::CoreMesh;
 
 
