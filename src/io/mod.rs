@@ -135,6 +135,7 @@
 //   things. Should be `pub(super)`.
 
 use std::{
+    convert::TryInto,
     fmt,
     fs::File,
     io::{self, Read, Seek, SeekFrom},
@@ -487,6 +488,11 @@ impl FileFormat {
     /// object plus the source type. This has the disadvantage that you have to
     /// already specify the types on this method. But we do get a significant
     /// speed advantage. See [`DynStreamSink`] for more information.
+    ///
+    /// The encoding is choosen depending on what the format supports. Native
+    /// binary encoding is preferred, followed by swapped-endianess binary,
+    /// followed by ASCII encoding. If you need to specify the encoding, take a
+    /// look at [`writer_with_encoding`][FileFormat::writer_with_encoding].
     pub fn writer<'a, SrcT, W>(&self, w: W) -> Box<dyn DynStreamSink<SrcT> + 'a>
     where
         SrcT: MemSource,
@@ -495,6 +501,39 @@ impl FileFormat {
         match self {
             FileFormat::Stl => Box::new(stl::Config::binary().into_writer(w)),
             FileFormat::Ply => Box::new(ply::Config::binary().into_writer(w)),
+        }
+    }
+
+    /// Returns the writer object of the given format and encoding.
+    ///
+    /// Works like [`writer`][FileFormat::writer], but you can specify the
+    /// encoding. If the encoding is not supported by the format,
+    /// `Error::EncodingNotSupported` is returned.
+    pub fn writer_with_encoding<'a, SrcT, W>(
+        &self,
+        encoding: FileEncoding,
+        w: W,
+    ) -> Result<Box<dyn DynStreamSink<SrcT> + 'a>, Error>
+    where
+        SrcT: MemSource,
+        W: 'a + io::Write,
+    {
+        let err = Error::EncodingNotSupported {
+            file_format: *self,
+            encoding,
+        };
+
+        macro_rules! writer {
+            ($module:ident) => {{
+                let encoding = encoding.try_into().map_err(|_| err)?;
+                let config = $module::Config::new(encoding);
+                Ok(Box::new(config.into_writer(w)))
+            }}
+        }
+
+        match self {
+            FileFormat::Ply => writer!(ply),
+            FileFormat::Stl => writer!(stl),
         }
     }
 
@@ -517,8 +556,6 @@ impl FileFormat {
 
         Ok(out)
     }
-
-    // TODO: add `writer_with_encoding`
 }
 
 impl fmt::Display for FileFormat {
@@ -704,6 +741,12 @@ pub enum Error {
     ///   magic number (e.g. *not* STL).
     /// - Specify the file format explicitly.
     FormatUnknown,
+
+    /// A file format does not support a specific encoding.
+    EncodingNotSupported {
+        file_format: FileFormat,
+        encoding: FileEncoding,
+    }
 }
 
 impl fmt::Display for Error {
@@ -740,6 +783,14 @@ impl fmt::Display for Error {
                 )
             }
             Error::FormatUnknown => write!(f, "unknown or ambiguous file format"),
+            Error::EncodingNotSupported { file_format, encoding } => {
+                write!(
+                    f,
+                    "file format {} does not support {} encoding",
+                    file_format,
+                    encoding,
+                )
+            }
         }
     }
 }
