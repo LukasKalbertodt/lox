@@ -535,6 +535,9 @@ impl fmt::Display for FileFormat {
 /// Not every format has to support all of these encodings (in fact, many
 /// formats only support one encoding). In some formats, the header is always
 /// stored in ASCII, but the body data can have different encodings.
+///
+/// The `fmt::Display` impl results in the strings `ASCII`, `big endian binary`
+/// and `little endian binary`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileEncoding {
     /// Everything is stored as an ASCII string. Generally, ASCII encodings are
@@ -560,6 +563,15 @@ impl FileEncoding {
     }
 }
 
+impl fmt::Display for FileEncoding {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            FileEncoding::Ascii => "ASCII",
+            FileEncoding::BinaryBigEndian => "big endian binary",
+            FileEncoding::BinaryLittleEndian => "little endian binary",
+        }.fmt(f)
+    }
+}
 
 /// Enumerates the supported kinds of mesh properties.
 ///
