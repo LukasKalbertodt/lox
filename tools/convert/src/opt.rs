@@ -1,7 +1,12 @@
 //! Defines `Opt` which is used to parse command line arguments.
 
+use structopt::StructOpt;
 use lox::{
-    io::{FileEncoding, FileFormat},
+    io::FileFormat,
+};
+
+use crate::{
+    util::EncodingRequest,
 };
 
 
@@ -31,9 +36,8 @@ pub struct Opt {
         short = "-e",
         long = "--target-encoding",
         default_value = "binary",
-        parse(try_from_str = "parse_file_encoding"),
     )]
-    pub target_encoding: FileEncoding,
+    pub target_encoding: EncodingRequest,
 
     /// Path to the source mesh file.
     pub source: String,
@@ -48,15 +52,5 @@ fn parse_file_format(src: &str) -> Result<FileFormat, String> {
         "ply" => Ok(FileFormat::Ply),
         "stl" => Ok(FileFormat::Stl),
         other => Err(format!("'{}' is currently not an accepted file format", other)),
-    }
-}
-
-fn parse_file_encoding(src: &str) -> Result<FileEncoding, String> {
-    match src {
-        "binary" => Ok(FileEncoding::binary_native()),
-        "bbe" => Ok(FileEncoding::BinaryBigEndian),
-        "ble" => Ok(FileEncoding::BinaryLittleEndian),
-        "ascii" => Ok(FileEncoding::Ascii),
-        other => Err(format!("'{}' is not a valid file encoding", other)),
     }
 }

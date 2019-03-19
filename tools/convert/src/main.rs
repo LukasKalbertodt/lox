@@ -1,12 +1,7 @@
-#![feature(try_from)]
-
-#[macro_use]
-extern crate structopt;
-
 use std::{
-    convert::TryFrom,
+    convert::{TryInto},
     fs::File,
-    io::BufWriter,
+    io::{Seek, Read, SeekFrom, BufWriter},
     time::Instant,
 };
 
@@ -15,23 +10,22 @@ use structopt::StructOpt;
 use term_painter::{ToStyle, Color};
 
 use lox::{
-    cgmath::Point3,
-    ds::SharedVertexMesh,
-    handle::DefaultInt,
-    map::VecMap,
-    io::{
-        FileEncoding, FileFormat, StreamSource, MemSink, MemSource,
-        StreamSink, Primitive, PrimitiveType,
-        stl,
-        ply,
-    },
     prelude::*,
+    fat::AnyMesh,
+    io::{
+        FileFormat, FileEncoding,
+        stl, ply,
+    },
 };
 
 
 mod opt;
+mod util;
 
-use crate::opt::Opt;
+use crate::{
+    opt::Opt,
+    util::encoding_str,
+};
 
 
 macro_rules! print {
@@ -89,7 +83,7 @@ fn run() -> Result<(), Error> {
     Ok(())
 }
 
-fn print_mesh_info(mesh_data: &MeshData) {
+fn print_mesh_info(mesh_data: &AnyMesh) {
     println!("{}", Color::Green.bold().paint("⟨ℹ⟩ Mesh information:"));
 
     // ===== Vertex Infos ====================================================
@@ -124,58 +118,76 @@ fn print_mesh_info(mesh_data: &MeshData) {
     );
 }
 
-fn load_file(opt: &Opt) -> Result<MeshData, Error> {
-    let file = File::open(&opt.source).context("failed to open file")?;
+fn load_file(opt: &Opt) -> Result<AnyMesh, Error> {
+    let mut file = File::open(&opt.source).context("failed to open file")?;
 
-    // TODO: guess from first 1024 bytes
-    // let _file_start = {
-    //     let mut v = Vec::new();
-    //     file.by_ref().take(1024).read_to_end(&mut v)?;
-    //     file.seek(SeekFrom::Start(0))?;
-    //     v
-    // };
+    // Figure out the file format
+    let file_format = {
+        let format = opt.source_format.or_else(|| FileFormat::from_extension(&opt.source));
+        let format = match format {
+            Some(format) => Some(format),
+            None => {
+                let mut start = Vec::new();
+                file.by_ref().take(1024).read_to_end(&mut start)?;
+                file.seek(SeekFrom::Start(0))?;
 
-    let file_format = opt.source_format
-        .or_else(|| FileFormat::from_extension(&opt.source))
-        .ok_or_else(|| err_msg(
+                FileFormat::from_file_start(&start)
+            }
+        };
+
+        format.ok_or_else(|| err_msg(
             "couldn't determine source file format, please specify it explicitly using \
                 '--source-format'"
-        ))?;
-
-
-    let print_info = |encoding: FileEncoding| {
-        println!(
-            "{}: {} ({} encoding)",
-            Color::Blue.bold().paint("⟨ℹ⟩ Source format"),
-            file_format,
-            encoding_str(encoding),
-        );
+        ))?
     };
 
-    // TODO: there is still quite some duplicate code below. Fix that.
-    let mut mesh_data = MeshData::new();
-    match file_format {
-        FileFormat::Ply => {
-            let reader = ply::Reader::new(file).context("failed to read PLY header")?;
-            print_info(reader.encoding().into());
-            print!("⟨￫⟩ Reading source ...");
-            reader.transfer_to(&mut mesh_data).context("failed to read PLY body")?;
-            println!(" done");
+
+    // Parse the header of the file, print some information and return the
+    // abstract reader object.
+    macro_rules! get_reader_and_print_info {
+        ($($variant:ident => $module:ident,)*) => {
+            match file_format {
+                $(
+                    FileFormat::$variant => {
+                        let reader = $module::Reader::new(file)
+                            .context(format!("failed to reader {} header", FileFormat::$variant))?;
+
+                        println!(
+                            "{}: {} ({} encoding)",
+                            Color::Blue.bold().paint("⟨ℹ⟩ Source format"),
+                            file_format,
+                            encoding_str(FileEncoding::from(reader.encoding())),
+                        );
+
+                        Box::new(reader) as Box<dyn DynStreamSource<_>>
+                    }
+                )*
+                _ => bail!(
+                    "File format '{}' not supported (this is probably a bug)",
+                    file_format,
+                ),
+            }
         }
-        FileFormat::Stl => {
-            let reader = stl::Reader::new(file).context("failed to read STL header")?;
-            print_info(reader.encoding().into());
-            print!("⟨￫⟩ Reading source ...");
-            reader.transfer_to(&mut mesh_data).context("failed to read STL body")?;
-            println!(" done");
-        }
-        _ => bail!("File format '{}' not supported", file_format),
     }
 
-    Ok(mesh_data)
+    let reader = get_reader_and_print_info!(
+        Ply => ply,
+        Stl => stl,
+    );
+
+
+    // Read from the reader into an `AnyMesh`
+    print!("⟨￫⟩ Reading source ...");
+    let mut mesh = AnyMesh::empty();
+    reader.transfer_to(&mut mesh)?;
+    mesh.finish()?;
+    println!(" done");
+
+    Ok(mesh)
 }
 
-fn write_file(opt: &Opt, data: &MeshData) -> Result<(), Error> {
+fn write_file(opt: &Opt, data: &AnyMesh) -> Result<(), Error> {
+    // Figure out the file format
     let file_format = opt.target_format
         .or_else(|| FileFormat::from_extension(&opt.target))
         .ok_or_else(|| err_msg(
@@ -184,11 +196,19 @@ fn write_file(opt: &Opt, data: &MeshData) -> Result<(), Error> {
         ))?;
 
 
+    let encoding = opt.target_encoding.encoding_for(file_format).ok_or(
+        format_err!(
+            "the encoding {:?} is not supported by the {} format",
+            opt.target_encoding,
+            file_format,
+        )
+    )?;
+
     println!(
         "{}: {} ({} encoding)",
         Color::Blue.bold().paint("⟨ℹ⟩ Target format"),
         file_format,
-        encoding_str(opt.target_encoding),
+        encoding_str(encoding),
     );
 
     let file = BufWriter::new(File::create(&opt.target)?);
@@ -198,18 +218,10 @@ fn write_file(opt: &Opt, data: &MeshData) -> Result<(), Error> {
             unimplemented!()
         }
         FileFormat::Stl => {
-            // TODO: check this earlier, before even reading the source file
-            let encoding = stl::Encoding::try_from(opt.target_encoding).map_err(|_| {
-                format_err!(
-                    "the encoding {:?} is not supported by the STL format",
-                    opt.target_encoding
-                )
-            })?;
-
             print!("⟨￩⟩ Writing mesh ...");
 
-            stl::Config::new(encoding)
-                .into_sink(file)
+            stl::Config::new(encoding.try_into().unwrap())
+                .into_writer(file)
                 .transfer_from(data)?;
 
             println!(" done");
@@ -218,189 +230,4 @@ fn write_file(opt: &Opt, data: &MeshData) -> Result<(), Error> {
     }
 
     Ok(())
-}
-
-fn encoding_str(e: FileEncoding) -> &'static str {
-    match e {
-        FileEncoding::Ascii => "ASCII",
-        FileEncoding::BinaryBigEndian => "binary big endian",
-        FileEncoding::BinaryLittleEndian => "binary little endian",
-    }
-}
-
-#[derive(Debug)]
-struct MeshData {
-    mesh: SharedVertexMesh,
-    vertex_positions: Option<AnyPointMap<VertexHandle>>,
-}
-
-impl MeshData {
-    fn new() -> Self {
-        Self {
-            mesh: SharedVertexMesh::new(),
-            vertex_positions: None,
-        }
-    }
-}
-
-impl MemSink for MeshData {
-    fn add_vertex(&mut self) -> VertexHandle {
-        self.mesh.add_vertex()
-    }
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
-        self.mesh.add_face(vertices)
-    }
-
-    fn set_vertex_position<N: Primitive>(
-        &mut self,
-        handle: VertexHandle,
-        position: Point3<N>,
-    ) {
-        self.vertex_positions
-            .get_or_insert_with(|| AnyPointMap::new::<N>())
-            .insert(handle, position);
-    }
-}
-
-
-impl MemSource for MeshData {
-    fn vertices(&self) -> Box<dyn Iterator<Item = VertexHandle> + '_> {
-        Box::new(self.mesh.vertices().map(|v| v.handle()))  // TODO: avoid double box
-    }
-    fn faces(&self) -> Box<dyn Iterator<Item = FaceHandle> + '_> {
-        Box::new(self.mesh.faces().map(|f| f.handle())) // TODO: avoid double box
-    }
-
-    fn num_vertices(&self) -> DefaultInt {
-        self.mesh.num_vertices()
-    }
-    fn num_faces(&self) -> DefaultInt {
-        self.mesh.num_faces()
-    }
-
-    fn vertices_of_face(&self, f: FaceHandle) -> [VertexHandle; 3] {
-        self.mesh.vertices_of_face(f)
-    }
-
-    fn vertex_position_type(&self) -> Option<PrimitiveType> {
-        self.vertex_positions.as_ref().map(|m| m.primitive_type())
-    }
-    fn vertex_position<T: Primitive>(&self, v: VertexHandle) -> Point3<T> {
-        self.vertex_positions
-            .as_ref()
-            .expect("requested non-existent vertex position from `MemSource`")
-            .get(v)
-            .unwrap_or_else(|| panic!("missing vertex position for {:?}", v))
-    }
-}
-
-#[derive(Debug)]
-enum AnyPointMap<H: Handle> {
-    Uint8(VecMap<H, Point3<u8>>),
-    Int8(VecMap<H, Point3<i8>>),
-    Uint16(VecMap<H, Point3<u16>>),
-    Int16(VecMap<H, Point3<i16>>),
-    Uint32(VecMap<H, Point3<u32>>),
-    Int32(VecMap<H, Point3<i32>>),
-    Float32(VecMap<H, Point3<f32>>),
-    Float64(VecMap<H, Point3<f64>>),
-}
-
-impl<H: Handle> AnyPointMap<H> {
-    fn new<T: Primitive>() -> Self {
-        match T::TY {
-            PrimitiveType::Uint8 => AnyPointMap::Uint8(VecMap::new()),
-            PrimitiveType::Int8 => AnyPointMap::Int8(VecMap::new()),
-            PrimitiveType::Uint16 => AnyPointMap::Uint16(VecMap::new()),
-            PrimitiveType::Int16 => AnyPointMap::Int16(VecMap::new()),
-            PrimitiveType::Uint32 => AnyPointMap::Uint32(VecMap::new()),
-            PrimitiveType::Int32 => AnyPointMap::Int32(VecMap::new()),
-            PrimitiveType::Float32 => AnyPointMap::Float32(VecMap::new()),
-            PrimitiveType::Float64 => AnyPointMap::Float64(VecMap::new()),
-        }
-    }
-
-    fn primitive_type(&self) -> PrimitiveType {
-        match self {
-            AnyPointMap::Uint8(_) => PrimitiveType::Uint8,
-            AnyPointMap::Int8(_) => PrimitiveType::Int8,
-            AnyPointMap::Uint16(_) => PrimitiveType::Uint16,
-            AnyPointMap::Int16(_) => PrimitiveType::Int16,
-            AnyPointMap::Uint32(_) => PrimitiveType::Uint32,
-            AnyPointMap::Int32(_) => PrimitiveType::Int32,
-            AnyPointMap::Float32(_) => PrimitiveType::Float32,
-            AnyPointMap::Float64(_) => PrimitiveType::Float64,
-        }
-    }
-
-    fn get<T: Primitive>(&self, handle: H) -> Option<Point3<T>> {
-        macro_rules! get {
-            ($map:ident) => {{
-                $map.get(handle).map(|p| {
-                    p.map(|s| s.downcast_as().unwrap())
-                })
-            }}
-        }
-
-        // Make sure the inserted type matches the type of the map
-        if T::TY != self.primitive_type() {
-            panic!(
-                "type mismatch requesting '{:?}' from an AnyPointMap with type '{:?}'",
-                T::TY,
-                self.primitive_type(),
-            )
-        }
-
-        // Since we know here that the types match, all those `to_*` convert
-        // functions won't ever return `None`. In fact, the compiler can
-        // probably prove that since it has static type information about `T`.
-        match self {
-            AnyPointMap::Uint8(map) => get!(map),
-            AnyPointMap::Int8(map) => get!(map),
-            AnyPointMap::Uint16(map) => get!(map),
-            AnyPointMap::Int16(map) => get!(map),
-            AnyPointMap::Uint32(map) => get!(map),
-            AnyPointMap::Int32(map) => get!(map),
-            AnyPointMap::Float32(map) => get!(map),
-            AnyPointMap::Float64(map) => get!(map),
-        }
-    }
-
-    fn insert<T: Primitive>(&mut self, handle: H, pos: Point3<T>) {
-        // This function optimizes very well! As seen [here][godbolt], it is
-        // just one check of our discriminant against a constant. If the check
-        // fails, jump to panic, otherwise the value is just pushed to the
-        // vector. Optimal, so to speak!
-        //
-        // [godbolt]: https://rust.godbolt.org/z/dyWROg
-
-        macro_rules! insert {
-            ($map:ident, $convert:ident) => {{
-                $map.insert(handle, pos.map(|s| s.downcast_as().unwrap()));
-            }}
-        }
-
-        // Make sure the inserted type matches the type of the map
-        if T::TY != self.primitive_type() {
-            panic!(
-                "type mismatch inserting '{:?}' into an AnyPointMap with type '{:?}'",
-                T::TY,
-                self.primitive_type(),
-            )
-        }
-
-        // Since we know here that the types match, all those `to_*` convert
-        // functions won't ever return `None`. In fact, the compiler can
-        // probably prove that since it has static type information about `T`.
-        match self {
-            AnyPointMap::Uint8(map) => insert!(map, to_u8),
-            AnyPointMap::Int8(map) => insert!(map, to_i8),
-            AnyPointMap::Uint16(map) => insert!(map, to_u16),
-            AnyPointMap::Int16(map) => insert!(map, to_i16),
-            AnyPointMap::Uint32(map) => insert!(map, to_u32),
-            AnyPointMap::Int32(map) => insert!(map, to_i32),
-            AnyPointMap::Float32(map) => insert!(map, to_f32),
-            AnyPointMap::Float64(map) => insert!(map, to_f64),
-        }
-    }
 }
