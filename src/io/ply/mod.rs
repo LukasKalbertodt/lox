@@ -44,7 +44,10 @@
 //! necessary.
 
 use crate::{
-    io::util::IsFormat,
+    io::{
+        FileEncoding,
+        util::IsFormat,
+    },
 };
 
 pub mod raw;
@@ -99,6 +102,26 @@ impl Encoding {
             Encoding::BinaryBigEndian
         } else {
             Encoding::BinaryLittleEndian
+        }
+    }
+}
+
+impl From<FileEncoding> for Encoding {
+    fn from(src: FileEncoding) -> Self {
+        match src {
+            FileEncoding::Ascii => Encoding::Ascii,
+            FileEncoding::BinaryBigEndian => Encoding::BinaryBigEndian,
+            FileEncoding::BinaryLittleEndian => Encoding::BinaryLittleEndian,
+        }
+    }
+}
+
+impl From<Encoding> for FileEncoding {
+    fn from(src: Encoding) -> Self {
+        match src {
+            Encoding::Ascii => FileEncoding::Ascii,
+            Encoding::BinaryBigEndian => FileEncoding::BinaryBigEndian,
+            Encoding::BinaryLittleEndian => FileEncoding::BinaryLittleEndian,
         }
     }
 }

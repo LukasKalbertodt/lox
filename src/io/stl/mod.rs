@@ -41,10 +41,17 @@
 //! [`Writer::write_raw`][stl::Writer::write_raw] or
 //! [`Reader::read_raw`][stl::Reader::read_raw]. This is usually not necessary.
 
+use std::{
+    convert::TryFrom,
+};
+
 use crate::{
     self as lox, // for proc macros
     Empty,
-    io::util::IsFormat,
+    io::{
+        FileEncoding,
+        util::IsFormat,
+    },
 };
 
 
@@ -85,6 +92,26 @@ pub enum Encoding {
 
     /// Everything is stored as binary, in little endian encoding.
     Binary,
+}
+
+impl TryFrom<FileEncoding> for Encoding {
+    type Error = ();
+    fn try_from(src: FileEncoding) -> Result<Self, Self::Error> {
+        match src {
+            FileEncoding::Ascii => Ok(Encoding::Ascii),
+            FileEncoding::BinaryLittleEndian => Ok(Encoding::Binary),
+            FileEncoding::BinaryBigEndian => Err(()),
+        }
+    }
+}
+
+impl From<Encoding> for FileEncoding {
+    fn from(src: Encoding) -> Self {
+        match src {
+            Encoding::Ascii => FileEncoding::Ascii,
+            Encoding::Binary => FileEncoding::BinaryLittleEndian,
+        }
+    }
 }
 
 

@@ -530,6 +530,37 @@ impl fmt::Display for FileFormat {
     }
 }
 
+/// Describes the encoding of the main data of a mesh file.
+///
+/// Not every format has to support all of these encodings (in fact, many
+/// formats only support one encoding). In some formats, the header is always
+/// stored in ASCII, but the body data can have different encodings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileEncoding {
+    /// Everything is stored as an ASCII string. Generally, ASCII encodings are
+    /// fairly space-inefficient.
+    Ascii,
+
+    /// Binary encoding where all numeric types are stored in big endian
+    /// layout.
+    BinaryBigEndian,
+
+    /// Binary encoding where all numeric types are stored in little endian
+    /// layout.
+    BinaryLittleEndian,
+}
+
+impl FileEncoding {
+    pub fn binary_native() -> Self {
+        #[cfg(target_endian = "big")]
+        { FileEncoding::BinaryBigEndian }
+
+        #[cfg(target_endian = "little")]
+        { FileEncoding::BinaryLittleEndian }
+    }
+}
+
+
 /// Enumerates the supported kinds of mesh properties.
 ///
 /// New property kinds may be added with only minor version bumps, so you
