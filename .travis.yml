@@ -15,6 +15,7 @@ matrix:
       script:
         - cargo build --all || travis_terminate 1
         - cargo test --all || travis_terminate 1
+        - cargo test --manifest-path=fuzz/Cargo.toml --no-run || travis_terminate 1
         - cargo doc --no-deps || travis_terminate 1
       # speeds up travis build
       cache: cargo
