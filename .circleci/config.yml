@@ -46,6 +46,20 @@ jobs:
           at: /
       - run: cargo test --all
 
+  fuzz:
+    executor: lox-ci
+    steps:
+      - attach_workspace:
+          at: /
+      - restore_cache:
+          keys:
+            - cargo-fuzz-cache
+      - run: ls fuzz/corpus/ | xargs -L1 -i cargo fuzz run -a -j2 {} -- -max_total_time=5s
+      - save_cache:
+          paths:
+            - fuzz/target/
+          key: cargo-fuzz-cache
+
 workflows:
   version: 2.1
   main:
@@ -53,5 +67,8 @@ workflows:
       - check_style
       - build
       - test:
+          requires:
+            - build
+      - fuzz:
           requires:
             - build
