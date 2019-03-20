@@ -18,12 +18,26 @@ jobs:
     executor: lox-ci
     steps:
       - checkout
+      - run: cargo generate-lockfile  # we need `Cargo.lock` to lookup the cache
+      - restore_cache:
+          # Try a cache with the same dependency graph first, but fall back to
+          # any cache
+          keys:
+            - cargo-cache-{{ checksum "Cargo.lock" }}
+            - cargo-cache-
       - run: cargo build --all
       - persist_to_workspace:
           root: /
           paths:
             - repo/
             - root/.cargo     # downloaded crates & crates.io index
+      - save_cache:
+          paths:
+            - /root/.cargo/registry
+            - target/debug/.fingerprint
+            - target/debug/build
+            - target/debug/deps
+          key: cargo-cache-{{ checksum "Cargo.lock" }}
 
   test:
     executor: lox-ci
