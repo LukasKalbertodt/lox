@@ -2,14 +2,16 @@ version: 2.1
 
 executors:
   lox-ci:
-    description: "A simple Ubuntu image with Rust installed (plus a few more things)"
     docker:
       - image: lukaskalbertodt/lox-ci:0.1
     working_directory: /repo
+  latest-rust:
+    docker:
+      - image: circleci/rust:latest
 
 jobs:
   check_style:
-    executor: lox-ci
+    executor: latest-rust
     steps:
       - checkout
       - run: ./ci/check-basic-style.sh
