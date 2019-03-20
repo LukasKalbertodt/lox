@@ -1,0 +1,76 @@
+version: 2.1
+
+executors:
+  lox-ci:
+    docker:
+      - image: lukaskalbertodt/lox-ci:0.1
+    working_directory: /repo
+  latest-rust:
+    docker:
+      - image: circleci/rust:latest
+
+jobs:
+  check_style:
+    executor: latest-rust
+    steps:
+      - checkout
+      - run: ./.circleci/check-basic-style.sh
+
+  build:
+    executor: lox-ci
+    steps:
+      - checkout
+      - run: cargo generate-lockfile  # we need `Cargo.lock` to lookup the cache
+      - restore_cache:
+          # Try a cache with the same dependency graph first, but fall back to
+          # any cache
+          keys:
+            - cargo-cache-{{ checksum "Cargo.lock" }}
+            - cargo-cache-
+      - run: cargo build --all
+      - persist_to_workspace:
+          root: /
+          paths:
+            - repo/
+            - root/.cargo     # downloaded crates & crates.io index
+      - save_cache:
+          paths:
+            - /root/.cargo/registry
+            - target/debug/.fingerprint
+            - target/debug/build
+            - target/debug/deps
+          key: cargo-cache-{{ checksum "Cargo.lock" }}
+
+  test:
+    executor: lox-ci
+    steps:
+      - attach_workspace:
+          at: /
+      - run: cargo test --all
+
+  fuzz:
+    executor: lox-ci
+    steps:
+      - attach_workspace:
+          at: /
+      - restore_cache:
+          keys:
+            - cargo-fuzz-cache
+      - run: ls fuzz/corpus/ | xargs -L1 -i cargo fuzz run -a -j2 {} -- -max_total_time=5s
+      - save_cache:
+          paths:
+            - fuzz/target/
+          key: cargo-fuzz-cache
+
+workflows:
+  version: 2.1
+  main:
+    jobs:
+      - check_style
+      - build
+      - test:
+          requires:
+            - build
+      - fuzz:
+          requires:
+            - build
