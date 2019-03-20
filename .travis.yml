@@ -6,7 +6,7 @@ matrix:
   include:
     - name: "Check style"
       language: generic
-      script: ./ci/check-basic-style.sh
+      script: ./.circleci/check-basic-style.sh
     - name: "Compile & Test"
       language: rust
       rust: nightly

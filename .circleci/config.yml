@@ -14,7 +14,7 @@ jobs:
     executor: latest-rust
     steps:
       - checkout
-      - run: ./ci/check-basic-style.sh
+      - run: ./.circleci/check-basic-style.sh
 
   build:
     executor: lox-ci
