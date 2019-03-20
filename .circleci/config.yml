@@ -1,0 +1,43 @@
+version: 2.1
+
+executors:
+  lox-ci:
+    description: "A simple Ubuntu image with Rust installed (plus a few more things)"
+    docker:
+      - image: lukaskalbertodt/lox-ci:0.1
+    working_directory: /repo
+
+jobs:
+  check_style:
+    executor: lox-ci
+    steps:
+      - checkout
+      - run: ./ci/check-basic-style.sh
+
+  build:
+    executor: lox-ci
+    steps:
+      - checkout
+      - run: cargo build --all
+      - persist_to_workspace:
+          root: /
+          paths:
+            - repo/
+            - root/.cargo     # downloaded crates & crates.io index
+
+  test:
+    executor: lox-ci
+    steps:
+      - attach_workspace:
+          at: /
+      - run: cargo test --all
+
+workflows:
+  version: 2.1
+  main:
+    jobs:
+      - check_style
+      - build
+      - test:
+          requires:
+            - build
