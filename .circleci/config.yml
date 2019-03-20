@@ -47,6 +47,7 @@ jobs:
       - attach_workspace:
           at: /
       - run: cargo test --all
+      - run: cargo doc --no-deps
 
   fuzz:
     executor: lox-ci
