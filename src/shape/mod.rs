@@ -1,12 +1,44 @@
+//! TODO
+//!
+//! ...
+//!
+//!
+//! # Floating point precision and performance
+//!
+//! All shapes will generate positions and normals in `f64` precision. One
+//! could assume that it would be better to use the *type wish* of the sink,
+//! but this is actually not worth it.
+//!
+//! Calculating with `f32` instead of `f64` will not have a big performance
+//! impact. The main reasons why `f32` can be faster than `f64` on x86-64 are:
+//! denser packed data (better cache friendliness) and SIMD code. Since these
+//! shape creation algorithms don't store data, the first point is completely
+//! irrelevant. Additionally, the algorithms are probably no good candidates
+//! for vectorization, rendering the second point irrelevant as well. In case
+//! that some of this code is (auto-)vectorized later, we can still measure the
+//! performance impact and decide then.
+//!
+//! Additionally, using the type wishes makes the code way more complex *and*
+//! might incur additional performance losses. Since there can be different
+//! type wishes for normals and positions, the algorithms would have to
+//! calculate everything twice or calculate everything in `f64` and cast
+//! internally (which does not technically conform with the casting rigor of
+//! the sink). So even if (in the SIMD case mentioned above) we want to offer
+//! both `f32` and `f64` processing, it's probably better to add a type
+//! parameter to all shape types which defaults to `f64`.
+
+use std::{
+    f64::consts,
+};
+
 use cgmath::{
     Point3, Vector3,
     prelude::*,
 };
-use num_traits::{Float, FloatConst};
 
 use crate::{
-    cast,
-    io::{Error, MemSink, StreamSource, util::TypeWish},
+    handle::hsize,
+    io::{Error, MemSink, StreamSource},
     util::MeshSizeHint,
 };
 
@@ -17,7 +49,7 @@ use crate::{
 pub struct Disc {
     /// The number of faces generated for the disc. Has to be at least 3 or
     /// else creating a mesh will panic. *Default*: 16.
-    pub faces: u32,
+    pub faces: hsize,
 
     /// The center point of the disc. *Default*: `[0, 0, 0]`.
     pub center: Point3<f64>,
@@ -36,10 +68,6 @@ impl Default for Disc {
         }
     }
 }
-
-type VPosType<S> = <<S as MemSink>::VertexPosition as TypeWish>::Float;
-type VNormalType<S> = <<S as MemSink>::VertexNormal as TypeWish>::Float;
-type FNormalType<S> = <<S as MemSink>::FaceNormal as TypeWish>::Float;
 
 impl StreamSource for Disc {
     fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error> {
@@ -75,55 +103,46 @@ impl StreamSource for Disc {
             face_count: Some(face_count),
         });
 
-        sink.prepare_vertex_positions::<VPosType<S>>(vertex_count)?;
-        sink.prepare_vertex_normals::<VNormalType<S>>(vertex_count)?;
-        sink.prepare_face_normals::<FNormalType<S>>(face_count)?;
+        sink.prepare_vertex_positions::<f64>(vertex_count)?;
+        sink.prepare_vertex_normals::<f64>(vertex_count)?;
+        sink.prepare_face_normals::<f64>(face_count)?;
 
-        let vertex_normal = Vector3::<VNormalType<S>>::unit_z();
-        let face_normal = Vector3::<FNormalType<S>>::unit_z();
-
-        // Convert our config into the right type
-        let radius = cast::lossy::<_, VPosType<S>>(self.radius);
-        let center_pos = self.center.map(|s| cast::lossy::<_, VPosType<S>>(s));
-        let lit = |v: f32| cast::lossless::<f32, VPosType<S>>(v);
-
+        let vertex_normal = Vector3::<f64>::unit_z();
+        let face_normal = Vector3::<f64>::unit_z();
 
         let center = sink.add_vertex();
-        sink.set_vertex_position(center, center_pos);
-        sink.set_vertex_normal(center, vertex_normal);
+        sink.set_vertex_position::<f64>(center, self.center);
+        sink.set_vertex_normal::<f64>(center, vertex_normal);
 
         let first = sink.add_vertex();
-        sink.set_vertex_position(first, center_pos + Vector3::new(radius, lit(0.0), lit(0.0)));
-        sink.set_vertex_normal(first, vertex_normal);
+        sink.set_vertex_position::<f64>(first, self.center + Vector3::new(self.radius, 0.0, 0.0));
+        sink.set_vertex_normal::<f64>(first, vertex_normal);
 
         // The last vertex we created.
         let mut last = first;
 
         // Add a new vertex and a new face in each iteration.
         for i in 1..self.faces {
-            let angle = (
-                cast::rounding::<u32, VPosType<S>>(i)
-                    / cast::rounding::<u32, VPosType<S>>(self.faces)
-            ) * lit(2.0) * VPosType::<S>::PI();
-            let position = center_pos + Vector3::new(
-                radius * angle.cos(),
-                radius * angle.sin(),
-                lit(0.0),
+            let angle = ((i as f64) / (self.faces as f64)) * 2.0 * consts::PI;
+            let position = self.center + Vector3::new(
+                self.radius * angle.cos(),
+                self.radius * angle.sin(),
+                0.0,
             );
 
             let v = sink.add_vertex();
-            sink.set_vertex_position(v, position);
-            sink.set_vertex_normal(v, vertex_normal);
+            sink.set_vertex_position::<f64>(v, position);
+            sink.set_vertex_normal::<f64>(v, vertex_normal);
 
             let f = sink.add_face([center, last, v]);
-            sink.set_face_normal(f, face_normal);
+            sink.set_face_normal::<f64>(f, face_normal);
 
             last = v;
         }
 
         // Add last face (with the first outer vertex)
         let f = sink.add_face([center, last, first]);
-        sink.set_face_normal(f, face_normal);
+        sink.set_face_normal::<f64>(f, face_normal);
 
         Ok(())
     }

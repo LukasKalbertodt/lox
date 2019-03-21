@@ -51,6 +51,7 @@ fn run() -> Result<(), Error> {
 
 
 #[derive(Empty, MemSink, MemSource, Debug)]
+#[lox(cast = "lossy")]
 struct SimpleMesh {
     #[lox(core_mesh)]
     mesh: FaceDelegateMesh,
