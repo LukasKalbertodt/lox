@@ -147,3 +147,160 @@ impl StreamSource for Disc {
         Ok(())
     }
 }
+
+
+/// A UV sphere whose poles point towards +z and -z.
+#[derive(Debug)]
+pub struct Sphere {
+    /// The center of the sphere. *Default*: `[0, 0, 0]`.
+    pub center: Point3<f64>,
+
+    /// The radius of the sphere (the distance from the vertices to the
+    /// center). *Default*: 1.0.
+    pub radius: f64,
+
+    /// Number of latitudes lines (excluding poles). *Default*: 16.
+    ///
+    /// These are the lines parallel to the equator. A value of 1 means that
+    /// there is just the equator which is connected directly to both poles.
+    ///
+    /// Value must not be 0 or else the `transfer_to` call will panic.
+    pub num_latitudes: hsize,
+
+    /// Number of longitude lines. *Default*: 24.
+    ///
+    /// These are the lines going perpendicular to the equator and going
+    /// through both poles. A value of `n` means that each latitude line (for
+    /// example: the equator) contains `n` vertices and `n` edges.
+    ///
+    /// Value must be greater than or equal to 3 or else the `transfer_to` call
+    /// will panic.
+    pub num_longitudes: hsize,
+}
+
+impl Default for Sphere {
+    fn default() -> Self {
+        Self {
+            center: Point3::origin(),
+            radius: 1.0,
+            num_latitudes: 16,
+            num_longitudes: 24,
+        }
+    }
+}
+
+impl StreamSource for Sphere {
+    fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error> {
+        assert!(
+            self.num_latitudes >= 1,
+            "trying to build a sphere with {} latitudes (minimum is 1)",
+            self.num_latitudes,
+        );
+        assert!(
+            self.num_longitudes >= 3,
+            "trying to build a sphere with {} longitudes (minimum is 3)",
+            self.num_longitudes,
+        );
+
+        // Calculate vertex and face count.
+        // - Vertices: we have two poles plus a vertex whenever a latitude and
+        //   longitude line meet.
+        // - Faces: on each pole (times 2) we have one triangle for each
+        //   longitude line. Adding to that is a quad face (two triangles) for
+        //   each longitude line between two adjacent latitude lines (that's
+        //   the minus 1).
+        let vertex_count = 2 + self.num_latitudes * self.num_longitudes;
+        let face_count = 2 * self.num_longitudes
+            + 2 * ((self.num_latitudes - 1) * self.num_longitudes);
+
+        // Prepare the sink
+        sink.size_hint(MeshSizeHint {
+            vertex_count: Some(vertex_count),
+            face_count: Some(face_count),
+        });
+        sink.prepare_vertex_positions::<f64>(vertex_count)?;
+        sink.prepare_vertex_normals::<f64>(vertex_count)?;
+
+        // ----- Create mesh -------------------------------------------------
+
+        // Stores the vertices of the last latitude that was added
+        let mut last_latitude_points = Vec::new();
+
+        let num_longs = self.num_longitudes as usize;
+
+
+        // Add north pole
+        let north_pole = sink.add_vertex();
+        {
+            let normal = Vector3::unit_z();
+            sink.set_vertex_position::<f64>(north_pole, self.center + normal * self.radius);
+            sink.set_vertex_normal::<f64>(north_pole, normal);
+        }
+
+        // Add latitude points (and face between latitudes + faces between
+        // north pole and the first latitude).
+        for lat in 0..self.num_latitudes {
+            let theta = consts::PI * ((lat + 1) as f64) / ((self.num_latitudes + 1) as f64);
+
+            // Add vertices
+            let mut new_latitude_points = Vec::with_capacity(self.num_longitudes as usize);
+            for long in 0..self.num_longitudes {
+                let phi = 2.0 * consts::PI * (long as f64) / (self.num_longitudes as f64);
+
+                let normal = Vector3::new(
+                    theta.sin() * phi.cos(),
+                    theta.sin() * phi.sin(),
+                    theta.cos(),
+                );
+
+                let v = sink.add_vertex();
+                sink.set_vertex_position::<f64>(v, self.center + normal * self.radius);
+                sink.set_vertex_normal::<f64>(v, normal);
+                new_latitude_points.push(v);
+            }
+
+            // Add faces
+            if lat == 0 {
+                // Connect to north pole
+                for i in 0..num_longs {
+                    sink.add_face([
+                        north_pole,
+                        new_latitude_points[i],
+                        new_latitude_points[(i + 1) % num_longs],
+                    ]);
+                }
+            } else {
+                // Connect to last latitude line
+                for i in 0..num_longs {
+                    let last_0 = last_latitude_points[i];
+                    let last_1 = last_latitude_points[(i + 1) % num_longs];
+                    let new_0 = new_latitude_points[i];
+                    let new_1 = new_latitude_points[(i + 1) % num_longs];
+
+                    sink.add_face([last_0, new_1, last_1]);
+                    sink.add_face([last_0, new_0, new_1]);
+                }
+            }
+
+            last_latitude_points = new_latitude_points;
+        }
+
+        // Add south pole and adjacent faces
+        let south_pole = sink.add_vertex();
+        {
+            let normal = -Vector3::unit_z();
+            sink.set_vertex_position::<f64>(south_pole, self.center + normal * self.radius);
+            sink.set_vertex_normal::<f64>(south_pole, normal);
+        }
+
+        for i in 0..num_longs {
+            sink.add_face([
+                south_pole,
+                last_latitude_points[(i + 1) % num_longs],
+                last_latitude_points[i],
+            ]);
+        }
+
+        Ok(())
+    }
+}
