@@ -1,5 +1,5 @@
 [package]
-name = "convert"
+name = "lox-cli"
 version = "0.1.0"
 authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
 edition = "2018"
@@ -7,6 +7,6 @@ publish = false
 
 [dependencies]
 failure = "0.1"
-lox = { path = "../../" }
+lox = { path = "../" }
 structopt = "0.2"
 term-painter = "0.2"
