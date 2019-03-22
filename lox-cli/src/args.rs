@@ -12,6 +12,30 @@ use crate::{
 
 #[derive(StructOpt, Debug)]
 pub struct Args {
+    #[structopt(flatten)]
+    pub global: GlobalArgs,
+
+    #[structopt(subcommand)]
+    pub command: Command,
+}
+
+#[derive(StructOpt, Debug)]
+pub struct GlobalArgs {
+
+}
+
+#[derive(StructOpt, Debug)]
+pub enum Command {
+    /// Converts a mesh from one file format into another one.
+    #[structopt(name = "convert")]
+    Convert {
+        #[structopt(flatten)]
+        args: ConvertArgs,
+    }
+}
+
+#[derive(StructOpt, Debug)]
+pub struct ConvertArgs {
     /// Explicitly specify the source file format (otherwise it's guessed from
     /// the extension and file header). Valid values: ply, stl.
     #[structopt(
