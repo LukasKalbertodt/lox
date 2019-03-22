@@ -17,6 +17,8 @@ use lox::{
     },
 };
 
+#[macro_use]
+mod ui;
 
 mod opt;
 mod util;
@@ -40,15 +42,15 @@ macro_rules! print {
 /// useful code is in `run()`.
 fn main() {
     if let Err(e) = run() {
-        println!("An error occured: {}", e);
+        error!("An error occured: {}", e);
 
         for cause in e.iter_causes() {
-            println!("  ... caused by: {}", cause);
+            error!("  ... caused by: {}", cause);
         }
 
         if std::env::var("RUST_BACKTRACE") == Ok("1".to_string()) {
-            println!();
-            println!("{}", e.backtrace());
+            error!();
+            error!("{}", e.backtrace());
         }
 
         std::process::exit(1);
@@ -70,9 +72,8 @@ fn run() -> Result<(), Error> {
     write_file(&opt, &mesh_data).context("could not write target file")?;
     let write_time = before_write.elapsed();
 
-    println!(
-        "{}: {:.2?} ({:.2?} loading, {:.2?} writing)",
-        Color::Blue.bold().paint("⟨ℹ⟩ Processing time"),
+    info!(
+        "Processing time: {:.2?} ({:.2?} loading, {:.2?} writing)",
         start_time.elapsed(),
         load_time,
         write_time,
@@ -82,7 +83,7 @@ fn run() -> Result<(), Error> {
 }
 
 fn print_mesh_info(mesh_data: &AnyMesh) {
-    println!("{}", Color::Green.bold().paint("⟨ℹ⟩ Mesh information:"));
+    info!("Mesh information:");
 
     // ===== Vertex Infos ====================================================
     // Collect vertex properties
@@ -103,7 +104,7 @@ fn print_mesh_info(mesh_data: &AnyMesh) {
     };
 
     println!(
-        "    {} vertices (properties: {})",
+        "    │ {} vertices (properties: {})",
         mesh_data.mesh.num_vertices(),
         vertex_props,
     );
@@ -111,7 +112,7 @@ fn print_mesh_info(mesh_data: &AnyMesh) {
 
     // ===== Face Infos ======================================================
     println!(
-        "    {} faces (properties: none)",
+        "    └ {} faces (properties: none)",
         mesh_data.mesh.num_faces(),
     );
 }
@@ -148,11 +149,10 @@ fn load_file(opt: &Opt) -> Result<AnyMesh, Error> {
                 $(
                     FileFormat::$variant => {
                         let reader = $module::Reader::new(file)
-                            .context(format!("failed to reader {} header", FileFormat::$variant))?;
+                            .context(format!("failed to read {} header", FileFormat::$variant))?;
 
-                        println!(
-                            "{}: {} ({} encoding)",
-                            Color::Blue.bold().paint("⟨ℹ⟩ Source format"),
+                        info!(
+                            "Source format: {} ({} encoding)",
                             file_format,
                             FileEncoding::from(reader.encoding()),
                         );
@@ -175,12 +175,11 @@ fn load_file(opt: &Opt) -> Result<AnyMesh, Error> {
 
 
     // Read from the reader into an `AnyMesh`
-    print!("⟨￫⟩ Reading source ...");
     let mut mesh = AnyMesh::empty();
-    reader.transfer_to(&mut mesh)?;
-    mesh.finish()?;
-    println!(" done");
-
+    progress!(["Reading '{}'", opt.source] => {
+        reader.transfer_to(&mut mesh)?;
+        mesh.finish()?;
+    });
     Ok(mesh)
 }
 
@@ -202,9 +201,8 @@ fn write_file(opt: &Opt, data: &AnyMesh) -> Result<(), Error> {
         )
     )?;
 
-    println!(
-        "{}: {} ({} encoding)",
-        Color::Blue.bold().paint("⟨ℹ⟩ Target format"),
+    info!(
+        "Target format: {} ({} encoding)",
         file_format,
         encoding,
     );
@@ -212,9 +210,9 @@ fn write_file(opt: &Opt, data: &AnyMesh) -> Result<(), Error> {
     let file = BufWriter::new(File::create(&opt.target)?);
     let writer = file_format.writer_with_encoding(encoding, file).unwrap();
 
-    print!("⟨￩⟩ Writing mesh ...");
-    writer.transfer_from(data)?;
-    println!(" done");
+    progress!(["Writing mesh to '{}'", opt.target] => {
+        writer.transfer_from(data)?;
+    });
 
     Ok(())
 }
