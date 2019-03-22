@@ -20,11 +20,11 @@ use lox::{
 #[macro_use]
 mod ui;
 
-mod opt;
+mod args;
 mod util;
 
 use crate::{
-    opt::Opt,
+    args::Args,
 };
 
 
@@ -58,7 +58,7 @@ fn main() {
 }
 
 fn run() -> Result<(), Error> {
-    let opt = Opt::from_args();
+    let opt = Args::from_args();
 
     let start_time = Instant::now();
 
@@ -117,7 +117,7 @@ fn print_mesh_info(mesh_data: &AnyMesh) {
     );
 }
 
-fn load_file(opt: &Opt) -> Result<AnyMesh, Error> {
+fn load_file(opt: &Args) -> Result<AnyMesh, Error> {
     let mut file = File::open(&opt.source).context("failed to open file")?;
 
     // Figure out the file format
@@ -183,7 +183,7 @@ fn load_file(opt: &Opt) -> Result<AnyMesh, Error> {
     Ok(mesh)
 }
 
-fn write_file(opt: &Opt, data: &AnyMesh) -> Result<(), Error> {
+fn write_file(opt: &Args, data: &AnyMesh) -> Result<(), Error> {
     // Figure out the file format
     let file_format = opt.target_format
         .or_else(|| FileFormat::from_extension(&opt.target))

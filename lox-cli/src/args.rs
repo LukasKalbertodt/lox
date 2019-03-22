@@ -1,4 +1,4 @@
-//! Defines `Opt` which is used to parse command line arguments.
+//! Defines `Args` which is used to parse command line arguments.
 
 use structopt::StructOpt;
 use lox::{
@@ -11,7 +11,7 @@ use crate::{
 
 
 #[derive(StructOpt, Debug)]
-pub struct Opt {
+pub struct Args {
     /// Explicitly specify the source file format (otherwise it's guessed from
     /// the extension and file header). Valid values: ply, stl.
     #[structopt(
