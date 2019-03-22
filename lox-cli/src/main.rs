@@ -6,7 +6,6 @@ use std::{
 
 use failure::{bail, err_msg, format_err, Error, ResultExt};
 use structopt::StructOpt;
-use term_painter::{ToStyle, Color};
 
 use lox::{
     prelude::*,
@@ -27,16 +26,6 @@ use crate::{
     args::Args,
 };
 
-
-macro_rules! print {
-    ($($t:tt)*) => {{
-        use std::io::{self, Write};
-
-        std::print!($($t)*);
-        // If an error occurs here... oh well.
-        let _ = io::stdout().flush();
-    }}
-}
 
 /// We just catch potential errors here and pretty print them. The actual
 /// useful code is in `run()`.

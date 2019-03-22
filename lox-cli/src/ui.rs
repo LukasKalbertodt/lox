@@ -3,14 +3,17 @@
 use term_painter::{Color, Style, ToStyle};
 
 macro_rules! print_msg {
-    ($kind:ident: $icon:literal => $fmt:literal $($args:tt)*) => {
-        crate::ui::MsgKind::$kind.icon_style().with(|| {
+    ($kind:ident: $icon:literal => $fmt:literal $($args:tt)*) => {{
+        use crate::ui::MsgKind;
+        use term_painter::ToStyle;
+
+        MsgKind::$kind.icon_style().with(|| {
             print!("[{}] ", $icon);
         });
-        crate::ui::MsgKind::$kind.body_style().with(|| {
+        MsgKind::$kind.body_style().with(|| {
             println!($fmt $($args)*);
         })
-    };
+    }};
 }
 
 macro_rules! progress {
@@ -20,6 +23,7 @@ macro_rules! progress {
             time::Instant,
         };
         use crate::ui::MsgKind;
+        use term_painter::ToStyle;
 
         let print_body = || {
             MsgKind::Progress.body_style().with(|| {
