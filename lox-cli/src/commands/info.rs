@@ -28,12 +28,15 @@ pub fn run(global_args: &GlobalArgs, args: &InfoArgs) -> Result<(), Error> {
         .context(format!("failed to open file '{}'", filename))?;
     let format = guess_file_format(args.source_format, filename, &mut file)?;
 
+
     let header_is_sufficient = match format {
         FileFormat::Stl => false,
         FileFormat::Ply => true,
         _ => unimplemented!(),
     };
 
+
+    // ===== Obtaining the information =======================================
     let info = if args.header_only || (header_is_sufficient && !args.read_body) {
         if !args.header_only && header_is_sufficient {
             info!(
@@ -45,324 +48,56 @@ pub fn run(global_args: &GlobalArgs, args: &InfoArgs) -> Result<(), Error> {
             );
         }
 
-        info_from_header(format, file, global_args, args)?
+        Info::from_header(format, file, global_args, args)?
     } else {
-        info_from_body(format, file, global_args, args)?
+        Info::from_body(format, file, global_args, args)?
     };
 
-    print_info(&info, args);
 
-    Ok(())
-}
-
-/// Reads the whole file into a temporary storage and gets mesh information
-/// from there (more accurate than only reading the header).
-fn info_from_body(
-    format: FileFormat,
-    file: File,
-    _global_args: &GlobalArgs,
-    args: &InfoArgs,
-) -> Result<Info, Error> {
-    let (reader, encoding) = reader_and_encoding(format, file)?;
-
-    let mut mesh = AnyMesh::empty();
-    progress!(["Reading '{}'", args.file] => {
-        reader.transfer_to(&mut mesh)?;
-        mesh.finish()?;
-    });
-
-    let info = Info {
-        format,
-        encoding,
-        vertex: ElementInfo {
-            count: MaybeInfo::Known(mesh.mesh.num_vertices() as u64),
-            position_type: MaybeInfo::some_or_none(
-                mesh.vertex_positions.as_ref().map(|m| m.primitive_type())
-            ),
-            normal_type: MaybeInfo::some_or_none(
-                mesh.vertex_normals.as_ref().map(|m| m.primitive_type())
-            ),
-            color_type: MaybeInfo::some_or_none(
-                mesh.vertex_colors.as_ref().map(|m| m.color_type())
-            ),
-        },
-        edge: ElementInfo::none(),
-        face: ElementInfo {
-            count: MaybeInfo::Known(mesh.mesh.num_faces() as u64),
-            position_type: MaybeInfo::None,
-            normal_type: MaybeInfo::some_or_none(
-                mesh.vertex_normals.as_ref().map(|m| m.primitive_type())
-            ),
-            color_type: MaybeInfo::some_or_none(
-                mesh.face_colors.as_ref().map(|m| m.color_type())
-            ),
-        },
-    };
-
-    Ok(info)
-}
-
-
-/// Gets information from just reading the header of the input file.
-fn info_from_header(
-    format: FileFormat,
-    file: File,
-    _global_args: &GlobalArgs,
-    args: &InfoArgs,
-) -> Result<Info, Error> {
-    // Get information. This is different for each format.
-    let err_read_header = format!("failed to read {} header", format);
-    let info = match format {
-        // ===== STL =========================================================
-        FileFormat::Stl => {
-            let reader = stl::Reader::new(file).context(err_read_header)?;
-            let encoding = FileEncoding::from(reader.encoding());
-            let triangle_count = MaybeInfo::some_or_unknown(
-                reader.triangle_count().map(Into::into)
-            );
-
-            Info {
-                format,
-                encoding,
-                vertex: ElementInfo {
-                    count: MaybeInfo::Unknown,
-                    position_type: MaybeInfo::Known(PrimitiveType::Float32),
-                    normal_type: MaybeInfo::None,
-                    color_type: MaybeInfo::None,
-                },
-                edge: ElementInfo::none(),
-                face: ElementInfo {
-                    count: triangle_count,
-                    position_type: MaybeInfo::None,
-                    normal_type: MaybeInfo::Known(PrimitiveType::Float32),
-                    color_type: MaybeInfo::None,
-                },
-            }
-        }
-
-        // ===== PLY =========================================================
-        FileFormat::Ply => {
-            // Gets information about one PLY element ("vertex", "face", "edge")
-            fn get_element_info(
-                reader: &ply::Reader<File>,
-                name: &str,
-            ) -> Result<ElementInfo, Error> {
-                if let Some(def) = reader.elements().iter().find(|def| def.name == name) {
-                    let position_type = def.check_vec3_prop(["x", "y", "z"], "positions")?
-                        .map(|(_, ty)| ty.to_primitive_type());
-                    let normal_type = def.check_vec3_prop(["nx", "ny", "nz"], "normals")?
-                        .map(|(_, ty)| ty.to_primitive_type());
-                    let color_type = def.check_color_prop()?.map(|(_, alpha)| ColorType {
-                        alpha,
-                        channel_type: PrimitiveColorChannelType::Uint8,
-                    });
-
-                    Ok(ElementInfo {
-                        count: MaybeInfo::Known(def.count),
-                        position_type: MaybeInfo::some_or_none(position_type),
-                        normal_type: MaybeInfo::some_or_none(normal_type),
-                        color_type: MaybeInfo::some_or_none(color_type),
-                    })
-                } else {
-                    Ok(ElementInfo::none())
-                }
-            }
-
-            let reader = ply::Reader::new(file).context(err_read_header)?;
-            let encoding = FileEncoding::from(reader.encoding());
-
-            Info {
-                format,
-                encoding,
-                vertex: get_element_info(&reader, "vertex")?,
-                edge: get_element_info(&reader, "edge")?,
-                face: get_element_info(&reader, "face")?,
-            }
-        }
-
-        _ => unimplemented!()
-    };
-
-    Ok(info)
-}
-
-/// Pretty prints all the information.
-fn print_info(info: &Info, args: &InfoArgs) {
-    // Header
+    // ===== Actually printing the information ===============================
     println!();
     Color::White.bold().with(|| {
         println!("══════════╡ {} ╞══════════", Color::Green.paint(&args.file));
     });
 
-    // ----- Print file format and encoding ----------------------------------
     println!(
         "File format: {} (encoding: {})",
         Color::BrightWhite.bold().paint(info.format),
         Color::BrightWhite.paint(info.encoding),
     );
 
-
-    // ----- Prepare table ---------------------------------------------------
-    /// Defines the characters to draw a table.
-    #[derive(Copy, Clone)]
-    struct TableStyle {
-        horizontal: char,
-        vertical: char,
-        cross: char,
-        vertical_double: char,
-        cross_vertical_double: char,
-        t_cross_right: char,
-    }
-
-    /// A nice unicode table.
-    const UNICODE_TABLE: TableStyle = TableStyle {
-        horizontal: '─',
-        vertical: '│',
-        cross: '┼',
-        vertical_double: '║',
-        cross_vertical_double: '╫',
-        t_cross_right: '┤',
-    };
-
-    /// Takes a 2D array of things that implement `Display` and returns a 2D
-    /// String array. This is just a helper to avoid writing `to_string()` a
-    /// bunch of times.
-    macro_rules! string_table {
-        ($style:expr => [ $( [ $($cell:expr),* $(,)? ] ),* $(,)? ]) => {
-            vec![
-                $(
-                    vec![ $($cell.to_string()),* ],
-                )*
-            ]
-        }
-    }
-
-    let style = UNICODE_TABLE;
-    let v = &info.vertex;
-    let e = &info.edge;
-    let f = &info.face;
-
-    let element_labels = ["vertex ·", "edge   ╱", "face   △"];
-    let cells = string_table!(style => [
-        ["", "count", "position", "normal", "color"],
-        [
-            element_labels[0],
-            v.count.map(ui::fmt_with_thousand_sep),
-            v.position_type.map(vec3_type_str),
-            v.normal_type.map(vec3_type_str),
-            v.color_type.map(color_type_str),
-        ],
-        [
-            element_labels[2],
-            e.count.map(ui::fmt_with_thousand_sep),
-            e.position_type.map(vec3_type_str),
-            e.normal_type.map(vec3_type_str),
-            e.color_type.map(color_type_str),
-        ],
-        [
-            element_labels[2],
-            f.count.map(ui::fmt_with_thousand_sep),
-            f.position_type.map(vec3_type_str),
-            f.normal_type.map(vec3_type_str),
-            f.color_type.map(color_type_str),
-        ],
-    ]);
-
-
-    let num_rows = cells.len();
-    let num_cols = cells[0].len();
-
-    let col_widths = (0..num_cols).map(|col| {
-        (0..num_rows).map(|row| cells[row][col].chars().count()).max().unwrap()
-    }).collect::<Vec<_>>();
-
-
-    // ----- Print header ----------------------------------------------------
     println!();
-    for col in 0..num_cols {
-        print!(" {: ^1$} ", cells[0][col], col_widths[col]);
-
-        match col {
-            0 | 1 => print!("{}", style.vertical_double),
-            _ => print!("{}", style.vertical),
-        }
-    }
+    info.mesh.print(global_args);
     println!();
 
-
-    // ----- Print separator -------------------------------------------------
-    for col in 0..num_cols {
-        let line = iter::repeat(style.horizontal)
-            .take(col_widths[col] + 2)
-            .collect::<String>();
-        print!("{}", line);
-
-        match col {
-            0 | 1 => print!("{}", style.cross_vertical_double),
-            _ if col == num_cols - 1 => print!("{}", style.t_cross_right),
-            _ => print!("{}", style.cross),
-        }
-    }
-    println!();
-
-
-    // ----- Print table body ------------------------------------------------
-    let label_style = Color::White.bold();
-    let count_style = Color::Green.bold();
-    let prop_style = Color::BrightBlue.bold();
-
-    for (&label, &info) in element_labels.iter().zip(&[v, e, f]) {
-        print!(" {} {}", label_style.paint(label), style.vertical_double);
-        print!(
-            " {: >2$} {}",
-            info.count.map(ui::fmt_with_thousand_sep).painted(count_style),
-            style.vertical_double,
-            col_widths[1],
-        );
-
-        print!(
-            " {: >2$} {}",
-            info.position_type.map(vec3_type_str).painted(prop_style),
-            style.vertical,
-            col_widths[2],
-        );
-        print!(
-            " {: >2$} {}",
-            info.normal_type.map(vec3_type_str).painted(prop_style),
-            style.vertical,
-            col_widths[3],
-        );
-        print!(
-            " {: >2$} {}",
-            info.color_type.map(color_type_str).painted(prop_style),
-            style.vertical,
-            col_widths[4],
-        );
-
-        println!();
-    }
-
-    println!();
+    Ok(())
 }
 
 
 /// All the standard info we can get about a mesh in a file.
 #[derive(Debug)]
-struct Info {
-    format: FileFormat,
-    encoding: FileEncoding,
-    vertex: ElementInfo,
-    edge: ElementInfo,
-    face: ElementInfo,
+pub struct Info {
+    pub format: FileFormat,
+    pub encoding: FileEncoding,
+    pub mesh: MeshInfo,
+}
+
+/// Information about the mesh properties and everything else directly related
+/// to the mesh data.
+#[derive(Debug)]
+pub struct MeshInfo {
+    pub vertex: ElementInfo,
+    pub edge: ElementInfo,
+    pub face: ElementInfo,
 }
 
 /// Information about one element (vertex, edge, face).
 #[derive(Debug)]
-struct ElementInfo {
-    count: MaybeInfo<u64>,
-    position_type: MaybeInfo<PrimitiveType>,
-    normal_type: MaybeInfo<PrimitiveType>,
-    color_type: MaybeInfo<ColorType>,
+pub struct ElementInfo {
+    pub count: MaybeInfo<u64>,
+    pub position_type: MaybeInfo<PrimitiveType>,
+    pub normal_type: MaybeInfo<PrimitiveType>,
+    pub color_type: MaybeInfo<ColorType>,
 }
 
 impl ElementInfo {
@@ -377,30 +112,320 @@ impl ElementInfo {
     }
 }
 
+impl Info {
+    /// Gets information from just reading the header of the input file.
+    pub fn from_header(
+        format: FileFormat,
+        file: File,
+        _global_args: &GlobalArgs,
+        _args: &InfoArgs,
+    ) -> Result<Self, Error> {
+        // Get information. This is different for each format.
+        let err_read_header = format!("failed to read {} header", format);
+        let info = match format {
+            // ===== STL =========================================================
+            FileFormat::Stl => {
+                let reader = stl::Reader::new(file).context(err_read_header)?;
+                let encoding = FileEncoding::from(reader.encoding());
+                let triangle_count = MaybeInfo::some_or_unknown(
+                    reader.triangle_count().map(Into::into)
+                );
+
+                Info {
+                    format,
+                    encoding,
+                    mesh: MeshInfo {
+                        vertex: ElementInfo {
+                            count: MaybeInfo::Unknown,
+                            position_type: MaybeInfo::Known(PrimitiveType::Float32),
+                            normal_type: MaybeInfo::None,
+                            color_type: MaybeInfo::None,
+                        },
+                        edge: ElementInfo::none(),
+                        face: ElementInfo {
+                            count: triangle_count,
+                            position_type: MaybeInfo::None,
+                            normal_type: MaybeInfo::Known(PrimitiveType::Float32),
+                            color_type: MaybeInfo::None,
+                        },
+                    },
+                }
+            }
+
+            // ===== PLY =========================================================
+            FileFormat::Ply => {
+                // Gets information about one PLY element ("vertex", "face", "edge")
+                fn get_element_info(
+                    reader: &ply::Reader<File>,
+                    name: &str,
+                ) -> Result<ElementInfo, Error> {
+                    if let Some(def) = reader.elements().iter().find(|def| def.name == name) {
+                        let position_type = def.check_vec3_prop(["x", "y", "z"], "positions")?
+                            .map(|(_, ty)| ty.to_primitive_type());
+                        let normal_type = def.check_vec3_prop(["nx", "ny", "nz"], "normals")?
+                            .map(|(_, ty)| ty.to_primitive_type());
+                        let color_type = def.check_color_prop()?.map(|(_, alpha)| ColorType {
+                            alpha,
+                            channel_type: PrimitiveColorChannelType::Uint8,
+                        });
+
+                        Ok(ElementInfo {
+                            count: MaybeInfo::Known(def.count),
+                            position_type: MaybeInfo::some_or_none(position_type),
+                            normal_type: MaybeInfo::some_or_none(normal_type),
+                            color_type: MaybeInfo::some_or_none(color_type),
+                        })
+                    } else {
+                        Ok(ElementInfo::none())
+                    }
+                }
+
+                let reader = ply::Reader::new(file).context(err_read_header)?;
+                let encoding = FileEncoding::from(reader.encoding());
+
+                Info {
+                    format,
+                    encoding,
+                    mesh: MeshInfo {
+                        vertex: get_element_info(&reader, "vertex")?,
+                        edge: get_element_info(&reader, "edge")?,
+                        face: get_element_info(&reader, "face")?,
+                    },
+                }
+            }
+
+            _ => unimplemented!()
+        };
+
+        Ok(info)
+    }
+
+    /// Reads the whole file into a temporary storage and gets mesh information
+    /// from there (more accurate than only reading the header).
+    pub fn from_body(
+        format: FileFormat,
+        file: File,
+        _global_args: &GlobalArgs,
+        args: &InfoArgs,
+    ) -> Result<Self, Error> {
+        let (reader, encoding) = reader_and_encoding(format, file)?;
+
+        let mut mesh = AnyMesh::empty();
+        progress!(["Reading '{}'", args.file] => {
+            reader.transfer_to(&mut mesh)?;
+            mesh.finish()?;
+        });
+
+        Ok(Self {
+            format,
+            encoding,
+            mesh: MeshInfo::about_mesh(&mesh),
+        })
+    }
+}
+
+impl MeshInfo {
+    /// Gets the information from the given `AnyMesh`.
+    pub fn about_mesh(mesh: &AnyMesh) -> Self {
+        Self {
+            vertex: ElementInfo {
+                count: MaybeInfo::Known(mesh.mesh.num_vertices() as u64),
+                position_type: MaybeInfo::some_or_none(
+                    mesh.vertex_positions.as_ref().map(|m| m.primitive_type())
+                ),
+                normal_type: MaybeInfo::some_or_none(
+                    mesh.vertex_normals.as_ref().map(|m| m.primitive_type())
+                ),
+                color_type: MaybeInfo::some_or_none(
+                    mesh.vertex_colors.as_ref().map(|m| m.color_type())
+                ),
+            },
+            edge: ElementInfo::none(),
+            face: ElementInfo {
+                count: MaybeInfo::Known(mesh.mesh.num_faces() as u64),
+                position_type: MaybeInfo::None,
+                normal_type: MaybeInfo::some_or_none(
+                    mesh.vertex_normals.as_ref().map(|m| m.primitive_type())
+                ),
+                color_type: MaybeInfo::some_or_none(
+                    mesh.face_colors.as_ref().map(|m| m.color_type())
+                ),
+            },
+        }
+    }
+
+    /// Prints the information as a table.
+    pub fn print(&self, _global_args: &GlobalArgs) {
+        // ----- Prepare table ---------------------------------------------------
+        /// Defines the characters to draw a table.
+        #[derive(Copy, Clone)]
+        struct TableStyle {
+            horizontal: char,
+            vertical: char,
+            cross: char,
+            vertical_double: char,
+            cross_vertical_double: char,
+            t_cross_right: char,
+        }
+
+        /// A nice unicode table.
+        const UNICODE_TABLE: TableStyle = TableStyle {
+            horizontal: '─',
+            vertical: '│',
+            cross: '┼',
+            vertical_double: '║',
+            cross_vertical_double: '╫',
+            t_cross_right: '┤',
+        };
+
+        /// Takes a 2D array of things that implement `Display` and returns a 2D
+        /// String array. This is just a helper to avoid writing `to_string()` a
+        /// bunch of times.
+        macro_rules! string_table {
+            ($style:expr => [ $( [ $($cell:expr),* $(,)? ] ),* $(,)? ]) => {
+                vec![
+                    $(
+                        vec![ $($cell.to_string()),* ],
+                    )*
+                ]
+            }
+        }
+
+        let style = UNICODE_TABLE;
+        let v = &self.vertex;
+        let e = &self.edge;
+        let f = &self.face;
+
+        let element_labels = ["vertex ·", "edge   ╱", "face   △"];
+        let cells = string_table!(style => [
+            ["", "count", "position", "normal", "color"],
+            [
+                element_labels[0],
+                v.count.map(ui::fmt_with_thousand_sep),
+                v.position_type.map(vec3_type_str),
+                v.normal_type.map(vec3_type_str),
+                v.color_type.map(color_type_str),
+            ],
+            [
+                element_labels[2],
+                e.count.map(ui::fmt_with_thousand_sep),
+                e.position_type.map(vec3_type_str),
+                e.normal_type.map(vec3_type_str),
+                e.color_type.map(color_type_str),
+            ],
+            [
+                element_labels[2],
+                f.count.map(ui::fmt_with_thousand_sep),
+                f.position_type.map(vec3_type_str),
+                f.normal_type.map(vec3_type_str),
+                f.color_type.map(color_type_str),
+            ],
+        ]);
+
+
+        let num_rows = cells.len();
+        let num_cols = cells[0].len();
+
+        let col_widths = (0..num_cols).map(|col| {
+            (0..num_rows).map(|row| cells[row][col].chars().count()).max().unwrap()
+        }).collect::<Vec<_>>();
+
+
+        // ----- Print header ----------------------------------------------------
+        for col in 0..num_cols {
+            print!(" {: ^1$} ", cells[0][col], col_widths[col]);
+
+            match col {
+                0 | 1 => print!("{}", style.vertical_double),
+                _ => print!("{}", style.vertical),
+            }
+        }
+        println!();
+
+
+        // ----- Print separator -------------------------------------------------
+        for col in 0..num_cols {
+            let line = iter::repeat(style.horizontal)
+                .take(col_widths[col] + 2)
+                .collect::<String>();
+            print!("{}", line);
+
+            match col {
+                0 | 1 => print!("{}", style.cross_vertical_double),
+                _ if col == num_cols - 1 => print!("{}", style.t_cross_right),
+                _ => print!("{}", style.cross),
+            }
+        }
+        println!();
+
+
+        // ----- Print table body ------------------------------------------------
+        let label_style = Color::White.bold();
+        let count_style = Color::Green.bold();
+        let prop_style = Color::BrightBlue.bold();
+
+        for (&label, &info) in element_labels.iter().zip(&[v, e, f]) {
+            print!(" {} {}", label_style.paint(label), style.vertical_double);
+            print!(
+                " {: >2$} {}",
+                info.count.map(ui::fmt_with_thousand_sep).painted(count_style),
+                style.vertical_double,
+                col_widths[1],
+            );
+
+            print!(
+                " {: >2$} {}",
+                info.position_type.map(vec3_type_str).painted(prop_style),
+                style.vertical,
+                col_widths[2],
+            );
+            print!(
+                " {: >2$} {}",
+                info.normal_type.map(vec3_type_str).painted(prop_style),
+                style.vertical,
+                col_widths[3],
+            );
+            print!(
+                " {: >2$} {}",
+                info.color_type.map(color_type_str).painted(prop_style),
+                style.vertical,
+                col_widths[4],
+            );
+
+            println!();
+        }
+    }
+}
+
+
 /// A piece of data that is either unknown, not existent or existent.
 #[derive(Debug, Clone, Copy)]
-enum MaybeInfo<T> {
+pub enum MaybeInfo<T> {
     Unknown,
     None,
     Known(T),
 }
 
 impl<T> MaybeInfo<T> {
-    fn some_or_unknown(x: Option<T>) -> Self {
+    /// Creates `Self` from an option, mapping `Option::None` to
+    /// `Self::Unknown`.
+    pub fn some_or_unknown(x: Option<T>) -> Self {
         match x {
             Some(v) => MaybeInfo::Known(v),
             None => MaybeInfo::Unknown,
         }
     }
 
-    fn some_or_none(x: Option<T>) -> Self {
+    /// Creates `Self` from an option, mapping `Option::None` to `Self::None`.
+    pub fn some_or_none(x: Option<T>) -> Self {
         match x {
             Some(v) => MaybeInfo::Known(v),
             None => MaybeInfo::None,
         }
     }
 
-    fn map<U>(self, mapping: impl FnOnce(T) -> U) -> MaybeInfo<U> {
+    /// Like `Option::map`: maps the inner value.
+    pub fn map<U>(self, mapping: impl FnOnce(T) -> U) -> MaybeInfo<U> {
         match self {
             MaybeInfo::Unknown => MaybeInfo::Unknown,
             MaybeInfo::None => MaybeInfo::None,
