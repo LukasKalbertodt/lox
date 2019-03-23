@@ -9,7 +9,7 @@ use term_painter::{Color, ToStyle, Style, Painted};
 use lox::{
     io::{
         stl, ply,
-        ColorType, FileFormat, FileEncoding, PrimitiveType,
+        ColorType, FileFormat, FileEncoding, PrimitiveType, PrimitiveColorChannelType,
     },
 };
 
@@ -74,19 +74,30 @@ fn info_from_header(_global_args: &GlobalArgs, args: &InfoArgs) -> Result<Info, 
 
         // ===== PLY =========================================================
         FileFormat::Ply => {
-            fn get_element_info(reader: &ply::Reader<File>, name: &str) -> ElementInfo {
-                reader.elements().iter()
-                    .find(|def| def.name == name)
-                    .map(|def| {
-                        // TODO: check properties
-                        ElementInfo {
-                            count: MaybeInfo::Known(def.count),
-                            position_type: MaybeInfo::None,
-                            normal_type: MaybeInfo::None,
-                            color_type: MaybeInfo::None,
-                        }
+            // Gets information about one PLY element ("vertex", "face", "edge")
+            fn get_element_info(
+                reader: &ply::Reader<File>,
+                name: &str,
+            ) -> Result<ElementInfo, Error> {
+                if let Some(def) = reader.elements().iter().find(|def| def.name == name) {
+                    let position_type = def.check_vec3_prop(["x", "y", "z"], "positions")?
+                        .map(|(_, ty)| ty.to_primitive_type());
+                    let normal_type = def.check_vec3_prop(["nx", "ny", "nz"], "normals")?
+                        .map(|(_, ty)| ty.to_primitive_type());
+                    let color_type = def.check_color_prop()?.map(|(_, alpha)| ColorType {
+                        alpha,
+                        channel_type: PrimitiveColorChannelType::Uint8,
+                    });
+
+                    Ok(ElementInfo {
+                        count: MaybeInfo::Known(def.count),
+                        position_type: MaybeInfo::some_or_none(position_type),
+                        normal_type: MaybeInfo::some_or_none(normal_type),
+                        color_type: MaybeInfo::some_or_none(color_type),
                     })
-                    .unwrap_or(ElementInfo::none())
+                } else {
+                    Ok(ElementInfo::none())
+                }
             }
 
             let reader = ply::Reader::new(file).context(err_read_header)?;
@@ -95,9 +106,9 @@ fn info_from_header(_global_args: &GlobalArgs, args: &InfoArgs) -> Result<Info, 
             Info {
                 format,
                 encoding,
-                vertex: get_element_info(&reader, "vertex"),
-                edge: get_element_info(&reader, "edge"),
-                face: get_element_info(&reader, "face"),
+                vertex: get_element_info(&reader, "vertex")?,
+                edge: get_element_info(&reader, "edge")?,
+                face: get_element_info(&reader, "face")?,
             }
         }
 
@@ -303,6 +314,13 @@ impl<T> MaybeInfo<T> {
         match x {
             Some(v) => MaybeInfo::Known(v),
             None => MaybeInfo::Unknown,
+        }
+    }
+
+    fn some_or_none(x: Option<T>) -> Self {
+        match x {
+            Some(v) => MaybeInfo::Known(v),
+            None => MaybeInfo::None,
         }
     }
 
