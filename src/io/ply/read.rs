@@ -616,8 +616,14 @@ impl<R: io::Read> StreamSource for Reader<R> {
                 let (vertex_color_idx, read_vertex_color) = match info.vertex_color {
                     Some((offset, alpha)) => {
                         let fun = match alpha {
-                            true => Self::read_vertex_color::<[u8; 4]> as FnPropHandler<Self>,
-                            false => Self::read_vertex_color::<[u8; 3]> as FnPropHandler<Self>,
+                            true => {
+                                sink.prepare_vertex_colors::<[u8; 4]>(info.vertex_count)?;
+                                Self::read_vertex_color::<[u8; 4]> as FnPropHandler<Self>
+                            },
+                            false => {
+                                sink.prepare_vertex_colors::<[u8; 3]>(info.vertex_count)?;
+                                Self::read_vertex_color::<[u8; 3]> as FnPropHandler<Self>
+                            },
                         };
                         (offset, fun)
                     }
@@ -636,8 +642,14 @@ impl<R: io::Read> StreamSource for Reader<R> {
                 let (face_color_idx, read_face_color) = match info.face_color {
                     Some((offset, alpha)) => {
                         let fun = match alpha {
-                            true => Self::read_face_color::<[u8; 4]> as FnPropHandler<Self>,
-                            false => Self::read_face_color::<[u8; 3]> as FnPropHandler<Self>,
+                            true => {
+                                sink.prepare_face_colors::<[u8; 4]>(info.face_count.unwrap())?;
+                                Self::read_face_color::<[u8; 4]> as FnPropHandler<Self>
+                            }
+                            false => {
+                                sink.prepare_face_colors::<[u8; 4]>(info.face_count.unwrap())?;
+                                Self::read_face_color::<[u8; 3]> as FnPropHandler<Self>
+                            }
                         };
                         (offset, fun)
                     }
