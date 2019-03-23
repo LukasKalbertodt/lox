@@ -379,6 +379,19 @@ pub enum ScalarType {
 }
 
 impl ScalarType {
+    pub fn to_primitive_type(&self) -> PrimitiveType {
+        match self {
+            ScalarType::Char => PrimitiveType::Int8,
+            ScalarType::Short => PrimitiveType::Int16,
+            ScalarType::Int => PrimitiveType::Int32,
+            ScalarType::UChar => PrimitiveType::Uint8,
+            ScalarType::UShort => PrimitiveType::Uint16,
+            ScalarType::UInt => PrimitiveType::Uint32,
+            ScalarType::Float => PrimitiveType::Float32,
+            ScalarType::Double => PrimitiveType::Float64,
+        }
+    }
+
     /// Returns `true` if and only if the type is either `float` or `double`.
     pub fn is_floating_point(&self) -> bool {
         *self == ScalarType::Float || *self == ScalarType::Double
