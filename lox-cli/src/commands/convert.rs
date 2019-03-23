@@ -17,7 +17,7 @@ use lox::{
 
 use crate::{
     args::{GlobalArgs, ConvertArgs},
-    commands::guess_file_format,
+    commands::{guess_file_format, reader_and_encoding},
 };
 
 pub fn run(global_args: &GlobalArgs, args: &ConvertArgs) -> Result<(), Error> {
@@ -86,38 +86,9 @@ fn load_file(_global_args: &GlobalArgs, args: &ConvertArgs) -> Result<AnyMesh, E
     let file_format = guess_file_format(args.source_format, filename, &mut file)?;
 
 
-    // Parse the header of the file, print some information and return the
-    // abstract reader object.
-    macro_rules! get_reader_and_print_info {
-        ($($variant:ident => $module:ident,)*) => {
-            match file_format {
-                $(
-                    FileFormat::$variant => {
-                        let reader = $module::Reader::new(file)
-                            .context(format!("failed to read {} header", FileFormat::$variant))?;
-
-                        info!(
-                            "Source format: {} ({} encoding)",
-                            file_format,
-                            FileEncoding::from(reader.encoding()),
-                        );
-
-                        Box::new(reader) as Box<dyn DynStreamSource<_>>
-                    }
-                )*
-                _ => bail!(
-                    "File format '{}' not supported (this is probably a bug)",
-                    file_format,
-                ),
-            }
-        }
-    }
-
-    let reader = get_reader_and_print_info!(
-        Ply => ply,
-        Stl => stl,
-    );
-
+    // Parse the header of the file andprint some information.
+    let (reader, encoding) = reader_and_encoding(file_format, file)?;
+    info!("Source format: {} ({} encoding)", file_format, encoding);
 
     // Read from the reader into an `AnyMesh`
     let mut mesh = AnyMesh::empty();
