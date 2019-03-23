@@ -7,12 +7,48 @@ macro_rules! print_msg {
         use crate::ui::MsgKind;
         use term_painter::ToStyle;
 
-        MsgKind::$kind.icon_style().with(|| {
+        let icon_style = MsgKind::$kind.icon_style();
+        icon_style.with(|| {
             print!("[{}] ", $icon);
         });
-        MsgKind::$kind.body_style().with(|| {
-            println!($fmt $($args)*);
-        })
+
+        // Split body into lines (rewrapping for terminal size)
+        let body_style = MsgKind::$kind.body_style();
+        let lines = {
+            let line_len = std::cmp::min(
+                100,
+                term_size::dimensions().map(|(w, _)| w).unwrap_or(80)
+            ) - 7;
+
+            let body = format!($fmt $($args)*);
+            let mut lines = Vec::new();
+
+            let mut current_line = String::new();
+            for word in body.split_whitespace() {
+                if current_line.chars().count() + word.chars().count() >= line_len {
+                    lines.push(current_line.clone());
+                    current_line.clear();
+                }
+
+                current_line.push_str(&word);
+                current_line.push(' ');
+            }
+            lines.push(current_line);
+
+            lines
+        };
+
+        // Print all lines
+        for (i, line) in lines.iter().enumerate() {
+            let prefix = match i {
+                0 => "",
+                _ if i == lines.len() - 1 => "    └ ",
+                _ => "    │ ",
+            };
+
+            println!("{}{}", icon_style.paint(prefix), body_style.paint(line));
+
+        }
     }};
 }
 
