@@ -79,14 +79,18 @@ fn info_from_body(
             position_type: MaybeInfo::some_or_none(
                 mesh.vertex_positions.as_ref().map(|m| m.primitive_type())
             ),
-            normal_type: MaybeInfo::None,
+            normal_type: MaybeInfo::some_or_none(
+                mesh.vertex_normals.as_ref().map(|m| m.primitive_type())
+            ),
             color_type: MaybeInfo::None,
         },
         edge: ElementInfo::none(),
         face: ElementInfo {
             count: MaybeInfo::Known(mesh.mesh.num_faces() as u64),
             position_type: MaybeInfo::None,
-            normal_type: MaybeInfo::None,
+            normal_type: MaybeInfo::some_or_none(
+                mesh.vertex_normals.as_ref().map(|m| m.primitive_type())
+            ),
             color_type: MaybeInfo::None,
         },
     };
