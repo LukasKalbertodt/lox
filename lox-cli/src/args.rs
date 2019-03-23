@@ -11,6 +11,7 @@ use crate::{
 
 
 #[derive(StructOpt, Debug)]
+#[structopt(raw(setting = "structopt::clap::AppSettings::VersionlessSubcommands"))]
 pub struct Args {
     #[structopt(flatten)]
     pub global: GlobalArgs,
@@ -31,7 +32,7 @@ pub enum Command {
     Convert {
         #[structopt(flatten)]
         args: ConvertArgs,
-    }
+    },
 }
 
 #[derive(StructOpt, Debug)]
@@ -66,8 +67,8 @@ pub struct ConvertArgs {
     /// Path to the source mesh file.
     pub source: String,
 
-    /// Path to the target mesh file. The target format is guessed from the extension
-    /// given here. Files are not overwritten by default.
+    /// Path to the target mesh file. The target format is guessed from the
+    /// extension given here. Files are not overwritten by default.
     pub target: String,
 }
 
