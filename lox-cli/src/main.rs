@@ -37,9 +37,8 @@ fn run() -> Result<(), Error> {
     let global_args = &args.global;
 
     match &args.command {
-        Command::Convert { args } => {
-            commands::convert::run(&global_args, args)?;
-        }
+        Command::Convert { args } => commands::convert::run(&global_args, args)?,
+        Command::Info { args } => commands::info::run(&global_args, args)?,
     }
 
     Ok(())

@@ -27,6 +27,13 @@ pub struct GlobalArgs {
 
 #[derive(StructOpt, Debug)]
 pub enum Command {
+    /// Print information about a mesh file.
+    #[structopt(name = "info")]
+    Info {
+        #[structopt(flatten)]
+        args: InfoArgs,
+    },
+
     /// Converts a mesh from one file format into another one.
     #[structopt(name = "convert")]
     Convert {
@@ -70,6 +77,36 @@ pub struct ConvertArgs {
     /// Path to the target mesh file. The target format is guessed from the
     /// extension given here. Files are not overwritten by default.
     pub target: String,
+}
+
+
+#[derive(StructOpt, Debug)]
+pub struct InfoArgs {
+    /// Explicitly specify the source file format (otherwise it's guessed from
+    /// the extension and file header). Valid values: ply, stl.
+    #[structopt(
+        long = "--source-format",
+        parse(try_from_str = "parse_file_format"),
+    )]
+    pub source_format: Option<FileFormat>,
+
+    /// If specified, only the header (and not the body) of the file will be
+    /// read. Some file formats (like PLY) store almost all relevant
+    /// information in the header, while others (like OBJ) do not store
+    /// anything in the header. Reading the body also has the advantage of
+    /// checking whether the file is completely valid.
+    #[structopt(
+        long = "--header-only",
+    )]
+    pub header_only: bool,
+
+    /// Path to the mesh file.
+    pub file: String,
+
+    // TODO:
+    // - different output types (short, json, ...)
+    // - output template?
+    // - include/exclude specific informations
 }
 
 fn parse_file_format(src: &str) -> Result<FileFormat, String> {
