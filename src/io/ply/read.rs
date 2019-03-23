@@ -867,141 +867,6 @@ impl<R: io::Read> StreamSource for Reader<R> {
             ))
         }
 
-        fn check_vec_like(
-            group: &ElementDef,
-            xs: &str,
-            ys: &str,
-            zs: &str,
-            props: &str,
-            elem: &str,
-        ) -> Result<Option<([PropIndex; 3], ScalarType)>, Error> {
-            if let Some(px_idx) = group.prop_pos(xs) {
-                let py_idx = group.prop_pos(ys).ok_or(Error::InvalidInput(
-                    format!(
-                        "{} has '{}' property, but no '{}' property \
-                            (only 3D {} supported)",
-                        elem,
-                        xs,
-                        ys,
-                        props,
-                    )
-                ))?;
-                let pz_idx = group.prop_pos(zs).ok_or(Error::InvalidInput(
-                    format!(
-                        "{} has '{}' property, but no '{}' property \
-                            (only 3D {} supported)",
-                        elem,
-                        xs,
-                        zs,
-                        props,
-                    )
-                ))?;
-
-                let px = &group.property_defs[px_idx];
-                let py = &group.property_defs[py_idx];
-                let pz = &group.property_defs[pz_idx];
-
-                if px.ty.is_list() {
-                    return Err(Error::InvalidInput(
-                        format!(
-                            "{} property '{}' has a list type (only scalars allowed)",
-                            elem,
-                            xs,
-                        )
-                    ));
-                }
-
-                if px.ty != py.ty || px.ty != pz.ty {
-                    return Err(Error::InvalidInput(
-                        format!(
-                            "{} properties '{}', '{}' and '{}' don't have the same type",
-                            elem,
-                            xs,
-                            ys,
-                            zs,
-                        )
-                    ));
-                }
-
-                Ok(Some((
-                    [px_idx, py_idx, pz_idx],
-                    px.ty.scalar_type(),
-                )))
-            } else {
-                Ok(None)
-            }
-        }
-
-        fn check_color(
-            group: &ElementDef,
-            elem: &str,
-        ) -> Result<Option<([PropIndex; 4], bool)>, Error> {
-            if let Some(red_idx) = group.prop_pos("red") {
-                let green_idx = group.prop_pos("green").ok_or(Error::InvalidInput(
-                    format!(
-                        "{} has 'red' property, but no 'green' property \
-                            (only RGB and RGBA colors supported)",
-                        elem,
-                    )
-                ))?;
-                let blue_idx = group.prop_pos("blue").ok_or(Error::InvalidInput(
-                    format!(
-                        "{} has 'red' property, but no 'blue' property \
-                            (only RGB and RGBA colors supported)",
-                        elem,
-                    )
-                ))?;
-
-                let red = &group.property_defs[red_idx];
-                let green = &group.property_defs[green_idx];
-                let blue = &group.property_defs[blue_idx];
-
-                let check_type = |name, ty: PropertyType| {
-                    if ty.is_list() {
-                        return Err(Error::InvalidInput(
-                            format!(
-                                "{} property '{}' is a list (should be scalar 'uchar')",
-                                elem,
-                                name,
-                            )
-                        ));
-                    }
-
-                    if ty.scalar_type() != ScalarType::UChar {
-                        return Err(Error::InvalidInput(
-                            format!(
-                                "{} property '{}' has type '{}' (should be 'uchar')",
-                                elem,
-                                name,
-                                ty.scalar_type().ply_type_name(),
-                            )
-                        ));
-                    }
-
-                    Ok(())
-                };
-
-                check_type("red", red.ty)?;
-                check_type("green", green.ty)?;
-                check_type("blue", blue.ty)?;
-
-                let (alpha_idx, alpha) = if let Some(alpha_idx) = group.prop_pos("alpha") {
-                    let alpha = &group.property_defs[alpha_idx];
-                    check_type("alpha", alpha.ty)?;
-                    (alpha_idx, true)
-                } else {
-                    (PropIndex(0), false)
-                };
-
-                Ok(Some((
-                    [red_idx, green_idx, blue_idx, alpha_idx],
-                    alpha,
-                )))
-            } else {
-                Ok(None)
-            }
-        }
-
         // Make sure the file contains vertices
         let vertex_pos = self.elements.iter().position(|e| e.name == "vertex")
             .ok_or_else(|| Error::InvalidInput("no 'vertex' elements in PLY file".into()))?;
@@ -1010,9 +875,9 @@ impl<R: io::Read> StreamSource for Reader<R> {
         let vertex_count = u64_to_hsize(vertex_group.count, "vertices")?;
         let mut prop_info = PropInfo {
             vertex_count,
-            vertex_position: check_vec_like(&vertex_group, "x", "y", "z", "positions", "vertex")?,
-            vertex_normal: check_vec_like(&vertex_group, "nx", "ny", "nz", "normals", "vertex")?,
-            vertex_color: check_color(&vertex_group, "vertex")?,
+            vertex_position: vertex_group.check_vec3_prop(["x", "y", "z"], "positions")?,
+            vertex_normal: vertex_group.check_vec3_prop(["nx", "ny", "nz"], "normals")?,
+            vertex_color: vertex_group.check_color_prop()?,
             face_count: None,
             vertex_indices: None,
             face_normal: None,
@@ -1055,9 +920,8 @@ impl<R: io::Read> StreamSource for Reader<R> {
             }
 
             // Check other face properties
-            prop_info.face_normal
-                = check_vec_like(&face_group, "nx", "ny", "nz", "normals", "face")?;
-            prop_info.face_color = check_color(&face_group, "face")?;
+            prop_info.face_normal = face_group.check_vec3_prop(["nx", "ny", "nz"], "normals")?;
+            prop_info.face_color = face_group.check_color_prop()?;
         }
 
         // ===== Read the data through our helper sink =====
