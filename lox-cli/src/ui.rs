@@ -1,5 +1,10 @@
 //! Utilities for printing and everything related to "UI".
 
+use std::{
+    fmt::{Display, Write},
+    iter::IntoIterator,
+};
+
 use term_painter::{Color, Style, ToStyle};
 
 macro_rules! print_msg {
@@ -142,6 +147,19 @@ pub fn fmt_with_thousand_sep(mut v: u64) -> String {
         out = format!("{},{}", v % 1000, out);
         v /= 1000;
     }
+
+    out
+}
+
+pub fn comma_and_list(items: impl IntoIterator<Item = impl Display>) -> String {
+    let items = items.into_iter().map(|i| i.to_string()).collect::<Vec<_>>();
+    let mut out = String::new();
+    let len = items.len();
+
+    for item in &items[0..len - 2] {
+        write!(out, "{}, ", item).unwrap();
+    }
+    write!(out, "{} and {}", &items[len - 2], &items[len - 1]).unwrap();
 
     out
 }

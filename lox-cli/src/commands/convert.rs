@@ -8,7 +8,7 @@ use failure::{err_msg, format_err, Error, ResultExt};
 use lox::{
     prelude::*,
     fat::AnyMesh,
-    io::FileFormat,
+    io::{FileEncoding, FileFormat},
 };
 
 
@@ -18,24 +18,49 @@ use crate::{
         guess_file_format, reader_and_encoding,
         info::MeshInfo,
     },
+    ui,
 };
 
 pub fn run(global_args: &GlobalArgs, args: &ConvertArgs) -> Result<(), Error> {
     let start_time = Instant::now();
 
+    // ----- Prepare ---------------------------------------------------------
+    // Figure out the target file format and encoding
+    let target_format = args.target_format
+        .or_else(|| FileFormat::from_extension(&args.target))
+        .ok_or_else(|| err_msg(
+            "couldn't determine target file format, please specify it explicitly using \
+                '--target-format'"
+        ))?;
+
+    let target_encoding = args.target_encoding.encoding_for(target_format).ok_or(
+        format_err!(
+            "the encoding {:?} is not supported by the {} format",
+            args.target_encoding,
+            target_format,
+        )
+    )?;
+
+    // Read file
     let before_load = Instant::now();
-    let mesh_data = load_file(global_args, args).context("could not read source file")?;
+    let mesh = load_file(global_args, args).context("could not read source file")?;
     let load_time = before_load.elapsed();
 
+    // Print mesh data
     if !args.no_info {
         info!("Mesh information:");
         println!();
-        MeshInfo::about_mesh(&mesh_data).print(global_args);
+        MeshInfo::about_mesh(&mesh).print(global_args);
         println!();
     }
 
+    // Check target compatability
+    check_compatability(&mesh, target_format);
+
+    // Write file
     let before_write = Instant::now();
-    write_file(global_args, args, &mesh_data).context("could not write target file")?;
+    write_file(&mesh, target_format, target_encoding, global_args, args)
+        .context("could not write target file")?;
     let write_time = before_write.elapsed();
 
     info!(
@@ -70,36 +95,59 @@ fn load_file(_global_args: &GlobalArgs, args: &ConvertArgs) -> Result<AnyMesh, E
     Ok(mesh)
 }
 
-fn write_file(_global_args: &GlobalArgs, args: &ConvertArgs, data: &AnyMesh) -> Result<(), Error> {
-    // Figure out the file format
-    let file_format = args.target_format
-        .or_else(|| FileFormat::from_extension(&args.target))
-        .ok_or_else(|| err_msg(
-            "couldn't determine target file format, please specify it explicitly using \
-                '--target-format'"
-        ))?;
+fn write_file(
+    data: &AnyMesh,
+    format: FileFormat,
+    encoding: FileEncoding,
+    _global_args: &GlobalArgs,
+    args: &ConvertArgs,
+) -> Result<(), Error> {
+    info!("Target format: {} ({} encoding)", format, encoding);
 
-
-    let encoding = args.target_encoding.encoding_for(file_format).ok_or(
-        format_err!(
-            "the encoding {:?} is not supported by the {} format",
-            args.target_encoding,
-            file_format,
-        )
-    )?;
-
-    info!(
-        "Target format: {} ({} encoding)",
-        file_format,
-        encoding,
-    );
-
+    // We can `unwrap()` here becaue we know the encoding is compatible with
+    // the format.
     let file = BufWriter::new(File::create(&args.target)?);
-    let writer = file_format.writer_with_encoding(encoding, file).unwrap();
+    let writer = format.writer_with_encoding(encoding, file).unwrap();
 
     progress!(["Writing mesh to '{}'", args.target] => {
         writer.transfer_from(data)?;
     });
 
     Ok(())
+}
+
+fn check_compatability(
+    mesh: &AnyMesh,
+    format: FileFormat,
+) {
+    // TODO: add a whole system of things to warn about and what not.
+    // `--warn cast`
+    // `--warn data-loss`
+    // something like that
+    match format {
+        FileFormat::Stl => {
+            let mut unsupported_props = Vec::new();
+
+            if mesh.vertex_normals.is_some() {
+                unsupported_props.push("vertex normals");
+            }
+            if mesh.vertex_colors.is_some() {
+                unsupported_props.push("vertex colors");
+            }
+            if mesh.face_colors.is_some() {
+                unsupported_props.push("face colors");
+            }
+
+            warn!(
+                "Source file contains {}, but these properties are not supported by STL. \
+                    These properties will be ignored!",
+                ui::comma_and_list(unsupported_props),
+            );
+        }
+        FileFormat::Ply => {
+            // PLY currently supports everything that the IO interface can
+            // offer
+        }
+        _ => unimplemented!(),
+    }
 }
