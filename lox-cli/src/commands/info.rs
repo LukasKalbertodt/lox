@@ -82,7 +82,9 @@ fn info_from_body(
             normal_type: MaybeInfo::some_or_none(
                 mesh.vertex_normals.as_ref().map(|m| m.primitive_type())
             ),
-            color_type: MaybeInfo::None,
+            color_type: MaybeInfo::some_or_none(
+                mesh.vertex_colors.as_ref().map(|m| m.color_type())
+            ),
         },
         edge: ElementInfo::none(),
         face: ElementInfo {
@@ -91,7 +93,9 @@ fn info_from_body(
             normal_type: MaybeInfo::some_or_none(
                 mesh.vertex_normals.as_ref().map(|m| m.primitive_type())
             ),
-            color_type: MaybeInfo::None,
+            color_type: MaybeInfo::some_or_none(
+                mesh.face_colors.as_ref().map(|m| m.color_type())
+            ),
         },
     };
 
