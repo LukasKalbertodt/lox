@@ -4,20 +4,20 @@ use std::{
     time::Instant,
 };
 
-use failure::{bail, err_msg, format_err, Error, ResultExt};
+use failure::{err_msg, format_err, Error, ResultExt};
 use lox::{
     prelude::*,
     fat::AnyMesh,
-    io::{
-        FileFormat, FileEncoding,
-        stl, ply,
-    },
+    io::FileFormat,
 };
 
 
 use crate::{
     args::{GlobalArgs, ConvertArgs},
-    commands::{guess_file_format, reader_and_encoding},
+    commands::{
+        guess_file_format, reader_and_encoding,
+        info::MeshInfo,
+    },
 };
 
 pub fn run(global_args: &GlobalArgs, args: &ConvertArgs) -> Result<(), Error> {
@@ -27,7 +27,10 @@ pub fn run(global_args: &GlobalArgs, args: &ConvertArgs) -> Result<(), Error> {
     let mesh_data = load_file(global_args, args).context("could not read source file")?;
     let load_time = before_load.elapsed();
 
-    print_mesh_info(&mesh_data);
+    info!("Mesh information:");
+    println!();
+    MeshInfo::about_mesh(&mesh_data).print(global_args);
+    println!();
 
     let before_write = Instant::now();
     write_file(global_args, args, &mesh_data).context("could not write target file")?;
@@ -41,41 +44,6 @@ pub fn run(global_args: &GlobalArgs, args: &ConvertArgs) -> Result<(), Error> {
     );
 
     Ok(())
-}
-
-fn print_mesh_info(mesh_data: &AnyMesh) {
-    info!("Mesh information:");
-
-    // ===== Vertex Infos ====================================================
-    // Collect vertex properties
-    let mut vertex_props = vec![];
-    if mesh_data.vertex_positions.is_some() {
-        vertex_props.push("position");
-    }
-
-    let vertex_props = if vertex_props.is_empty() {
-        "none".to_string()
-    } else {
-        let mut out = vertex_props[0].to_string();
-        for prop in &vertex_props[1..] {
-            out += ", ";
-            out += prop;
-        }
-        out
-    };
-
-    println!(
-        "    │ {} vertices (properties: {})",
-        mesh_data.mesh.num_vertices(),
-        vertex_props,
-    );
-
-
-    // ===== Face Infos ======================================================
-    println!(
-        "    └ {} faces (properties: none)",
-        mesh_data.mesh.num_faces(),
-    );
 }
 
 fn load_file(_global_args: &GlobalArgs, args: &ConvertArgs) -> Result<AnyMesh, Error> {
