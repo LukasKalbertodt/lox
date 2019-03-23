@@ -29,6 +29,8 @@ use crate::{
 pub struct AnyMesh {
     pub mesh: SharedVertexMesh,
     pub vertex_positions: Option<AnyPointMap<VertexHandle>>,
+    pub vertex_normals: Option<AnyVectorMap<VertexHandle>>,
+    pub face_normals: Option<AnyVectorMap<FaceHandle>>,
 }
 
 impl MemSink for AnyMesh {
@@ -45,13 +47,40 @@ impl MemSink for AnyMesh {
         self.vertex_positions = Some(map);
         Ok(())
     }
-
     fn set_vertex_position<N: Primitive>(
         &mut self,
         handle: VertexHandle,
         position: Point3<N>,
     ) {
         self.vertex_positions.as_mut().unwrap().insert(handle, position);
+    }
+
+    fn prepare_vertex_normals<N: Primitive>(&mut self, count: hsize) -> Result<(), Error> {
+        let mut map = AnyVectorMap::new::<N>();
+        map.reserve(count);
+        self.vertex_normals = Some(map);
+        Ok(())
+    }
+    fn set_vertex_normal<N: Primitive>(
+        &mut self,
+        handle: VertexHandle,
+        normal: Vector3<N>,
+    ) {
+        self.vertex_normals.as_mut().unwrap().insert(handle, normal);
+    }
+
+    fn prepare_face_normals<N: Primitive>(&mut self, count: hsize) -> Result<(), Error> {
+        let mut map = AnyVectorMap::new::<N>();
+        map.reserve(count);
+        self.face_normals = Some(map);
+        Ok(())
+    }
+    fn set_face_normal<N: Primitive>(
+        &mut self,
+        handle: FaceHandle,
+        normal: Vector3<N>,
+    ) {
+        self.face_normals.as_mut().unwrap().insert(handle, normal);
     }
 }
 
@@ -70,6 +99,30 @@ impl MemSource for AnyMesh {
             .as_ref()
             .expect("requested non-existent vertex position from `AnyMesh`")
             .get_casted_lossy(v);
+
+        Ok(out)
+    }
+
+    fn vertex_normal_type(&self) -> Option<PrimitiveType> {
+        self.vertex_normals.as_ref().map(|m| m.primitive_type())
+    }
+    fn vertex_normal<T: Primitive>(&self, v: VertexHandle) -> Result<Option<Vector3<T>>, Error> {
+        let out = self.vertex_normals
+            .as_ref()
+            .expect("requested non-existent vertex normal from `AnyMesh`")
+            .get_casted_lossy(v);
+
+        Ok(out)
+    }
+
+    fn face_normal_type(&self) -> Option<PrimitiveType> {
+        self.face_normals.as_ref().map(|m| m.primitive_type())
+    }
+    fn face_normal<T: Primitive>(&self, f: FaceHandle) -> Result<Option<Vector3<T>>, Error> {
+        let out = self.face_normals
+            .as_ref()
+            .expect("requested non-existent face normal from `AnyMesh`")
+            .get_casted_lossy(f);
 
         Ok(out)
     }
