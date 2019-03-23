@@ -20,8 +20,20 @@ use crate::{
 };
 
 pub fn run(global_args: &GlobalArgs, args: &InfoArgs) -> Result<(), Error> {
-    let info = if args.header_only {
-        info_from_header(global_args, args)?
+    // Open file and figure out file format
+    let filename = &args.file;
+    let mut file = File::open(filename)
+        .context(format!("failed to open file '{}'", filename))?;
+    let format = guess_file_format(args.source_format, filename, &mut file)?;
+
+    let header_is_sufficient = match format {
+        FileFormat::Stl => false,
+        FileFormat::Ply => true,
+        _ => unimplemented!(),
+    };
+
+    let info = if args.header_only || (header_is_sufficient && !args.read_body) {
+        info_from_header(format, file, global_args, args)?
     } else {
         unimplemented!()
     };
@@ -34,14 +46,12 @@ pub fn run(global_args: &GlobalArgs, args: &InfoArgs) -> Result<(), Error> {
 
 
 /// Gets information from just reading the header of the input file.
-fn info_from_header(_global_args: &GlobalArgs, args: &InfoArgs) -> Result<Info, Error> {
-    // Open file and figure out file format
-    let filename = &args.file;
-    let mut file = File::open(filename)
-        .context(format!("failed to open file '{}'", filename))?;
-    let format = guess_file_format(args.source_format, filename, &mut file)?;
-
-
+fn info_from_header(
+    format: FileFormat,
+    file: File,
+    _global_args: &GlobalArgs,
+    args: &InfoArgs,
+) -> Result<Info, Error> {
     // Get information. This is different for each format.
     let err_read_header = format!("failed to read {} header", format);
     let info = match format {

@@ -94,11 +94,23 @@ pub struct InfoArgs {
     /// read. Some file formats (like PLY) store almost all relevant
     /// information in the header, while others (like OBJ) do not store
     /// anything in the header. Reading the body also has the advantage of
-    /// checking whether the file is completely valid.
+    /// checking whether the file is completely valid. If neither
+    /// `--header-only` nor `--read-body` is specified, the body will only be
+    /// read if the header does not contain all information.
     #[structopt(
         long = "--header-only",
+        conflicts_with = "--read-body"
     )]
     pub header_only: bool,
+
+    /// If specified, the body of the input file is always read completely,
+    /// even if the header already contains all relevant information. This has
+    /// the advantage that the file completely inspected and any error is
+    /// detected.
+    #[structopt(
+        long = "--read-body",
+    )]
+    pub read_body: bool,
 
     /// Path to the mesh file.
     pub file: String,
