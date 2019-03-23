@@ -7,7 +7,7 @@ use crate::{
     ds::SharedVertexMesh,
     handle::{hsize},
     map::VecMap,
-    io::{Error, Primitive, PrimitiveType},
+    io::{ColorType, Error, Primitive, PrimitiveType, PrimitiveColorChannelType},
     util::downcast_as,
 };
 
@@ -30,7 +30,9 @@ pub struct AnyMesh {
     pub mesh: SharedVertexMesh,
     pub vertex_positions: Option<AnyPointMap<VertexHandle>>,
     pub vertex_normals: Option<AnyVectorMap<VertexHandle>>,
+    pub vertex_colors: Option<AnyColorMap<VertexHandle>>,
     pub face_normals: Option<AnyVectorMap<FaceHandle>>,
+    pub face_colors: Option<AnyColorMap<FaceHandle>>,
 }
 
 impl MemSink for AnyMesh {
@@ -69,6 +71,24 @@ impl MemSink for AnyMesh {
         self.vertex_normals.as_mut().unwrap().insert(handle, normal);
     }
 
+    fn prepare_vertex_colors<C>(&mut self, count: hsize) -> Result<(), Error>
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
+        let mut map = AnyColorMap::new::<C>();
+        map.reserve(count);
+        self.vertex_colors = Some(map);
+        Ok(())
+    }
+    fn set_vertex_color<C>(&mut self, handle: VertexHandle, color: C)
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
+        self.vertex_colors.as_mut().unwrap().insert(handle, color);
+    }
+
     fn prepare_face_normals<N: Primitive>(&mut self, count: hsize) -> Result<(), Error> {
         let mut map = AnyVectorMap::new::<N>();
         map.reserve(count);
@@ -81,6 +101,24 @@ impl MemSink for AnyMesh {
         normal: Vector3<N>,
     ) {
         self.face_normals.as_mut().unwrap().insert(handle, normal);
+    }
+
+    fn prepare_face_colors<C>(&mut self, count: hsize) -> Result<(), Error>
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
+        let mut map = AnyColorMap::new::<C>();
+        map.reserve(count);
+        self.face_colors = Some(map);
+        Ok(())
+    }
+    fn set_face_color<C>(&mut self, handle: FaceHandle, color: C)
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
+        self.face_colors.as_mut().unwrap().insert(handle, color);
     }
 }
 
@@ -115,6 +153,22 @@ impl MemSource for AnyMesh {
         Ok(out)
     }
 
+    fn vertex_color_type(&self) -> Option<ColorType> {
+        self.vertex_colors.as_ref().map(|m| m.color_type())
+    }
+    fn vertex_color<C>(&self, v: VertexHandle) -> Result<Option<C>, Error>
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
+        let out = self.vertex_colors
+            .as_ref()
+            .expect("requested non-existent vertex color from `AnyMesh`")
+            .get_casted_lossy(v);
+
+        Ok(out)
+    }
+
     fn face_normal_type(&self) -> Option<PrimitiveType> {
         self.face_normals.as_ref().map(|m| m.primitive_type())
     }
@@ -123,6 +177,22 @@ impl MemSource for AnyMesh {
             .as_ref()
             .expect("requested non-existent face normal from `AnyMesh`")
             .get_casted_lossy(f);
+
+        Ok(out)
+    }
+
+    fn face_color_type(&self) -> Option<ColorType> {
+        self.face_colors.as_ref().map(|m| m.color_type())
+    }
+    fn face_color<C>(&self, v: FaceHandle) -> Result<Option<C>, Error>
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
+        let out = self.face_colors
+            .as_ref()
+            .expect("requested non-existent face color from `AnyMesh`")
+            .get_casted_lossy(v);
 
         Ok(out)
     }
@@ -314,3 +384,192 @@ gen_vec3_any_map!(
     /// you don't want to use this map.
     AnyVectorMap => Vector3
 );
+
+#[derive(Debug, Clone)]
+pub enum AnyColorMap<H: Handle> {
+    RgbUint8(VecMap<H, [u8; 3]>),
+    RgbUint16(VecMap<H, [u16; 3]>),
+    RgbUint32(VecMap<H, [u32; 3]>),
+    RgbFloat32(VecMap<H, [f32; 3]>),
+    RgbFloat64(VecMap<H, [f64; 3]>),
+    RgbaUint8(VecMap<H, [u8; 4]>),
+    RgbaUint16(VecMap<H, [u16; 4]>),
+    RgbaUint32(VecMap<H, [u32; 4]>),
+    RgbaFloat32(VecMap<H, [f32; 4]>),
+    RgbaFloat64(VecMap<H, [f64; 4]>),
+}
+
+impl<H: Handle> AnyColorMap<H> {
+    /// Creates a new instance of this map with the given scalar type. `alpha`
+    /// denotes if an alpha channel should be stored.
+    pub fn new<C>() -> Self
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
+        match (C::HAS_ALPHA, C::Channel::channel_type()) {
+            (false, PrimitiveColorChannelType::Uint8) => AnyColorMap::RgbUint8(VecMap::new()),
+            (false, PrimitiveColorChannelType::Uint16) => AnyColorMap::RgbUint16(VecMap::new()),
+            (false, PrimitiveColorChannelType::Uint32) => AnyColorMap::RgbUint32(VecMap::new()),
+            (false, PrimitiveColorChannelType::Float32) => AnyColorMap::RgbFloat32(VecMap::new()),
+            (false, PrimitiveColorChannelType::Float64) => AnyColorMap::RgbFloat64(VecMap::new()),
+            (true, PrimitiveColorChannelType::Uint8) => AnyColorMap::RgbaUint8(VecMap::new()),
+            (true, PrimitiveColorChannelType::Uint16) => AnyColorMap::RgbaUint16(VecMap::new()),
+            (true, PrimitiveColorChannelType::Uint32) => AnyColorMap::RgbaUint32(VecMap::new()),
+            (true, PrimitiveColorChannelType::Float32) => AnyColorMap::RgbaFloat32(VecMap::new()),
+            (true, PrimitiveColorChannelType::Float64) => AnyColorMap::RgbaFloat64(VecMap::new()),
+        }
+    }
+
+    /// Reserves memory for at least `additional` new properties.
+    pub fn reserve(&mut self, additional: hsize) {
+        match self {
+            AnyColorMap::RgbUint8(map) => map.reserve(additional),
+            AnyColorMap::RgbUint16(map) => map.reserve(additional),
+            AnyColorMap::RgbUint32(map) => map.reserve(additional),
+            AnyColorMap::RgbFloat32(map) => map.reserve(additional),
+            AnyColorMap::RgbFloat64(map) => map.reserve(additional),
+            AnyColorMap::RgbaUint8(map) => map.reserve(additional),
+            AnyColorMap::RgbaUint16(map) => map.reserve(additional),
+            AnyColorMap::RgbaUint32(map) => map.reserve(additional),
+            AnyColorMap::RgbaFloat32(map) => map.reserve(additional),
+            AnyColorMap::RgbaFloat64(map) => map.reserve(additional),
+        }
+    }
+
+    /// Returns the scalar type of the data currently stored in this
+    /// map.
+    pub fn color_type(&self) -> ColorType {
+        macro_rules! imp {
+            ($( $variant:ident => ($alpha:literal, $ty:ident), )*) => {
+                match self {
+                    $(
+                        AnyColorMap::$variant(_) => ColorType {
+                            alpha: $alpha,
+                            channel_type: PrimitiveColorChannelType::$ty,
+                        },
+                    )*
+                }
+            }
+        }
+
+        imp! {
+            RgbUint8 => (false, Uint8),
+            RgbUint16 => (false, Uint16),
+            RgbUint32 => (false, Uint32),
+            RgbFloat32 => (false, Float32),
+            RgbFloat64 => (false, Float64),
+            RgbaUint8 => (true, Uint8),
+            RgbaUint16 => (true, Uint16),
+            RgbaUint32 => (true, Uint32),
+            RgbaFloat32 => (true, Float32),
+            RgbaFloat64 => (true, Float64),
+        }
+    }
+
+    /// Returns the property with the given handle, or `None` if no
+    /// property is associated with that handle.
+    ///
+    /// The scalar type `T` must match the type that is currently
+    /// stored in the map! Otherwise, this method panics.
+    pub fn get<C>(&self, handle: H) -> Option<C>
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
+        macro_rules! get {
+            ($map:ident, $n:expr) => {{
+                $map.get(handle).map(|c| {
+                    ColorLike::convert(&downcast_as::<_, [C::Channel; $n]>(*c).unwrap())
+                })
+            }}
+        }
+
+        // Make sure the inserted type matches the type of the map
+        if ColorType::from_color_like::<C>() != self.color_type() {
+            panic!(
+                "type mismatch requesting '{:?}' from an AnyColorMap with type '{:?}'",
+                ColorType::from_color_like::<C>(),
+                self.color_type(),
+            )
+        }
+
+        // Since we know here that the types match, all those `to_*`
+        // convert functions won't ever return `None`. In fact, the
+        // compiler can probably prove that since it has static type
+        // information about `C`.
+        match self {
+            AnyColorMap::RgbUint8(map) => get!(map, 3),
+            AnyColorMap::RgbUint16(map) => get!(map, 3),
+            AnyColorMap::RgbUint32(map) => get!(map, 3),
+            AnyColorMap::RgbFloat32(map) => get!(map, 3),
+            AnyColorMap::RgbFloat64(map) => get!(map, 3),
+            AnyColorMap::RgbaUint8(map) => get!(map, 4),
+            AnyColorMap::RgbaUint16(map) => get!(map, 4),
+            AnyColorMap::RgbaUint32(map) => get!(map, 4),
+            AnyColorMap::RgbaFloat32(map) => get!(map, 4),
+            AnyColorMap::RgbaFloat64(map) => get!(map, 4),
+        }
+    }
+
+    pub fn get_casted_lossy<C: ColorLike>(&self, handle: H) -> Option<C> {
+        macro_rules! get {
+            ($map:ident) => {{
+                $map.get(handle).map(|c| ColorLike::cast(&*c))
+            }}
+        }
+
+        match self {
+            AnyColorMap::RgbUint8(map) => get!(map),
+            AnyColorMap::RgbUint16(map) => get!(map),
+            AnyColorMap::RgbUint32(map) => get!(map),
+            AnyColorMap::RgbFloat32(map) => get!(map),
+            AnyColorMap::RgbFloat64(map) => get!(map),
+            AnyColorMap::RgbaUint8(map) => get!(map),
+            AnyColorMap::RgbaUint16(map) => get!(map),
+            AnyColorMap::RgbaUint32(map) => get!(map),
+            AnyColorMap::RgbaFloat32(map) => get!(map),
+            AnyColorMap::RgbaFloat64(map) => get!(map),
+        }
+    }
+
+    /// Inserts a new property for the given handle. Overwrites old value if
+    /// there was already something associated with `handle`.
+    ///
+    /// The color type `C` must match the type that is currently stored in the
+    /// map! Otherwise, this method panics.
+    pub fn insert<C>(&mut self, handle: H, prop: C)
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
+        macro_rules! insert {
+            ($map:ident, $n:expr) => {{
+                let value = downcast_as::<_, _>(ColorLike::convert::<[_; $n]>(&prop)).unwrap();
+                $map.insert(handle, value);
+            }}
+        }
+
+        // Make sure the inserted type matches the type of the map
+        if ColorType::from_color_like::<C>() != self.color_type() {
+            panic!(
+                "type mismatch inserting '{:?}' into an AnyColorMap with type '{:?}'",
+                ColorType::from_color_like::<C>(),
+                self.color_type(),
+            )
+        }
+
+        match self {
+            AnyColorMap::RgbUint8(map) => insert!(map, 3),
+            AnyColorMap::RgbUint16(map) => insert!(map, 3),
+            AnyColorMap::RgbUint32(map) => insert!(map, 3),
+            AnyColorMap::RgbFloat32(map) => insert!(map, 3),
+            AnyColorMap::RgbFloat64(map) => insert!(map, 3),
+            AnyColorMap::RgbaUint8(map) => insert!(map, 4),
+            AnyColorMap::RgbaUint16(map) => insert!(map, 4),
+            AnyColorMap::RgbaUint32(map) => insert!(map, 4),
+            AnyColorMap::RgbaFloat32(map) => insert!(map, 4),
+            AnyColorMap::RgbaFloat64(map) => insert!(map, 4),
+        }
+    }
+}

@@ -987,7 +987,7 @@ impl PrimitiveColorChannelType {
 
 /// Specifies the channel type of a color type as well as whether the color
 /// type contains an alpha channel.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ColorType {
     /// Whether or not the color type contains an alpha channel.
     pub alpha: bool,
