@@ -12,13 +12,13 @@ fn disc4() {
         mesh: lox::ds::FaceDelegateMesh,
 
         #[lox(vertex_position)]
-        vertex_positions: lox::map::VecMap<lox::VertexHandle, lox::cgmath::Point3<f32>>,
+        vertex_positions: lox::map::VecMap<lox::VertexHandle, lox::cgmath::Point3<f64>>,
 
         #[lox(vertex_normal)]
-        vertex_normals: lox::map::VecMap<lox::VertexHandle, lox::cgmath::Vector3<f32>>,
+        vertex_normals: lox::map::VecMap<lox::VertexHandle, lox::cgmath::Vector3<f64>>,
 
         #[lox(face_normal)]
-        face_normals: lox::map::VecMap<lox::FaceHandle, lox::cgmath::Vector3<f32>>,
+        face_normals: lox::map::VecMap<lox::FaceHandle, lox::cgmath::Vector3<f64>>,
     }
 
 
@@ -43,7 +43,7 @@ fn disc4() {
 
         // Note: sin and cos of those multiple of pi/2 are not perfect (they
         // should be 1 or 0), that's why we don't hardcode the values.
-        let half_pi = std::f32::consts::FRAC_PI_2;
+        let half_pi = std::f64::consts::FRAC_PI_2;
         assert_eq!(m.vertex_positions[vh(0)], Point3::new(0.0, 0.0, 0.0));
         assert_eq!(
             m.vertex_positions[vh(1)],
