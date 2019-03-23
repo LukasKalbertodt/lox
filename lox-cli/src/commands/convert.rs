@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{Seek, Read, SeekFrom, BufWriter},
+    io::BufWriter,
     time::Instant,
 };
 
@@ -17,6 +17,7 @@ use lox::{
 
 use crate::{
     args::{GlobalArgs, ConvertArgs},
+    commands::guess_file_format,
 };
 
 pub fn run(global_args: &GlobalArgs, args: &ConvertArgs) -> Result<(), Error> {
@@ -78,27 +79,11 @@ fn print_mesh_info(mesh_data: &AnyMesh) {
 }
 
 fn load_file(_global_args: &GlobalArgs, args: &ConvertArgs) -> Result<AnyMesh, Error> {
-    let mut file = File::open(&args.source).context("failed to open file")?;
-
-    // Figure out the file format
-    let file_format = {
-        let format = args.source_format.or_else(|| FileFormat::from_extension(&args.source));
-        let format = match format {
-            Some(format) => Some(format),
-            None => {
-                let mut start = Vec::new();
-                file.by_ref().take(1024).read_to_end(&mut start)?;
-                file.seek(SeekFrom::Start(0))?;
-
-                FileFormat::from_file_start(&start)
-            }
-        };
-
-        format.ok_or_else(|| err_msg(
-            "couldn't determine source file format, please specify it explicitly using \
-                '--source-format'"
-        ))?
-    };
+    // Open file and figure out file format
+    let filename = &args.source;
+    let mut file = File::open(filename)
+        .context(format!("failed to open '{}'", filename))?;
+    let file_format = guess_file_format(args.source_format, filename, &mut file)?;
 
 
     // Parse the header of the file, print some information and return the
