@@ -35,6 +35,16 @@ pub fn run(global_args: &GlobalArgs, args: &InfoArgs) -> Result<(), Error> {
     };
 
     let info = if args.header_only || (header_is_sufficient && !args.read_body) {
+        if !args.header_only && header_is_sufficient {
+            info!(
+                "Note: since (for {} files) all information is already contained in the \
+                    header, the body of the file is not read. This means that errors in the \
+                    file's body are not detected. You can force reading the body \
+                    with `--read-body`.",
+                format,
+            );
+        }
+
         info_from_header(format, file, global_args, args)?
     } else {
         info_from_body(format, file, global_args, args)?
@@ -169,7 +179,13 @@ fn info_from_header(
 }
 
 /// Pretty prints all the information.
-fn print_info(info: &Info, _args: &InfoArgs) {
+fn print_info(info: &Info, args: &InfoArgs) {
+    // Header
+    println!();
+    Color::White.bold().with(|| {
+        println!("══════════╡ {} ╞══════════", Color::Green.paint(&args.file));
+    });
+
     // ----- Print file format and encoding ----------------------------------
     println!(
         "File format: {} (encoding: {})",
@@ -317,6 +333,8 @@ fn print_info(info: &Info, _args: &InfoArgs) {
 
         println!();
     }
+
+    println!();
 }
 
 
