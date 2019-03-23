@@ -77,6 +77,12 @@ pub struct ConvertArgs {
     /// Path to the target mesh file. The target format is guessed from the
     /// extension given here. Files are not overwritten by default.
     pub target: String,
+
+    /// If set, information about the source mesh won't be printed
+    #[structopt(
+        long = "--no-info",
+    )]
+    pub no_info: bool,
 }
 
 

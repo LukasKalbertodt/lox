@@ -27,10 +27,12 @@ pub fn run(global_args: &GlobalArgs, args: &ConvertArgs) -> Result<(), Error> {
     let mesh_data = load_file(global_args, args).context("could not read source file")?;
     let load_time = before_load.elapsed();
 
-    info!("Mesh information:");
-    println!();
-    MeshInfo::about_mesh(&mesh_data).print(global_args);
-    println!();
+    if !args.no_info {
+        info!("Mesh information:");
+        println!();
+        MeshInfo::about_mesh(&mesh_data).print(global_args);
+        println!();
+    }
 
     let before_write = Instant::now();
     write_file(global_args, args, &mesh_data).context("could not write target file")?;
