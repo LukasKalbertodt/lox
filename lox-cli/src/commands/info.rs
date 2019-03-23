@@ -248,22 +248,22 @@ fn print_info(info: &Info, args: &InfoArgs) {
         [
             element_labels[0],
             v.count.map(ui::fmt_with_thousand_sep),
-            v.position_type.map(type_str),
-            v.normal_type.map(type_str),
+            v.position_type.map(vec3_type_str),
+            v.normal_type.map(vec3_type_str),
             v.color_type.map(color_type_str),
         ],
         [
             element_labels[2],
             e.count.map(ui::fmt_with_thousand_sep),
-            e.position_type.map(type_str),
-            e.normal_type.map(type_str),
+            e.position_type.map(vec3_type_str),
+            e.normal_type.map(vec3_type_str),
             e.color_type.map(color_type_str),
         ],
         [
             element_labels[2],
             f.count.map(ui::fmt_with_thousand_sep),
-            f.position_type.map(type_str),
-            f.normal_type.map(type_str),
+            f.position_type.map(vec3_type_str),
+            f.normal_type.map(vec3_type_str),
             f.color_type.map(color_type_str),
         ],
     ]);
@@ -322,13 +322,13 @@ fn print_info(info: &Info, args: &InfoArgs) {
 
         print!(
             " {: >2$} {}",
-            info.position_type.map(type_str).painted(prop_style),
+            info.position_type.map(vec3_type_str).painted(prop_style),
             style.vertical,
             col_widths[2],
         );
         print!(
             " {: >2$} {}",
-            info.normal_type.map(type_str).painted(prop_style),
+            info.normal_type.map(vec3_type_str).painted(prop_style),
             style.vertical,
             col_widths[3],
         );
@@ -440,6 +440,10 @@ fn type_str(ty: PrimitiveType) -> &'static str {
         PrimitiveType::Float32 => "f32",
         PrimitiveType::Float64 => "f64",
     }
+}
+
+fn vec3_type_str(ty: PrimitiveType) -> String {
+    format!("3× {}", type_str(ty))
 }
 
 fn color_type_str(ty: ColorType) -> String {
