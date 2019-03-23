@@ -7,6 +7,8 @@ use std::{
 use failure::{Error, ResultExt};
 use term_painter::{Color, ToStyle, Style, Painted};
 use lox::{
+    prelude::*,
+    fat::AnyMesh,
     io::{
         stl, ply,
         ColorType, FileFormat, FileEncoding, PrimitiveType, PrimitiveColorChannelType,
@@ -15,7 +17,7 @@ use lox::{
 
 use crate::{
     args::{GlobalArgs, InfoArgs},
-    commands::guess_file_format,
+    commands::{guess_file_format, reader_and_encoding},
     ui,
 };
 
@@ -35,7 +37,7 @@ pub fn run(global_args: &GlobalArgs, args: &InfoArgs) -> Result<(), Error> {
     let info = if args.header_only || (header_is_sufficient && !args.read_body) {
         info_from_header(format, file, global_args, args)?
     } else {
-        unimplemented!()
+        info_from_body(format, file, global_args, args)?
     };
 
     print_info(&info, args);
@@ -43,6 +45,44 @@ pub fn run(global_args: &GlobalArgs, args: &InfoArgs) -> Result<(), Error> {
     Ok(())
 }
 
+/// Reads the whole file into a temporary storage and gets mesh information
+/// from there (more accurate than only reading the header).
+fn info_from_body(
+    format: FileFormat,
+    file: File,
+    _global_args: &GlobalArgs,
+    args: &InfoArgs,
+) -> Result<Info, Error> {
+    let (reader, encoding) = reader_and_encoding(format, file)?;
+
+    let mut mesh = AnyMesh::empty();
+    progress!(["Reading '{}'", args.file] => {
+        reader.transfer_to(&mut mesh)?;
+        mesh.finish()?;
+    });
+
+    let info = Info {
+        format,
+        encoding,
+        vertex: ElementInfo {
+            count: MaybeInfo::Known(mesh.mesh.num_vertices() as u64),
+            position_type: MaybeInfo::some_or_none(
+                mesh.vertex_positions.as_ref().map(|m| m.primitive_type())
+            ),
+            normal_type: MaybeInfo::None,
+            color_type: MaybeInfo::None,
+        },
+        edge: ElementInfo::none(),
+        face: ElementInfo {
+            count: MaybeInfo::Known(mesh.mesh.num_faces() as u64),
+            position_type: MaybeInfo::None,
+            normal_type: MaybeInfo::None,
+            color_type: MaybeInfo::None,
+        },
+    };
+
+    Ok(info)
+}
 
 
 /// Gets information from just reading the header of the input file.
