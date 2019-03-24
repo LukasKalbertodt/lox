@@ -63,7 +63,67 @@ fn three_tris_all_props_raw(c: &mut Criterion) {
     );
 }
 
+/// Measures body reading of `three_tris_all_props` files via `RawSink`.
+fn sphere_raw(c: &mut Criterion) {
+    c.bench_function_over_inputs(
+        "ply_sphere_raw",
+        |b, encoding| {
+            const FILES: [&[u8]; 3] = [
+                include_bytes!("../tests/files/ply/sphere_ble.ply"),
+                include_bytes!("../tests/files/ply/sphere_bbe.ply"),
+                include_bytes!("../tests/files/ply/sphere_ascii.ply"),
+            ];
+
+            // We do this string -> index stuff here so that the resulting
+            // benchmark names are more useful (`/"acsii"` than `/2`).
+            let data = match *encoding {
+                "ble" => FILES[0],
+                "bbe" => FILES[1],
+                "ascii" => FILES[2],
+                _ => unreachable!(),
+            };
+            let reader = Reader::new(Cursor::new(data)).unwrap();
+            let mut sink = NullRawSink;
+
+            b.iter_batched(
+                || reader.clone(),
+                |r| r.read_raw(&mut sink),
+                BatchSize::SmallInput,
+            )
+        },
+        vec!["ble", "bbe", "ascii"],
+    );
+
+    c.bench_function_over_inputs(
+        "ply_sphere_vnormals_raw",
+        |b, encoding| {
+            const FILES: [&[u8]; 3] = [
+                include_bytes!("../tests/files/ply/sphere_vnormals_ble.ply"),
+                include_bytes!("../tests/files/ply/sphere_vnormals_bbe.ply"),
+                include_bytes!("../tests/files/ply/sphere_vnormals_ascii.ply"),
+            ];
+
+            // We do this string -> index stuff here so that the resulting
+            // benchmark names are more useful (`/"acsii"` than `/2`).
+            let data = match *encoding {
+                "ble" => FILES[0],
+                "bbe" => FILES[1],
+                "ascii" => FILES[2],
+                _ => unreachable!(),
+            };
+            let reader = Reader::new(Cursor::new(data)).unwrap();
+            let mut sink = NullRawSink;
+
+            b.iter_batched(
+                || reader.clone(),
+                |r| r.read_raw(&mut sink),
+                BatchSize::SmallInput,
+            )
+        },
+        vec!["ble", "bbe", "ascii"],
+    );
+}
 
 
-criterion_group!(benches, three_tris_all_props_raw);
+criterion_group!(benches, three_tris_all_props_raw, sphere_raw);
 criterion_main!(benches);
