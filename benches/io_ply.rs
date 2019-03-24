@@ -88,30 +88,46 @@ impl MemSink for NullSinkPos {
     }
 }
 
+/// Helper struct to improve benchmark names.
+///
+/// We use `benchmark_function_over_inputs` a lot. It generates benchmark names
+/// with the inputs `Debug` representation. The best idea is to use the strings
+/// "ble", "bbe" and "ascii" as input. But the actual input is a byte slices.
+/// That's what this type is for: the mapping from string to byte slice.
+struct AllEncodings {
+    bbe: &'static [u8],
+    ble: &'static [u8],
+    ascii: &'static [u8],
+}
+
+impl AllEncodings {
+    fn get_for(&self, encoding: &str) -> &'static [u8] {
+        match encoding {
+            "ble" => self.ble,
+            "bbe" => self.bbe,
+            "ascii" => self.ascii,
+            _ => panic!(),
+        }
+    }
+}
+
+
 // ===============================================================================================
 // ===== Benchmarks
 // ===============================================================================================
 
 /// Measures body reading of `three_tris_all_props` files via `RawSink`.
 fn three_tris_all_props_raw(c: &mut Criterion) {
-    const FILES: [&[u8]; 3] = [
-        include_bytes!("../src/io/ply/test_files/three_tris_all_props_ble.ply"),
-        include_bytes!("../src/io/ply/test_files/three_tris_all_props_bbe.ply"),
-        include_bytes!("../src/io/ply/test_files/three_tris_all_props_ascii.ply"),
-    ];
+    const FILES: AllEncodings = AllEncodings {
+        ble: include_bytes!("../src/io/ply/test_files/three_tris_all_props_ble.ply"),
+        bbe: include_bytes!("../src/io/ply/test_files/three_tris_all_props_bbe.ply"),
+        ascii: include_bytes!("../src/io/ply/test_files/three_tris_all_props_ascii.ply"),
+    };
 
     c.bench_function_over_inputs(
         "ply_three_tris_all_props_ble_raw",
         |b, encoding| {
-            // We do this string -> index stuff here so that the resulting
-            // benchmark names are more useful (`/"acsii"` than `/2`).
-            let data = match *encoding {
-                "ble" => FILES[0],
-                "bbe" => FILES[1],
-                "ascii" => FILES[2],
-                _ => unreachable!(),
-            };
-            let reader = Reader::new(Cursor::new(data)).unwrap();
+            let reader = Reader::new(Cursor::new(FILES.get_for(encoding))).unwrap();
             let mut sink = NullRawSink;
 
             b.iter_batched(
@@ -129,21 +145,13 @@ fn sphere_raw(c: &mut Criterion) {
     c.bench_function_over_inputs(
         "ply_sphere_raw",
         |b, encoding| {
-            const FILES: [&[u8]; 3] = [
-                include_bytes!("../tests/files/ply/sphere_ble.ply"),
-                include_bytes!("../tests/files/ply/sphere_bbe.ply"),
-                include_bytes!("../tests/files/ply/sphere_ascii.ply"),
-            ];
-
-            // We do this string -> index stuff here so that the resulting
-            // benchmark names are more useful (`/"acsii"` than `/2`).
-            let data = match *encoding {
-                "ble" => FILES[0],
-                "bbe" => FILES[1],
-                "ascii" => FILES[2],
-                _ => unreachable!(),
+            const FILES: AllEncodings = AllEncodings {
+                ble: include_bytes!("../tests/files/ply/sphere_ble.ply"),
+                bbe: include_bytes!("../tests/files/ply/sphere_bbe.ply"),
+                ascii: include_bytes!("../tests/files/ply/sphere_ascii.ply"),
             };
-            let reader = Reader::new(Cursor::new(data)).unwrap();
+
+            let reader = Reader::new(Cursor::new(FILES.get_for(encoding))).unwrap();
             let mut sink = NullRawSink;
 
             b.iter_batched(
@@ -158,21 +166,13 @@ fn sphere_raw(c: &mut Criterion) {
     c.bench_function_over_inputs(
         "ply_sphere_vnormals_raw",
         |b, encoding| {
-            const FILES: [&[u8]; 3] = [
-                include_bytes!("../tests/files/ply/sphere_vnormals_ble.ply"),
-                include_bytes!("../tests/files/ply/sphere_vnormals_bbe.ply"),
-                include_bytes!("../tests/files/ply/sphere_vnormals_ascii.ply"),
-            ];
-
-            // We do this string -> index stuff here so that the resulting
-            // benchmark names are more useful (`/"acsii"` than `/2`).
-            let data = match *encoding {
-                "ble" => FILES[0],
-                "bbe" => FILES[1],
-                "ascii" => FILES[2],
-                _ => unreachable!(),
+            const FILES: AllEncodings = AllEncodings {
+                ble: include_bytes!("../tests/files/ply/sphere_vnormals_ble.ply"),
+                bbe: include_bytes!("../tests/files/ply/sphere_vnormals_bbe.ply"),
+                ascii: include_bytes!("../tests/files/ply/sphere_vnormals_ascii.ply"),
             };
-            let reader = Reader::new(Cursor::new(data)).unwrap();
+
+            let reader = Reader::new(Cursor::new(FILES.get_for(encoding))).unwrap();
             let mut sink = NullRawSink;
 
             b.iter_batched(
