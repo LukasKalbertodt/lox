@@ -60,7 +60,7 @@ use super::{
 /// the high level [`StreamSource`] API (you probably want that), or (b) via
 /// the low level [`read_raw`][Reader::read_raw] API (you only need to do that
 /// in very special situations).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Reader<R: io::Read> {
     buf: Buffer<R>,
     comments: Vec<String>,

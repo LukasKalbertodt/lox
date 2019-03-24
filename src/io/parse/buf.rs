@@ -21,7 +21,7 @@ const START_BUFFER_SIZE: usize = 8 * 1024;
 /// OOM, we limit the buffer size.
 pub(crate) const MAX_BUFFER_SIZE: usize = 4 * 1024 * 1024;
 
-
+#[derive(Clone)]
 pub(crate) struct Buffer<R: Read> {
     reader: R,
 
