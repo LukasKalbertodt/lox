@@ -22,13 +22,18 @@ jobs:
     executor: lox-ci
     steps:
       - checkout
+      # We only want to restore a cache that perfectly fits to the current
+      # situation, meaning: same dependency graph, same compiler version, same
+      # RUSTFLAGS. Disadvantage: if a single dependency updates, we have to
+      # compile everything again. Advantage: our cache won't grow big with
+      # stale artifacts.
       - run: cargo generate-lockfile  # we need `Cargo.lock` to lookup the cache
+      - run: cp Cargo.lock compiler-fingerprint
+      - run: echo $RUSTFLAGS >> compiler-fingerprint
+      - run: echo $(rustc -V) >> compiler-fingerprint
       - restore_cache:
-          # Try a cache with the same dependency graph first, but fall back to
-          # any cache
           keys:
-            - cargo-cache-{{ checksum "Cargo.lock" }}
-            - cargo-cache-
+            - cargo-cache-{{ checksum "compiler-fingerprint" }}
       - run: cargo build --all
       - persist_to_workspace:
           root: /
@@ -41,7 +46,7 @@ jobs:
             - target/debug/.fingerprint
             - target/debug/build
             - target/debug/deps
-          key: cargo-cache-{{ checksum "Cargo.lock" }}
+          key: cargo-cache-{{ checksum "compiler-fingerprint" }}
 
   test:
     executor: lox-ci
