@@ -1,202 +1,16 @@
+//! Dynamically typed property maps (for all IO primitive types). Mainly used
+//! for [`AnyMesh`].
+
 use cgmath::{Point3, Vector3};
 
 use crate::{
-    self as lox, // for proc macros
     prelude::*,
     cast,
-    ds::SharedVertexMesh,
-    handle::{hsize},
+    handle::hsize,
     map::VecMap,
-    io::{ColorType, Error, Primitive, PrimitiveType, PrimitiveColorChannelType},
+    io::{ColorType, Primitive, PrimitiveType, PrimitiveColorChannelType},
     util::downcast_as,
 };
-
-
-/// A fat mesh with dynamically typed properties intended to losslessly store
-/// IO mesh data.
-///
-/// This is a rather special purpose type. For most cases, you want to use a
-/// fat mesh that stores properties with specific convenient types. Instead,
-/// this type is intended for use where you deal with very generic inputs and
-/// you want to ensure lossless and exact storage. Notably, the dynamic typing
-/// incurs some runtime overhead you usually want to avoid. Additionally, the
-/// core mesh is always a `SharedVertexMesh` which is not very powerful but
-/// sufficient for IO operations.
-///
-/// The `MemSource` implementation always casts to the requested type, so the
-/// property getters never fail.
-#[derive(Debug, Empty)]
-pub struct AnyMesh {
-    pub mesh: SharedVertexMesh,
-    pub vertex_positions: Option<AnyPointMap<VertexHandle>>,
-    pub vertex_normals: Option<AnyVectorMap<VertexHandle>>,
-    pub vertex_colors: Option<AnyColorMap<VertexHandle>>,
-    pub face_normals: Option<AnyVectorMap<FaceHandle>>,
-    pub face_colors: Option<AnyColorMap<FaceHandle>>,
-}
-
-impl MemSink for AnyMesh {
-    fn add_vertex(&mut self) -> VertexHandle {
-        self.mesh.add_vertex()
-    }
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
-        self.mesh.add_face(vertices)
-    }
-
-    fn prepare_vertex_positions<N: Primitive>(&mut self, count: hsize) -> Result<(), Error> {
-        let mut map = AnyPointMap::new::<N>();
-        map.reserve(count);
-        self.vertex_positions = Some(map);
-        Ok(())
-    }
-    fn set_vertex_position<N: Primitive>(
-        &mut self,
-        handle: VertexHandle,
-        position: Point3<N>,
-    ) {
-        self.vertex_positions.as_mut().unwrap().insert(handle, position);
-    }
-
-    fn prepare_vertex_normals<N: Primitive>(&mut self, count: hsize) -> Result<(), Error> {
-        let mut map = AnyVectorMap::new::<N>();
-        map.reserve(count);
-        self.vertex_normals = Some(map);
-        Ok(())
-    }
-    fn set_vertex_normal<N: Primitive>(
-        &mut self,
-        handle: VertexHandle,
-        normal: Vector3<N>,
-    ) {
-        self.vertex_normals.as_mut().unwrap().insert(handle, normal);
-    }
-
-    fn prepare_vertex_colors<C>(&mut self, count: hsize) -> Result<(), Error>
-    where
-        C: ColorLike,
-        C::Channel: Primitive,
-    {
-        let mut map = AnyColorMap::new::<C>();
-        map.reserve(count);
-        self.vertex_colors = Some(map);
-        Ok(())
-    }
-    fn set_vertex_color<C>(&mut self, handle: VertexHandle, color: C)
-    where
-        C: ColorLike,
-        C::Channel: Primitive,
-    {
-        self.vertex_colors.as_mut().unwrap().insert(handle, color);
-    }
-
-    fn prepare_face_normals<N: Primitive>(&mut self, count: hsize) -> Result<(), Error> {
-        let mut map = AnyVectorMap::new::<N>();
-        map.reserve(count);
-        self.face_normals = Some(map);
-        Ok(())
-    }
-    fn set_face_normal<N: Primitive>(
-        &mut self,
-        handle: FaceHandle,
-        normal: Vector3<N>,
-    ) {
-        self.face_normals.as_mut().unwrap().insert(handle, normal);
-    }
-
-    fn prepare_face_colors<C>(&mut self, count: hsize) -> Result<(), Error>
-    where
-        C: ColorLike,
-        C::Channel: Primitive,
-    {
-        let mut map = AnyColorMap::new::<C>();
-        map.reserve(count);
-        self.face_colors = Some(map);
-        Ok(())
-    }
-    fn set_face_color<C>(&mut self, handle: FaceHandle, color: C)
-    where
-        C: ColorLike,
-        C::Channel: Primitive,
-    {
-        self.face_colors.as_mut().unwrap().insert(handle, color);
-    }
-}
-
-
-impl MemSource for AnyMesh {
-    type CoreMesh = SharedVertexMesh;
-    fn core_mesh(&self) -> &Self::CoreMesh {
-        &self.mesh
-    }
-
-    fn vertex_position_type(&self) -> Option<PrimitiveType> {
-        self.vertex_positions.as_ref().map(|m| m.primitive_type())
-    }
-    fn vertex_position<T: Primitive>(&self, v: VertexHandle) -> Result<Option<Point3<T>>, Error> {
-        let out = self.vertex_positions
-            .as_ref()
-            .expect("requested non-existent vertex position from `AnyMesh`")
-            .get_casted_lossy(v);
-
-        Ok(out)
-    }
-
-    fn vertex_normal_type(&self) -> Option<PrimitiveType> {
-        self.vertex_normals.as_ref().map(|m| m.primitive_type())
-    }
-    fn vertex_normal<T: Primitive>(&self, v: VertexHandle) -> Result<Option<Vector3<T>>, Error> {
-        let out = self.vertex_normals
-            .as_ref()
-            .expect("requested non-existent vertex normal from `AnyMesh`")
-            .get_casted_lossy(v);
-
-        Ok(out)
-    }
-
-    fn vertex_color_type(&self) -> Option<ColorType> {
-        self.vertex_colors.as_ref().map(|m| m.color_type())
-    }
-    fn vertex_color<C>(&self, v: VertexHandle) -> Result<Option<C>, Error>
-    where
-        C: ColorLike,
-        C::Channel: Primitive,
-    {
-        let out = self.vertex_colors
-            .as_ref()
-            .expect("requested non-existent vertex color from `AnyMesh`")
-            .get_casted_lossy(v);
-
-        Ok(out)
-    }
-
-    fn face_normal_type(&self) -> Option<PrimitiveType> {
-        self.face_normals.as_ref().map(|m| m.primitive_type())
-    }
-    fn face_normal<T: Primitive>(&self, f: FaceHandle) -> Result<Option<Vector3<T>>, Error> {
-        let out = self.face_normals
-            .as_ref()
-            .expect("requested non-existent face normal from `AnyMesh`")
-            .get_casted_lossy(f);
-
-        Ok(out)
-    }
-
-    fn face_color_type(&self) -> Option<ColorType> {
-        self.face_colors.as_ref().map(|m| m.color_type())
-    }
-    fn face_color<C>(&self, v: FaceHandle) -> Result<Option<C>, Error>
-    where
-        C: ColorLike,
-        C::Channel: Primitive,
-    {
-        let out = self.face_colors
-            .as_ref()
-            .expect("requested non-existent face color from `AnyMesh`")
-            .get_casted_lossy(v);
-
-        Ok(out)
-    }
-}
 
 
 macro_rules! gen_vec3_any_map {
@@ -385,6 +199,11 @@ gen_vec3_any_map!(
     AnyVectorMap => Vector3
 );
 
+/// A property map that contains color values with a dynamic primitive
+/// channel type and with an optional alpha channel.
+///
+/// This map is only used to losslessly store IO data. For most purposes,
+/// you don't want to use this map.
 #[derive(Debug, Clone)]
 pub enum AnyColorMap<H: Handle> {
     RgbUint8(VecMap<H, [u8; 3]>),
@@ -400,8 +219,7 @@ pub enum AnyColorMap<H: Handle> {
 }
 
 impl<H: Handle> AnyColorMap<H> {
-    /// Creates a new instance of this map with the given scalar type. `alpha`
-    /// denotes if an alpha channel should be stored.
+    /// Creates a new instance of this map with the given color type.
     pub fn new<C>() -> Self
     where
         C: ColorLike,
@@ -437,8 +255,7 @@ impl<H: Handle> AnyColorMap<H> {
         }
     }
 
-    /// Returns the scalar type of the data currently stored in this
-    /// map.
+    /// Returns the color type of the data currently stored in this map.
     pub fn color_type(&self) -> ColorType {
         macro_rules! imp {
             ($( $variant:ident => ($alpha:literal, $ty:ident), )*) => {
@@ -467,11 +284,11 @@ impl<H: Handle> AnyColorMap<H> {
         }
     }
 
-    /// Returns the property with the given handle, or `None` if no
-    /// property is associated with that handle.
+    /// Returns the property with the given handle, or `None` if no property is
+    /// associated with that handle.
     ///
-    /// The scalar type `T` must match the type that is currently
-    /// stored in the map! Otherwise, this method panics.
+    /// The color type `C` must match the type that is currently stored in the
+    /// map! Otherwise, this method panics.
     pub fn get<C>(&self, handle: H) -> Option<C>
     where
         C: ColorLike,
@@ -512,6 +329,11 @@ impl<H: Handle> AnyColorMap<H> {
         }
     }
 
+    /// Returns the property with the given handle casted into type `C`, or
+    /// `None` if no property is associated with that handle.
+    ///
+    /// The actual stored type is casted via `ColorLike::cast` into the target
+    /// type `C`.
     pub fn get_casted_lossy<C: ColorLike>(&self, handle: H) -> Option<C> {
         macro_rules! get {
             ($map:ident) => {{
