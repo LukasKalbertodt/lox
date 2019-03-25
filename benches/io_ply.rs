@@ -4,7 +4,7 @@ use std::io::Cursor;
 use criterion::{
     criterion_group, criterion_main, black_box, BatchSize, Criterion,
 };
-use cgmath::Point3;
+use cgmath::{Point3, Vector3};
 
 use lox::{
     prelude::*,
@@ -85,6 +85,53 @@ impl MemSink for NullSinkPos {
     ) {
         black_box(v);
         black_box(position);
+    }
+}
+
+/// A sink that puts all vertex positions and vertex normals  into the
+/// `black_box`, ignores all other properties.
+struct NullSinkPosNormal(NullSinkPos);
+
+impl NullSinkPosNormal {
+    fn new() -> Self {
+        Self(NullSinkPos::new())
+    }
+}
+
+impl MemSink for NullSinkPosNormal {
+    fn add_vertex(&mut self) -> VertexHandle {
+        self.0.add_vertex()
+    }
+    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
+        self.0.add_face(vertices)
+    }
+
+    fn size_hint(&mut self, hint: MeshSizeHint) {
+        self.0.size_hint(hint)
+    }
+
+    fn prepare_vertex_positions<N: Primitive>(&mut self, count: hsize) -> Result<(), Error> {
+        self.0.prepare_vertex_positions::<N>(count)
+    }
+    fn set_vertex_position<N: Primitive>(
+        &mut self,
+        v: VertexHandle,
+        position: Point3<N>,
+    ) {
+        self.0.set_vertex_position::<N>(v, position)
+    }
+
+    fn prepare_vertex_normals<N: Primitive>(&mut self, count: hsize) -> Result<(), Error> {
+        black_box(count);
+        Ok(())
+    }
+    fn set_vertex_normal<N: Primitive>(
+        &mut self,
+        v: VertexHandle,
+        normal: Vector3<N>,
+    ) {
+        black_box(v);
+        black_box(normal);
     }
 }
 
@@ -185,6 +232,81 @@ fn sphere_raw(c: &mut Criterion) {
     );
 }
 
+/// Measures body reading of `three_tris_all_props` files via `RawSink`.
+fn sphere_hl(c: &mut Criterion) {
+    c.bench_function_over_inputs(
+        "ply_sphere_hl",
+        |b, encoding| {
+            const FILES: AllEncodings = AllEncodings {
+                ble: include_bytes!("../tests/files/ply/sphere_ble.ply"),
+                bbe: include_bytes!("../tests/files/ply/sphere_bbe.ply"),
+                ascii: include_bytes!("../tests/files/ply/sphere_ascii.ply"),
+            };
 
-criterion_group!(benches, three_tris_all_props_raw, sphere_raw);
+            let reader = Reader::new(Cursor::new(FILES.get_for(encoding))).unwrap();
+
+            b.iter_batched(
+                || (reader.clone(), NullSinkPos::new()),
+                |(r, mut sink)| {
+                    let out = r.transfer_to(&mut sink);
+                    black_box(sink);
+                    out
+                },
+                BatchSize::SmallInput,
+            )
+        },
+        vec!["ble", "bbe", "ascii"],
+    );
+
+    c.bench_function_over_inputs(
+        "ply_sphere_ignore_vnormals_hl",
+        |b, encoding| {
+            const FILES: AllEncodings = AllEncodings {
+                ble: include_bytes!("../tests/files/ply/sphere_vnormals_ble.ply"),
+                bbe: include_bytes!("../tests/files/ply/sphere_vnormals_bbe.ply"),
+                ascii: include_bytes!("../tests/files/ply/sphere_vnormals_ascii.ply"),
+            };
+
+            let reader = Reader::new(Cursor::new(FILES.get_for(encoding))).unwrap();
+
+            b.iter_batched(
+                || (reader.clone(), NullSinkPos::new()),
+                |(r, mut sink)| {
+                    let out = r.transfer_to(&mut sink);
+                    black_box(sink);
+                    out
+                },
+                BatchSize::SmallInput,
+            )
+        },
+        vec!["ble", "bbe", "ascii"],
+    );
+
+    c.bench_function_over_inputs(
+        "ply_sphere_vnormals_hl",
+        |b, encoding| {
+            const FILES: AllEncodings = AllEncodings {
+                ble: include_bytes!("../tests/files/ply/sphere_vnormals_ble.ply"),
+                bbe: include_bytes!("../tests/files/ply/sphere_vnormals_bbe.ply"),
+                ascii: include_bytes!("../tests/files/ply/sphere_vnormals_ascii.ply"),
+            };
+
+            let reader = Reader::new(Cursor::new(FILES.get_for(encoding))).unwrap();
+
+            b.iter_batched(
+                || (reader.clone(), NullSinkPosNormal::new()),
+                |(r, mut sink)| {
+                    let out = r.transfer_to(&mut sink);
+                    black_box(sink);
+                    out
+                },
+                BatchSize::SmallInput,
+            )
+        },
+        vec!["ble", "bbe", "ascii"],
+    );
+}
+
+
+criterion_group!(benches, three_tris_all_props_raw, sphere_raw, sphere_hl);
 criterion_main!(benches);
