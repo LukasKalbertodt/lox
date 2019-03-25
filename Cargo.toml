@@ -7,6 +7,7 @@ edition = "2018"
 [workspace]
 members = [
     "lox-cli",
+    "benches/profiling",
 ]
 
 [profile.release]

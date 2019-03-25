@@ -1,0 +1,9 @@
+[package]
+name = "profiling"
+version = "0.1.0"
+authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+lox = { path = "../.." }
+criterion = { version = "0.2", features = ["real_blackbox"] }
