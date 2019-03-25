@@ -97,7 +97,7 @@ fn sphere_raw(c: &mut Criterion) {
                 BatchSize::SmallInput,
             )
         },
-        vec!["ble"]//, "bbe", "ascii"],
+        vec!["ble", "bbe", "ascii"],
     );
 
     c.bench_function_over_inputs(
