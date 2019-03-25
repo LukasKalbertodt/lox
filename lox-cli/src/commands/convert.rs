@@ -138,11 +138,13 @@ fn check_compatability(
                 unsupported_props.push("face colors");
             }
 
-            warn!(
-                "Source file contains {}, but these properties are not supported by STL. \
-                    These properties will be ignored!",
-                ui::comma_and_list(unsupported_props),
-            );
+            if !unsupported_props.is_empty() {
+                warn!(
+                    "Source file contains {}, but these properties are not supported by STL. \
+                        These properties will be ignored!",
+                    ui::comma_and_list(unsupported_props),
+                );
+            }
         }
         FileFormat::Ply => {
             // PLY currently supports everything that the IO interface can

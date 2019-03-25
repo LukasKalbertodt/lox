@@ -151,15 +151,25 @@ pub fn fmt_with_thousand_sep(mut v: u64) -> String {
     out
 }
 
+/// Formats a list of things as human readable list with commas and "and".
+/// Iterator must not be empty!
 pub fn comma_and_list(items: impl IntoIterator<Item = impl Display>) -> String {
     let items = items.into_iter().map(|i| i.to_string()).collect::<Vec<_>>();
     let mut out = String::new();
     let len = items.len();
 
-    for item in &items[0..len - 2] {
-        write!(out, "{}, ", item).unwrap();
-    }
-    write!(out, "{} and {}", &items[len - 2], &items[len - 1]).unwrap();
+    match len {
+        0 => panic!("empty list"),
+        1 => {items}.remove(0),
+        _ => {
+            if len > 2 {
+                for item in &items[0..len - 2] {
+                    write!(out, "{}, ", item).unwrap();
+                }
+            }
+            write!(out, "{} and {}", &items[len - 2], &items[len - 1]).unwrap();
 
-    out
+            out
+        }
+    }
 }
