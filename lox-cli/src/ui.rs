@@ -141,12 +141,12 @@ impl MsgKind {
 
 /// Formats the given integer with `,` as thousand separator.
 pub fn fmt_with_thousand_sep(mut v: u64) -> String {
-    let mut out = (v % 1000).to_string();
-    v /= 1000;
-    while v != 0 {
-        out = format!("{},{}", v % 1000, out);
+    let mut out = String::new();
+    while v >= 1000 {
+        out = format!(",{:03}{}", v % 1000, out);
         v /= 1000;
     }
+    out = format!("{}{}", v, out);
 
     out
 }
