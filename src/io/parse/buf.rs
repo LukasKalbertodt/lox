@@ -90,6 +90,7 @@ impl<R: Read> Buffer<R> {
     ///
     /// This means that this function might do nothing, even if `additional` is
     /// not 0. If the buffer is already big enough, nothing happens.
+    #[inline(never)]
     fn grow_buf(&mut self, additional: usize) {
         let space_after = self.cap() - self.end;
         let space_before = self.start;
@@ -158,6 +159,7 @@ impl<R: Read> Buffer<R> {
         }
     }
 
+    #[inline(never)]
     fn fill_buf_by(&mut self, additional: usize) -> Result<usize, Error> {
         self.grow_buf(additional);
 
