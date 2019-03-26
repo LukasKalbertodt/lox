@@ -25,7 +25,7 @@ use crate::{
     prelude::*,
     handle::hsize,
     io::{
-        StreamSource, MemSink, Primitive, Error,
+        StreamSource, MemSink, Primitive, Error, ErrorKind,
         parse::{self, ParseError, Span, Buffer, ParseBuf, MAX_BUFFER_SIZE},
         util::IndexHandleMap,
     },
@@ -126,12 +126,12 @@ impl<R: io::Read> Reader<R> {
         // ===== Parse magic number and format line ===========================
         // PLY files always start with `ply\n`. This serves as magic number.
         buf.expect_tag(b"ply\n").map_err(|e| {
-            match e {
-                Error::Parse(_) => ParseError::Custom(
+            match e.kind() {
+                ErrorKind::Parse(_) => ParseError::Custom(
                     "not a valid PLY file (does not start with \"ply\\n\")".into(),
                     Span::new(0, 4),
                 ).into(),
-                other => other,
+                _ => e,
             }
         })?;
 
@@ -825,19 +825,20 @@ impl<R: io::Read> StreamSource for Reader<R> {
                 let vi_list = elem.decode_list_at(self.vertex_indices_idx).unwrap();
 
                 if vi_list.list_len != 3 {
-                    return Err(Error::InvalidInput(format!(
+                    return Err(Error::new(|| ErrorKind::InvalidInput(format!(
                         "the face at position {} has {} vertices (right now, only triangular \
                             faces are supported)",
                         self.face_count,
                         vi_list.list_len,
-                    )));
+                    ))));
                 }
 
                 // Add face
                 let fh = (self.read_face_vertex_indices)(self, vi_list.data_offset, &elem.data)
-                    .map_err(|idx| {
-                        Error::InvalidInput(format!("invalid vertex index {} in PLY file", idx))
-                    })?;
+                    .map_err(|idx| Error::new(|| {
+                        let msg = format!("invalid vertex index {} in PLY file", idx);
+                        ErrorKind::InvalidInput(msg)
+                    }))?;
                 self.face_handles.add(self.face_count, fh);
                 self.face_count += 1;
                 self.curr_face_handle = fh;
@@ -971,14 +972,15 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
         // ===== Interpret and collect header information (and do checks) =====
         fn u64_to_hsize(v: u64, elem: &str) -> Result<hsize, Error> {
-            v.try_into().map_err(|_| Error::InvalidInput(
+            v.try_into().map_err(|_| Error::new(|| ErrorKind::InvalidInput(
                 format!("too many {} (LOX meshes can only contain 2^32 elements)", elem)
-            ))
+            )))
         }
 
         // Make sure the file contains vertices
-        let vertex_pos = self.elements.iter().position(|e| e.name == "vertex")
-            .ok_or_else(|| Error::InvalidInput("no 'vertex' elements in PLY file".into()))?;
+        let vertex_pos = self.elements.iter().position(|e| e.name == "vertex").ok_or_else(|| {
+            Error::new(|| ErrorKind::InvalidInput("no 'vertex' elements in PLY file".into()))
+        })?;
         let vertex_group = &self.elements[vertex_pos];
 
         let vertex_count = u64_to_hsize(vertex_group.count, "vertices")?;
@@ -997,9 +999,9 @@ impl<R: io::Read> StreamSource for Reader<R> {
         if let Some(face_pos) = self.elements.iter().position(|e| e.name == "face") {
             // Faces can only be in the file after vertices
             if face_pos < vertex_pos {
-                return Err(Error::InvalidInput(
+                return Err(Error::new(|| ErrorKind::InvalidInput(
                     "found 'face' elements before 'vertex' elements (that's not allowed)".into()
-                ));
+                )));
             }
 
             let face_group = &self.elements[face_pos];
@@ -1009,23 +1011,23 @@ impl<R: io::Read> StreamSource for Reader<R> {
             if let Some(vi_idx) = face_group.prop_pos("vertex_indices") {
                 let vi = &face_group.property_defs[vi_idx];
                 if !vi.ty.is_list() {
-                    return Err(Error::InvalidInput(
+                    return Err(Error::new(|| ErrorKind::InvalidInput(
                         "'vertex_indices' property has a scalar type (must be a list)".into()
-                    ));
+                    )));
                 }
 
                 if vi.ty.scalar_type().is_floating_point() {
-                    return Err(Error::InvalidInput(
+                    return Err(Error::new(|| ErrorKind::InvalidInput(
                         "'vertex_indices' list has a floating point element type (only \
                             integers are allowed)".into()
-                    ));
+                    )));
                 }
 
                 prop_info.vertex_indices = Some((vi_idx, vi.ty.scalar_type()));
             } else {
-                return Err(Error::InvalidInput(
+                return Err(Error::new(|| ErrorKind::InvalidInput(
                     "'face' elements without 'vertex_indices' property".into()
-                ));
+                )));
             }
 
             // Check other face properties

@@ -24,7 +24,7 @@ use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 use crate::{
     handle::{hsize, FaceHandle, VertexHandle},
     io::{
-        Error, StreamSink, MemSource, Primitive, PrimitiveType, PropKind, ColorType,
+        Error, ErrorKind, StreamSink, MemSource, Primitive, PrimitiveType, PropKind, ColorType,
         util::HandleIndexMap,
     },
     prop::ColorLike,
@@ -386,10 +386,10 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     handle: VertexHandle,
                 ) -> Result<(), Error> {
                     let pos = src.vertex_position::<P>(handle).and_then(|opt| {
-                        opt.ok_or_else(|| Error::DataIncomplete {
+                        opt.ok_or_else(|| Error::new(|| ErrorKind::DataIncomplete {
                             prop: PropKind::VertexPosition,
                             msg: format!("no position for {:?} while writing PLY", handle),
-                        })
+                        }))
                     })?;
 
                     ser.add(pos.x)?;
@@ -412,10 +412,10 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     handle: VertexHandle,
                 ) -> Result<(), Error> {
                     let pos = src.vertex_normal::<P>(handle).and_then(|opt| {
-                        opt.ok_or_else(|| Error::DataIncomplete {
+                        opt.ok_or_else(|| Error::new(|| ErrorKind::DataIncomplete {
                             prop: PropKind::VertexNormal,
                             msg: format!("no normal for {:?} while writing PLY", handle),
-                        })
+                        }))
                     })?;
 
                     ser.add(pos.x)?;
@@ -441,10 +441,10 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     C::Channel: Primitive,
                 {
                     let color = src.vertex_color::<C>(handle).and_then(|opt| {
-                        opt.ok_or_else(|| Error::DataIncomplete {
+                        opt.ok_or_else(|| Error::new(|| ErrorKind::DataIncomplete {
                             prop: PropKind::VertexColor,
                             msg: format!("no color for {:?} while writing PLY", handle),
-                        })
+                        }))
                     })?;
 
                     ser.add(color.red())?;
@@ -472,10 +472,10 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     handle: FaceHandle,
                 ) -> Result<(), Error> {
                     let pos = src.face_normal::<P>(handle).and_then(|opt| {
-                        opt.ok_or_else(|| Error::DataIncomplete {
+                        opt.ok_or_else(|| Error::new(|| ErrorKind::DataIncomplete {
                             prop: PropKind::FaceNormal,
                             msg: format!("no normal for {:?} while writing PLY", handle),
-                        })
+                        }))
                     })?;
 
                     ser.add(pos.x)?;
@@ -501,10 +501,10 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     C::Channel: Primitive,
                 {
                     let color = src.face_color::<C>(handle).and_then(|opt| {
-                        opt.ok_or_else(|| Error::DataIncomplete {
+                        opt.ok_or_else(|| Error::new(|| ErrorKind::DataIncomplete {
                             prop: PropKind::FaceColor,
                             msg: format!("no color for {:?} while writing PLY", handle),
-                        })
+                        }))
                     })?;
 
                     ser.add(color.red())?;

@@ -10,7 +10,7 @@ use stable_vec::StableVec;
 use crate::{
     cast::{try_cast, is_cast_possible, CastRigor},
     handle::{hsize, Handle, VertexHandle, FaceHandle},
-    io::{Error, MemSource, PrimitiveType, Primitive, PropKind},
+    io::{Error, ErrorKind, MemSource, PrimitiveType, Primitive, PropKind},
     map::{PropMap, PropStoreMut, VecMap},
     math::{PrimitiveFloat},
     prop::{Pos3Like, Vec3Like},
@@ -268,10 +268,10 @@ where
 
     fn vertex_position<T: Primitive>(&self, f: VertexHandle) -> Result<Option<Point3<T>>, Error> {
         if !is_cast_possible::<R, <M::Target as Pos3Like>::Scalar, T>() {
-            return Err(Error::SourceIncompatible {
+            return Err(Error::new(|| ErrorKind::SourceIncompatible {
                 prop: PropKind::VertexNormal,
                 requested_type: T::TY,
-            });
+            }));
         }
 
         let out = self.vertex_positions.get(f).map(|p| {
@@ -307,10 +307,10 @@ where
 
     fn vertex_normal<T: Primitive>(&self, f: VertexHandle) -> Result<Option<Vector3<T>>, Error> {
         if !is_cast_possible::<R, <M::Target as Vec3Like>::Scalar, T>() {
-            return Err(Error::SourceIncompatible {
+            return Err(Error::new(|| ErrorKind::SourceIncompatible {
                 prop: PropKind::VertexNormal,
                 requested_type: T::TY,
-            });
+            }));
         }
 
         let out = self.vertex_normals.get(f).map(|p| {
@@ -346,10 +346,10 @@ where
 
     fn face_normal<T: Primitive>(&self, f: FaceHandle) -> Result<Option<Vector3<T>>, Error> {
         if !is_cast_possible::<R, <M::Target as Vec3Like>::Scalar, T>() {
-            return Err(Error::SourceIncompatible {
+            return Err(Error::new(|| ErrorKind::SourceIncompatible {
                 prop: PropKind::FaceNormal,
                 requested_type: T::TY,
-            });
+            }));
         }
 
         let out = self.face_normals.get(f).map(|p| {

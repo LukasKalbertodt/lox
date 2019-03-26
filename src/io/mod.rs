@@ -211,7 +211,7 @@ where
 /// This function tries to automatically determine the file format from the
 /// filename extension and the first few bytes of the file. If the format
 /// couldn't be determined because it's unknown or ambiguous,
-/// `Error::FormatUnknown` is returned. To explicitly specify the file format,
+/// `ErrorKind::FormatUnknown` is returned. To explicitly specify the file format,
 /// use the [`read_from`] function.
 ///
 /// ```no_run
@@ -248,7 +248,8 @@ where
 
                 // Guess from the data or just error that we couldn't find the
                 // format.
-                FileFormat::from_file_start(&buf).ok_or(Error::FormatUnknown)?
+                FileFormat::from_file_start(&buf)
+                    .ok_or(Error::new(|| ErrorKind::FormatUnknown))?
             }
         };
 
@@ -309,7 +310,7 @@ where
 ///
 /// This function tries to automatically determine the file format from the
 /// filename extension. If the format couldn't be determined because it's
-/// unknown or ambiguous, `Error::FormatUnknown` is returned. To explicitly
+/// unknown or ambiguous, `ErrorKind::FormatUnknown` is returned. To explicitly
 /// specify the file format, use the [`write_to`] function.
 ///
 /// If possible, (native) binary encoding is used. If you really need to write
@@ -338,7 +339,8 @@ where
     // generics can actually often result in bloated binaries.
     fn inner<T: MemSource>(path: &Path, src: &T) -> Result<(), Error> {
         // Guess the file format from extension
-        let format = FileFormat::from_extension(path).ok_or(Error::FormatUnknown)?;
+        let format = FileFormat::from_extension(path)
+            .ok_or(Error::new(|| ErrorKind::FormatUnknown))?;
 
         // Write the file
         let file = io::BufWriter::new(File::create(path)?);
@@ -508,7 +510,7 @@ impl FileFormat {
     ///
     /// Works like [`writer`][FileFormat::writer], but you can specify the
     /// encoding. If the encoding is not supported by the format,
-    /// `Error::EncodingNotSupported` is returned.
+    /// `ErrorKind::EncodingNotSupported` is returned.
     pub fn writer_with_encoding<'a, SrcT, W>(
         &self,
         encoding: FileEncoding,
@@ -518,10 +520,10 @@ impl FileFormat {
         SrcT: MemSource,
         W: 'a + io::Write,
     {
-        let err = Error::EncodingNotSupported {
+        let err = Error::new(|| ErrorKind::EncodingNotSupported {
             file_format: *self,
             encoding,
-        };
+        });
 
         macro_rules! writer {
             ($module:ident) => {{
@@ -636,10 +638,54 @@ impl PropKind {
     }
 }
 
+pub struct Error(Box<ErrorKind>);
+
+impl Error {
+    pub fn new(f: impl FnOnce() -> ErrorKind) -> Self {
+        Self(Box::new(f()))
+    }
+
+    pub fn kind(&self) -> &ErrorKind {
+        &self.0
+    }
+}
+
+
+impl From<io::Error> for Error {
+    fn from(src: io::Error) -> Self {
+        Self::new(|| src.into())
+    }
+}
+
+impl From<ParseError> for Error {
+    fn from(src: ParseError) -> Self {
+        Self::new(|| src.into())
+    }
+}
+
+impl Fail for Error {
+    fn name(&self) -> Option<&str> {
+        Some("io::Error")
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl fmt::Debug for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+
 /// The error type for reading or writing a mesh.
 #[derive(Debug, Fail)]
 #[non_exhaustive]
-pub enum Error {
+pub enum ErrorKind {
     /// An IO error.
     ///
     /// Can be caused by all kinds of failures. For example, if the underlying
@@ -749,13 +795,13 @@ pub enum Error {
     }
 }
 
-impl fmt::Display for Error {
+impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::Io(e) => write!(f, "IO error: {}", e),
-            Error::Parse(e) => write!(f, "Parsing error: {}", e),
-            Error::InvalidInput(msg) => write!(f, "invalid input: {}", msg),
-            Error::SinkIncompatible { prop, source_type } => {
+            ErrorKind::Io(e) => write!(f, "IO error: {}", e),
+            ErrorKind::Parse(e) => write!(f, "Parsing error: {}", e),
+            ErrorKind::InvalidInput(msg) => write!(f, "invalid input: {}", msg),
+            ErrorKind::SinkIncompatible { prop, source_type } => {
                 write!(
                     f,
                     "sink is not compatible with source: sink cannot handle {} with type `{:?}` \
@@ -764,7 +810,7 @@ impl fmt::Display for Error {
                     source_type,
                 )
             }
-            Error::SourceIncompatible { prop, requested_type } => {
+            ErrorKind::SourceIncompatible { prop, requested_type } => {
                 write!(
                     f,
                     "source is not compatible with sink: source cannot provide {} with type \
@@ -774,7 +820,7 @@ impl fmt::Display for Error {
                     requested_type,
                 )
             }
-            Error::DataIncomplete { prop, msg } => {
+            ErrorKind::DataIncomplete { prop, msg } => {
                 write!(
                     f,
                     "source data is incomplete (sink requires more data): missing {} ({})",
@@ -782,8 +828,8 @@ impl fmt::Display for Error {
                     msg,
                 )
             }
-            Error::FormatUnknown => write!(f, "unknown or ambiguous file format"),
-            Error::EncodingNotSupported { file_format, encoding } => {
+            ErrorKind::FormatUnknown => write!(f, "unknown or ambiguous file format"),
+            ErrorKind::EncodingNotSupported { file_format, encoding } => {
                 write!(
                     f,
                     "file format {} does not support {} encoding",
@@ -795,15 +841,15 @@ impl fmt::Display for Error {
     }
 }
 
-impl From<io::Error> for Error {
+impl From<io::Error> for ErrorKind {
     fn from(src: io::Error) -> Self {
-        Error::Io(src)
+        ErrorKind::Io(src)
     }
 }
 
-impl From<ParseError> for Error {
+impl From<ParseError> for ErrorKind {
     fn from(src: ParseError) -> Self {
-        Error::Parse(src)
+        ErrorKind::Parse(src)
     }
 }
 

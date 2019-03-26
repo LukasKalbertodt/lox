@@ -36,7 +36,7 @@ use crate::{
     cast,
     ds::SharedVertexMesh,
     handle::hsize,
-    io::{ColorType, Error, Primitive, PrimitiveType},
+    io::{ColorType, Error, ErrorKind, Primitive, PrimitiveType},
     map::{PropMap, VecMap},
     traits::{TriMeshMut, TriVerticesOfFace},
 };
@@ -73,10 +73,10 @@ impl<M: TriMeshMut + TriVerticesOfFace> MemSource for MiniMesh<M> {
     }
     fn vertex_position<T: Primitive>(&self, v: VertexHandle) -> Result<Option<Point3<T>>, Error> {
         if !cast::is_cast_possible::<cast::Lossy, T, f32>() {
-            return Err(Error::SourceIncompatible {
+            return Err(Error::new(|| ErrorKind::SourceIncompatible {
                 prop: lox::io::PropKind::VertexPosition,
                 requested_type: T::TY,
-            });
+            }));
         }
 
         Ok(self.vertex_positions.get(v).map(|p| p.map(|s| cast::lossy(s))))

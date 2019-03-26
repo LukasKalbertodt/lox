@@ -23,7 +23,7 @@ use smallvec::SmallVec;
 use crate::{
     self as lox, // for proc macros
     Empty,
-    io::{Error, Primitive, PrimitiveType},
+    io::{Error, ErrorKind, Primitive, PrimitiveType},
     util::downcast_as,
 };
 
@@ -143,7 +143,7 @@ impl ElementDef {
     ) -> Result<Option<([PropIndex; 3], ScalarType)>, Error> {
         let [xs, ys, zs] = names;
         if let Some(px_idx) = self.prop_pos(xs) {
-            let py_idx = self.prop_pos(ys).ok_or(Error::InvalidInput(
+            let py_idx = self.prop_pos(ys).ok_or_else(|| Error::new(|| ErrorKind::InvalidInput(
                 format!(
                     "element '{}' has '{}' property, but no '{}' property \
                         (only 3D {} supported)",
@@ -152,8 +152,8 @@ impl ElementDef {
                     ys,
                     prop_name_plural,
                 )
-            ))?;
-            let pz_idx = self.prop_pos(zs).ok_or(Error::InvalidInput(
+            )))?;
+            let pz_idx = self.prop_pos(zs).ok_or_else(|| Error::new(|| ErrorKind::InvalidInput(
                 format!(
                     "elem '{}' has '{}' property, but no '{}' property \
                         (only 3D {} supported)",
@@ -162,24 +162,24 @@ impl ElementDef {
                     zs,
                     prop_name_plural,
                 )
-            ))?;
+            )))?;
 
             let px = &self.property_defs[px_idx];
             let py = &self.property_defs[py_idx];
             let pz = &self.property_defs[pz_idx];
 
             if px.ty.is_list() {
-                return Err(Error::InvalidInput(
+                return Err(Error::new(|| ErrorKind::InvalidInput(
                     format!(
                         "property '{}' (element '{}') has a list type (only scalars allowed)",
                         xs,
                         self.name,
                     )
-                ));
+                )));
             }
 
             if px.ty != py.ty || px.ty != pz.ty {
-                return Err(Error::InvalidInput(
+                return Err(Error::new(|| ErrorKind::InvalidInput(
                     format!(
                         "properties '{}', '{}' and '{}' (element '{}') don't have the same type",
                         xs,
@@ -187,7 +187,7 @@ impl ElementDef {
                         zs,
                         self.name,
                     )
-                ));
+                )));
             }
 
             Ok(Some((
@@ -219,20 +219,22 @@ impl ElementDef {
     /// dummy value).
     pub fn check_color_prop(&self) -> Result<Option<([PropIndex; 4], bool)>, Error> {
         if let Some(red_idx) = self.prop_pos("red") {
-            let green_idx = self.prop_pos("green").ok_or(Error::InvalidInput(
-                format!(
-                    "element '{}' has 'red' property, but no 'green' property \
-                        (only RGB and RGBA colors supported)",
-                    self.name,
-                )
-            ))?;
-            let blue_idx = self.prop_pos("blue").ok_or(Error::InvalidInput(
-                format!(
-                    "element '{}' has 'red' property, but no 'blue' property \
-                        (only RGB and RGBA colors supported)",
-                    self.name,
-                )
-            ))?;
+            let green_idx = self.prop_pos("green")
+                .ok_or_else(|| Error::new(|| ErrorKind::InvalidInput(
+                    format!(
+                        "element '{}' has 'red' property, but no 'green' property \
+                            (only RGB and RGBA colors supported)",
+                        self.name,
+                    )
+                )))?;
+            let blue_idx = self.prop_pos("blue")
+                .ok_or_else(|| Error::new(|| ErrorKind::InvalidInput(
+                    format!(
+                        "element '{}' has 'red' property, but no 'blue' property \
+                            (only RGB and RGBA colors supported)",
+                        self.name,
+                    )
+                )))?;
 
             let red = &self.property_defs[red_idx];
             let green = &self.property_defs[green_idx];
@@ -240,24 +242,24 @@ impl ElementDef {
 
             let check_type = |name, ty: PropertyType| {
                 if ty.is_list() {
-                    return Err(Error::InvalidInput(
+                    return Err(Error::new(|| ErrorKind::InvalidInput(
                         format!(
                             "property '{}' (element '{}') is a list (should be scalar 'uchar')",
                             name,
                             self.name,
                         )
-                    ));
+                    )));
                 }
 
                 if ty.scalar_type() != ScalarType::UChar {
-                    return Err(Error::InvalidInput(
+                    return Err(Error::new(|| ErrorKind::InvalidInput(
                         format!(
                             "property '{}' (element '{}') has type '{}' (should be 'uchar')",
                             name,
                             self.name,
                             ty.scalar_type().ply_type_name(),
                         )
-                    ));
+                    )));
                 }
 
                 Ok(())

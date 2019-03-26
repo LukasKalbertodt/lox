@@ -9,7 +9,7 @@ use cgmath::prelude::*;
 use crate::{
     traits::*,
     prop::{Pos3Like, Vec3Like},
-    io::{PropKind, Error, StreamSink, MemSource},
+    io::{PropKind, Error, ErrorKind, StreamSink, MemSource},
 };
 use super::{Encoding, RawTriangle};
 
@@ -185,10 +185,10 @@ impl<W: io::Write> StreamSink for Writer<W> {
     fn transfer_from<S: MemSource>(self, src: &S) -> Result<(), Error> {
         // Make sure we have positions
         if src.vertex_position_type().is_none() {
-            return Err(Error::DataIncomplete {
+            return Err(Error::new(|| ErrorKind::DataIncomplete {
                 prop: PropKind::VertexPosition,
                 msg: "source does not provide vertex positions, but STL requires them".into(),
-            });
+            }));
         }
 
         let mesh = src.core_mesh();
@@ -202,10 +202,10 @@ impl<W: io::Write> StreamSink for Writer<W> {
             let get_v = |vh| -> Result<[f32; 3], Error> {
                 src.vertex_position::<f32>(vh)
                     .and_then(|opt| {
-                        opt.ok_or_else(|| Error::DataIncomplete {
+                        opt.ok_or_else(|| Error::new(|| ErrorKind::DataIncomplete {
                             prop: PropKind::VertexPosition,
                             msg: format!("no position for {:?} while writing STL", vh),
-                        })
+                        }))
                     })
                     .map(|p| p.convert())  // to array form
             };
@@ -213,10 +213,10 @@ impl<W: io::Write> StreamSink for Writer<W> {
 
             let normal = if has_normals {
                 src.face_normal::<f32>(fh)?
-                    .ok_or_else(|| Error::DataIncomplete {
+                    .ok_or_else(|| Error::new(|| ErrorKind::DataIncomplete {
                         prop: PropKind::FaceNormal,
                         msg: format!("no normal for {:?} while writing STL", fh),
-                    })?
+                    }))?
                     .convert() // to array form
             } else {
                 calc_normal(&vertices)
