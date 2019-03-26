@@ -204,15 +204,15 @@ pub(crate) struct SpannedData<'a> {
 impl<'a> SpannedData<'a> {
     /// Returns a custom `ParseError` with the given message and the span of
     /// this data.
-    pub fn error(&self, msg: impl Into<String>) -> ParseError {
-        ParseError::Custom(msg.into(), self.span)
+    pub fn error(&self, msg: impl Into<String>) -> Error {
+        Error::new(|| ParseError::Custom(msg.into(), self.span).into())
     }
 
     /// Makes sure this data is all ASCII. If that's the case, the data is
     /// returned as `&str` string. If not, an error is returned.
-    pub fn assert_ascii(&self) -> Result<&'a str, ParseError> {
+    pub fn assert_ascii(&self) -> Result<&'a str, Error> {
         if !self.data.is_ascii() {
-            Err(ParseError::NotAscii(self.span))
+            Err(Error::new(|| ParseError::NotAscii(self.span).into()))
         } else {
             Ok(std::str::from_utf8(self.data).unwrap())
         }
