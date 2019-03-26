@@ -641,6 +641,8 @@ impl PropKind {
 pub struct Error(Box<ErrorKind>);
 
 impl Error {
+    #[cold]
+    #[inline(never)]
     pub fn new(f: impl FnOnce() -> ErrorKind) -> Self {
         Self(Box::new(f()))
     }
