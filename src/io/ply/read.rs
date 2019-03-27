@@ -1375,9 +1375,13 @@ macro_rules! impl_from_bytes {
     ($ty:ident, $read_fun:ident, $write_fun:ident, $size:expr) => {
         impl FromBytes for $ty {
             const SIZE: usize = $size;
+
+            #[inline(always)]
             fn from_bytes_ne(bytes: &[u8]) -> Self {
                 NativeEndian::$read_fun(bytes)
             }
+
+            #[inline(always)]
             fn encode_ne(&self, out: &mut Vec<u8>) {
                 out.$write_fun::<NativeEndian>(*self).unwrap();
             }
@@ -1387,9 +1391,13 @@ macro_rules! impl_from_bytes {
 
 impl FromBytes for i8 {
     const SIZE: usize = 1;
+
+    #[inline(always)]
     fn from_bytes_ne(bytes: &[u8]) -> Self {
         bytes[0] as i8
     }
+
+    #[inline(always)]
     fn encode_ne(&self, out: &mut Vec<u8>) {
         out.push(*self as u8);
     }
@@ -1397,9 +1405,13 @@ impl FromBytes for i8 {
 
 impl FromBytes for u8 {
     const SIZE: usize = 1;
+
+    #[inline(always)]
     fn from_bytes_ne(bytes: &[u8]) -> Self {
         bytes[0]
     }
+
+    #[inline(always)]
     fn encode_ne(&self, out: &mut Vec<u8>) {
         out.push(*self);
     }

@@ -671,6 +671,7 @@ pub struct RawListInfo {
 pub struct RawOffset(pub u32);
 
 impl RawOffset {
+    #[inline(always)]
     pub fn as_usize(&self) -> usize {
         self.0 as usize
     }
@@ -716,6 +717,7 @@ impl ScalarLen {
 pub struct PropIndex(pub u8);
 
 impl PropIndex {
+    #[inline(always)]
     pub fn as_usize(&self) -> usize {
         self.0 as usize
     }
@@ -738,6 +740,7 @@ impl ops::Index<RawOffset> for RawData {
 
 impl ops::Index<ops::Range<RawOffset>> for RawData {
     type Output = [u8];
+    #[inline(always)]
     fn index(&self, range: ops::Range<RawOffset>) -> &Self::Output {
         &self.0[range.start.as_usize()..range.end.as_usize()]
     }
@@ -745,6 +748,7 @@ impl ops::Index<ops::Range<RawOffset>> for RawData {
 
 impl ops::Index<ops::RangeFrom<RawOffset>> for RawData {
     type Output = [u8];
+    #[inline(always)]
     fn index(&self, range: ops::RangeFrom<RawOffset>) -> &Self::Output {
         &self.0[range.start.as_usize()..]
     }
@@ -752,6 +756,7 @@ impl ops::Index<ops::RangeFrom<RawOffset>> for RawData {
 
 impl ops::Index<ops::RangeTo<RawOffset>> for RawData {
     type Output = [u8];
+    #[inline(always)]
     fn index(&self, range: ops::RangeTo<RawOffset>) -> &Self::Output {
         &self.0[..range.end.as_usize()]
     }
@@ -759,36 +764,42 @@ impl ops::Index<ops::RangeTo<RawOffset>> for RawData {
 
 impl ops::Index<ops::RangeFull> for RawData {
     type Output = [u8];
+    #[inline(always)]
     fn index(&self, _: ops::RangeFull) -> &Self::Output {
         &self.0[..]
     }
 }
 
 impl ops::IndexMut<RawOffset> for RawData {
+    #[inline(always)]
     fn index_mut(&mut self, idx: RawOffset) -> &mut Self::Output {
         &mut self.0[idx.as_usize()]
     }
 }
 
 impl ops::IndexMut<ops::Range<RawOffset>> for RawData {
+    #[inline(always)]
     fn index_mut(&mut self, range: ops::Range<RawOffset>) -> &mut Self::Output {
         &mut self.0[range.start.as_usize()..range.end.as_usize()]
     }
 }
 
 impl ops::IndexMut<ops::RangeFrom<RawOffset>> for RawData {
+    #[inline(always)]
     fn index_mut(&mut self, range: ops::RangeFrom<RawOffset>) -> &mut Self::Output {
         &mut self.0[range.start.as_usize()..]
     }
 }
 
 impl ops::IndexMut<ops::RangeTo<RawOffset>> for RawData {
+    #[inline(always)]
     fn index_mut(&mut self, range: ops::RangeTo<RawOffset>) -> &mut Self::Output {
         &mut self.0[..range.end.as_usize()]
     }
 }
 
 impl ops::IndexMut<ops::RangeFull> for RawData {
+    #[inline(always)]
     fn index_mut(&mut self, _: ops::RangeFull) -> &mut Self::Output {
         &mut self.0[..]
     }
@@ -823,6 +834,7 @@ impl<T> PropVec<T> {
 
 impl<T> ops::Index<PropIndex> for PropVec<T> {
     type Output = T;
+    #[inline(always)]
     fn index(&self, idx: PropIndex) -> &Self::Output {
         &self.0[idx.as_usize()]
     }
@@ -830,12 +842,14 @@ impl<T> ops::Index<PropIndex> for PropVec<T> {
 
 impl<T> ops::Deref for PropVec<T> {
     type Target = Vec<T>;
+    #[inline(always)]
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
 impl<T> ops::DerefMut for PropVec<T> {
+    #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
