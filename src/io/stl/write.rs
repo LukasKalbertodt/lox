@@ -3,7 +3,7 @@ use std::{
     io::{self, Write},
 };
 
-use byteorder::{LittleEndian, WriteBytesExt};
+use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use cgmath::prelude::*;
 
 use crate::{
@@ -157,23 +157,30 @@ impl<W: io::Write> Writer<W> {
             // Next, number of triangles
             w.write_u32::<LittleEndian>(num_triangles)?;
 
+            const TRI_SIZE: usize = 4 * 3 * 4 + 2;
+            let mut buf = [0; TRI_SIZE];
+
             for triangle in triangles {
                 let triangle = triangle?;
 
                 // Write face normal
-                w.write_f32::<LittleEndian>(triangle.normal[0])?;
-                w.write_f32::<LittleEndian>(triangle.normal[1])?;
-                w.write_f32::<LittleEndian>(triangle.normal[2])?;
+                LittleEndian::write_f32(&mut buf[00..04], triangle.normal[0]);
+                LittleEndian::write_f32(&mut buf[04..08], triangle.normal[1]);
+                LittleEndian::write_f32(&mut buf[08..12], triangle.normal[2]);
 
-                // Write all vertex positions
-                for &[x, y, z] in &triangle.vertices {
-                    w.write_f32::<LittleEndian>(x)?;
-                    w.write_f32::<LittleEndian>(y)?;
-                    w.write_f32::<LittleEndian>(z)?;
-                }
+                LittleEndian::write_f32(&mut buf[12..16], triangle.vertices[0][0]);
+                LittleEndian::write_f32(&mut buf[16..20], triangle.vertices[0][1]);
+                LittleEndian::write_f32(&mut buf[20..24], triangle.vertices[0][2]);
+                LittleEndian::write_f32(&mut buf[24..28], triangle.vertices[1][0]);
+                LittleEndian::write_f32(&mut buf[28..32], triangle.vertices[1][1]);
+                LittleEndian::write_f32(&mut buf[32..36], triangle.vertices[1][2]);
+                LittleEndian::write_f32(&mut buf[36..40], triangle.vertices[2][0]);
+                LittleEndian::write_f32(&mut buf[40..44], triangle.vertices[2][1]);
+                LittleEndian::write_f32(&mut buf[44..48], triangle.vertices[2][2]);
 
-                // Write "attribute byte count".
-                w.write_u16::<LittleEndian>(triangle.attribute_byte_count)?;
+                LittleEndian::write_u16(&mut buf[48..50], triangle.attribute_byte_count);
+
+                w.write_all(&buf)?;
             }
         }
 
