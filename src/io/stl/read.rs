@@ -366,8 +366,6 @@ impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
         triangle_count: u32,
         mut add_triangle: impl FnMut(RawTriangle),
     ) -> Result<(), Error> {
-        use byteorder::{ByteOrder, LittleEndian};
-
         const BYTES_PER_TRI: usize = 4 * 3 * 4 + 2;
 
 
@@ -381,28 +379,76 @@ impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
             // we can improve performance significantly by doing it
             // manually here.
             buf.prepare(BYTES_PER_TRI)?;
-            let data = &buf.raw_buf()[..BYTES_PER_TRI];
 
-            /// Reads three consecutive `f32`s.
+            // We want to have a `&[u8; BYTES_PER_TRI]` so that the compiler
+            // knows the length of the slice below. This enables a bunch of
+            // optimizations.
+            //
+            // To get such a reference, we have to use a bit of unsafe code.
+            // This is safe, because:
+            // - We first index the slice in checked mode, so `slice` is
+            //   absolutely correct
+            // - `[u8]` and `[u8; N]` have the same memory layout and alignment
+            // - This is what the `TryFrom<&[T]>` impl for arrays does
+            let data = {
+                let slice = &buf.raw_buf()[..BYTES_PER_TRI];
+                unsafe {
+                    let ptr = slice.as_ptr() as *const [u8; BYTES_PER_TRI];
+                    &*ptr
+                }
+            };
+
+            #[cfg(target_endian = "little")]
             #[inline(always)]
-            fn vec3(data: &[u8]) -> [f32; 3] {
-                [
-                    LittleEndian::read_f32(&data[0..4]),
-                    LittleEndian::read_f32(&data[4..8]),
-                    LittleEndian::read_f32(&data[8..12]),
-                ]
+            fn triangle(data: &[u8; BYTES_PER_TRI]) -> RawTriangle {
+                use std::{mem, ptr};
+
+                // This assert should be a static assert. It makes sure that if
+                // some code elsewhere changes, the following `unsafe` block
+                // won't lead to memory unsafety. The assert will be completely
+                // removed by the optimizer as both values are constant.
+                assert_eq!(mem::size_of::<RawTriangle>(), BYTES_PER_TRI + 2);
+                fn assert_is_copy<T: Copy>() {}
+                assert_is_copy::<RawTriangle>();
+
+                unsafe {
+                    let mut out = mem::zeroed();
+                    ptr::copy_nonoverlapping(
+                        data.as_ptr(),
+                        &mut out as * mut RawTriangle as *mut u8,
+                        BYTES_PER_TRI,
+                    );
+                    out
+                }
             }
 
-            let triangle = RawTriangle {
-                normal: vec3(&data[0..12]),
-                vertices: [
-                    vec3(&data[12..24]),
-                    vec3(&data[24..36]),
-                    vec3(&data[36..48]),
-                ],
-                attribute_byte_count: LittleEndian::read_u16(&data[48..50]),
-            };
-            add_triangle(triangle);
+            #[cfg(target_endian = "big")]
+            #[inline(always)]
+            fn triangle(data: &[u8; BYTES_PER_TRI]) -> RawTriangle {
+                use byteorder::{ByteOrder, LittleEndian};
+
+                /// Reads three consecutive `f32`s.
+                #[inline(always)]
+                fn vec3(data: &[u8]) -> [f32; 3] {
+                    [
+                        LittleEndian::read_f32(&data[0..4]),
+                        LittleEndian::read_f32(&data[4..8]),
+                        LittleEndian::read_f32(&data[8..12]),
+                    ]
+                }
+
+                RawTriangle {
+                    normal: vec3(&data[0..12]),
+                    vertices: [
+                        vec3(&data[12..24]),
+                        vec3(&data[24..36]),
+                        vec3(&data[36..48]),
+                    ],
+                    attribute_byte_count: LittleEndian::read_u16(&data[48..50]),
+                }
+            }
+
+            add_triangle(triangle(data));
 
             buf.consume(BYTES_PER_TRI);
         }

@@ -123,6 +123,7 @@ impl From<Encoding> for FileEncoding {
 ///
 /// This type is used in [`RawStorage`]. If you don't use the low level `raw`
 /// methods, you probably don't care about this type.
+#[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct RawTriangle {
     /// Face normal.
