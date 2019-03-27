@@ -350,105 +350,130 @@ impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
     /// unification** (regardless of the type parameter `U`). You usually want
     /// to use the [`StreamSource`]) interface to actually read meshes from
     /// this reader.
-    pub fn read_raw(self, mut add_triangle: impl FnMut(RawTriangle)) -> Result<(), Error> {
+    #[inline(never)]
+    pub fn read_raw(self, add_triangle: impl FnMut(RawTriangle)) -> Result<(), Error> {
+        if let Some(triangle_count) = self.triangle_count {
+            self.read_raw_binary(triangle_count, add_triangle)
+        } else {
+            self.read_raw_ascii(add_triangle)
+        }
+    }
+
+    /// The `read_raw` implementation for binary bodies.
+    #[inline(never)]
+    fn read_raw_binary(
+        self,
+        triangle_count: u32,
+        mut add_triangle: impl FnMut(RawTriangle),
+    ) -> Result<(), Error> {
+        use byteorder::{ByteOrder, LittleEndian};
+
+        const BYTES_PER_TRI: usize = 4 * 3 * 4 + 2;
+
+
         let mut buf = self.buf;
 
-        // ===== Parse body ==================================================
-        if let Some(triangle_count) = self.triangle_count {
-            // ===== BINARY ==================================================
-            // We attempt to read as many triangles as specified. If the
-            // specified number was too high and we reach EOF early, we will
-            // return an error.
-            for _ in 0..triangle_count {
-                let triangle = buf.with_bytes(4 * 3 * 4 + 2, |sd| {
-                    use byteorder::{ByteOrder, LittleEndian};
+        // We attempt to read as many triangles as specified. If the
+        // specified number was too high and we reach EOF early, we will
+        // return an error.
+        for _ in 0..triangle_count {
+            // We don't use `with_bytes` here because it isn't inlined and
+            // we can improve performance significantly by doing it
+            // manually here.
+            buf.prepare(BYTES_PER_TRI)?;
+            let data = &buf.raw_buf()[..BYTES_PER_TRI];
 
-                    /// Reads three consecutive `f32`s.
-                    #[inline(always)]
-                    fn vec3(data: &[u8]) -> [f32; 3] {
-                        [
-                            LittleEndian::read_f32(&data[0..]),
-                            LittleEndian::read_f32(&data[4..]),
-                            LittleEndian::read_f32(&data[8..]),
-                        ]
-                    }
-
-                    Ok(RawTriangle {
-                        normal: vec3(&sd.data[0..]),
-                        vertices: [
-                            vec3(&sd.data[12..]),
-                            vec3(&sd.data[24..]),
-                            vec3(&sd.data[36..]),
-                        ],
-                        attribute_byte_count: LittleEndian::read_u16(&sd.data[48..]),
-                    })
-                })?;
-
-                add_triangle(triangle);
+            /// Reads three consecutive `f32`s.
+            #[inline(always)]
+            fn vec3(data: &[u8]) -> [f32; 3] {
+                [
+                    LittleEndian::read_f32(&data[0..4]),
+                    LittleEndian::read_f32(&data[4..8]),
+                    LittleEndian::read_f32(&data[8..12]),
+                ]
             }
 
-            // If the specified number of triangles was too small and there is
-            // still data left, we also error.
-            buf.assert_eof()?;
-        } else {
-            // ===== ASCII ===================================================
+            let triangle = RawTriangle {
+                normal: vec3(&data[0..12]),
+                vertices: [
+                    vec3(&data[12..24]),
+                    vec3(&data[24..36]),
+                    vec3(&data[36..48]),
+                ],
+                attribute_byte_count: LittleEndian::read_u16(&data[48..50]),
+            };
+            add_triangle(triangle);
 
-            /// Parses three floats separated by whitespace. No leading or trailing
-            /// whitespace is handled.
-            fn vec3(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
-                let x = parse::ascii_f32(buf)?;
+            buf.consume(BYTES_PER_TRI);
+        }
+
+        // If the specified number of triangles was too small and there is
+        // still data left, we also error.
+        buf.assert_eof()?;
+
+        Ok(())
+    }
+
+    /// The `read_raw` implementation for ASCII bodies.
+    #[inline(never)]
+    pub fn read_raw_ascii(self, mut add_triangle: impl FnMut(RawTriangle)) -> Result<(), Error> {
+        /// Parses three floats separated by whitespace. No leading or trailing
+        /// whitespace is handled.
+        fn vec3(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
+            let x = parse::ascii_f32(buf)?;
+            parse::whitespace(buf)?;
+            let y = parse::ascii_f32(buf)?;
+            parse::whitespace(buf)?;
+            let z = parse::ascii_f32(buf)?;
+            Ok([x, y, z])
+        }
+
+        /// Parses one ASCII line with a vertex (e.g. `vertex 2.0 0.1  1`)
+        fn vertex(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
+            parse::line(buf, |buf| {
+                buf.expect_tag(b"vertex")?;
                 parse::whitespace(buf)?;
-                let y = parse::ascii_f32(buf)?;
+                vec3(buf)
+            })
+        }
+
+        let mut buf = self.buf;
+
+        // Parse facets
+        loop {
+            // First line (`facet normal 0.0 1.0 0.0`)
+            let normal = parse::line(&mut buf, |buf| {
+                buf.expect_tag(b"facet normal")?;
                 parse::whitespace(buf)?;
-                let z = parse::ascii_f32(buf)?;
-                Ok([x, y, z])
-            }
+                vec3(buf)
+            })?;
 
-            /// Parses one ASCII line with a vertex (e.g. `vertex 2.0 0.1  1`)
-            fn vertex(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
-                parse::line(buf, |buf| {
-                    buf.expect_tag(b"vertex")?;
-                    parse::whitespace(buf)?;
-                    vec3(buf)
-                })
-            }
+            // Parse vertices
+            parse::line(&mut buf, |buf| buf.expect_tag(b"outer loop"))?;
+            let vertices = [
+                vertex(&mut buf)?,
+                vertex(&mut buf)?,
+                vertex(&mut buf)?,
+            ];
+            parse::line(&mut buf, |buf| buf.expect_tag(b"endloop"))?;
 
-            // Parse facets
-            loop {
-                // First line (`facet normal 0.0 1.0 0.0`)
-                let normal = parse::line(&mut buf, |buf| {
-                    buf.expect_tag(b"facet normal")?;
-                    parse::whitespace(buf)?;
-                    vec3(buf)
-                })?;
+            // Pass parsed triangle to callback
+            add_triangle(RawTriangle {
+                normal,
+                vertices,
+                attribute_byte_count: 0,
+            });
 
-                // Parse vertices
-                parse::line(&mut buf, |buf| buf.expect_tag(b"outer loop"))?;
-                let vertices = [
-                    vertex(&mut buf)?,
-                    vertex(&mut buf)?,
-                    vertex(&mut buf)?,
-                ];
-                parse::line(&mut buf, |buf| buf.expect_tag(b"endloop"))?;
+            // Parse last line (`endfacet`)
+            parse::line(&mut buf, |buf| buf.expect_tag(b"endfacet"))?;
 
-                // Pass parsed triangle to callback
-                add_triangle(RawTriangle {
-                    normal,
-                    vertices,
-                    attribute_byte_count: 0,
-                });
-
-                // Parse last line (`endfacet`)
-                parse::line(&mut buf, |buf| buf.expect_tag(b"endfacet"))?;
-
-                // Check if the next line starts with `endsolid` and break loop
-                // in that case.
-                parse::opt_whitespace(&mut buf)?;
-                if buf.is_next(b"endsolid")? {
-                    // We've seen `endsolid`: we just stop here. There could be
-                    // junk afterwards, but we don't care.
-                    break;
-                }
+            // Check if the next line starts with `endsolid` and break loop
+            // in that case.
+            parse::opt_whitespace(&mut buf)?;
+            if buf.is_next(b"endsolid")? {
+                // We've seen `endsolid`: we just stop here. There could be
+                // junk afterwards, but we don't care.
+                break;
             }
         }
 
