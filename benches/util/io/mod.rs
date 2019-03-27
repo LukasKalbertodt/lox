@@ -64,17 +64,17 @@ impl MemSink for NullSinkPos {
     }
 }
 
-/// A sink that puts all vertex positions and vertex normals  into the
+/// A sink that puts all vertex positions and vertex normals into the
 /// `black_box`, ignores all other properties.
-pub struct NullSinkPosNormal(NullSinkPos);
+pub struct NullSinkPosVNormal(NullSinkPos);
 
-impl NullSinkPosNormal {
+impl NullSinkPosVNormal {
     pub fn new() -> Self {
         Self(NullSinkPos::new())
     }
 }
 
-impl MemSink for NullSinkPosNormal {
+impl MemSink for NullSinkPosVNormal {
     fn add_vertex(&mut self) -> VertexHandle {
         self.0.add_vertex()
     }

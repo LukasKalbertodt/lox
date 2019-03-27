@@ -10,11 +10,11 @@ use lox::{
     io::ply::Reader,
 };
 
-mod util;
+pub mod util;
 
 use util::{
     io::{
-        NullSinkPos, NullSinkPosNormal,
+        NullSinkPos, NullSinkPosVNormal,
         ply::NullRawSink,
     },
 };
@@ -184,7 +184,7 @@ fn sphere_hl(c: &mut Criterion) {
             let reader = Reader::new(Cursor::new(FILES.get_for(encoding))).unwrap();
 
             b.iter_batched(
-                || (reader.clone(), NullSinkPosNormal::new()),
+                || (reader.clone(), NullSinkPosVNormal::new()),
                 |(r, mut sink)| {
                     let out = r.transfer_to(&mut sink);
                     black_box(sink);
