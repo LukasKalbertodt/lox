@@ -110,3 +110,51 @@ impl MemSink for NullSinkPosVNormal {
         black_box(normal);
     }
 }
+
+
+/// A sink that puts all vertex positions and face normals into the
+/// `black_box`, ignores all other properties.
+pub struct NullSinkPosFNormal(NullSinkPos);
+
+impl NullSinkPosFNormal {
+    pub fn new() -> Self {
+        Self(NullSinkPos::new())
+    }
+}
+
+impl MemSink for NullSinkPosFNormal {
+    fn add_vertex(&mut self) -> VertexHandle {
+        self.0.add_vertex()
+    }
+    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
+        self.0.add_face(vertices)
+    }
+
+    fn size_hint(&mut self, hint: MeshSizeHint) {
+        self.0.size_hint(hint)
+    }
+
+    fn prepare_vertex_positions<N: Primitive>(&mut self, count: hsize) -> Result<(), Error> {
+        self.0.prepare_vertex_positions::<N>(count)
+    }
+    fn set_vertex_position<N: Primitive>(
+        &mut self,
+        v: VertexHandle,
+        position: Point3<N>,
+    ) {
+        self.0.set_vertex_position::<N>(v, position)
+    }
+
+    fn prepare_face_normals<N: Primitive>(&mut self, count: hsize) -> Result<(), Error> {
+        black_box(count);
+        Ok(())
+    }
+    fn set_face_normal<N: Primitive>(
+        &mut self,
+        v: FaceHandle,
+        normal: Vector3<N>,
+    ) {
+        black_box(v);
+        black_box(normal);
+    }
+}
