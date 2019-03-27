@@ -465,6 +465,16 @@ impl<R: io::Read, U: UnifyingMarker> fmt::Debug for Reader<R, U> {
     }
 }
 
+impl<R: io::Read + Clone, U: UnifyingMarker> Clone for Reader<R, U> {
+    fn clone(&self) -> Self {
+        Self {
+            buf: self.buf.clone(),
+            solid_name: self.solid_name.clone(),
+            triangle_count: self.triangle_count.clone(),
+            _dummy: PhantomData,
+        }
+    }
+}
 
 // ===========================================================================
 // ===== Definition of unifying dummy types. Not actually public.
