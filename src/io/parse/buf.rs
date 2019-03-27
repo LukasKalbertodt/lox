@@ -238,6 +238,12 @@ impl<R: Read> ParseBuf for Buffer<R> {
         self.consumed_total += num_bytes;
 
         // If we consumed all the data, we set both indices to 0.
+        //
+        // TODO: optimization potential: this branch is inlined in a lot of
+        // functions. Would be nice if we could remove it here. So we have to
+        // find out where we rely on this property and rewrite it there. This
+        // is probably only in `grow_buf` or other costly methods, so adding a
+        // check there is not a problem.
         if self.start == self.end {
             self.start = 0;
             self.end = 0;
@@ -258,6 +264,12 @@ impl<R: Read> ParseBuf for Buffer<R> {
     }
 
     fn raw_buf(&self) -> &[u8] {
+        // TODO: here is some optimization potential. Both bounds are
+        // apparently always checked. But we know "for sure" that those bounds
+        // are valid. I am just not "sure" enough to put an `unsafe` block
+        // here. This needs to be evaluated more closely to verify the parse
+        // buffer implementation is correct. Then we can use `get_unchecked_`
+        // here.
         &self.buf[self.start..self.end]
     }
 }
