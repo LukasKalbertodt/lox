@@ -54,7 +54,7 @@ impl AllEncodings {
 // ===============================================================================================
 
 /// Measures body reading of `three_tris_all_props` files via `RawSink`.
-fn three_tris_all_props_raw(c: &mut Criterion) {
+fn read_three_tris_all_props_raw(c: &mut Criterion) {
     const FILES: AllEncodings = AllEncodings {
         ble: include_bytes!("../src/io/ply/test_files/three_tris_all_props_ble.ply"),
         bbe: include_bytes!("../src/io/ply/test_files/three_tris_all_props_bbe.ply"),
@@ -62,7 +62,7 @@ fn three_tris_all_props_raw(c: &mut Criterion) {
     };
 
     c.bench_function_over_inputs(
-        "ply_three_tris_all_props_ble_raw",
+        "read_ply_three_tris_all_props_raw",
         |b, encoding| {
             let reader = Reader::new(Cursor::new(FILES.get_for(encoding))).unwrap();
             let mut sink = NullRawSink;
@@ -78,9 +78,9 @@ fn three_tris_all_props_raw(c: &mut Criterion) {
 }
 
 /// Measures body reading of `three_tris_all_props` files via `RawSink`.
-fn sphere_raw(c: &mut Criterion) {
+fn read_sphere_raw(c: &mut Criterion) {
     c.bench_function_over_inputs(
-        "ply_sphere_raw",
+        "ply_read_sphere_raw",
         |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 ble: include_bytes!("../tests/files/ply/sphere_ble.ply"),
@@ -101,7 +101,7 @@ fn sphere_raw(c: &mut Criterion) {
     );
 
     c.bench_function_over_inputs(
-        "ply_sphere_vnormals_raw",
+        "ply_read_sphere_vnormals_raw",
         |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 ble: include_bytes!("../tests/files/ply/sphere_vnormals_ble.ply"),
@@ -125,7 +125,7 @@ fn sphere_raw(c: &mut Criterion) {
 /// Measures body reading of `three_tris_all_props` files via `RawSink`.
 fn sphere_hl(c: &mut Criterion) {
     c.bench_function_over_inputs(
-        "ply_sphere_hl",
+        "ply_read_sphere_hl",
         |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 ble: include_bytes!("../tests/files/ply/sphere_ble.ply"),
@@ -149,7 +149,7 @@ fn sphere_hl(c: &mut Criterion) {
     );
 
     c.bench_function_over_inputs(
-        "ply_sphere_ignore_vnormals_hl",
+        "ply_read_sphere_ignore_vnormals_hl",
         |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 ble: include_bytes!("../tests/files/ply/sphere_vnormals_ble.ply"),
@@ -173,7 +173,7 @@ fn sphere_hl(c: &mut Criterion) {
     );
 
     c.bench_function_over_inputs(
-        "ply_sphere_vnormals_hl",
+        "ply_read_sphere_vnormals_hl",
         |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 ble: include_bytes!("../tests/files/ply/sphere_vnormals_ble.ply"),
@@ -198,5 +198,5 @@ fn sphere_hl(c: &mut Criterion) {
 }
 
 
-criterion_group!(benches, three_tris_all_props_raw, sphere_raw, sphere_hl);
+criterion_group!(benches, read_three_tris_all_props_raw, read_sphere_raw, read_sphere_hl);
 criterion_main!(benches);

@@ -46,9 +46,9 @@ impl AllEncodings {
 // ===== Benchmarks
 // ===============================================================================================
 
-fn sphere_raw(c: &mut Criterion) {
+fn read_sphere_raw(c: &mut Criterion) {
     c.bench_function_over_inputs(
-        "stl_sphere_raw",
+        "stl_read_sphere_raw",
         |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 binary: include_bytes!("../tests/files/stl/sphere_binary.stl"),
@@ -67,9 +67,9 @@ fn sphere_raw(c: &mut Criterion) {
     );
 }
 
-fn sphere_hl(c: &mut Criterion) {
+fn read_sphere_hl(c: &mut Criterion) {
     c.bench_function_over_inputs(
-        "stl_sphere_ignore_fnormals_hl",
+        "stl_read_sphere_ignore_fnormals_hl",
         |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 binary: include_bytes!("../tests/files/stl/sphere_binary.stl"),
@@ -116,5 +116,5 @@ fn sphere_hl(c: &mut Criterion) {
 }
 
 
-criterion_group!(benches, sphere_raw, sphere_hl);
+criterion_group!(benches, read_sphere_raw, read_sphere_hl);
 criterion_main!(benches);
