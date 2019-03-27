@@ -7,7 +7,7 @@ use criterion::{
 
 use lox::{
     prelude::*,
-    io::stl::Reader,
+    io::stl::{Config, Reader},
 };
 
 pub mod util;
@@ -115,6 +115,62 @@ fn read_sphere_hl(c: &mut Criterion) {
     );
 }
 
+fn write_sphere_raw(c: &mut Criterion) {
+    c.bench_function_over_inputs(
+        "stl_write_sphere_raw",
+        |b, encoding| {
+            let triangles = util::io::stl::raw_sphere();
+            let config = match *encoding {
+                "binary" => Config::binary(),
+                "ascii" => Config::ascii(),
+                _ => panic!("bug: wrong encoding in benchmark"),
+            };
 
-criterion_group!(benches, read_sphere_raw, read_sphere_hl);
+            // We reserve memory beforehand to ensure the vector doesn't have
+            // to reallocate. The resulting STL files of the sphere above are
+            // 38K and 187K bytes large for binary and ASCII respectively.
+            let mut out = Vec::with_capacity(200_000);
+
+            b.iter(|| {
+                let res = config.clone()
+                    .into_writer(&mut out)
+                    .write_raw(triangles.len() as u32, triangles.iter().map(|t| Ok(*t)));
+                let _ = black_box(res);
+                black_box(&out);
+                out.clear();
+            })
+        },
+        vec!["binary", "ascii"],
+    );
+}
+
+fn write_sphere_hl(c: &mut Criterion) {
+    c.bench_function_over_inputs(
+        "stl_write_sphere_hl",
+        |b, encoding| {
+            let sphere = util::io::sphere();
+            let config = match *encoding {
+                "binary" => Config::binary(),
+                "ascii" => Config::ascii(),
+                _ => panic!("bug: wrong encoding in benchmark"),
+            };
+
+            // We reserve memory beforehand to ensure the vector doesn't have
+            // to reallocate. The resulting STL files of the sphere above are
+            // 38K and 187K bytes large for binary and ASCII respectively.
+            let mut out = Vec::with_capacity(200_000);
+
+            b.iter(|| {
+                let res = config.clone().into_writer(&mut out).transfer_from(&sphere);
+                let _ = black_box(res);
+                black_box(&out);
+                out.clear();
+            })
+        },
+        vec!["binary", "ascii"],
+    );
+}
+
+
+criterion_group!(benches, read_sphere_raw, read_sphere_hl, write_sphere_raw, write_sphere_hl);
 criterion_main!(benches);

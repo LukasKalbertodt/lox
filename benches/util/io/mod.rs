@@ -2,17 +2,21 @@ use criterion::black_box;
 
 use lox::{
     prelude::*,
-    cgmath::{Point3, Vector3},
-    handle::hsize,
     VertexHandle, FaceHandle,
+    cgmath::{Point3, Vector3},
+    ds::SharedVertexMesh,
+    fat::MiniMesh,
+    handle::hsize,
     io::{
         Error, Primitive,
     },
+    shape::Sphere,
     util::MeshSizeHint,
 };
 
 
 pub mod ply;
+pub mod stl;
 
 
 
@@ -157,4 +161,11 @@ impl MemSink for NullSinkPosFNormal {
         black_box(v);
         black_box(normal);
     }
+}
+
+pub fn sphere() -> MiniMesh<SharedVertexMesh> {
+    MemSink::create_from(Sphere {
+        radius: 10.0,
+        .. Sphere::default()
+    }).expect("couldn't create sphere")
 }
