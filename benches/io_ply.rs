@@ -7,7 +7,10 @@ use criterion::{
 
 use lox::{
     prelude::*,
-    io::ply::Reader,
+    io::ply::{
+        Config, Encoding, Reader,
+        raw::{PropertyType, PropertyDef, ElementDef, ListLenType, ScalarType},
+    },
 };
 
 pub mod util;
@@ -123,7 +126,7 @@ fn read_sphere_raw(c: &mut Criterion) {
 }
 
 /// Measures body reading of `three_tris_all_props` files via `RawSink`.
-fn sphere_hl(c: &mut Criterion) {
+fn read_sphere_hl(c: &mut Criterion) {
     c.bench_function_over_inputs(
         "ply_read_sphere_hl",
         |b, encoding| {
@@ -197,6 +200,188 @@ fn sphere_hl(c: &mut Criterion) {
     );
 }
 
+/// Measures body reading of `three_tris_all_props` files via `RawSink`.
+fn write_sphere_raw(c: &mut Criterion) {
+    // Writing only vertex positions
+    c.bench_function_over_inputs(
+        "ply_write_sphere_raw",
+        |b, encoding| {
+            let config = match *encoding {
+                "ble" => Config::new(Encoding::BinaryLittleEndian),
+                "bbe" => Config::new(Encoding::BinaryBigEndian),
+                "ascii" => Config::ascii(),
+                _ => panic!("bug: wrong encoding in benchmark"),
+            };
 
-criterion_group!(benches, read_three_tris_all_props_raw, read_sphere_raw, read_sphere_hl);
+            let src = util::io::ply::RawSphereSource::new();
+            let header = [
+                ElementDef {
+                    name: "vertex".into(),
+                    count: src.vertex_count(),
+                    property_defs: ["x", "y", "z"].iter()
+                        .map(|&name| {
+                            PropertyDef {
+                                name: name.into(),
+                                ty: PropertyType::Scalar(ScalarType::Float)
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .into(),
+                },
+                ElementDef {
+                    name: "face".into(),
+                    count: src.face_count(),
+                    property_defs: vec![
+                        PropertyDef {
+                            name: "vertex_indices".into(),
+                            ty: PropertyType::List  {
+                                len_type: ListLenType::UChar,
+                                scalar_type: ScalarType::UInt,
+                            },
+                        }
+                    ].into(),
+                },
+            ];
+
+            // We reserve memory beforehand to ensure the vector doesn't have
+            // to reallocate.
+            let mut out = Vec::with_capacity(50_000);
+
+            b.iter(|| {
+                let res = config.clone()
+                    .into_writer(&mut out)
+                    .write_raw(&header, &src);
+                let _ = black_box(res);
+                black_box(&out);
+                out.clear();
+            })
+        },
+        vec!["ble", "bbe", "ascii"],
+    );
+
+    // Writing vertex positions and normals
+    c.bench_function_over_inputs(
+        "ply_write_sphere_vnormals_raw",
+        |b, encoding| {
+            let config = match *encoding {
+                "ble" => Config::new(Encoding::BinaryLittleEndian),
+                "bbe" => Config::new(Encoding::BinaryBigEndian),
+                "ascii" => Config::ascii(),
+                _ => panic!("bug: wrong encoding in benchmark"),
+            };
+
+            let src = util::io::ply::RawSphereVNormalsSource::new();
+            let header = [
+                ElementDef {
+                    name: "vertex".into(),
+                    count: src.vertex_count(),
+                    property_defs: ["x", "y", "z", "nx", "ny", "nz"].iter()
+                        .map(|&name| {
+                            PropertyDef {
+                                name: name.into(),
+                                ty: PropertyType::Scalar(ScalarType::Float)
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .into(),
+                },
+                ElementDef {
+                    name: "face".into(),
+                    count: src.face_count(),
+                    property_defs: vec![
+                        PropertyDef {
+                            name: "vertex_indices".into(),
+                            ty: PropertyType::List  {
+                                len_type: ListLenType::UChar,
+                                scalar_type: ScalarType::UInt,
+                            },
+                        }
+                    ].into(),
+                },
+            ];
+
+            // We reserve memory beforehand to ensure the vector doesn't have
+            // to reallocate.
+            let mut out = Vec::with_capacity(50_000);
+
+            b.iter(|| {
+                let res = config.clone()
+                    .into_writer(&mut out)
+                    .write_raw(&header, &src);
+                let _ = black_box(res);
+                black_box(&out);
+                out.clear();
+            })
+        },
+        vec!["ble", "bbe", "ascii"],
+    );
+}
+
+/// Measures body reading of `three_tris_all_props` files via `RawSink`.
+fn write_sphere_hl(c: &mut Criterion) {
+    // Writing only vertex positions
+    c.bench_function_over_inputs(
+        "ply_write_sphere_hl",
+        |b, encoding| {
+            let sphere = util::io::sphere();
+            let config = match *encoding {
+                "ble" => Config::new(Encoding::BinaryLittleEndian),
+                "bbe" => Config::new(Encoding::BinaryBigEndian),
+                "ascii" => Config::ascii(),
+                _ => panic!("bug: wrong encoding in benchmark"),
+            };
+
+            // We reserve memory beforehand to ensure the vector doesn't have
+            // to reallocate.
+            let mut out = Vec::with_capacity(50_000);
+
+            b.iter(|| {
+                let res = config.clone()
+                    .into_writer(&mut out)
+                    .transfer_from(&sphere);
+                let _ = black_box(res);
+                black_box(&out);
+                out.clear();
+            })
+        },
+        vec!["ble", "bbe", "ascii"],
+    );
+
+    // Writing vertex positions and normals
+    c.bench_function_over_inputs(
+        "ply_write_sphere_vnormals_hl",
+        |b, encoding| {
+            let sphere = util::io::sphere_vnormals();
+            let config = match *encoding {
+                "ble" => Config::new(Encoding::BinaryLittleEndian),
+                "bbe" => Config::new(Encoding::BinaryBigEndian),
+                "ascii" => Config::ascii(),
+                _ => panic!("bug: wrong encoding in benchmark"),
+            };
+
+            // We reserve memory beforehand to ensure the vector doesn't have
+            // to reallocate.
+            let mut out = Vec::with_capacity(50_000);
+
+            b.iter(|| {
+                let res = config.clone()
+                    .into_writer(&mut out)
+                    .transfer_from(&sphere);
+                let _ = black_box(res);
+                black_box(&out);
+                out.clear();
+            })
+        },
+        vec!["ble", "bbe", "ascii"],
+    );
+}
+
+
+criterion_group!(benches,
+    read_three_tris_all_props_raw,
+    read_sphere_raw,
+    read_sphere_hl,
+    write_sphere_raw,
+    write_sphere_hl,
+);
 criterion_main!(benches);

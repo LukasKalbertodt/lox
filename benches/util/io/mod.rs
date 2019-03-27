@@ -7,6 +7,7 @@ use lox::{
     ds::SharedVertexMesh,
     fat::MiniMesh,
     handle::hsize,
+    map::VecMap,
     io::{
         Error, Primitive,
     },
@@ -164,6 +165,26 @@ impl MemSink for NullSinkPosFNormal {
 }
 
 pub fn sphere() -> MiniMesh<SharedVertexMesh> {
+    MemSink::create_from(Sphere {
+        radius: 10.0,
+        .. Sphere::default()
+    }).expect("couldn't create sphere")
+}
+
+#[derive(Empty, MemSink, MemSource)]
+#[lox(cast = "lossy")]
+pub struct NormalPosMesh {
+    #[lox(core_mesh)]
+    mesh: SharedVertexMesh,
+
+    #[lox(vertex_position)]
+    vertex_positions: VecMap<VertexHandle, Point3<f32>>,
+
+    #[lox(vertex_normal)]
+    vertex_normals: VecMap<VertexHandle, Vector3<f32>>,
+}
+
+pub fn sphere_vnormals() -> NormalPosMesh {
     MemSink::create_from(Sphere {
         radius: 10.0,
         .. Sphere::default()
