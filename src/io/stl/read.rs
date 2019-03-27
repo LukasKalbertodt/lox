@@ -351,26 +351,6 @@ impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
     /// to use the [`StreamSource`]) interface to actually read meshes from
     /// this reader.
     pub fn read_raw(self, mut add_triangle: impl FnMut(RawTriangle)) -> Result<(), Error> {
-        /// Parses three floats separated by whitespace. No leading or trailing
-        /// whitespace is handled.
-        fn vec3(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
-            let x = parse::ascii_f32(buf)?;
-            parse::whitespace(buf)?;
-            let y = parse::ascii_f32(buf)?;
-            parse::whitespace(buf)?;
-            let z = parse::ascii_f32(buf)?;
-            Ok([x, y, z])
-        }
-
-        /// Parses one ASCII line with a vertex (e.g. `vertex 2.0 0.1  1`)
-        fn vertex(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
-            parse::line(buf, |buf| {
-                buf.expect_tag(b"vertex")?;
-                parse::whitespace(buf)?;
-                vec3(buf)
-            })
-        }
-
         let mut buf = self.buf;
 
         // ===== Parse body ==================================================
@@ -384,6 +364,7 @@ impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
                     use byteorder::{ByteOrder, LittleEndian};
 
                     /// Reads three consecutive `f32`s.
+                    #[inline(always)]
                     fn vec3(data: &[u8]) -> [f32; 3] {
                         [
                             LittleEndian::read_f32(&data[0..]),
@@ -411,6 +392,27 @@ impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
             buf.assert_eof()?;
         } else {
             // ===== ASCII ===================================================
+
+            /// Parses three floats separated by whitespace. No leading or trailing
+            /// whitespace is handled.
+            fn vec3(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
+                let x = parse::ascii_f32(buf)?;
+                parse::whitespace(buf)?;
+                let y = parse::ascii_f32(buf)?;
+                parse::whitespace(buf)?;
+                let z = parse::ascii_f32(buf)?;
+                Ok([x, y, z])
+            }
+
+            /// Parses one ASCII line with a vertex (e.g. `vertex 2.0 0.1  1`)
+            fn vertex(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
+                parse::line(buf, |buf| {
+                    buf.expect_tag(b"vertex")?;
+                    parse::whitespace(buf)?;
+                    vec3(buf)
+                })
+            }
+
             // Parse facets
             loop {
                 // First line (`facet normal 0.0 1.0 0.0`)
