@@ -42,53 +42,12 @@ pub fn derive_empty(input: TokenStream) -> TokenStream {
 }
 
 
-/// The `derive(MemSink)` macro.
+/// Custom derive for the `MemSink` trait.
 ///
-/// To derive the trait `MemSink`, you have to attach `#[derive(MemSink)]` to
-/// your struct definition (note: currently, the trait can only be derived for
-/// structs with named fields). You also have to annotate your fields with
-/// `#[lox(...)]` attributes to tell the derive macro what a field should be
-/// used for. Example:
+/// See [the documentation of the `MemSink` trait in `lox`][trait] for more
+/// information about this derive.
 ///
-/// ```ignore
-/// #[derive(MemSink)]
-/// struct MyMesh {
-///     #[lox(core_mesh)]
-///     mesh: HalfEdgeMesh,
-///
-///     #[lox(vertex_position)]
-///     positions: VecMap<VertexHandle, Point3<f32>>,
-/// }
-/// ```
-///
-/// There is one required field: the core mesh field. That field's type has to
-/// implement several mesh traits, in particular `MeshMut` and `TriMeshMut`.
-/// You have to annotate that mesh with `#[lox(core_mesh)]`.
-///
-/// Additionally, you can have fields for each mesh property, like vertex
-/// position or face colors. The type of those fields has to implement
-/// `PropStoreMut` with a compatible element type. You have to annotate these
-/// property fields with the corresponding attribute. The available properties
-/// are:
-///
-/// - `vertex_position`
-/// - `vertex_normal`
-/// - `vertex_color`
-/// - `face_normal`
-/// - `face_color`
-///
-/// Furthermore, there are some configurations (like the cast mode) that can be
-/// configured via `lox(...)` attributes as well. See below for more
-/// information.
-///
-///
-/// # Exact traits required for each field
-///
-/// TODO
-///
-/// # Cast modes
-///
-/// TODO
+/// [trait]: ../lox/io/trait.MemSink.html
 #[proc_macro_derive(MemSink, attributes(lox))]
 pub fn derive_mem_sink(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -98,6 +57,12 @@ pub fn derive_mem_sink(input: TokenStream) -> TokenStream {
         .into()
 }
 
+/// Custom derive for the `MemSource` trait.
+///
+/// See [the documentation of the `MemSource` trait in `lox`][trait] for more
+/// information about this derive.
+///
+/// [trait]: ../lox/io/trait.MemSource.html
 #[proc_macro_derive(MemSource, attributes(lox))]
 pub fn derive_mem_source(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
