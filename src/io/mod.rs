@@ -53,7 +53,7 @@
 //! There are four traits at the core of this module:
 //! [`MemSource`][io::MemSource], [`StreamSource`][io::StreamSource],
 //! [`MemSink`][io::MemSink] and [`StreamSink`][io::StreamSink]. They abstract
-//! over all types that can provide or receive mesh data (connecitvity *and*
+//! over all types that can provide or receive mesh data (connectivity *and*
 //! property data). The `Mem*` variants can provide or receive data in
 //! arbitrary order (random access), while the `Stream*` variants cannot and
 //! are restricted to one particular access pattern. This has the following
@@ -111,6 +111,26 @@
 //! All available file formats are listed by the enum
 //! [`FileFormat`][io::FileFormat]. It also defines a few very useful methods.
 //!
+//!
+//! # Three levels of IO: Convenience vs. Control
+//!
+//! This module offers three ways how to do IO. At the high level, there are
+//! the six `read_*` and `write_*` functions directly in this module. These
+//! were already mentioned in the *Quick Start* section.
+//!
+//! But sometimes, you might need more control than that. This is where the
+//! `Reader` and `Writer` types come into play. There is a module for each file
+//! format lox supports, each of which contains a `Reader` and `Writer`. These
+//! are the types implementing `StreamSource` and `StreamSink`, respectively.
+//! These `Writer` types are often configurable via a `Config` type, which is
+//! also defined in the file format module.
+//!
+//! In very rare cases, you might need even more control. That's why the
+//! `Reader` and `Writer` objects also offer a *raw* API. This is a very low
+//! level, not-very-nice interface which allows you to receive the raw data
+//! coming from the file. The idea is that even if the IO abstraction in this
+//! library is not fitting someone's need, they still don't have to parse the
+//! file themselves.
 //!
 
 // ----- Informal interface of format submodules ------------------------------
@@ -598,6 +618,8 @@ pub enum FileEncoding {
 }
 
 impl FileEncoding {
+    /// Returns the binary encoding with native endianess (e.g.
+    /// `BinaryLittleEndian` on x86).
     pub fn binary_native() -> Self {
         #[cfg(target_endian = "big")]
         { FileEncoding::BinaryBigEndian }
