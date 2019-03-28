@@ -142,6 +142,7 @@ use std::{
     path::Path,
 };
 
+use failure::Backtrace;
 use cgmath::{Point3, Vector3};
 use failure::Fail;
 
@@ -638,17 +639,25 @@ impl PropKind {
     }
 }
 
-pub struct Error(Box<ErrorKind>);
+pub struct Error(Box<ErrorImpl>);
+
+struct ErrorImpl {
+    kind: ErrorKind,
+    backtrace: Backtrace,
+}
 
 impl Error {
     #[cold]
     #[inline(never)]
-    pub fn new(f: impl FnOnce() -> ErrorKind) -> Self {
-        Self(Box::new(f()))
+    pub fn new(kind: impl FnOnce() -> ErrorKind) -> Self {
+        Self(Box::new(ErrorImpl {
+            kind: kind(),
+            backtrace: Backtrace::new(),
+        }))
     }
 
     pub fn kind(&self) -> &ErrorKind {
-        &self.0
+        &self.0.kind
     }
 }
 
@@ -669,17 +678,24 @@ impl Fail for Error {
     fn name(&self) -> Option<&str> {
         Some("io::Error")
     }
+
+    fn backtrace(&self) -> Option<&Backtrace> {
+        Some(&self.0.backtrace)
+    }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.fmt(f)
+        self.0.kind.fmt(f)
     }
 }
 
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(self, f)
+        self.0.kind.fmt(f)?;
+        write!(f, "\n\n")?;
+        self.0.backtrace.fmt(f)?;
+        Ok(())
     }
 }
 
