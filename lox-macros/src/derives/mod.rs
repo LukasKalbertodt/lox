@@ -17,7 +17,7 @@ pub(crate) mod mem_source;
 
 /// Specifies the default casting mode when the casting mode is not explicitly
 /// specifid.
-const DEFAULT_CAST_MODE: input::CastMode = input::CastMode::Lossless;
+const DEFAULT_CAST_MODE: input::CastMode = input::CastMode::Lossy;
 
 /// Specifies whether casting colors (in "rounding" mode) is allowed when a
 /// casting mode is not explicitly specified.
