@@ -32,8 +32,12 @@
 //! };
 //!
 //!
+//! // Using a predefined mesh type here. Alternatively, you can very easily
+//! // create your own type!
+//! type MyMesh = MiniMesh<FaceDelegateMesh>;
+//!
 //! // Read a mesh file (a PLY file in this case)
-//! let mut m: MiniMesh<FaceDelegateMesh> = io::read_file("input.ply")?;
+//! let mut m: MyMesh = io::read_file("input.ply")?;
 //!
 //! // ... do something with the mesh here
 //!
@@ -639,6 +643,18 @@ impl PropKind {
     }
 }
 
+/// The error type for all IO operations in this library.
+///
+/// The actual error description is defined by [`ErrorKind`]. This error stores
+/// such an error kind plus a backtrace on the heap. You can inspect the kind
+/// via [`Error::kind`]. Everything is stored on the heap in order to make
+/// returning this error more efficient (the `ErrorKind` type is pretty large).
+/// Allocation cost is not a problem, because this error isn't created very
+/// often and if it is, it usually aborts the current operation.
+///
+/// This error can be created via [`Error::new`] or the `From` implementations,
+/// most notably `From<std::io::Error>`. You can display information about this
+/// error via the `Display` impl (i.e. `println!("{}", e)` or `e.to_string()`).
 pub struct Error(Box<ErrorImpl>);
 
 struct ErrorImpl {
@@ -647,6 +663,13 @@ struct ErrorImpl {
 }
 
 impl Error {
+    /// Creates a new error with the error kind produced by the given closure.
+    ///
+    /// This function is not super cheap as it performs a heap allocation and
+    /// potentially collects backtrace information. Therefore you should make
+    /// sure that you won't create a lot of errors in your algorithm. Usually,
+    /// this is not a problem because once you create (and return) and error,
+    /// the operation doesn't continue.
     #[cold]
     #[inline(never)]
     pub fn new(kind: impl FnOnce() -> ErrorKind) -> Self {
@@ -656,6 +679,7 @@ impl Error {
         }))
     }
 
+    /// Returns the kind of this error.
     pub fn kind(&self) -> &ErrorKind {
         &self.0.kind
     }
@@ -700,7 +724,11 @@ impl fmt::Debug for Error {
 }
 
 
-/// The error type for reading or writing a mesh.
+/// All kinds of things that can go wrong when doing IO. Is stored within
+/// [`Error`].
+///
+/// This type shouldn't be returned directly, but always via [`Error`] as it is
+/// more efficient and also stores a backtrace.
 #[derive(Debug, Fail)]
 #[non_exhaustive]
 pub enum ErrorKind {
