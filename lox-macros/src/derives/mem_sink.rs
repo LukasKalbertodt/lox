@@ -264,8 +264,6 @@ fn gen_prop_code(
 
     // Combine everything
     quote! {
-        // TODO: overwrite type wish
-
         fn #prep_fn_name<N: lox::io::Primitive>(
             &mut self,
             count: lox::handle::hsize,

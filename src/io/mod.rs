@@ -160,7 +160,7 @@ use crate::{
 };
 use self::{
     parse::ParseError,
-    util::{TypeWish, DefaultTypeWishes, IsFormat},
+    util::IsFormat,
 };
 
 pub mod parse;
@@ -1184,9 +1184,9 @@ where
 /// - **Mesh connectivity**: `add_vertex` and `add_face`. These are the only
 ///   required methods. Intended to be used by the source when transferring
 ///   data.
-/// - **Mesh properties**: `prepare_*` and `set_*` methods plus one associated
-///   type per property: empty/default implementations provided. Intended to be
-///   used by the source when transferring data.
+/// - **Mesh properties**: `prepare_*` and `set_*` methods: empty/default
+///   implementations provided. Intended to be used by the source when
+///   transferring data.
 /// - **Various other methods**: `size_hint` and `finish`. Empty implementation
 ///   provided. Intended to be used by the source when transferring data.
 ///
@@ -1202,12 +1202,6 @@ where
 /// The `count` parameter of the `prepare_` methods is just an optimization and
 /// represents a lower bound of the number of properties will be added via
 /// `set_*`. Therefore, it's always valid for the source to pass 0 as `count`.
-///
-/// The associated type for each property (e.g. `VertexPosition`) is a bit
-/// special, too. They can be used to signal a preferred property type to the
-/// source. The source is not forced to use those type wishes, but it usually
-/// does so if it makes sense: for example when parsing ASCII values or
-/// generating values. See [`TypeWish`] for more information.
 ///
 ///
 /// # Deriving
@@ -1281,9 +1275,6 @@ pub trait MemSink {
     // =======================================================================
 
     // ----- Vertex positions ------------------------------------------------
-    /// Preferred types for the scalar type of vertex positions.
-    type VertexPosition: TypeWish = DefaultTypeWishes;
-
     /// Informs the sink that the source will provide at least `count` many
     /// vertex positions with the scalar type `N`.
     fn prepare_vertex_positions<N: Primitive>(&mut self, _count: hsize) -> Result<(), Error> {
@@ -1299,9 +1290,6 @@ pub trait MemSink {
 
 
     // ----- Vertex normals --------------------------------------------------
-    /// Preferred types for the scalar type of vertex normals.
-    type VertexNormal: TypeWish = DefaultTypeWishes;
-
     /// Informs the sink that the source will provide at least `count` many
     /// vertex normals with the scalar type `N`.
     fn prepare_vertex_normals<N: Primitive>(&mut self, _count: hsize) -> Result<(), Error> {
@@ -1336,9 +1324,6 @@ pub trait MemSink {
 
 
     // ----- Face normals ----------------------------------------------------
-    /// Preferred types for the scalar type of face normals.
-    type FaceNormal: TypeWish = DefaultTypeWishes;
-
     /// Informs the sink that the source will provide at least `count` many
     /// face normals with the scalar type `N`.
     fn prepare_face_normals<N: Primitive>(&mut self, _count: hsize) -> Result<(), Error> {
