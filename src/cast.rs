@@ -131,6 +131,7 @@ use crate::{
 ///
 /// Instead of using this generic function, there is a specific function for
 /// each cast rigor that you can use. Usually, that's easier.
+#[inline(always)]
 pub fn cast<R, Src, Dst>(src: Src) -> Dst
 where
     R: CastRigor,
@@ -140,6 +141,7 @@ where
 }
 
 /// Cast `src` from type `Src` to the type `Dst`, without loosing information.
+#[inline(always)]
 pub fn lossless<Src, Dst>(src: Src) -> Dst
 where
     Src: CastInto<Lossless, Dst>,
@@ -148,6 +150,7 @@ where
 }
 
 /// Cast `src` from type `Src` to the type `Dst`, with clamping being allowed.
+#[inline(always)]
 pub fn clamping<Src, Dst>(src: Src) -> Dst
 where
     Src: CastInto<AllowClamping, Dst>,
@@ -156,6 +159,7 @@ where
 }
 
 /// Cast `src` from type `Src` to the type `Dst`, with rounding being allowed.
+#[inline(always)]
 pub fn rounding<Src, Dst>(src: Src) -> Dst
 where
     Src: CastInto<AllowRounding, Dst>,
@@ -165,6 +169,7 @@ where
 
 /// Cast `src` from type `Src` to the type `Dst`, with clamping and rounding
 /// being allowed.
+#[inline(always)]
 pub fn lossy<Src, Dst>(src: Src) -> Dst
 where
     Src: CastInto<Lossy, Dst>,
@@ -178,6 +183,7 @@ where
 /// If this function returns `false`, `try_from` will always return `None` for
 /// the same type arguments. Similarly, it will always return `Some` if this
 /// function returns `true`.
+#[inline(always)]
 pub fn is_cast_possible<R, Src, Dst>() -> bool
 where
     R: CastRigor,
@@ -193,6 +199,7 @@ where
 /// with the specified rigor. Note that the decision whether the types can be
 /// casted only depends on the types and not the value. Thus, whether `Some` or
 /// `None` is returned is known at compile time.
+#[inline(always)]
 pub fn try_cast<R, Src, Dst>(src: Src) -> Option<Dst>
 where
     R: CastRigor,
@@ -203,6 +210,7 @@ where
 
 /// [`try_cast`] with `NoCast` rigor. See that documentation for more info.
 /// This function is pretty useless in non-generic situations.
+#[inline(always)]
 pub fn try_no_cast<Src, Dst>(src: Src) -> Option<Dst>
 where
     Dst: TryCastFrom<NoCast, Src>,
@@ -211,6 +219,7 @@ where
 }
 
 /// [`try_cast`] with `Lossless` rigor. See that documentation for more info.
+#[inline(always)]
 pub fn try_lossless<Src, Dst>(src: Src) -> Option<Dst>
 where
     Dst: TryCastFrom<Lossless, Src>,
@@ -220,6 +229,7 @@ where
 
 /// [`try_cast`] with `AllowClamping` rigor. See that documentation for more
 /// info.
+#[inline(always)]
 pub fn try_clamping<Src, Dst>(src: Src) -> Option<Dst>
 where
     Dst: TryCastFrom<AllowClamping, Src>,
@@ -229,6 +239,7 @@ where
 
 /// [`try_cast`] with `AllowRounding` rigor. See that documentation for more
 /// info.
+#[inline(always)]
 pub fn try_rounding<Src, Dst>(src: Src) -> Option<Dst>
 where
     Dst: TryCastFrom<AllowRounding, Src>,
@@ -237,6 +248,7 @@ where
 }
 
 /// [`try_cast`] with `Lossy` rigor. See that documentation for more info.
+#[inline(always)]
 pub fn try_lossy<Src, Dst>(src: Src) -> Option<Dst>
 where
     Dst: TryCastFrom<Lossy, Src>,
@@ -531,24 +543,28 @@ macro_rules! impl_lossless {
     ($($src:ty => $dst:ty ;)*) => {
         $(
             impl LosslessCastFrom<$src> for $dst {
+                #[inline(always)]
                 fn lossless_cast_from(src: $src) -> Self {
                     src.into()
                 }
             }
 
             impl RoundingCastFrom<$src> for $dst {
+                #[inline(always)]
                 fn rounding_cast_from(src: $src) -> Self {
                     src.into()
                 }
             }
 
             impl ClampingCastFrom<$src> for $dst {
+                #[inline(always)]
                 fn clamping_cast_from(src: $src) -> Self {
                     src.into()
                 }
             }
 
             impl LossyCastFrom<$src> for $dst {
+                #[inline(always)]
                 fn lossy_cast_from(src: $src) -> Self {
                     src.into()
                 }
@@ -775,12 +791,14 @@ macro_rules! impl_rounding {
     ($($src:ty => $dst:ty ;)*) => {
         $(
             impl RoundingCastFrom<$src> for $dst {
+                #[inline(always)]
                 fn rounding_cast_from(src: $src) -> Self {
                     src as $dst
                 }
             }
 
             impl LossyCastFrom<$src> for $dst {
+                #[inline(always)]
                 fn lossy_cast_from(src: $src) -> Self {
                     <$dst as RoundingCastFrom<$src>>::rounding_cast_from(src)
                 }
@@ -815,6 +833,7 @@ impl_rounding!(
 
 // ----- Lossy ---------------------------------------------------------------
 impl LossyCastFrom<f64> for f32 {
+    #[inline(always)]
     fn lossy_cast_from(src: f64) -> Self {
         // This is safe. See https://github.com/rust-lang/rust/issues/15536
         src as f32
