@@ -385,12 +385,13 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     src: &SrcT,
                     handle: VertexHandle,
                 ) -> Result<(), Error> {
-                    let pos = src.vertex_position::<P>(handle).and_then(|opt| {
-                        opt.ok_or_else(|| Error::new(|| ErrorKind::DataIncomplete {
+                    let pos = match src.vertex_position::<P>(handle)? {
+                        Some(pos) => pos,
+                        None => return Err(Error::new(|| ErrorKind::DataIncomplete {
                             prop: PropKind::VertexPosition,
                             msg: format!("no position for {:?} while writing PLY", handle),
-                        }))
-                    })?;
+                        })),
+                    };
 
                     ser.add(pos.x)?;
                     ser.add(pos.y)?;
@@ -411,16 +412,17 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     src: &SrcT,
                     handle: VertexHandle,
                 ) -> Result<(), Error> {
-                    let pos = src.vertex_normal::<P>(handle).and_then(|opt| {
-                        opt.ok_or_else(|| Error::new(|| ErrorKind::DataIncomplete {
+                    let normal = match src.vertex_normal::<P>(handle)? {
+                        Some(normal) => normal,
+                        None => return Err(Error::new(|| ErrorKind::DataIncomplete {
                             prop: PropKind::VertexNormal,
                             msg: format!("no normal for {:?} while writing PLY", handle),
-                        }))
-                    })?;
+                        })),
+                    };
 
-                    ser.add(pos.x)?;
-                    ser.add(pos.y)?;
-                    ser.add(pos.z)?;
+                    ser.add(normal.x)?;
+                    ser.add(normal.y)?;
+                    ser.add(normal.z)?;
 
                     Ok(())
                 }
@@ -440,12 +442,13 @@ impl<W: io::Write> StreamSink for Writer<W> {
                 where
                     C::Channel: Primitive,
                 {
-                    let color = src.vertex_color::<C>(handle).and_then(|opt| {
-                        opt.ok_or_else(|| Error::new(|| ErrorKind::DataIncomplete {
+                    let color = match src.vertex_color::<C>(handle)? {
+                        Some(color) => color,
+                        None => return Err(Error::new(|| ErrorKind::DataIncomplete {
                             prop: PropKind::VertexColor,
                             msg: format!("no color for {:?} while writing PLY", handle),
-                        }))
-                    })?;
+                        })),
+                    };
 
                     ser.add(color.red())?;
                     ser.add(color.green())?;
@@ -471,16 +474,17 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     src: &SrcT,
                     handle: FaceHandle,
                 ) -> Result<(), Error> {
-                    let pos = src.face_normal::<P>(handle).and_then(|opt| {
-                        opt.ok_or_else(|| Error::new(|| ErrorKind::DataIncomplete {
+                    let normal = match src.face_normal::<P>(handle)? {
+                        Some(normal) => normal,
+                        None => return Err(Error::new(|| ErrorKind::DataIncomplete {
                             prop: PropKind::FaceNormal,
                             msg: format!("no normal for {:?} while writing PLY", handle),
-                        }))
-                    })?;
+                        })),
+                    };
 
-                    ser.add(pos.x)?;
-                    ser.add(pos.y)?;
-                    ser.add(pos.z)?;
+                    ser.add(normal.x)?;
+                    ser.add(normal.y)?;
+                    ser.add(normal.z)?;
 
                     Ok(())
                 }
@@ -500,12 +504,13 @@ impl<W: io::Write> StreamSink for Writer<W> {
                 where
                     C::Channel: Primitive,
                 {
-                    let color = src.face_color::<C>(handle).and_then(|opt| {
-                        opt.ok_or_else(|| Error::new(|| ErrorKind::DataIncomplete {
+                    let color = match src.face_color::<C>(handle)? {
+                        Some(color) => color,
+                        None => return Err(Error::new(|| ErrorKind::DataIncomplete {
                             prop: PropKind::FaceColor,
                             msg: format!("no color for {:?} while writing PLY", handle),
-                        }))
-                    })?;
+                        })),
+                    };
 
                     ser.add(color.red())?;
                     ser.add(color.green())?;
