@@ -20,7 +20,6 @@ pub trait TriArrayExt {
 
     /// Maps each element of the array and returns a new array with the
     /// results.
-    #[inline(always)]
     fn map<F, OutT>(self, mapping: F) -> [OutT; 3]
     where
         F: FnMut(Self::Item) -> OutT;
@@ -33,6 +32,7 @@ pub trait TriArrayExt {
 impl<T> TriArrayExt for [T; 3] {
     type Item = T;
 
+    #[inline(always)]
     fn map<F, OutT>(self, mut mapping: F) -> [OutT; 3]
     where
         F: FnMut(Self::Item) -> OutT,
