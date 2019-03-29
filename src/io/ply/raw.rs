@@ -24,7 +24,6 @@ use crate::{
     self as lox, // for proc macros
     Empty,
     io::{Error, ErrorKind, Primitive, PrimitiveType},
-    util::downcast_as,
 };
 
 
@@ -63,33 +62,52 @@ pub trait RawSource {
 
 /// Abstraction over a PLY encoding. is used by [`RawSource`] to write data.
 pub trait Serializer {
-    fn add_i8(&mut self, v: i8) -> Result<(), Error>;
-    fn add_i16(&mut self, v: i16) -> Result<(), Error>;
-    fn add_i32(&mut self, v: i32) -> Result<(), Error>;
-    fn add_u8(&mut self, v: u8) -> Result<(), Error>;
-    fn add_u16(&mut self, v: u16) -> Result<(), Error>;
-    fn add_u32(&mut self, v: u32) -> Result<(), Error>;
-    fn add_f32(&mut self, v: f32) -> Result<(), Error>;
-    fn add_f64(&mut self, v: f64) -> Result<(), Error>;
+    /// Encoding a single value into the serializer.
+    fn add<P: PlyScalar>(&mut self, v: P) -> Result<(), Error>;
+
+    /// Encode a slice of values into the serializer. If you have multiple
+    /// values of the same type, use this function to improve performance.
+    fn add_slice<P: PlyScalar>(&mut self, s: &mut [P]) -> Result<(), Error> {
+        for x in s {
+            self.add(*x)?;
+        }
+        Ok(())
+    }
 
     /// Call this whenever one element is finished. This is used for the line
     /// break in ASCII encoding.
     fn end_element(&mut self) -> Result<(), Error>;
+}
 
-    /// Convenience function which can be called with any `Primitive`. Calls
-    /// the correct `add_*` function.
-    fn add<P: Primitive>(&mut self, v: P) -> Result<(), Error> {
-        match P::TY {
-            PrimitiveType::Int8 => self.add_i8(downcast_as(v).unwrap()),
-            PrimitiveType::Int16 => self.add_i16(downcast_as(v).unwrap()),
-            PrimitiveType::Int32 => self.add_i32(downcast_as(v).unwrap()),
-            PrimitiveType::Uint8 => self.add_u8(downcast_as(v).unwrap()),
-            PrimitiveType::Uint16 => self.add_u16(downcast_as(v).unwrap()),
-            PrimitiveType::Uint32 => self.add_u32(downcast_as(v).unwrap()),
-            PrimitiveType::Float32 => self.add_f32(downcast_as(v).unwrap()),
-            PrimitiveType::Float64 => self.add_f64(downcast_as(v).unwrap()),
+/// A PLY scalar type. This trait is only for internal use. You can't implement
+/// it for your own types.
+pub trait PlyScalar: Primitive + fmt::Display {
+    /// Converts the slice into the given endianness.
+    fn to_endianness<E: ByteOrder>(s: &mut [Self]);
+}
+
+macro_rules! impl_ply_scalar {
+    ($ty:ty, $fun:ident) => {
+        impl PlyScalar for $ty {
+            fn to_endianness<E: ByteOrder>(s: &mut [Self]) {
+                E::$fun(s)
+            }
         }
     }
+}
+
+impl_ply_scalar!(i16, from_slice_i16);
+impl_ply_scalar!(i32, from_slice_i32);
+impl_ply_scalar!(u16, from_slice_u16);
+impl_ply_scalar!(u32, from_slice_u32);
+impl_ply_scalar!(f32, from_slice_f32);
+impl_ply_scalar!(f64, from_slice_f64);
+
+impl PlyScalar for i8 {
+    fn to_endianness<E: ByteOrder>(_s: &mut [Self]) {}
+}
+impl PlyScalar for u8 {
+    fn to_endianness<E: ByteOrder>(_s: &mut [Self]) {}
 }
 
 

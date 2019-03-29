@@ -16,18 +16,20 @@
 
 
 use std::{
+    mem,
     io::{self, Write},
+    slice,
 };
 
-use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
+use byteorder::{BigEndian, LittleEndian};
 
 use crate::{
     handle::{hsize, FaceHandle, VertexHandle},
     io::{
-        Error, ErrorKind, StreamSink, MemSource, Primitive, PrimitiveType, PropKind, ColorType,
+        Error, ErrorKind, StreamSink, MemSource, PrimitiveType, PropKind, ColorType,
         util::HandleIndexMap,
     },
-    prop::ColorLike,
+    prop::{ColorLike, Pos3Like, Vec3Like},
     traits::*,
     util::TriArrayExt,
 };
@@ -35,7 +37,7 @@ use super::{
     Encoding,
     raw::{
         ElementDef, RawSource, Serializer, PropVec, PropertyDef, PropertyType,
-        ScalarType, ListLenType,
+        ScalarType, ListLenType, PlyScalar,
     },
 };
 
@@ -58,7 +60,7 @@ pub struct Config {
 }
 
 impl Config {
-    /// Creates a new configuration with binary encoding (native endianess).
+    /// Creates a new configuration with binary encoding (native endianness).
     pub fn binary() -> Self {
         Self::new(Encoding::binary_native())
     }
@@ -380,7 +382,7 @@ impl<W: io::Write> StreamSink for Writer<W> {
                 }
 
                 // ----- Vertex positions ------------------------------------
-                fn write_vertex_position<S: Serializer, SrcT: MemSource, P: Primitive>(
+                fn write_vertex_position<S: Serializer, SrcT: MemSource, P: PlyScalar>(
                     ser: &mut S,
                     src: &SrcT,
                     handle: VertexHandle,
@@ -393,9 +395,8 @@ impl<W: io::Write> StreamSink for Writer<W> {
                         })),
                     };
 
-                    ser.add(pos.x)?;
-                    ser.add(pos.y)?;
-                    ser.add(pos.z)?;
+                    let mut array: [P; 3] = pos.convert();
+                    ser.add_slice(&mut array)?;
 
                     Ok(())
                 }
@@ -407,7 +408,7 @@ impl<W: io::Write> StreamSink for Writer<W> {
                 );
 
                 // ----- Vertex normals --------------------------------------
-                fn write_vertex_normal<S: Serializer, SrcT: MemSource, P: Primitive>(
+                fn write_vertex_normal<S: Serializer, SrcT: MemSource, P: PlyScalar>(
                     ser: &mut S,
                     src: &SrcT,
                     handle: VertexHandle,
@@ -420,9 +421,8 @@ impl<W: io::Write> StreamSink for Writer<W> {
                         })),
                     };
 
-                    ser.add(normal.x)?;
-                    ser.add(normal.y)?;
-                    ser.add(normal.z)?;
+                    let mut array: [P; 3] = normal.convert();
+                    ser.add_slice(&mut array)?;
 
                     Ok(())
                 }
@@ -440,7 +440,7 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     handle: VertexHandle,
                 ) -> Result<(), Error>
                 where
-                    C::Channel: Primitive,
+                    C::Channel: PlyScalar,
                 {
                     let color = match src.vertex_color::<C>(handle)? {
                         Some(color) => color,
@@ -450,13 +450,13 @@ impl<W: io::Write> StreamSink for Writer<W> {
                         })),
                     };
 
-                    ser.add(color.red())?;
-                    ser.add(color.green())?;
-                    ser.add(color.blue())?;
-
-                    // The branches are optimized away here
+                    // The branch is optimized away here
                     if C::HAS_ALPHA {
-                        ser.add(color.alpha().unwrap())?;
+                        let mut array: [C::Channel; 4] = color.convert();
+                        ser.add_slice(&mut array)?;
+                    } else {
+                        let mut array: [C::Channel; 3] = color.convert();
+                        ser.add_slice(&mut array)?;
                     }
 
                     Ok(())
@@ -469,7 +469,7 @@ impl<W: io::Write> StreamSink for Writer<W> {
                 );
 
                 // ----- Face normals ----------------------------------------
-                fn write_face_normal<S: Serializer, SrcT: MemSource, P: Primitive>(
+                fn write_face_normal<S: Serializer, SrcT: MemSource, P: PlyScalar>(
                     ser: &mut S,
                     src: &SrcT,
                     handle: FaceHandle,
@@ -482,9 +482,8 @@ impl<W: io::Write> StreamSink for Writer<W> {
                         })),
                     };
 
-                    ser.add(normal.x)?;
-                    ser.add(normal.y)?;
-                    ser.add(normal.z)?;
+                    let mut array: [P; 3] = normal.convert();
+                    ser.add_slice(&mut array)?;
 
                     Ok(())
                 }
@@ -502,7 +501,7 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     handle: FaceHandle,
                 ) -> Result<(), Error>
                 where
-                    C::Channel: Primitive,
+                    C::Channel: PlyScalar,
                 {
                     let color = match src.face_color::<C>(handle)? {
                         Some(color) => color,
@@ -512,13 +511,13 @@ impl<W: io::Write> StreamSink for Writer<W> {
                         })),
                     };
 
-                    ser.add(color.red())?;
-                    ser.add(color.green())?;
-                    ser.add(color.blue())?;
-
-                    // The branches are optimized away here
+                    // The branch is optimized away here
                     if C::HAS_ALPHA {
-                        ser.add(color.alpha().unwrap())?;
+                        let mut array: [C::Channel; 4] = color.convert();
+                        ser.add_slice(&mut array)?;
+                    } else {
+                        let mut array: [C::Channel; 3] = color.convert();
+                        ser.add_slice(&mut array)?;
                     }
 
                     Ok(())
@@ -548,12 +547,13 @@ impl<W: io::Write> StreamSink for Writer<W> {
 
                 for fh in mesh.face_handles() {
                     // Vertex indices
-                    let [a, b, c] = mesh.vertices_of_face(fh)
+                    let mut indices = mesh.vertices_of_face(fh)
                         .map(|vh| indices_map.get(vh).unwrap());
-                    ser.add_u8(3)?;
-                    ser.add_u32(a)?;
-                    ser.add_u32(b)?;
-                    ser.add_u32(c)?;
+                    ser.add::<u8>(3)?;
+                    ser.add_slice(&mut indices)?;
+                    // ser.add_u32(a)?;
+                    // ser.add_u32(b)?;
+                    // ser.add_u32(c)?;
 
                     // Other face properties
                     write_f_normal(&mut ser, src, fh)?;
@@ -621,42 +621,7 @@ impl<'a, W: Write> AsciiSerializer<'a, W> {
 }
 
 impl<W: io::Write> Serializer for AsciiSerializer<'_, W> {
-    fn add_i8(&mut self, v: i8) -> Result<(), Error> {
-        self.write_separator()?;
-        write!(self.writer, "{}", v)?;
-        Ok(())
-    }
-    fn add_i16(&mut self, v: i16) -> Result<(), Error> {
-        self.write_separator()?;
-        write!(self.writer, "{}", v)?;
-        Ok(())
-    }
-    fn add_i32(&mut self, v: i32) -> Result<(), Error> {
-        self.write_separator()?;
-        write!(self.writer, "{}", v)?;
-        Ok(())
-    }
-    fn add_u8(&mut self, v: u8) -> Result<(), Error> {
-        self.write_separator()?;
-        write!(self.writer, "{}", v)?;
-        Ok(())
-    }
-    fn add_u16(&mut self, v: u16) -> Result<(), Error> {
-        self.write_separator()?;
-        write!(self.writer, "{}", v)?;
-        Ok(())
-    }
-    fn add_u32(&mut self, v: u32) -> Result<(), Error> {
-        self.write_separator()?;
-        write!(self.writer, "{}", v)?;
-        Ok(())
-    }
-    fn add_f32(&mut self, v: f32) -> Result<(), Error> {
-        self.write_separator()?;
-        write!(self.writer, "{}", v)?;
-        Ok(())
-    }
-    fn add_f64(&mut self, v: f64) -> Result<(), Error> {
+    fn add<P: PlyScalar>(&mut self, v: P) -> Result<(), Error> {
         self.write_separator()?;
         write!(self.writer, "{}", v)?;
         Ok(())
@@ -670,7 +635,7 @@ impl<W: io::Write> Serializer for AsciiSerializer<'_, W> {
 }
 
 macro_rules! gen_binary_block {
-    ($name:ident, $endianess:ident) => {
+    ($name:ident, $endianness:ident) => {
         #[derive(Debug)]
         struct $name<'a, W: Write> {
             writer: &'a mut W,
@@ -685,29 +650,21 @@ macro_rules! gen_binary_block {
         }
 
         impl<W: io::Write> Serializer for $name<'_, W> {
-            fn add_i8(&mut self, v: i8) -> Result<(), Error> {
-                self.writer.write_i8(v).map_err(|e| e.into())
+            fn add<P: PlyScalar>(&mut self, v: P) -> Result<(), Error> {
+                let mut s = [v];
+                self.add_slice(&mut s)
             }
-            fn add_i16(&mut self, v: i16) -> Result<(), Error> {
-                self.writer.write_i16::<$endianess>(v).map_err(|e| e.into())
-            }
-            fn add_i32(&mut self, v: i32) -> Result<(), Error> {
-                self.writer.write_i32::<$endianess>(v).map_err(|e| e.into())
-            }
-            fn add_u8(&mut self, v: u8) -> Result<(), Error> {
-                self.writer.write_u8(v).map_err(|e| e.into())
-            }
-            fn add_u16(&mut self, v: u16) -> Result<(), Error> {
-                self.writer.write_u16::<$endianess>(v).map_err(|e| e.into())
-            }
-            fn add_u32(&mut self, v: u32) -> Result<(), Error> {
-                self.writer.write_u32::<$endianess>(v).map_err(|e| e.into())
-            }
-            fn add_f32(&mut self, v: f32) -> Result<(), Error> {
-                self.writer.write_f32::<$endianess>(v).map_err(|e| e.into())
-            }
-            fn add_f64(&mut self, v: f64) -> Result<(), Error> {
-                self.writer.write_f64::<$endianess>(v).map_err(|e| e.into())
+
+            fn add_slice<P: PlyScalar>(&mut self, s: &mut [P]) -> Result<(), Error> {
+                P::to_endianness::<$endianness>(s);
+
+                // This unsafe transmute is fine, because
+                let bytes = unsafe {
+                    let len = s.len() * mem::size_of::<P>();
+                    let ptr = s.as_ptr() as *const u8;
+                    slice::from_raw_parts(ptr, len)
+                };
+                self.writer.write_all(bytes).map_err(|e| e.into())
             }
 
             fn end_element(&mut self) -> Result<(), Error> {

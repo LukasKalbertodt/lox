@@ -53,20 +53,16 @@ impl RawSphereSource {
     }
 }
 
-impl RawSource  for &RawSphereSource {
+impl RawSource for &RawSphereSource {
     fn serialize_into<S: Serializer>(self, mut ser: S) -> Result<(), Error> {
-        for &[x, y, z] in &self.vertex_data {
-            ser.add_f32(x)?;
-            ser.add_f32(y)?;
-            ser.add_f32(z)?;
+        for mut slice in self.vertex_data.iter().cloned() {
+            ser.add_slice(&mut slice)?;
             ser.end_element()?;
         }
 
-        for &[a, b, c] in &self.face_data {
-            ser.add_u8(3)?;
-            ser.add_u32(a)?;
-            ser.add_u32(b)?;
-            ser.add_u32(c)?;
+        for mut slice in self.face_data.iter().cloned() {
+            ser.add::<u8>(3)?;
+            ser.add_slice(&mut slice)?;
             ser.end_element()?;
         }
 
@@ -106,23 +102,16 @@ impl RawSphereVNormalsSource {
     }
 }
 
-impl RawSource  for &RawSphereVNormalsSource {
+impl RawSource for &RawSphereVNormalsSource {
     fn serialize_into<S: Serializer>(self, mut ser: S) -> Result<(), Error> {
-        for &[x, y, z, nx, ny, nz] in &self.vertex_data {
-            ser.add_f32(x)?;
-            ser.add_f32(y)?;
-            ser.add_f32(z)?;
-            ser.add_f32(nx)?;
-            ser.add_f32(ny)?;
-            ser.add_f32(nz)?;
+        for mut slice in self.vertex_data.iter().cloned() {
+            ser.add_slice(&mut slice)?;
             ser.end_element()?;
         }
 
-        for &[a, b, c] in &self.face_data {
-            ser.add_u8(3)?;
-            ser.add_u32(a)?;
-            ser.add_u32(b)?;
-            ser.add_u32(c)?;
+        for mut slice in self.face_data.iter().cloned() {
+            ser.add::<u8>(3)?;
+            ser.add_slice(&mut slice)?;
             ser.end_element()?;
         }
 
