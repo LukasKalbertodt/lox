@@ -116,6 +116,7 @@ pub trait HSizeExt {
 }
 
 impl HSizeExt for hsize {
+    #[inline(always)]
     fn next(self) -> Self {
         self + 1
     }
@@ -137,6 +138,7 @@ pub trait Handle: 'static + Copy + fmt::Debug + Eq {
     /// If `raw` cannot be represented by `hsize`, this function either panics
     /// or returns a nonsensical ID. In debug mode, this function is guaranteed
     /// to panic in this case.
+    #[inline(always)]
     fn from_usize(raw: usize) -> Self {
         // If `usize` is bigger than `u32`, we assert that the value is fine.
         #[cfg(target_pointer_width = "64")]
@@ -152,6 +154,7 @@ pub trait Handle: 'static + Copy + fmt::Debug + Eq {
     /// guaranteed to panic in this case. Note however, that this usually won't
     /// happen, because `hsize` is in almost all cases smaller than or equal to
     /// `usize`.
+    #[inline(always)]
     fn to_usize(&self) -> usize {
         // If `usize` is smaller than `u32`, we assert that the value is fine.
         #[cfg(any(target_pointer_width = "16", target_pointer_width = "8"))]
@@ -169,9 +172,12 @@ macro_rules! make_handle_type {
         pub struct $name(hsize);
 
         impl Handle for $name {
+            #[inline(always)]
             fn new(id: hsize) -> Self {
                 $name(id)
             }
+
+            #[inline(always)]
             fn idx(&self) -> hsize {
                 self.0
             }
@@ -209,16 +215,19 @@ pub struct Opt<H: Handle>(H);
 
 impl<H: Handle> Opt<H> {
     /// Returns a `None` instance of this optional handle.
+    #[inline(always)]
     pub fn none() -> Self {
         Opt(H::new(hsize::max_value()))
     }
 
     /// Creates a `Some` instance with the given handle.
+    #[inline(always)]
     pub fn some(handle: H) -> Self {
         Opt(handle)
     }
 
     /// Converts `self` to `Option<H>`.
+    #[inline(always)]
     pub fn to_option(&self) -> Option<H> {
         if self.is_none() {
             None
@@ -228,11 +237,13 @@ impl<H: Handle> Opt<H> {
     }
 
     /// Returns `true` if there is no handle inside.
+    #[inline(always)]
     pub fn is_none(&self) -> bool {
         self.0.idx() == hsize::max_value()
     }
 
     /// Returns `true` if there is a handle inside.
+    #[inline(always)]
     pub fn is_some(&self) -> bool {
         !self.is_none()
     }
