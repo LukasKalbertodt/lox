@@ -73,7 +73,7 @@ fn triangle_with_prop() {
     check_vertices_of_face_are_unique(&mesh);
 
     let face = mesh.faces().next().unwrap();
-    let [va, vb, vc] = mesh.vertices_of_face(face.handle());
+    let [va, vb, vc] = mesh.vertices_around_triangle(face.handle());
 
     let valid_props = [10, 20, 30];
     assert!(valid_props.contains(&props[va]));
@@ -111,9 +111,9 @@ fn rectangle_multi_props() {
     }
 }
 
-fn check_vertices_of_face_are_unique(mesh: &(impl TriVerticesOfFace)) {
+fn check_vertices_of_face_are_unique(mesh: &(impl VerticesAroundFace + TriMesh)) {
     for face in mesh.faces() {
-        let [va, vb, vc] = mesh.vertices_of_face(face.handle());
+        let [va, vb, vc] = mesh.vertices_around_triangle(face.handle());
         assert_ne!(va, vb);
         assert_ne!(va, vc);
         assert_ne!(vb, vc);

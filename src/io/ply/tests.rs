@@ -207,9 +207,9 @@ fn check_three_tris_all_props(m: &FullMesh) {
     assert_eq!(m.mesh.vertex_handles().collect::<Vec<_>>(), [v0, v1, v2, v3, v4]);
     assert_eq!(m.mesh.face_handles().collect::<Vec<_>>(), [f0, f1, f2]);
 
-    assert_eq!(m.mesh.vertices_of_face(f0), [v0, v2, v4]);
-    assert_eq!(m.mesh.vertices_of_face(f1), [v0, v4, v1]);
-    assert_eq!(m.mesh.vertices_of_face(f2), [v2, v3, v4]);
+    assert_eq!(m.mesh.vertices_around_triangle(f0), [v0, v2, v4]);
+    assert_eq!(m.mesh.vertices_around_triangle(f1), [v0, v4, v1]);
+    assert_eq!(m.mesh.vertices_around_triangle(f2), [v2, v3, v4]);
 
     // Vertex props
     assert_eq!(m.vertex_positions.num_elements(), 5);
@@ -365,7 +365,7 @@ fn read_triangle() -> Result<(), Error> {
 
     assert_eq!(m.mesh.num_vertices(), 3);
     assert_eq!(m.mesh.num_faces(), 1);
-    assert_eq!(m.mesh.vertices_of_face(fh(0)), [vh(0), vh(1), vh(2)]);
+    assert_eq!(m.mesh.vertices_around_triangle(fh(0)), [vh(0), vh(1), vh(2)]);
 
     assert_eq!(m.vertex_positions.get_ref(vh(0)), Some(&Point3::new(0.0, 0.0, 0.0)));
     assert_eq!(m.vertex_positions.get_ref(vh(1)), Some(&Point3::new(3.0, 5.0, 8.0)));
@@ -537,7 +537,7 @@ fn read_triangle_with_extra_props_mini_mesh() -> Result<(), Error> {
 
     assert_eq!(m.mesh.num_vertices(), 3);
     assert_eq!(m.mesh.num_faces(), 1);
-    assert_eq!(m.mesh.vertices_of_face(fh(0)), [vh(0), vh(1), vh(2)]);
+    assert_eq!(m.mesh.vertices_around_triangle(fh(0)), [vh(0), vh(1), vh(2)]);
 
     assert_eq!(m.vertex_positions.get_ref(vh(0)), Some(&Point3::new(0.0, 0.0, 0.0)));
     assert_eq!(m.vertex_positions.get_ref(vh(1)), Some(&Point3::new(3.0, 5.0, 8.0)));

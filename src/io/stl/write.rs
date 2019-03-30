@@ -220,7 +220,7 @@ impl<W: io::Write> StreamSink for Writer<W> {
 
         // The triangle iterator
         let triangles = mesh.face_handles().map(|fh| {
-            let [va, vb, vc] = mesh.vertices_of_face(fh);
+            let [va, vb, vc] = mesh.vertices_around_triangle(fh);
 
             // Get positions from map and convert them to array
             let get_v = |vh| -> Result<[f32; 3], Error> {

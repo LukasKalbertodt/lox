@@ -95,18 +95,17 @@ impl<T: Copy> Iterator for TriArrayIntoIter<T> {
     }
 }
 
-pub trait PointIteratorExt {
-    type Point;
-    fn centroid(self) -> Option<Self::Point>;
-}
+/// Extension trait to add some useful methods to any type implementing
+/// `Iterator`.
+pub trait IteratorExt: Sized + Iterator {
+    fn into_vec(self) -> Vec<Self::Item> {
+        self.collect()
+    }
 
-impl<I> PointIteratorExt for I
-where
-    I: Iterator,
-    I::Item: Pos3Like,
-{
-    type Point = I::Item;
-    fn centroid(mut self) -> Option<Self::Point> {
+    fn centroid(mut self) -> Option<Self::Item>
+    where
+        Self::Item: Pos3Like,
+    {
         self.next().map(|first| {
             let first = first.to_point3().to_vec();
             let (count, total_displacement) = self.fold((1, first), |(count, sum), p| {
@@ -118,6 +117,8 @@ where
     }
 }
 
+impl<I: Iterator> IteratorExt for I {}
+
 /// A list with a dynamic length (semantically equivalent to `Vec<_>`).
 ///
 /// Several methods of mesh traits need to return a list of handles where the
@@ -128,24 +129,12 @@ where
 ///
 /// This way, you can decide how you want to work with the list of handles you
 /// receive. Either use this as an iterator in a `for` loop, or convert it to a
-/// `Vec<_>` with `into_vec`, or use the visitor pattern by using
-/// [`Iterator::for_each`].
-// TODO: change `&mut self` to `self` once GATs land and we don't have to box
-// this anymore
-pub trait DynList: Iterator {
-    /// Appends all elements of this list to the given vector. The vector is
-    /// not cleared. After this function is called, the iterator is
-    /// exhausted/the list is empty.
-    fn append_to_vec(&mut self, v: &mut Vec<Self::Item>) {
-        v.extend(self)
-    }
-
-    /// Returns a vector with all elements of this list. After this function is
-    /// called, the iterator is exhausted/the list is empty.
-    fn into_vec(&mut self) -> Vec<Self::Item> {
-        self.collect()
-    }
-}
+/// `Vec<_>` with [`IteratorExt::into_vec`], or use the visitor pattern by
+/// using [`Iterator::for_each`].
+///
+/// *Note*: this is only a workaround until GATs have landed. Then, all those
+/// methods returning `DynList` now will basically return `impl Iterator`.
+pub type DynList<'a, T> = Box<dyn Iterator<Item = T> + 'a>;
 
 /// A list of `T` with a maximum length of 3.
 ///

@@ -73,9 +73,13 @@ impl MeshMut for SharedVertexMesh {
 }
 
 
-impl TriVerticesOfFace for SharedVertexMesh {
-    fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3] {
+impl VerticesAroundFace for SharedVertexMesh {
+    fn vertices_around_triangle(&self, face: FaceHandle) -> [VertexHandle; 3] {
         self.faces[face]
+    }
+
+    fn vertices_around_face(&self, face: FaceHandle) -> DynList<'_, VertexHandle> {
+        Box::new(self.vertices_around_triangle(face).owned_iter())
     }
 }
 
@@ -102,5 +106,5 @@ impl fmt::Debug for SharedVertexMesh {
 mod test {
     use super::*;
 
-    gen_tri_mesh_tests!(SharedVertexMesh: [TriVerticesOfFace, SupportsMultiBlade]);
+    gen_tri_mesh_tests!(SharedVertexMesh: [TriMesh, VerticesAroundFace, SupportsMultiBlade]);
 }

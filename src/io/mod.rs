@@ -176,8 +176,8 @@ use crate::{
     prop::{ColorLike, PrimitiveColorChannel},
     sealed::Sealed,
     traits::{
-        Empty, Mesh,
-        adj::TriVerticesOfFace,
+        Empty, TriMesh,
+        adj::VerticesAroundFace,
     },
     util::MeshSizeHint,
 };
@@ -1642,7 +1642,7 @@ where
 ///       implement [`Primitive`].
 pub trait MemSource {
     /// The type of the core mesh.
-    type CoreMesh: Mesh + TriVerticesOfFace;
+    type CoreMesh: TriMesh + VerticesAroundFace;
 
     /// Returns the core mesh (storing the connectivity).
     fn core_mesh(&self) -> &Self::CoreMesh;

@@ -208,7 +208,7 @@ pub trait MeshMut: Mesh {
     ///     let a = mesh.add_vertex();
     ///     let b = mesh.add_vertex();
     ///     let c = mesh.add_vertex();
-    ///     mesh.add_face([a, b, c]);
+    ///     mesh.add_triangle([a, b, c]);
     ///
     ///     // Panics
     ///     mesh.remove_all_vertices();

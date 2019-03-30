@@ -89,7 +89,7 @@ macro_rules! assert_eq_order {
 ///
 /// These traits need to be specified in the brackets and will generate
 /// additional asserts:
-/// - `TriVerticesOfFace`
+/// - `VerticesAroundFace`
 /// - `FacesAroundVertex`
 /// - `VerticesAroundVertex`
 macro_rules! gen_tri_mesh_tests {
@@ -97,6 +97,9 @@ macro_rules! gen_tri_mesh_tests {
         $(
             gen_tri_mesh_tests!(@is_valid_extra_trait $extra);
         )*
+
+        // TODO: make sure exactly once of `TriMesh` and `PolyMesh` is
+        // specified as extra trait.
 
         #[allow(unused_imports)]
         use crate::{
@@ -156,7 +159,7 @@ macro_rules! gen_tri_mesh_tests {
             let va = m.add_vertex();
             let vb = m.add_vertex();
             let vc = m.add_vertex();
-            let f = m.add_face([va, vb, vc]);
+            let f = m.add_triangle([va, vb, vc]);
 
             assert_eq!(m.num_faces(), 1);
             assert_eq!(m.num_vertices(), 3);
@@ -170,8 +173,12 @@ macro_rules! gen_tri_mesh_tests {
             assert!(m.contains_face(f));
             assert!(!m.contains_face(FaceHandle::new(f.idx().next())));
 
-            gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
-                assert_eq_order!(m.vertices_of_face(f), [va, vb, vc]);
+            gen_tri_mesh_tests!(@if VerticesAroundFace in [$($extra),*] => {
+                assert_eq_order!(m.vertices_around_face(f).into_vec(), [va, vb, vc]);
+
+                gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                    assert_eq_order!(m.vertices_around_triangle(f), [va, vb, vc]);
+                });
             });
 
             gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
@@ -186,8 +193,12 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_order!(m.vertices_around_vertex(vc).into_vec(), [vb, va]);
             });
 
-            gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
+            gen_tri_mesh_tests!(@if FacesAroundFace in [$($extra),*] => {
                 assert_eq_order!(m.faces_around_face(f).into_vec(), []);
+
+                gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                    assert_eq_order!(m.faces_around_triangle(f).into_vec(), []);
+                });
             });
         }
 
@@ -208,10 +219,10 @@ macro_rules! gen_tri_mesh_tests {
             let vc = m.add_vertex();
             let v_top = m.add_vertex();
 
-            let f_bottom = m.add_face([va, vc, vb]);
-            let f_ab = m.add_face([va, vb, v_top]);
-            let f_bc = m.add_face([vb, vc, v_top]);
-            let f_ca = m.add_face([vc, va, v_top]);
+            let f_bottom = m.add_triangle([va, vc, vb]);
+            let f_ab = m.add_triangle([va, vb, v_top]);
+            let f_bc = m.add_triangle([vb, vc, v_top]);
+            let f_ca = m.add_triangle([vc, va, v_top]);
 
             assert_eq!(m.num_faces(), 4);
             assert_eq!(m.num_vertices(), 4);
@@ -219,11 +230,18 @@ macro_rules! gen_tri_mesh_tests {
             assert_eq_set!(m.face_handles(), [f_bottom, f_ab, f_bc, f_ca]);
             assert_eq_set!(m.vertex_handles(), [va, vb, vc, v_top]);
 
-            gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
-                assert_eq_order!(m.vertices_of_face(f_bottom), [va, vc, vb]);
-                assert_eq_order!(m.vertices_of_face(f_ab), [va, vb, v_top]);
-                assert_eq_order!(m.vertices_of_face(f_bc), [vb, vc, v_top]);
-                assert_eq_order!(m.vertices_of_face(f_ca), [vc, va, v_top]);
+            gen_tri_mesh_tests!(@if VerticesAroundFace in [$($extra),*] => {
+                assert_eq_order!(m.vertices_around_face(f_bottom).into_vec(), [va, vc, vb]);
+                assert_eq_order!(m.vertices_around_face(f_ab).into_vec(), [va, vb, v_top]);
+                assert_eq_order!(m.vertices_around_face(f_bc).into_vec(), [vb, vc, v_top]);
+                assert_eq_order!(m.vertices_around_face(f_ca).into_vec(), [vc, va, v_top]);
+
+                gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                    assert_eq_order!(m.vertices_around_triangle(f_bottom), [va, vc, vb]);
+                    assert_eq_order!(m.vertices_around_triangle(f_ab), [va, vb, v_top]);
+                    assert_eq_order!(m.vertices_around_triangle(f_bc), [vb, vc, v_top]);
+                    assert_eq_order!(m.vertices_around_triangle(f_ca), [vc, va, v_top]);
+                });
             });
 
             gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
@@ -240,11 +258,18 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_order!(m.vertices_around_vertex(v_top).into_vec(), [va, vc, vb]);
             });
 
-            gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
+            gen_tri_mesh_tests!(@if FacesAroundFace in [$($extra),*] => {
                 assert_eq_order!(m.faces_around_face(f_bottom).into_vec(), [f_ca, f_bc, f_ab]);
                 assert_eq_order!(m.faces_around_face(f_ab).into_vec(), [f_bc, f_ca, f_bottom]);
                 assert_eq_order!(m.faces_around_face(f_bc).into_vec(), [f_ca, f_ab, f_bottom]);
                 assert_eq_order!(m.faces_around_face(f_ca).into_vec(), [f_ab, f_bc, f_bottom]);
+
+                gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                    assert_eq_order!(m.faces_around_triangle(f_bottom).into_vec(), [f_ca, f_bc, f_ab]);
+                    assert_eq_order!(m.faces_around_triangle(f_ab).into_vec(), [f_bc, f_ca, f_bottom]);
+                    assert_eq_order!(m.faces_around_triangle(f_bc).into_vec(), [f_ca, f_ab, f_bottom]);
+                    assert_eq_order!(m.faces_around_triangle(f_ca).into_vec(), [f_ab, f_bc, f_bottom]);
+                });
             });
         }
 
@@ -262,12 +287,12 @@ macro_rules! gen_tri_mesh_tests {
             let va = m.add_vertex();
             let vb = m.add_vertex();
             let vc = m.add_vertex();
-            let fx = m.add_face([va, vb, vc]);
+            let fx = m.add_triangle([va, vb, vc]);
             // Everything is correct now, this is checked by `single_triangle`
 
             // ----- Add second face
             let vd = m.add_vertex();
-            let fy = m.add_face([va, vc, vd]);
+            let fy = m.add_triangle([va, vc, vd]);
 
             assert_eq!(m.num_faces(), 2);
             assert_eq!(m.num_vertices(), 4);
@@ -275,9 +300,14 @@ macro_rules! gen_tri_mesh_tests {
             assert_eq_set!(m.face_handles(), [fx, fy]);
             assert_eq_set!(m.vertex_handles(), [va, vb, vc, vd]);
 
-            gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
-                assert_eq_order!(m.vertices_of_face(fx), [va, vb, vc]);
-                assert_eq_order!(m.vertices_of_face(fy), [va, vc, vd]);
+            gen_tri_mesh_tests!(@if VerticesAroundFace in [$($extra),*] => {
+                assert_eq_order!(m.vertices_around_face(fx).into_vec(), [va, vb, vc]);
+                assert_eq_order!(m.vertices_around_face(fy).into_vec(), [va, vc, vd]);
+
+                gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                    assert_eq_order!(m.vertices_around_triangle(fx), [va, vb, vc]);
+                    assert_eq_order!(m.vertices_around_triangle(fy), [va, vc, vd]);
+                });
             });
 
             gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
@@ -294,14 +324,19 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_order!(m.vertices_around_vertex(vd).into_vec(), [vc, va]);
             });
 
-            gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
+            gen_tri_mesh_tests!(@if FacesAroundFace in [$($extra),*] => {
                 assert_eq_order!(m.faces_around_face(fx).into_vec(), [fy]);
                 assert_eq_order!(m.faces_around_face(fy).into_vec(), [fx]);
+
+                gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                    assert_eq_order!(m.faces_around_triangle(fx).into_vec(), [fy]);
+                    assert_eq_order!(m.faces_around_triangle(fy).into_vec(), [fx]);
+                });
             });
 
             // ----- Add third face
             let ve = m.add_vertex();
-            let fz = m.add_face([vd, vc, ve]);
+            let fz = m.add_triangle([vd, vc, ve]);
 
             assert_eq!(m.num_faces(), 3);
             assert_eq!(m.num_vertices(), 5);
@@ -309,10 +344,16 @@ macro_rules! gen_tri_mesh_tests {
             assert_eq_set!(m.face_handles(), [fx, fy, fz]);
             assert_eq_set!(m.vertex_handles(), [va, vb, vc, vd, ve]);
 
-            gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
-                assert_eq_order!(m.vertices_of_face(fx), [va, vb, vc]);
-                assert_eq_order!(m.vertices_of_face(fy), [va, vc, vd]);
-                assert_eq_order!(m.vertices_of_face(fz), [vd, vc, ve]);
+            gen_tri_mesh_tests!(@if VerticesAroundFace in [$($extra),*] => {
+                assert_eq_order!(m.vertices_around_face(fx).into_vec(), [va, vb, vc]);
+                assert_eq_order!(m.vertices_around_face(fy).into_vec(), [va, vc, vd]);
+                assert_eq_order!(m.vertices_around_face(fz).into_vec(), [vd, vc, ve]);
+
+                gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                    assert_eq_order!(m.vertices_around_triangle(fx), [va, vb, vc]);
+                    assert_eq_order!(m.vertices_around_triangle(fy), [va, vc, vd]);
+                    assert_eq_order!(m.vertices_around_triangle(fz), [vd, vc, ve]);
+                });
             });
 
             gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
@@ -331,10 +372,16 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_order!(m.vertices_around_vertex(ve).into_vec(), [vc, vd]);
             });
 
-            gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
+            gen_tri_mesh_tests!(@if FacesAroundFace in [$($extra),*] => {
                 assert_eq_order!(m.faces_around_face(fx).into_vec(), [fy]);
-                assert_eq_order!(*m.faces_around_face(fy).to_array(), [Some(fx), Some(fz), None]);
+                assert_eq_order!(m.faces_around_face(fy).into_vec(), [fx, fz]);
                 assert_eq_order!(m.faces_around_face(fz).into_vec(), [fy]);
+
+                gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                    assert_eq_order!(m.faces_around_triangle(fx).into_vec(), [fy]);
+                    assert_eq_order!(*m.faces_around_triangle(fy).to_array(), [Some(fx), Some(fz), None]);
+                    assert_eq_order!(m.faces_around_triangle(fz).into_vec(), [fy]);
+                });
             });
         }
 
@@ -366,14 +413,14 @@ macro_rules! gen_tri_mesh_tests {
             let ve = m.add_vertex();
             let vf = m.add_vertex();
 
-            let fu = m.add_face([va, vc, vb]);
-            let fv = m.add_face([vb, vc, vd]);
+            let fu = m.add_triangle([va, vc, vb]);
+            let fv = m.add_triangle([vb, vc, vd]);
 
-            let fw = m.add_face([va, vb, ve]);
-            let fx = m.add_face([vb, vf, ve]);
+            let fw = m.add_triangle([va, vb, ve]);
+            let fx = m.add_triangle([vb, vf, ve]);
 
-            let fy = m.add_face([vc, vf, vd]);
-            let fz = m.add_face([vc, ve, vf]);
+            let fy = m.add_triangle([vc, vf, vd]);
+            let fz = m.add_triangle([vc, ve, vf]);
 
 
             // ----- Check stuff
@@ -383,13 +430,22 @@ macro_rules! gen_tri_mesh_tests {
             assert_eq_set!(m.face_handles(), [fu, fv, fw, fx, fy, fz]);
             assert_eq_set!(m.vertex_handles(), [va, vb, vc, vd, ve, vf]);
 
-            gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
-                assert_eq_order!(m.vertices_of_face(fu), [va, vc, vb]);
-                assert_eq_order!(m.vertices_of_face(fv), [vb, vc, vd]);
-                assert_eq_order!(m.vertices_of_face(fw), [va, vb, ve]);
-                assert_eq_order!(m.vertices_of_face(fx), [vb, vf, ve]);
-                assert_eq_order!(m.vertices_of_face(fy), [vc, vf, vd]);
-                assert_eq_order!(m.vertices_of_face(fz), [vc, ve, vf]);
+            gen_tri_mesh_tests!(@if VerticesAroundFace in [$($extra),*] => {
+                assert_eq_order!(m.vertices_around_face(fu).into_vec(), [va, vc, vb]);
+                assert_eq_order!(m.vertices_around_face(fv).into_vec(), [vb, vc, vd]);
+                assert_eq_order!(m.vertices_around_face(fw).into_vec(), [va, vb, ve]);
+                assert_eq_order!(m.vertices_around_face(fx).into_vec(), [vb, vf, ve]);
+                assert_eq_order!(m.vertices_around_face(fy).into_vec(), [vc, vf, vd]);
+                assert_eq_order!(m.vertices_around_face(fz).into_vec(), [vc, ve, vf]);
+
+                gen_tri_mesh_tests!(@if FacesAroundFace in [$($extra),*] => {
+                    assert_eq_order!(m.vertices_around_triangle(fu), [va, vc, vb]);
+                    assert_eq_order!(m.vertices_around_triangle(fv), [vb, vc, vd]);
+                    assert_eq_order!(m.vertices_around_triangle(fw), [va, vb, ve]);
+                    assert_eq_order!(m.vertices_around_triangle(fx), [vb, vf, ve]);
+                    assert_eq_order!(m.vertices_around_triangle(fy), [vc, vf, vd]);
+                    assert_eq_order!(m.vertices_around_triangle(fz), [vc, ve, vf]);
+                });
             });
 
             gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
@@ -410,13 +466,22 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_order!(m.vertices_around_vertex(vf).into_vec(), [vb, ve, vc, vd]);
             });
 
-            gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
-                assert_eq_order!(*m.faces_around_face(fu).to_array(), [Some(fv), Some(fw), None]);
-                assert_eq_order!(*m.faces_around_face(fv).to_array(), [Some(fu), Some(fy), None]);
-                assert_eq_order!(*m.faces_around_face(fw).to_array(), [Some(fu), Some(fx), None]);
-                assert_eq_order!(*m.faces_around_face(fx).to_array(), [Some(fz), Some(fw), None]);
-                assert_eq_order!(*m.faces_around_face(fy).to_array(), [Some(fv), Some(fz), None]);
-                assert_eq_order!(*m.faces_around_face(fz).to_array(), [Some(fx), Some(fy), None]);
+            gen_tri_mesh_tests!(@if FacesAroundFace in [$($extra),*] => {
+                assert_eq_order!(m.faces_around_face(fu).into_vec(), [fv, fw]);
+                assert_eq_order!(m.faces_around_face(fv).into_vec(), [fu, fy]);
+                assert_eq_order!(m.faces_around_face(fw).into_vec(), [fu, fx]);
+                assert_eq_order!(m.faces_around_face(fx).into_vec(), [fz, fw]);
+                assert_eq_order!(m.faces_around_face(fy).into_vec(), [fv, fz]);
+                assert_eq_order!(m.faces_around_face(fz).into_vec(), [fx, fy]);
+
+                gen_tri_mesh_tests!(@if FacesAroundFace in [$($extra),*] => {
+                    assert_eq_order!(*m.faces_around_triangle(fu).to_array(), [Some(fv), Some(fw), None]);
+                    assert_eq_order!(*m.faces_around_triangle(fv).to_array(), [Some(fu), Some(fy), None]);
+                    assert_eq_order!(*m.faces_around_triangle(fw).to_array(), [Some(fu), Some(fx), None]);
+                    assert_eq_order!(*m.faces_around_triangle(fx).to_array(), [Some(fz), Some(fw), None]);
+                    assert_eq_order!(*m.faces_around_triangle(fy).to_array(), [Some(fv), Some(fz), None]);
+                    assert_eq_order!(*m.faces_around_triangle(fz).to_array(), [Some(fx), Some(fy), None]);
+                });
             });
         }
 
@@ -444,8 +509,8 @@ macro_rules! gen_tri_mesh_tests {
                 let vd = m.add_vertex();
                 let ve = m.add_vertex();
 
-                let fx = m.add_face([va, vc, vb]);
-                let fy = m.add_face([va, vd, ve]);
+                let fx = m.add_triangle([va, vc, vb]);
+                let fy = m.add_triangle([va, vd, ve]);
 
 
                 // ----- Check stuff
@@ -455,9 +520,14 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_set!(m.face_handles(), [fx, fy]);
                 assert_eq_set!(m.vertex_handles(), [va, vb, vc, vd, ve]);
 
-                gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
-                    assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
-                    assert_eq_order!(m.vertices_of_face(fy), [va, vd, ve]);
+                gen_tri_mesh_tests!(@if VerticesAroundFace in [$($extra),*] => {
+                    assert_eq_order!(m.vertices_around_face(fx).into_vec(), [va, vc, vb]);
+                    assert_eq_order!(m.vertices_around_face(fy).into_vec(), [va, vd, ve]);
+
+                    gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                        assert_eq_order!(m.vertices_around_triangle(fx), [va, vc, vb]);
+                        assert_eq_order!(m.vertices_around_triangle(fy), [va, vd, ve]);
+                    });
                 });
 
                 gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
@@ -476,9 +546,14 @@ macro_rules! gen_tri_mesh_tests {
                     assert_eq_order!(m.vertices_around_vertex(ve).into_vec(), [vd, va]);
                 });
 
-                gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
+                gen_tri_mesh_tests!(@if FacesAroundFace in [$($extra),*] => {
                     assert_eq_order!(m.faces_around_face(fx).into_vec(), []);
                     assert_eq_order!(m.faces_around_face(fy).into_vec(), []);
+
+                    gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                        assert_eq_order!(m.faces_around_triangle(fx).into_vec(), []);
+                        assert_eq_order!(m.faces_around_triangle(fy).into_vec(), []);
+                    });
                 });
             }
 
@@ -507,9 +582,9 @@ macro_rules! gen_tri_mesh_tests {
                 let vf = m.add_vertex();
                 let vg = m.add_vertex();
 
-                let fx = m.add_face([va, vc, vb]);
-                let fy = m.add_face([va, ve, vd]);
-                let fz = m.add_face([va, vg, vf]);
+                let fx = m.add_triangle([va, vc, vb]);
+                let fy = m.add_triangle([va, ve, vd]);
+                let fz = m.add_triangle([va, vg, vf]);
 
 
                 // ----- Check stuff
@@ -519,10 +594,16 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_set!(m.face_handles(), [fx, fy, fz]);
                 assert_eq_set!(m.vertex_handles(), [va, vb, vc, vd, ve, vf, vg]);
 
-                gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
-                    assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
-                    assert_eq_order!(m.vertices_of_face(fy), [va, ve, vd]);
-                    assert_eq_order!(m.vertices_of_face(fz), [va, vg, vf]);
+                gen_tri_mesh_tests!(@if VerticesAroundFace in [$($extra),*] => {
+                    assert_eq_order!(m.vertices_around_face(fx).into_vec(), [va, vc, vb]);
+                    assert_eq_order!(m.vertices_around_face(fy).into_vec(), [va, ve, vd]);
+                    assert_eq_order!(m.vertices_around_face(fz).into_vec(), [va, vg, vf]);
+
+                    gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                        assert_eq_order!(m.vertices_around_triangle(fx), [va, vc, vb]);
+                        assert_eq_order!(m.vertices_around_triangle(fy), [va, ve, vd]);
+                        assert_eq_order!(m.vertices_around_triangle(fz), [va, vg, vf]);
+                    });
                 });
 
                 gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
@@ -548,10 +629,16 @@ macro_rules! gen_tri_mesh_tests {
                     assert_eq_order!(m.vertices_around_vertex(vg).into_vec(), [vf, va]);
                 });
 
-                gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
+                gen_tri_mesh_tests!(@if FacesAroundFace in [$($extra),*] => {
                     assert_eq_order!(m.faces_around_face(fx).into_vec(), []);
                     assert_eq_order!(m.faces_around_face(fy).into_vec(), []);
                     assert_eq_order!(m.faces_around_face(fz).into_vec(), []);
+
+                    gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                        assert_eq_order!(m.faces_around_triangle(fx).into_vec(), []);
+                        assert_eq_order!(m.faces_around_triangle(fy).into_vec(), []);
+                        assert_eq_order!(m.faces_around_triangle(fz).into_vec(), []);
+                    });
                 });
             }
 
@@ -595,15 +682,15 @@ macro_rules! gen_tri_mesh_tests {
                 let vf = m.add_vertex();
                 let vg = m.add_vertex();
 
-                let fx = m.add_face([va, vc, vb]);
-                let fy = m.add_face([va, ve, vd]);
-                let fz = m.add_face([va, vg, vf]);
+                let fx = m.add_triangle([va, vc, vb]);
+                let fy = m.add_triangle([va, ve, vd]);
+                let fz = m.add_triangle([va, vg, vf]);
 
 
                 // Insert [d, c, a]
                 {
                     let mut m = m.clone();
-                    let f = m.add_face([vd, vc, va]);
+                    let f = m.add_triangle([vd, vc, va]);
 
                     // ----- Check stuff
                     assert_eq!(m.num_faces(), 4);
@@ -612,11 +699,18 @@ macro_rules! gen_tri_mesh_tests {
                     assert_eq_set!(m.face_handles(), [fx, fy, fz, f]);
                     assert_eq_set!(m.vertex_handles(), [va, vb, vc, vd, ve, vf, vg]);
 
-                    gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
-                        assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
-                        assert_eq_order!(m.vertices_of_face(fy), [va, ve, vd]);
-                        assert_eq_order!(m.vertices_of_face(fz), [va, vg, vf]);
-                        assert_eq_order!(m.vertices_of_face(f), [vd, vc, va]);
+                    gen_tri_mesh_tests!(@if VerticesAroundFace in [$($extra),*] => {
+                        assert_eq_order!(m.vertices_around_face(fx).into_vec(), [va, vc, vb]);
+                        assert_eq_order!(m.vertices_around_face(fy).into_vec(), [va, ve, vd]);
+                        assert_eq_order!(m.vertices_around_face(fz).into_vec(), [va, vg, vf]);
+                        assert_eq_order!(m.vertices_around_face(f).into_vec(), [vd, vc, va]);
+
+                        gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                            assert_eq_order!(m.vertices_around_triangle(fx), [va, vc, vb]);
+                            assert_eq_order!(m.vertices_around_triangle(fy), [va, ve, vd]);
+                            assert_eq_order!(m.vertices_around_triangle(fz), [va, vg, vf]);
+                            assert_eq_order!(m.vertices_around_triangle(f), [vd, vc, va]);
+                        });
                     });
 
                     gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
@@ -644,21 +738,28 @@ macro_rules! gen_tri_mesh_tests {
                         assert_eq_order!(m.vertices_around_vertex(vg).into_vec(), [vf, va]);
                     });
 
-                    gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
+                    gen_tri_mesh_tests!(@if FacesAroundFace in [$($extra),*] => {
                         assert_eq_order!(m.faces_around_face(fx).into_vec(), [f]);
                         assert_eq_order!(m.faces_around_face(fy).into_vec(), [f]);
                         assert_eq_order!(m.faces_around_face(fz).into_vec(), []);
-                        assert_eq_order!(
-                            *m.faces_around_face(f).to_array(),
-                            [Some(fx), Some(fy), None]
-                        );
+                        assert_eq_order!(m.faces_around_face(f).into_vec(), [fx, fy]);
+
+                        gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                            assert_eq_order!(m.faces_around_triangle(fx).into_vec(), [f]);
+                            assert_eq_order!(m.faces_around_triangle(fy).into_vec(), [f]);
+                            assert_eq_order!(m.faces_around_triangle(fz).into_vec(), []);
+                            assert_eq_order!(
+                                *m.faces_around_triangle(f).to_array(),
+                                [Some(fx), Some(fy), None]
+                            );
+                        });
                     });
                 }
 
                 // Insert [f, c, a]
                 {
                     let mut m = m.clone();
-                    let f = m.add_face([vf, vc, va]);
+                    let f = m.add_triangle([vf, vc, va]);
 
                     // ----- Check stuff
                     assert_eq!(m.num_faces(), 4);
@@ -667,11 +768,18 @@ macro_rules! gen_tri_mesh_tests {
                     assert_eq_set!(m.face_handles(), [fx, fy, fz, f]);
                     assert_eq_set!(m.vertex_handles(), [va, vb, vc, vd, ve, vf, vg]);
 
-                    gen_tri_mesh_tests!(@if TriVerticesOfFace in [$($extra),*] => {
-                        assert_eq_order!(m.vertices_of_face(fx), [va, vc, vb]);
-                        assert_eq_order!(m.vertices_of_face(fy), [va, ve, vd]);
-                        assert_eq_order!(m.vertices_of_face(fz), [va, vg, vf]);
-                        assert_eq_order!(m.vertices_of_face(f), [vf, vc, va]);
+                    gen_tri_mesh_tests!(@if VerticesAroundFace in [$($extra),*] => {
+                        assert_eq_order!(m.vertices_around_face(fx).into_vec(), [va, vc, vb]);
+                        assert_eq_order!(m.vertices_around_face(fy).into_vec(), [va, ve, vd]);
+                        assert_eq_order!(m.vertices_around_face(fz).into_vec(), [va, vg, vf]);
+                        assert_eq_order!(m.vertices_around_face(f).into_vec(), [vf, vc, va]);
+
+                        gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                            assert_eq_order!(m.vertices_around_triangle(fx), [va, vc, vb]);
+                            assert_eq_order!(m.vertices_around_triangle(fy), [va, ve, vd]);
+                            assert_eq_order!(m.vertices_around_triangle(fz), [va, vg, vf]);
+                            assert_eq_order!(m.vertices_around_triangle(f), [vf, vc, va]);
+                        });
                     });
 
                     gen_tri_mesh_tests!(@if FacesAroundVertex in [$($extra),*] => {
@@ -699,23 +807,30 @@ macro_rules! gen_tri_mesh_tests {
                         assert_eq_order!(m.vertices_around_vertex(vg).into_vec(), [vf, va]);
                     });
 
-                    gen_tri_mesh_tests!(@if TriFacesAroundFace in [$($extra),*] => {
+                    gen_tri_mesh_tests!(@if FacesAroundFace in [$($extra),*] => {
                         assert_eq_order!(m.faces_around_face(fx).into_vec(), [f]);
                         assert_eq_order!(m.faces_around_face(fy).into_vec(), []);
                         assert_eq_order!(m.faces_around_face(fz).into_vec(), [f]);
-                        assert_eq_order!(
-                            *m.faces_around_face(f).to_array(),
-                            [Some(fx), Some(fz), None]
-                        );
+                        assert_eq_order!(m.faces_around_face(f).into_vec(), [fx, fz]);
+
+                        gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                            assert_eq_order!(m.faces_around_triangle(fx).into_vec(), [f]);
+                            assert_eq_order!(m.faces_around_triangle(fy).into_vec(), []);
+                            assert_eq_order!(m.faces_around_triangle(fz).into_vec(), [f]);
+                            assert_eq_order!(
+                                *m.faces_around_triangle(f).to_array(),
+                                [Some(fx), Some(fz), None]
+                            );
+                        });
                     });
                 }
 
                 // Try to insert the remaning faces (just make sure it doesn't
                 // panic).
-                m.clone().add_face([vb, ve, va]);
-                m.clone().add_face([vb, vg, va]);
-                m.clone().add_face([va, vd, vg]);
-                m.clone().add_face([ve, va, vf]);
+                m.clone().add_triangle([vb, ve, va]);
+                m.clone().add_triangle([vb, vg, va]);
+                m.clone().add_triangle([va, vd, vg]);
+                m.clone().add_triangle([ve, va, vf]);
             }
         });
 
@@ -745,11 +860,11 @@ macro_rules! gen_tri_mesh_tests {
                 let vd = m.add_vertex();
                 let ve = m.add_vertex();
 
-                m.add_face([va, vc, vb]);
-                m.add_face([va, vb, vd]);
+                m.add_triangle([va, vc, vb]);
+                m.add_triangle([va, vb, vd]);
 
                 // This should panic
-                m.add_face([va, vb, ve]);
+                m.add_triangle([va, vb, ve]);
             }
 
             #[test]
@@ -774,12 +889,12 @@ macro_rules! gen_tri_mesh_tests {
                 let ve = m.add_vertex();
                 let vf = m.add_vertex();
 
-                m.add_face([va, vb, vc]);
-                m.add_face([va, vc, vd]);
-                m.add_face([va, vd, vb]);
+                m.add_triangle([va, vb, vc]);
+                m.add_triangle([va, vc, vd]);
+                m.add_triangle([va, vd, vb]);
 
                 // This should panic
-                m.add_face([va, vf, ve]);
+                m.add_triangle([va, vf, ve]);
             }
         });
 
@@ -830,10 +945,11 @@ macro_rules! gen_tri_mesh_tests {
     // These arms are used to make sure all traits passed into the macro
     // (include the ones used in the definition of the macro) are valid.
     // Otherwise it's too easy to make a typo.
-    (@is_valid_extra_trait TriVerticesOfFace) => {};
+    (@is_valid_extra_trait VerticesAroundFace) => {};
     (@is_valid_extra_trait FacesAroundVertex) => {};
     (@is_valid_extra_trait VerticesAroundVertex) => {};
-    (@is_valid_extra_trait TriFacesAroundFace) => {};
+    (@is_valid_extra_trait FacesAroundFace) => {};
+    (@is_valid_extra_trait TriMesh) => {};
     (@is_valid_extra_trait Manifold) => {}; // this is not a real trait yet...
     (@is_valid_extra_trait SupportsMultiBlade) => {};
     (@is_valid_extra_trait $other:ident) => {

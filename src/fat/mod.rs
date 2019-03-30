@@ -51,7 +51,7 @@ pub mod any;
 /// rigor for the vertex positions is "lossy", i.e. all kinds of casts are
 /// allowed.
 #[derive(Empty, MemSink, MemSource, Debug)]
-pub struct MiniMesh<M: TriMeshMut + TriVerticesOfFace> {
+pub struct MiniMesh<M: TriMeshMut + VerticesAroundFace> {
     #[lox(core_mesh)]
     pub mesh: M,
 

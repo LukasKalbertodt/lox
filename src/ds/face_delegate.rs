@@ -508,14 +508,21 @@ impl MeshMut for FaceDelegateMesh {
     }
 }
 
-impl TriVerticesOfFace for FaceDelegateMesh {
-    fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3] {
+impl VerticesAroundFace for FaceDelegateMesh {
+    fn vertices_around_triangle(&self, face: FaceHandle) -> [VertexHandle; 3] {
         self.faces[face].vertex_data.map(|d| d.handle)
+    }
+
+    fn vertices_around_face(&self, face: FaceHandle) -> DynList<'_, VertexHandle> {
+        Box::new(self.vertices_around_triangle(face).owned_iter())
     }
 }
 
-impl TriFacesAroundFace for FaceDelegateMesh {
-    fn faces_around_face(&self, face: FaceHandle) -> TriList<FaceHandle> {
+impl FacesAroundFace for FaceDelegateMesh {
+    fn faces_around_triangle(&self, face: FaceHandle) -> TriList<FaceHandle>
+    where
+        Self: TriMesh,
+    {
         let data = &self.faces[face].vertex_data;
 
         TriList::new([0, 1, 2].map(|i| {
@@ -531,13 +538,17 @@ impl TriFacesAroundFace for FaceDelegateMesh {
             }
         }))
     }
+
+    fn faces_around_face(&self, face: FaceHandle) -> DynList<'_, FaceHandle> {
+        Box::new(self.faces_around_triangle(face).into_iter())
+    }
 }
 
 impl FacesAroundVertex for FaceDelegateMesh {
     fn faces_around_vertex(
         &self,
         vh: VertexHandle,
-    ) -> Box<dyn DynList<Item = FaceHandle> + '_> {
+    ) -> DynList<'_, FaceHandle> {
         Box::new(FaceCirculator {
             it: self.circulate_around(vh, self.vertices[vh].face),
         })
@@ -551,7 +562,6 @@ struct FaceCirculator<'a> {
     it: Circulator<'a>,
 }
 
-impl DynList for FaceCirculator<'_> {}
 impl Iterator for FaceCirculator<'_> {
     type Item = FaceHandle;
 
@@ -566,7 +576,7 @@ impl VerticesAroundVertex for FaceDelegateMesh {
     fn vertices_around_vertex(
         &self,
         vh: VertexHandle,
-    ) -> Box<dyn DynList<Item = VertexHandle> + '_> {
+    ) -> DynList<'_, VertexHandle> {
         Box::new(VertexCirculator {
             it: self.circulate_around(vh, self.vertices[vh].face),
             queue: None,
@@ -581,7 +591,6 @@ struct VertexCirculator<'a> {
     queue: Option<VertexHandle>,
 }
 
-impl DynList for VertexCirculator<'_> {}
 impl Iterator for VertexCirculator<'_> {
     type Item = VertexHandle;
 
@@ -698,10 +707,11 @@ mod test {
     use super::*;
 
     gen_tri_mesh_tests!(FaceDelegateMesh: [
+        TriMesh,
         FacesAroundVertex,
         VerticesAroundVertex,
-        TriVerticesOfFace,
-        TriFacesAroundFace,
+        VerticesAroundFace,
+        FacesAroundFace,
         Manifold,
         SupportsMultiBlade
     ]);

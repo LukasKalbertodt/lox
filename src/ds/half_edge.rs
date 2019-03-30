@@ -570,18 +570,29 @@ impl Iterator for CirculatorAroundVertex<'_> {
 // ===== Neighborhood trait implementations
 // ===============================================================================================
 
-impl TriVerticesOfFace for HalfEdgeMesh {
-    fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3] {
+impl VerticesAroundFace for HalfEdgeMesh {
+    fn vertices_around_triangle(&self, face: FaceHandle) -> [VertexHandle; 3]
+    where
+        Self: TriMesh,
+    {
         let he0 = self.faces[face].edge;
         let he1 = self.half_edges[he0].next;
         let he2 = self.half_edges[he1].next;
 
         [he0, he1, he2].map(|he| self.half_edges[he].target)
     }
+
+    fn vertices_around_face(&self, face: FaceHandle) -> DynList<'_, VertexHandle> {
+        // TODO: change to support polygons
+        Box::new(self.vertices_around_triangle(face).owned_iter())
+    }
 }
 
-impl TriFacesAroundFace for HalfEdgeMesh {
-    fn faces_around_face(&self, face: FaceHandle) -> TriList<FaceHandle> {
+impl FacesAroundFace for HalfEdgeMesh {
+    fn faces_around_triangle(&self, face: FaceHandle) -> TriList<FaceHandle>
+    where
+        Self: TriMesh,
+    {
         let he0 = self.faces[face].edge;
         let he1 = self.half_edges[he0].next;
         let he2 = self.half_edges[he1].next;
@@ -590,13 +601,18 @@ impl TriFacesAroundFace for HalfEdgeMesh {
             [he0, he1, he2].map(|he| self.half_edges[he.twin()].face.to_option())
         )
     }
+
+    fn faces_around_face(&self, face: FaceHandle) -> DynList<'_, FaceHandle> {
+        // TODO: change to support polygons
+        Box::new(self.faces_around_triangle(face).into_iter())
+    }
 }
 
 impl FacesAroundVertex for HalfEdgeMesh {
     fn faces_around_vertex(
         &self,
         vh: VertexHandle,
-    ) -> Box<dyn DynList<Item = FaceHandle> + '_> {
+    ) -> DynList<'_, FaceHandle> {
         Box::new(FaceCirculator {
             it: self.circulate_around(vh),
             mesh: self,
@@ -610,7 +626,6 @@ struct FaceCirculator<'a> {
     mesh: &'a HalfEdgeMesh,
 }
 
-impl DynList for FaceCirculator<'_> {}
 impl Iterator for FaceCirculator<'_> {
     type Item = FaceHandle;
 
@@ -627,7 +642,7 @@ impl VerticesAroundVertex for HalfEdgeMesh {
     fn vertices_around_vertex(
         &self,
         vh: VertexHandle,
-    ) -> Box<dyn DynList<Item = VertexHandle> + '_> {
+    ) -> DynList<'_, VertexHandle> {
         Box::new(VertexCirculator {
             it: self.circulate_around(vh),
             mesh: self,
@@ -642,7 +657,6 @@ struct VertexCirculator<'a> {
     mesh: &'a HalfEdgeMesh,
 }
 
-impl DynList for VertexCirculator<'_> {}
 impl Iterator for VertexCirculator<'_> {
     type Item = VertexHandle;
 
@@ -660,9 +674,10 @@ mod test {
     use super::*;
 
     gen_tri_mesh_tests!(HalfEdgeMesh: [
-        TriVerticesOfFace,
+        // TriMesh,
+        VerticesAroundFace,
         VerticesAroundVertex,
-        TriFacesAroundFace,
+        FacesAroundFace,
         FacesAroundVertex,
         Manifold,
         SupportsMultiBlade

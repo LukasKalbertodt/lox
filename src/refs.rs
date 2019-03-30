@@ -182,8 +182,8 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
     /// let vb = mesh.add_vertex();
     /// let vc = mesh.add_vertex();
     /// let vd = mesh.add_vertex();
-    /// let fx = mesh.add_face([va, vc, vb]);
-    /// let fy = mesh.add_face([va, vd, vc]);
+    /// let fx = mesh.add_triangle([va, vc, vb]);
+    /// let fy = mesh.add_triangle([va, vd, vc]);
     ///
     /// let v = VertexRef::new(&mesh, va);
     /// let face_handles = v.adjacent_faces()
@@ -283,18 +283,17 @@ impl<'a, MeshT: 'a> FaceRef<'a, MeshT> {
     /// Returns an iterator over all vertices of this face.
     pub fn adjacent_vertices(&self) -> impl Iterator<Item = VertexRef<'_, MeshT>>
     where
-        MeshT: TriVerticesOfFace,
+        MeshT: TriMesh + VerticesAroundFace,
     {
         let mesh = self.mesh;
-        self.mesh.vertices_of_face(self.handle)
-            .owned_iter()
+        self.mesh.vertices_around_face(self.handle)
             .map(move |h| VertexRef::new(mesh, h))
     }
 
     pub fn is_adjacent_to_face(&self, fh: FaceHandle) -> bool
     where
-        MeshT: TriFacesAroundFace,
+        MeshT: TriMesh + FacesAroundFace,
     {
-        self.mesh.are_adjacent_faces(self.handle, fh)
+        self.mesh.are_faces_adjacent(self.handle, fh)
     }
 }

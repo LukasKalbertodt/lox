@@ -545,7 +545,7 @@ impl<W: io::Write> StreamSink for Writer<W> {
 
                 for fh in mesh.face_handles() {
                     // Vertex indices
-                    let mut indices = mesh.vertices_of_face(fh)
+                    let mut indices = mesh.vertices_around_triangle(fh)
                         .map(|vh| indices_map.get(vh).unwrap());
                     ser.add::<u8>(3)?;
                     ser.add_slice(&mut indices)?;
