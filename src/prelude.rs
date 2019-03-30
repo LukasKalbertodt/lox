@@ -19,7 +19,7 @@ pub use crate::{
         util::{MemSourceExt},
     },
     traits::{
-        Empty, Mesh, MeshMut, TriMesh, PolyMesh, TriMeshMut, PolyMeshMut,
+        Empty, Mesh, MeshMut, TriMesh, PolyMesh, TriMeshMut, PolyMeshMut, EdgeMesh,
         adj::{VerticesAroundFace, FacesAroundVertex, VerticesAroundVertex, FacesAroundFace},
         marker::{SupportsMultiBlade},
     },

@@ -1,6 +1,6 @@
 use crate::{
-    handle::{Handle, hsize, FaceHandle, VertexHandle},
-    refs::{ElementRef, ElementRefMut, FaceRef, VertexRef},
+    handle::{Handle, hsize, FaceHandle, VertexHandle, EdgeHandle},
+    refs::{ElementRef, ElementRefMut, EdgeRef, FaceRef, VertexRef},
 };
 use self::{
     marker::{FaceKind, TriFaces, PolyFaces},
@@ -233,6 +233,33 @@ pub trait MeshMut: Mesh {
     /// done by this data structure. But this function might also do nothing
     /// (that's exactly what the provided default implementation does).
     fn reserve_for_faces(&mut self, _count: hsize) {}
+}
+
+/// A mesh that has explicit edges. This allows to store per-edge attributes.
+pub trait EdgeMesh: Mesh {
+    /// Returns the number of edges in this mesh.
+    fn num_edges(&self) -> hsize;
+
+    /// Returns an iterator over the handles of all edges in this mesh.
+    ///
+    /// Note that this iterator only yields the handles. To get an iterator
+    /// over `EdgeRef`s, use [`edges()`][EdgeMesh::edge], which is often more
+    /// useful.
+    ///
+    /// The order of the edges is unspecified, but each edge is yielded by the
+    /// iterator exactly once.
+    fn edge_handles(&self) -> Box<dyn Iterator<Item = EdgeHandle> + '_>;
+
+    /// Checks if the given edge handle refers to a valid edge of this mesh.
+    fn contains_edge(&self, edge: EdgeHandle) -> bool;
+
+    /// Returns an iterator over all edges in this mesh.
+    ///
+    /// This iterator yields `EdgeRef`s. If you are only interested in the
+    /// handle, use [`edge_handles()`][EdgeMesh::edge_handles].
+    fn edges(&self) -> Box<dyn Iterator<Item = EdgeRef<'_, Self>> + '_> {
+        Box::new(self.edge_handles().map(move |h| ElementRef::new(self, h)))
+    }
 }
 
 /// A triangular mesh: all faces are triangles.
