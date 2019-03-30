@@ -121,6 +121,13 @@ macro_rules! gen_tri_mesh_tests {
             assert!(!m.contains_vertex(VertexHandle::new(27)));
             assert!(!m.contains_face(FaceHandle::new(0)));
             assert!(!m.contains_face(FaceHandle::new(27)));
+
+            gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                assert_eq!(m.num_edges(), 0);
+                assert!(m.edges().next().is_none());
+                assert!(!m.contains_edge(EdgeHandle::new(0)));
+                assert!(!m.contains_edge(EdgeHandle::new(27)));
+            });
         }
 
         #[test]
@@ -143,6 +150,11 @@ macro_rules! gen_tri_mesh_tests {
 
             gen_tri_mesh_tests!(@if VerticesAroundVertex in [$($extra),*] => {
                 assert_eq_order!(m.vertices_around_vertex(v).into_vec(), []);
+            });
+
+            gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                assert_eq!(m.num_edges(), 0);
+                assert!(m.edges().next().is_none());
             });
         }
 
@@ -199,6 +211,18 @@ macro_rules! gen_tri_mesh_tests {
                 gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
                     assert_eq_order!(m.faces_around_triangle(f).into_vec(), []);
                 });
+            });
+
+            gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                let e0 = EdgeHandle::new(0);
+                let e1 = EdgeHandle::new(1);
+                let e2 = EdgeHandle::new(2);
+
+                assert_eq!(m.num_edges(), 3);
+                assert_eq_set!(m.edge_handles(), [e0, e1, e2]);
+                assert!(m.contains_edge(e0));
+                assert!(m.contains_edge(e1));
+                assert!(m.contains_edge(e2));
             });
         }
 
@@ -950,6 +974,7 @@ macro_rules! gen_tri_mesh_tests {
     (@is_valid_extra_trait VerticesAroundVertex) => {};
     (@is_valid_extra_trait FacesAroundFace) => {};
     (@is_valid_extra_trait TriMesh) => {};
+    (@is_valid_extra_trait EdgeMesh) => {};
     (@is_valid_extra_trait Manifold) => {}; // this is not a real trait yet...
     (@is_valid_extra_trait SupportsMultiBlade) => {};
     (@is_valid_extra_trait $other:ident) => {
