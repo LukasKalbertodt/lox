@@ -11,7 +11,7 @@ macro_rules! set {
 /// Takes an iterator and a list of elements. Collects both into sets and
 /// compares those sets for equality via `assert_eq`.
 macro_rules! assert_eq_set {
-    ($iter:expr, [$($item:expr),* $(,)*]) => {
+    ($iter:expr, [$($item:expr),* $(,)*] $(,)?) => {
         assert_eq!(
             $iter.collect::<::std::collections::HashSet<_>>(),
             set!($($item),*)
@@ -31,10 +31,10 @@ macro_rules! assert_eq_set {
 /// This check is a stricter version of `assert_eq_set`. For <= 2 elements,
 /// it's more or less equivalent to `assert_eq_set`.
 macro_rules! assert_eq_order {
-    ($list:expr, []) => {{
+    ($list:expr, [] $(,)?) => {{
         assert_eq!($list, []);
     }};
-    ($list:expr, [$a:expr $(, $tail:expr)*]) => {{
+    ($list:expr, [$a:expr $(, $tail:expr)*] $(,)?) => {{
         let actual = $list;
         let expected = [$a $(, $tail)*];
 
@@ -289,10 +289,22 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_order!(m.faces_around_face(f_ca).into_vec(), [f_ab, f_bc, f_bottom]);
 
                 gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
-                    assert_eq_order!(m.faces_around_triangle(f_bottom).into_vec(), [f_ca, f_bc, f_ab]);
-                    assert_eq_order!(m.faces_around_triangle(f_ab).into_vec(), [f_bc, f_ca, f_bottom]);
-                    assert_eq_order!(m.faces_around_triangle(f_bc).into_vec(), [f_ca, f_ab, f_bottom]);
-                    assert_eq_order!(m.faces_around_triangle(f_ca).into_vec(), [f_ab, f_bc, f_bottom]);
+                    assert_eq_order!(
+                        m.faces_around_triangle(f_bottom).into_vec(),
+                        [f_ca, f_bc, f_ab],
+                    );
+                    assert_eq_order!(
+                        m.faces_around_triangle(f_ab).into_vec(),
+                        [f_bc, f_ca, f_bottom],
+                    );
+                    assert_eq_order!(
+                        m.faces_around_triangle(f_bc).into_vec(),
+                        [f_ca, f_ab, f_bottom],
+                    );
+                    assert_eq_order!(
+                        m.faces_around_triangle(f_ca).into_vec(),
+                        [f_ab, f_bc, f_bottom],
+                    );
                 });
             });
         }
@@ -403,7 +415,10 @@ macro_rules! gen_tri_mesh_tests {
 
                 gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
                     assert_eq_order!(m.faces_around_triangle(fx).into_vec(), [fy]);
-                    assert_eq_order!(*m.faces_around_triangle(fy).to_array(), [Some(fx), Some(fz), None]);
+                    assert_eq_order!(
+                        *m.faces_around_triangle(fy).to_array(),
+                        [Some(fx), Some(fz), None],
+                    );
                     assert_eq_order!(m.faces_around_triangle(fz).into_vec(), [fy]);
                 });
             });
@@ -499,12 +514,30 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_order!(m.faces_around_face(fz).into_vec(), [fx, fy]);
 
                 gen_tri_mesh_tests!(@if FacesAroundFace in [$($extra),*] => {
-                    assert_eq_order!(*m.faces_around_triangle(fu).to_array(), [Some(fv), Some(fw), None]);
-                    assert_eq_order!(*m.faces_around_triangle(fv).to_array(), [Some(fu), Some(fy), None]);
-                    assert_eq_order!(*m.faces_around_triangle(fw).to_array(), [Some(fu), Some(fx), None]);
-                    assert_eq_order!(*m.faces_around_triangle(fx).to_array(), [Some(fz), Some(fw), None]);
-                    assert_eq_order!(*m.faces_around_triangle(fy).to_array(), [Some(fv), Some(fz), None]);
-                    assert_eq_order!(*m.faces_around_triangle(fz).to_array(), [Some(fx), Some(fy), None]);
+                    assert_eq_order!(
+                        *m.faces_around_triangle(fu).to_array(),
+                        [Some(fv), Some(fw), None],
+                    );
+                    assert_eq_order!(
+                        *m.faces_around_triangle(fv).to_array(),
+                        [Some(fu), Some(fy), None],
+                    );
+                    assert_eq_order!(
+                        *m.faces_around_triangle(fw).to_array(),
+                        [Some(fu), Some(fx), None],
+                    );
+                    assert_eq_order!(
+                        *m.faces_around_triangle(fx).to_array(),
+                        [Some(fz), Some(fw), None],
+                    );
+                    assert_eq_order!(
+                        *m.faces_around_triangle(fy).to_array(),
+                        [Some(fv), Some(fz), None],
+                    );
+                    assert_eq_order!(
+                        *m.faces_around_triangle(fz).to_array(),
+                        [Some(fx), Some(fy), None],
+                    );
                 });
             });
         }
