@@ -92,7 +92,7 @@ impl MemSink for AnyMesh {
         self.mesh.add_vertex()
     }
     fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
-        self.mesh.add_face(vertices)
+        self.mesh.add_triangle(vertices)
     }
 
     fn prepare_vertex_positions<N: Primitive>(&mut self, count: hsize) -> Result<(), Error> {

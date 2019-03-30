@@ -457,7 +457,7 @@ impl MeshMut for FaceDelegateMesh {
         })
     }
 
-    fn add_face(&mut self, vertex_handles: [VertexHandle; 3]) -> FaceHandle {
+    fn add_triangle(&mut self, vertex_handles: [VertexHandle; 3]) -> FaceHandle {
         assert_ne!(vertex_handles[0], vertex_handles[1], "vertices of new face are not unique");
         assert_ne!(vertex_handles[0], vertex_handles[2], "vertices of new face are not unique");
 

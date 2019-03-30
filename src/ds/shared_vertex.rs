@@ -51,7 +51,7 @@ impl MeshMut for SharedVertexMesh {
         self.vertices.push(())
     }
 
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
+    fn add_triangle(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
         assert_ne!(vertices[0], vertices[1], "vertices of new face are not unique");
         assert_ne!(vertices[0], vertices[2], "vertices of new face are not unique");
 

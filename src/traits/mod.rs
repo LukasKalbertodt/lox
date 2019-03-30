@@ -162,7 +162,7 @@ pub trait MeshMut: Mesh {
     /// ```
     fn add_vertex(&mut self) -> VertexHandle;
 
-    /// Adds a new triangular face defined by the three vertices to this mesh
+    /// Adds a new triangular face (defined by the three vertices) to this mesh
     /// and returns the handle representing that face.
     ///
     /// The vertices have to be given in front-face CCW (counterclockwise)
@@ -171,7 +171,9 @@ pub trait MeshMut: Mesh {
     /// CCW order. Or in more mathy terms: the face's normal is equal to `(v0 -
     /// v1) ⨯ (v0 - v2)` in the right-handed coordinate system (where `⨯` is
     /// cross-product).
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
+    ///
+    /// TODO: what if face already there?
+    fn add_triangle(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
 
     /// Removes all vertices of this mesh. This can be more efficient than
     /// calling `remove_vertex` (TODO: link) for each vertex individually.

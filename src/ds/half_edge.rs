@@ -180,7 +180,7 @@ impl MeshMut for HalfEdgeMesh {
         })
     }
 
-    fn add_face(&mut self, [a, b, c]: [VertexHandle; 3]) -> FaceHandle {
+    fn add_triangle(&mut self, [a, b, c]: [VertexHandle; 3]) -> FaceHandle {
         assert_ne!(a, b, "vertices of new face are not unique");
         assert_ne!(a, c, "vertices of new face are not unique");
 

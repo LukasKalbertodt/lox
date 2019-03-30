@@ -76,7 +76,7 @@ impl MeshInput {
             .collect::<TokenStream>();
         for ([va, vb, vc], values) in faces {
             add_faces.extend(quote! {
-                let face = MeshMut::add_face(&mut mesh, [#va, #vb, #vc]);
+                let face = MeshMut::add_triangle(&mut mesh, [#va, #vb, #vc]);
             });
 
             for (value, map_ident) in values.into_iter().zip(&face_maps) {

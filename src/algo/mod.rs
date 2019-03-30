@@ -111,7 +111,7 @@ where
 
     // Now add all the faces to the mesh
     for new_face in new_faces {
-        mesh.add_face(new_face);
+        mesh.add_triangle(new_face);
     }
 
     for vh in old_vertices {
