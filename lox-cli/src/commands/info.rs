@@ -245,7 +245,7 @@ impl MeshInfo {
                 count: MaybeInfo::Known(mesh.mesh.num_faces() as u64),
                 position_type: MaybeInfo::None,
                 normal_type: MaybeInfo::some_or_none(
-                    mesh.vertex_normals.as_ref().map(|m| m.primitive_type())
+                    mesh.face_normals.as_ref().map(|m| m.primitive_type())
                 ),
                 color_type: MaybeInfo::some_or_none(
                     mesh.face_colors.as_ref().map(|m| m.color_type())
