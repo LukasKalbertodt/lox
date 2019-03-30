@@ -457,27 +457,6 @@ impl MeshMut for FaceDelegateMesh {
         })
     }
 
-    fn remove_all_vertices(&mut self) {
-        assert!(
-            self.num_faces() == 0,
-            "call to `remove_all_vertices`, but there are faces in the mesh!",
-        );
-
-        self.vertices.clear();
-    }
-
-    fn remove_all_faces(&mut self) {
-        self.faces.clear();
-        for v in self.vertices.values_mut() {
-            v.face = Opt::none();
-        }
-    }
-}
-
-
-impl TriMesh for FaceDelegateMesh {}
-
-impl TriMeshMut for FaceDelegateMesh {
     fn add_face(&mut self, vertex_handles: [VertexHandle; 3]) -> FaceHandle {
         assert_ne!(vertex_handles[0], vertex_handles[1], "vertices of new face are not unique");
         assert_ne!(vertex_handles[0], vertex_handles[2], "vertices of new face are not unique");
@@ -510,6 +489,22 @@ impl TriMeshMut for FaceDelegateMesh {
         }
 
         self.faces.push(Face { vertex_data })
+    }
+
+    fn remove_all_vertices(&mut self) {
+        assert!(
+            self.num_faces() == 0,
+            "call to `remove_all_vertices`, but there are faces in the mesh!",
+        );
+
+        self.vertices.clear();
+    }
+
+    fn remove_all_faces(&mut self) {
+        self.faces.clear();
+        for v in self.vertices.values_mut() {
+            v.face = Opt::none();
+        }
     }
 }
 

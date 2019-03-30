@@ -3,7 +3,6 @@
 use std::fmt;
 
 use crate as lox;
-// #[allow(unused_imports)] // TODO
 use crate::{
     prelude::*,
     handle::{hsize, Opt, Handle},
@@ -181,26 +180,6 @@ impl MeshMut for HalfEdgeMesh {
         })
     }
 
-    fn remove_all_vertices(&mut self) {
-        assert!(
-            self.num_faces() == 0,
-            "call to `remove_all_vertices`, but there are faces in the mesh!",
-        );
-        // TODO: check edges == 0, too?
-
-        self.vertices.clear();
-    }
-
-    fn remove_all_faces(&mut self) {
-        self.half_edges.clear();
-        self.faces.clear();
-        for v in self.vertices.values_mut() {
-            v.outgoing = Opt::none();
-        }
-    }
-}
-
-impl TriMeshMut for HalfEdgeMesh {
     fn add_face(&mut self, [a, b, c]: [VertexHandle; 3]) -> FaceHandle {
         assert_ne!(a, b, "vertices of new face are not unique");
         assert_ne!(a, c, "vertices of new face are not unique");
@@ -522,13 +501,27 @@ impl TriMeshMut for HalfEdgeMesh {
 
         new_face
     }
+
+    fn remove_all_vertices(&mut self) {
+        assert!(
+            self.num_faces() == 0,
+            "call to `remove_all_vertices`, but there are faces in the mesh!",
+        );
+        // TODO: check edges == 0, too?
+
+        self.vertices.clear();
+    }
+
+    fn remove_all_faces(&mut self) {
+        self.half_edges.clear();
+        self.faces.clear();
+        for v in self.vertices.values_mut() {
+            v.outgoing = Opt::none();
+        }
+    }
 }
 
 impl SupportsMultiBlade for HalfEdgeMesh {}
-
-// TODO: only if specified
-impl TriMesh for HalfEdgeMesh {}
-
 
 // ===============================================================================================
 // ===== Internal circulators

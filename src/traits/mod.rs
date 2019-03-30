@@ -162,6 +162,17 @@ pub trait MeshMut: Mesh {
     /// ```
     fn add_vertex(&mut self) -> VertexHandle;
 
+    /// Adds a new triangular face defined by the three vertices to this mesh
+    /// and returns the handle representing that face.
+    ///
+    /// The vertices have to be given in front-face CCW (counterclockwise)
+    /// order. This means: if you look at front of the face you want to create
+    /// (the face's normal is pointing to you), the vertices should appear in
+    /// CCW order. Or in more mathy terms: the face's normal is equal to `(v0 -
+    /// v1) ⨯ (v0 - v2)` in the right-handed coordinate system (where `⨯` is
+    /// cross-product).
+    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
+
     /// Removes all vertices of this mesh. This can be more efficient than
     /// calling `remove_vertex` (TODO: link) for each vertex individually.
     ///
@@ -248,20 +259,16 @@ impl<T> TriMesh for T where T: Mesh<FaceKind = TriFaces> {}
 pub trait PolyMesh: Mesh<FaceKind = PolyFaces> {}
 impl<T> PolyMesh for T where T: Mesh<FaceKind = PolyFaces> {}
 
+/// A triangular mesh that allows modifications. Alias for `MeshMut<FaceKind =
+/// TriFaces>`.
+pub trait TriMeshMut: MeshMut<FaceKind = TriFaces> {}
+impl<T> TriMeshMut for T where T: MeshMut<FaceKind = TriFaces> {}
 
-/// A mesh that allows additions of triangular faces.
-pub trait TriMeshMut: MeshMut {
-    /// Adds a new triangular face defined by the three vertices to this mesh
-    /// and returns the handle representing that face.
-    ///
-    /// The vertices have to be given in front-face CCW (counterclockwise)
-    /// order. This means: if you look at front of the face you want to create
-    /// (the face's normal is pointing to you), the vertices should appear in
-    /// CCW order. Or in more mathy terms: the face's normal is equal to `(v0 -
-    /// v1) ⨯ (v0 - v2)` in the right-handed coordinate system (where `⨯` is
-    /// cross-product).
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
-}
+/// A poly mesh that allows modifications. Alias for `MeshMut<FaceKind =
+/// PolyFaces>`.
+pub trait PolyMeshMut: MeshMut<FaceKind = PolyFaces> {}
+impl<T> PolyMeshMut for T where T: MeshMut<FaceKind = PolyFaces> {}
+
 
 
 // ===========================================================================

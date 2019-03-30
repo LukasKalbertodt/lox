@@ -76,7 +76,7 @@ impl MeshInput {
             .collect::<TokenStream>();
         for ([va, vb, vc], values) in faces {
             add_faces.extend(quote! {
-                let face = TriMeshMut::add_face(&mut mesh, [#va, #vb, #vc]);
+                let face = MeshMut::add_face(&mut mesh, [#va, #vb, #vc]);
             });
 
             for (value, map_ident) in values.into_iter().zip(&face_maps) {
@@ -94,7 +94,7 @@ impl MeshInput {
             // that the user does not have a local submodule called `lox` since
             // with uniform paths, that would lead to a ambiguity error.
             use lox::{
-                traits::{MeshMut, TriMeshMut, Empty},
+                traits::{MeshMut, Empty},
                 map::{PropStoreMut, VecMap},
             };
 

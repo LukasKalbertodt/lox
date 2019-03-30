@@ -51,6 +51,13 @@ impl MeshMut for SharedVertexMesh {
         self.vertices.push(())
     }
 
+    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
+        assert_ne!(vertices[0], vertices[1], "vertices of new face are not unique");
+        assert_ne!(vertices[0], vertices[2], "vertices of new face are not unique");
+
+        self.faces.push(vertices)
+    }
+
     fn remove_all_vertices(&mut self) {
         assert!(
             self.num_faces() == 0,
@@ -65,17 +72,6 @@ impl MeshMut for SharedVertexMesh {
     }
 }
 
-
-impl TriMesh for SharedVertexMesh {}
-
-impl TriMeshMut for SharedVertexMesh {
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
-        assert_ne!(vertices[0], vertices[1], "vertices of new face are not unique");
-        assert_ne!(vertices[0], vertices[2], "vertices of new face are not unique");
-
-        self.faces.push(vertices)
-    }
-}
 
 impl TriVerticesOfFace for SharedVertexMesh {
     fn vertices_of_face(&self, face: FaceHandle) -> [VertexHandle; 3] {
