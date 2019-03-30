@@ -83,6 +83,36 @@ pub struct ConvertArgs {
         long = "--no-info",
     )]
     pub no_info: bool,
+
+    /// If set, face normals from the source mesh won't be written in the
+    /// target mesh.
+    #[structopt(
+        long = "--without-fnormals",
+    )]
+    pub without_fnormals: bool,
+
+    /// If set, vertex normals from the source mesh won't be written in the
+    /// target mesh.
+    #[structopt(
+        long = "--without-vnormals",
+    )]
+    pub without_vnormals: bool,
+
+    /// If set, face colors from the source mesh won't be written in the
+    /// target mesh.
+    #[structopt(
+        long = "--without-fcolors",
+    )]
+    pub without_fcolors: bool,
+
+    /// If set, vertex colors from the source mesh won't be written in the
+    /// target mesh.
+    #[structopt(
+        long = "--without-vcolors",
+    )]
+    pub without_vcolors: bool,
+
+    // TODO: --calc-fnormals
 }
 
 

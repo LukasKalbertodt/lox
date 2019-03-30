@@ -43,12 +43,72 @@ pub fn run(global_args: &GlobalArgs, args: &ConvertArgs) -> Result<(), Error> {
 
     // Read file
     let before_load = Instant::now();
-    let mesh = load_file(global_args, args).context("could not read source file")?;
+    let mut mesh = load_file(global_args, args).context("could not read source file")?;
     let load_time = before_load.elapsed();
 
     // Print mesh data
     if !args.no_info {
-        info!("Mesh information:");
+        info!("Source mesh information:");
+        println!();
+        MeshInfo::about_mesh(&mesh).print(global_args);
+        println!();
+    }
+
+    // Remove some properties if requested by the user
+    let mut dirty = false;
+    if args.without_fnormals {
+        if mesh.face_normals.is_some() {
+            info!("Removing face normals before writing");
+            mesh.face_normals = None;
+            dirty = true;
+        } else {
+            warn!(
+                "`--without-fnormals` flag was set, but source mesh does not contain face normals"
+            );
+        }
+    }
+
+    if args.without_vnormals {
+        if mesh.vertex_normals.is_some() {
+            info!("Removing vertex normals before writing");
+            mesh.vertex_normals = None;
+            dirty = true;
+        } else {
+            warn!(
+                "`--without-vnormals` flag was set, but source mesh does not contain \
+                    vertex normals"
+            );
+        }
+    }
+
+    if args.without_fcolors {
+        if mesh.face_colors.is_some() {
+            info!("Removing face colors before writing");
+            mesh.face_colors = None;
+            dirty = true;
+        } else {
+            warn!(
+                "`--without-fcolors` flag was set, but source mesh does not contain face colors"
+            );
+        }
+    }
+
+    if args.without_vcolors {
+        if mesh.vertex_colors.is_some() {
+            info!("Removing vertex colors before writing");
+            mesh.vertex_colors = None;
+            dirty = true;
+        } else {
+            warn!(
+                "`--without-vcolors` flag was set, but source mesh does not contain \
+                    vertex colors"
+            );
+        }
+    }
+
+    // Print mesh data
+    if !args.no_info && dirty {
+        info!("Target mesh information:");
         println!();
         MeshInfo::about_mesh(&mesh).print(global_args);
         println!();
