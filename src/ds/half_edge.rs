@@ -35,7 +35,7 @@ pub struct HalfEdgeHandle(hsize);
 
 impl HalfEdgeHandle {
     /// Returns the handle of the half edge twin (the half edge right next to
-    /// this half edge, but pointing int he opposite direction).
+    /// this half edge, but pointing in the opposite direction).
     ///
     /// This method only works due to some assumptions about the data
     /// structure, so this is only valid together with data structure in this
@@ -521,6 +521,31 @@ impl MeshMut for HalfEdgeMesh {
     }
 }
 
+impl EdgeMesh for HalfEdgeMesh {
+    fn num_edges(&self) -> hsize {
+        // There are always exactly twice as many half edge as there are edges
+        self.half_edges.num_elements() / 2
+    }
+
+    fn edge_handles(&self) -> Box<dyn Iterator<Item = EdgeHandle> + '_> {
+        // This, again, only works because of how we store data. We always
+        // store both half edges of an edge right next to each other in
+        // memory. The half edge with lower index has an even index (we start
+        // at 0). We map half edges to edges by always using the half edge
+        // with the lower index and divide its index by 2.
+        Box::new(
+            self.half_edges.handles()
+                .filter(|he| he.idx() % 2 == 0)
+                .map(|he| EdgeHandle::new(he.idx() / 2))
+        )
+    }
+
+    fn contains_edge(&self, edge: EdgeHandle) -> bool {
+        let he = HalfEdgeHandle::new(edge.idx() * 2);
+        self.half_edges.contains_handle(he)
+    }
+}
+
 impl SupportsMultiBlade for HalfEdgeMesh {}
 
 // ===============================================================================================
@@ -674,7 +699,8 @@ mod test {
     use super::*;
 
     gen_tri_mesh_tests!(HalfEdgeMesh: [
-        // TriMesh,
+        TriMesh,
+        EdgeMesh,
         VerticesAroundFace,
         VerticesAroundVertex,
         FacesAroundFace,
