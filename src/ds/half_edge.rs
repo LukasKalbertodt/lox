@@ -8,6 +8,7 @@ use crate::{
     prelude::*,
     handle::{hsize, Opt, Handle},
     map::VecMap,
+    traits::marker::TriFaces,
     util::TriList,
 };
 
@@ -146,6 +147,8 @@ impl HalfEdgeMesh {
 // ===============================================================================================
 
 impl Mesh for HalfEdgeMesh {
+    type FaceKind = TriFaces; // TODO
+
     fn num_vertices(&self) -> hsize {
         self.vertices.num_elements()
     }

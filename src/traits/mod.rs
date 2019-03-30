@@ -2,6 +2,9 @@ use crate::{
     handle::{Handle, hsize, FaceHandle, VertexHandle},
     refs::{ElementRef, ElementRefMut, FaceRef, VertexRef},
 };
+use self::{
+    marker::{FaceKind, TriFaces, PolyFaces},
+};
 
 pub mod marker;
 pub mod adj;
@@ -47,7 +50,21 @@ pub trait Empty {
 }
 
 /// Some kind of polygon mesh.
+///
+/// TODO: add info:
+/// - rather use `TriMesh` or `PolyMesh` as bound
 pub trait Mesh: Empty {
+    /// The kind of faces this mesh type can store. Either [`TriFaces`]
+    /// or [`PolyFaces`].
+    ///
+    /// Many data structures are specialized to only work with triangular
+    /// faces. This is useful because many operations can be implemented more
+    /// efficiently and adjacency information can often be stored with less
+    /// memory. But of course, sometimes you need meshes that support
+    /// non-triangular faces. And of course, there are data structures for that
+    /// as well.
+    type FaceKind: FaceKind;
+
     // ===== Vertices ========================================================
     /// Returns the number of vertices in this mesh.
     fn num_vertices(&self) -> hsize;
@@ -69,7 +86,6 @@ pub trait Mesh: Empty {
     fn contains_vertex(&self, vertex: VertexHandle) -> bool;
 
     // TODO: visit_mut
-    // TODO: iterator over handles
     // TODO: mutable iterator?
 
 
@@ -91,7 +107,6 @@ pub trait Mesh: Empty {
     fn contains_face(&self, face: FaceHandle) -> bool;
 
     // TODO: visit_mut
-    // TODO: iterator over handles
     // TODO: mutable iterator?
 
     // ===== Provided methods ================================================
@@ -208,7 +223,31 @@ pub trait MeshMut: Mesh {
 }
 
 /// A triangular mesh: all faces are triangles.
-pub trait TriMesh: Mesh {}
+///
+/// A triangular mesh is more restrictive than a poly mesh when adding or
+/// modifying faces (faces always have to be triangles), but can be easier to
+/// deal with in many situations.
+///
+/// This trait is automatically implemented for all types with `FaceKind =
+/// TriFaces`. As such, this trait is just a convenience alias to allow for
+/// more concise trait bounds (i.e. `T: TriMesh` instead of `T: Mesh<FaceKind =
+/// TriFaces>`).
+pub trait TriMesh: Mesh<FaceKind = TriFaces> {}
+impl<T> TriMesh for T where T: Mesh<FaceKind = TriFaces> {}
+
+/// A poly mesh: faces can be arbitrary polygons (different polygons can be in
+/// the same mesh).
+///
+/// A poly mesh is less restrictive than a tri mesh when adding or modifying
+/// faces, but can be a lot harder to deal with in many situations.
+///
+/// This trait is automatically implemented for all types with `FaceKind =
+/// PolyFaces`. As such, this trait is just a convenience alias to allow for
+/// more concise trait bounds (i.e. `T: TriMesh` instead of `T: Mesh<FaceKind =
+/// PolyFaces>`).
+pub trait PolyMesh: Mesh<FaceKind = PolyFaces> {}
+impl<T> PolyMesh for T where T: Mesh<FaceKind = PolyFaces> {}
+
 
 /// A mesh that allows additions of triangular faces.
 pub trait TriMeshMut: MeshMut {

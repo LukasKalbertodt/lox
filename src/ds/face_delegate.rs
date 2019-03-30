@@ -5,6 +5,7 @@ use crate::{
     prelude::*,
     handle::{hsize, FaceHandle, VertexHandle, Opt},
     map::{VecMap, PropMap, PropStoreMut},
+    traits::marker::TriFaces,
     util::{DynList, TriList, TriArrayExt},
 };
 
@@ -422,6 +423,8 @@ impl FaceDelegateMesh {
 }
 
 impl Mesh for FaceDelegateMesh {
+    type FaceKind = TriFaces;
+
     fn num_vertices(&self) -> hsize {
         self.vertices.num_elements()
     }

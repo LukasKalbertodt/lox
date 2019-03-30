@@ -7,6 +7,7 @@ use crate::{
     prelude::*,
     handle::hsize,
     map::VecMap,
+    traits::marker::TriFaces,
 };
 
 
@@ -18,6 +19,8 @@ pub struct SharedVertexMesh {
 }
 
 impl Mesh for SharedVertexMesh {
+    type FaceKind = TriFaces;
+
     fn num_vertices(&self) -> hsize {
         self.vertices.num_elements()
     }
