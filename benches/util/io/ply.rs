@@ -38,7 +38,7 @@ impl RawSphereSource {
             .collect();
 
         let face_data = m.mesh.face_handles()
-            .map(|fh| m.mesh.vertices_of_face(fh).map(|vh| vh.idx()))
+            .map(|fh| m.mesh.vertices_around_triangle(fh).map(|vh| vh.idx()))
             .collect();
 
         Self { vertex_data, face_data }
@@ -87,7 +87,7 @@ impl RawSphereVNormalsSource {
             .collect();
 
         let face_data = m.mesh.face_handles()
-            .map(|fh| m.mesh.vertices_of_face(fh).map(|vh| vh.idx()))
+            .map(|fh| m.mesh.vertices_around_triangle(fh).map(|vh| vh.idx()))
             .collect();
 
         Self { vertex_data, face_data }

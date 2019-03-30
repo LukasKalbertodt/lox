@@ -8,7 +8,7 @@ use lox::{
 pub fn raw_sphere() -> Vec<RawTriangle> {
     let src = super::sphere();
     src.mesh.face_handles().map(|fh| {
-        let [va, vb, vc] = src.mesh.vertices_of_face(fh);
+        let [va, vb, vc] = src.mesh.vertices_around_triangle(fh);
 
         let get_v = |vh| -> [f32; 3] {
             src.vertex_position::<f32>(vh)
