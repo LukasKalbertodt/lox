@@ -1,17 +1,10 @@
 //! Everything related to the `FaceDelegateMesh`.
 
-use crate as lox;
-#[allow(unused_imports)] // TODO
 use crate::{
-    Empty,
+    self as lox, // for proc macros
+    prelude::*,
     handle::{hsize, FaceHandle, VertexHandle, Opt},
     map::{VecMap, PropMap, PropStoreMut},
-    traits::{
-        TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut,
-        FacesAroundVertex, VerticesAroundVertex, TriFacesAroundFace,
-        SupportsMultiBlade,
-    },
-    refs::{FaceRef, VertexRef},
     util::{DynList, TriList, TriArrayExt},
 };
 

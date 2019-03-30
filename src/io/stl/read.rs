@@ -13,7 +13,7 @@ use hashbrown::{HashMap, hash_map::Entry};
 use crate::{
     prelude::*,
     io::{
-        StreamSource, MemSink, Error,
+        Error,
         parse::{self, ParseBuf, ParseError, Buffer, Span},
     },
     util::MeshSizeHint,

@@ -7,9 +7,8 @@ use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use cgmath::prelude::*;
 
 use crate::{
-    traits::*,
-    prop::{Pos3Like, Vec3Like},
-    io::{PropKind, Error, ErrorKind, StreamSink, MemSource},
+    prelude::*,
+    io::{PropKind, Error, ErrorKind},
 };
 use super::{Encoding, RawTriangle};
 

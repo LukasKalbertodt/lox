@@ -32,13 +32,11 @@ use cgmath::{Point3, Vector3};
 use crate::{
     self as lox, // for proc macros
     prelude::*,
-    VertexHandle, //Empty, MemSink,
     cast,
     ds::SharedVertexMesh,
     handle::hsize,
     io::{ColorType, Error, ErrorKind, Primitive, PrimitiveType},
-    map::{PropMap, VecMap},
-    traits::{TriMeshMut, TriVerticesOfFace},
+    map::VecMap,
 };
 use self::any::{AnyColorMap, AnyPointMap, AnyVectorMap};
 pub mod any;

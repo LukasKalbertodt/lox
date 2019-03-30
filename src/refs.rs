@@ -1,9 +1,7 @@
 //! Types for references to elements within a mesh.
 
 use crate::{
-    handle::{EdgeHandle, FaceHandle, VertexHandle, Handle},
-    traits::{VerticesAroundVertex, FacesAroundVertex, TriVerticesOfFace, TriFacesAroundFace},
-    util::TriArrayExt,
+    prelude::*,
 };
 
 

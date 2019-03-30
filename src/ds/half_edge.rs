@@ -3,18 +3,12 @@
 use std::fmt;
 
 use crate as lox;
-#[allow(unused_imports)] // TODO
+// #[allow(unused_imports)] // TODO
 use crate::{
-    Empty,
-    handle::{hsize, FaceHandle, VertexHandle, Opt, Handle},
-    map::{VecMap, PropMap, PropStoreMut},
-    traits::{
-        TriVerticesOfFace, Mesh, TriMesh, TriMeshMut, MeshMut,
-        SupportsMultiBlade, TriFacesAroundFace, VerticesAroundVertex,
-        FacesAroundVertex,
-    },
-    refs::{FaceRef, VertexRef},
-    util::{DynList, TriArrayExt, TriList},
+    prelude::*,
+    handle::{hsize, Opt, Handle},
+    map::VecMap,
+    util::TriList,
 };
 
 

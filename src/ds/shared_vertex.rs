@@ -4,10 +4,9 @@ use std::fmt;
 
 use crate as lox;
 use crate::{
-    Empty,
-    handle::{hsize, FaceHandle, VertexHandle},
-    map::{VecMap, PropMap, PropStoreMut},
-    traits::{TriVerticesOfFace, SupportsMultiBlade, Mesh, TriMesh, TriMeshMut, MeshMut},
+    prelude::*,
+    handle::hsize,
+    map::VecMap,
 };
 
 

@@ -175,7 +175,10 @@ use crate::{
     math::PrimitiveNum,
     prop::{ColorLike, PrimitiveColorChannel},
     sealed::Sealed,
-    traits::{Empty, Mesh, TriVerticesOfFace},
+    traits::{
+        Empty, Mesh,
+        adj::TriVerticesOfFace,
+    },
     util::MeshSizeHint,
 };
 use self::{

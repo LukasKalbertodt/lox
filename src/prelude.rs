@@ -19,8 +19,9 @@ pub use crate::{
         util::{MemSourceExt},
     },
     traits::{
-        Mesh, TriMesh, MeshMut, TriMeshMut, TriVerticesOfFace,
-        Empty, FacesAroundVertex, VerticesAroundVertex, TriFacesAroundFace,
+        Empty, Mesh, TriMesh, MeshMut, TriMeshMut,
+        adj::{TriVerticesOfFace, FacesAroundVertex, VerticesAroundVertex, TriFacesAroundFace},
+        marker::{SupportsMultiBlade},
     },
-    util::{PointIteratorExt, TriArrayExt},
+    util::{PointIteratorExt, TriArrayExt, DynList},
 };

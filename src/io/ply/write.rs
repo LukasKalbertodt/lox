@@ -24,14 +24,12 @@ use std::{
 use byteorder::{BigEndian, LittleEndian};
 
 use crate::{
-    handle::{hsize, FaceHandle, VertexHandle},
+    prelude::*,
+    handle::hsize,
     io::{
-        Error, ErrorKind, StreamSink, MemSource, PrimitiveType, PropKind, ColorType,
+        Error, ErrorKind, PrimitiveType, PropKind, ColorType,
         util::HandleIndexMap,
     },
-    prop::{ColorLike, Pos3Like, Vec3Like},
-    traits::*,
-    util::TriArrayExt,
 };
 use super::{
     Encoding,
