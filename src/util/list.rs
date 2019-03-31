@@ -13,8 +13,8 @@
 ///
 /// This way, you can decide how you want to work with the list of handles you
 /// receive. Either use this as an iterator in a `for` loop, or convert it to a
-/// `Vec<_>` with [`IteratorExt::into_vec`], or use the visitor pattern by
-/// using [`Iterator::for_each`].
+/// `Vec<_>` with [`IteratorExt::into_vec`][super::IteratorExt::into_vec], or
+/// use the visitor pattern by using [`Iterator::for_each`].
 ///
 /// *Note*: this is only a workaround until GATs have landed. Then, all those
 /// methods returning `DynList` now will basically return `impl Iterator`.
