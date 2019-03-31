@@ -3,11 +3,16 @@
 //! In almost all mesh algorithms we need some kind of information about the
 //! connectivity of the mesh's elements (vertex, edge, face). TODO.
 
+// TODO: ideas
+//
+// - Rename all traits to `XToX` (where X = {E | F | V})
+// - define some collection traits (`FullConnectivity`) or so
+
 use crate::{
-    handle::{FaceHandle, VertexHandle},
-    util::{DynList, TriList},
+    handle::{EdgeHandle, FaceHandle, VertexHandle},
+    util::{DiList, DynList, TriList},
 };
-use super::{TriMesh, Mesh};
+use super::{TriMesh, Mesh, EdgeMesh};
 
 /// Meshes with *O*(1) face-to-vertex neighborhood information.
 pub trait VerticesAroundFace: Mesh {
@@ -66,4 +71,12 @@ pub trait VerticesAroundVertex: Mesh {
     ///
     /// The faces are listed in front-face CW (clockwise) order.
     fn vertices_around_vertex(&self, vertex: VertexHandle) -> DynList<'_, VertexHandle>;
+}
+
+pub trait EToV: EdgeMesh {
+    fn endpoints_of_edge(&self, edge: EdgeHandle) -> [VertexHandle; 2];
+}
+
+pub trait EToF: EdgeMesh {
+    fn faces_of_edge(&self, edge: EdgeHandle) -> DiList<FaceHandle>;
 }
