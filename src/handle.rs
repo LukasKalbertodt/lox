@@ -125,7 +125,7 @@ impl HSizeExt for hsize {
 
 /// Types that can be used to refer to some data. See [the module
 /// documentation][self] for more information on handles.
-pub trait Handle: 'static + Copy + fmt::Debug + Eq {
+pub trait Handle: 'static + Copy + fmt::Debug + Eq + Ord {
     /// Create a handle from the given index. The index must not be
     /// `hsize::max_value()` as this value is reserved!
     fn new(idx: hsize) -> Self;
@@ -168,7 +168,7 @@ pub trait Handle: 'static + Copy + fmt::Debug + Eq {
 macro_rules! make_handle_type {
     ($(#[$attr:meta])* $name:ident = $short:expr;) => {
         $(#[$attr])*
-        #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+        #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
         pub struct $name(hsize);
 
         impl Handle for $name {

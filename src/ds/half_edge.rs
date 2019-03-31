@@ -30,7 +30,7 @@ pub struct HalfEdgeMesh {
 }
 
 /// Handle to refer to half edges.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct HalfEdgeHandle(hsize);
 
 impl HalfEdgeHandle {
