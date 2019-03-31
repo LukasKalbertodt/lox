@@ -53,13 +53,13 @@ where
 /// - The set of the other adjacent faces equals the set of neighbor faces
 ///   `$neighbor`, where neighborfaces are an `Option`.
 macro_rules! assert_face_edges {
-    ($mesh:ident, [$e0:expr, $e1:expr, $e2:expr] of $f:expr => [$($neighbor:expr),* $(,)*]) => {{
+    ($mesh:ident, [$e0:expr, $e1:expr, $e2:expr], $f:expr, [$($neighbor:expr),* $(,)*]) => {{
         let edge_faces = [
             $mesh.faces_of_edge($e0),
             $mesh.faces_of_edge($e1),
             $mesh.faces_of_edge($e2),
         ];
-        crate::ds::tests::assert_face_edges_fn($f, [$e0, $e1, $e2], edge_faces, &[$($neighbor),*]);
+        crate::ds::tests::assert_face_edges_fn($f, [$e0, $e1, $e2], edge_faces, &[$($neighbor),*])
     }}
 }
 
@@ -69,8 +69,9 @@ pub fn assert_face_edges_fn(
     edges: [EdgeHandle; 3],
     edge_faces: [DiList<FaceHandle>; 3],
     neighbors: &[FaceHandle],
-) {
+) -> Vec<EdgeHandle> {
     let mut actual = HashSet::new();
+    let mut corresponding_edges = [None; 3];
     for (&edge, adjacent_faces) in edges.iter().zip(&edge_faces) {
         let adjacent_faces = adjacent_faces.into_vec();
 
@@ -114,6 +115,16 @@ pub fn assert_face_edges_fn(
                     Some(pos) => {
                         let other_pos = if pos == 0 { 1 } else { 0 };
                         actual.insert(adjacent_faces[other_pos]);
+
+                        // Here we try to find the face this edge corresponds
+                        // to. If `position` returns `None`, we already know
+                        // that this assert will fail. But we will just ignore
+                        // it, because it will be detected below -- with a nice
+                        // error message.
+                        let pos = neighbors.iter().position(|n| *n == adjacent_faces[other_pos]);
+                        if let Some(pos) = pos {
+                            corresponding_edges[pos] = Some(edge);
+                        }
                     }
                 }
             }
@@ -144,6 +155,14 @@ pub fn assert_face_edges_fn(
             data,
         );
     }
+
+    // We can now just take all the `Some` values from that array and put it
+    // into a vector. In fact, if we reach this point, the number of `Some`
+    // elements is exactly `neighbors.len()` *and* they are in the beginning
+    // of the array.
+    corresponding_edges.iter()
+        .filter_map(|opt| *opt)
+        .collect()
 }
 
 
@@ -363,7 +382,7 @@ macro_rules! gen_tri_mesh_tests {
                 assert!(m.contains_edge(e2));
 
                 gen_tri_mesh_tests!(@if EToF in [$($extra),*] => {
-                    assert_face_edges!(m, [e0, e1, e2] of f => []);
+                    assert_face_edges!(m, [e0, e1, e2], f, []);
                 });
             });
         }
@@ -468,7 +487,18 @@ macro_rules! gen_tri_mesh_tests {
                 assert!(m.contains_edge(e5));
 
                 gen_tri_mesh_tests!(@if EToF in [$($extra),*] => {
-                    // assert_face_edges!(m, [e0, e1, e2] of f_bottom => []);
+                    let e = assert_face_edges!(m, [e0, e1, e2], f_bottom, [f_ab, f_bc, f_ca]);
+                    let e_ab = e[0];
+                    let e_bc = e[1];
+                    let e_ca = e[2];
+
+                    let e = assert_face_edges!(m, [e_ab, e3, e4], f_ab, [f_bottom, f_bc, f_ca]);
+                    let e_bt = e[1];
+                    let e_at = e[2];
+                    let e_ct = e5;
+
+                    assert_face_edges!(m, [e_bc, e_bt, e_ct], f_bc, [f_ab, f_bottom, f_ca]);
+                    assert_face_edges!(m, [e_ca, e_at, e_ct], f_ca, [f_ab, f_bc, f_bottom]);
                 });
             });
         }
@@ -534,6 +564,18 @@ macro_rules! gen_tri_mesh_tests {
                 });
             });
 
+            gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                let eh = EdgeHandle::new;
+                assert_eq!(m.num_edges(), 5);
+                assert_eq_set!(m.edge_handles(), [eh(0), eh(1), eh(2), eh(3), eh(4)]);
+
+                gen_tri_mesh_tests!(@if EToF in [$($extra),*] => {
+                    let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, [fy]);
+                    let e_ac = e[0];
+                    assert_face_edges!(m, [e_ac, eh(3), eh(4)], fy, [fx]);
+                });
+            });
+
             // ----- Add third face
             let ve = m.add_vertex();
             let fz = m.add_triangle([vd, vc, ve]);
@@ -584,6 +626,23 @@ macro_rules! gen_tri_mesh_tests {
                         [Some(fx), Some(fz), None],
                     );
                     assert_eq_order!(m.faces_around_triangle(fz).into_vec(), [fy]);
+                });
+            });
+
+            gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                let eh = EdgeHandle::new;
+                assert_eq!(m.num_edges(), 7);
+                assert_eq_set!(
+                    m.edge_handles(),
+                    [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5), eh(6)],
+                );
+
+                gen_tri_mesh_tests!(@if EToF in [$($extra),*] => {
+                    let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, [fy]);
+                    let e_ac = e[0];
+                    let e = assert_face_edges!(m, [e_ac, eh(3), eh(4)], fy, [fx, fz]);
+                    let e_cd = e[1];
+                    assert_face_edges!(m, [e_cd, eh(5), eh(6)], fz, [fy]);
                 });
             });
         }
@@ -704,6 +763,35 @@ macro_rules! gen_tri_mesh_tests {
                     );
                 });
             });
+
+            gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                let eh = EdgeHandle::new;
+                assert_eq!(m.num_edges(), 12);
+                assert_eq_set!(m.edge_handles(), [
+                    eh(0), eh(1), eh(2), eh(3), eh(4), eh(5),
+                    eh(6), eh(7), eh(8), eh(9), eh(10), eh(11),
+                ]);
+
+                gen_tri_mesh_tests!(@if EToF in [$($extra),*] => {
+                    let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fu, [fv, fw]);
+                    let e_bc = e[0];
+                    let e_ab = e[1];
+
+                    let e = assert_face_edges!(m, [e_bc, eh(3), eh(4)], fv, [fu, fy]);
+                    let e_cd = e[1];
+
+                    let e = assert_face_edges!(m, [e_ab, eh(5), eh(6)], fw, [fu, fx]);
+                    let e_be = e[1];
+
+                    let e = assert_face_edges!(m, [e_be, eh(7), eh(8)], fx, [fz, fw]);
+                    let e_ef = e[0];
+
+                    let e = assert_face_edges!(m, [e_cd, eh(9), eh(10)], fy, [fv, fz]);
+                    let e_cf = e[1];
+
+                    assert_face_edges!(m, [e_cf, e_ef, eh(11)], fz, [fx, fy]);
+                });
+            });
         }
 
         gen_tri_mesh_tests!(@if_item SupportsMultiBlade in [$($extra),*] => {
@@ -774,6 +862,20 @@ macro_rules! gen_tri_mesh_tests {
                     gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
                         assert_eq_order!(m.faces_around_triangle(fx).into_vec(), []);
                         assert_eq_order!(m.faces_around_triangle(fy).into_vec(), []);
+                    });
+                });
+
+                gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                    let eh = EdgeHandle::new;
+                    assert_eq!(m.num_edges(), 6);
+                    assert_eq_set!(
+                        m.edge_handles(),
+                        [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5)],
+                    );
+
+                    gen_tri_mesh_tests!(@if EToF in [$($extra),*] => {
+                        assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, []);
+                        assert_face_edges!(m, [eh(3), eh(4), eh(5)], fy, []);
                     });
                 });
             }
@@ -859,6 +961,21 @@ macro_rules! gen_tri_mesh_tests {
                         assert_eq_order!(m.faces_around_triangle(fx).into_vec(), []);
                         assert_eq_order!(m.faces_around_triangle(fy).into_vec(), []);
                         assert_eq_order!(m.faces_around_triangle(fz).into_vec(), []);
+                    });
+                });
+
+                gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                    let eh = EdgeHandle::new;
+                    assert_eq!(m.num_edges(), 9);
+                    assert_eq_set!(
+                        m.edge_handles(),
+                        [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5), eh(6), eh(7), eh(8)],
+                    );
+
+                    gen_tri_mesh_tests!(@if EToF in [$($extra),*] => {
+                        assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, []);
+                        assert_face_edges!(m, [eh(3), eh(4), eh(5)], fy, []);
+                        assert_face_edges!(m, [eh(6), eh(7), eh(8)], fz, []);
                     });
                 });
             }
@@ -975,6 +1092,26 @@ macro_rules! gen_tri_mesh_tests {
                             );
                         });
                     });
+
+                    gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                        let eh = EdgeHandle::new;
+                        assert_eq!(m.num_edges(), 10);
+                        assert_eq_set!(
+                            m.edge_handles(),
+                            [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5), eh(6), eh(7), eh(8), eh(9)],
+                        );
+
+                        gen_tri_mesh_tests!(@if EToF in [$($extra),*] => {
+                            let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, [f]);
+                            let e_ac = e[0];
+
+                            let e = assert_face_edges!(m, [eh(3), eh(4), eh(5)], fy, [f]);
+                            let e_ad = e[0];
+
+                            assert_face_edges!(m, [eh(6), eh(7), eh(8)], fz, []);
+                            assert_face_edges!(m, [e_ac, e_ad, eh(9)], f, [fx, fy]);
+                        });
+                    });
                 }
 
                 // Insert [f, c, a]
@@ -1042,6 +1179,27 @@ macro_rules! gen_tri_mesh_tests {
                                 *m.faces_around_triangle(f).to_array(),
                                 [Some(fx), Some(fz), None]
                             );
+                        });
+                    });
+
+                    gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                        let eh = EdgeHandle::new;
+                        assert_eq!(m.num_edges(), 10);
+                        assert_eq_set!(
+                            m.edge_handles(),
+                            [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5), eh(6), eh(7), eh(8), eh(9)],
+                        );
+
+                        gen_tri_mesh_tests!(@if EToF in [$($extra),*] => {
+                            let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, [f]);
+                            let e_ac = e[0];
+
+                            assert_face_edges!(m, [eh(3), eh(4), eh(5)], fy, []);
+
+                            let e = assert_face_edges!(m, [eh(6), eh(7), eh(8)], fz, [f]);
+                            let e_af = e[0];
+
+                            assert_face_edges!(m, [e_ac, e_af, eh(9)], f, [fx, fz]);
                         });
                     });
                 }
