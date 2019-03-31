@@ -1,6 +1,11 @@
 //! This module contains macros to generate unit tests for mesh data
 //! structures.
 
+use std::{
+    fmt::Debug,
+    cmp::PartialEq,
+};
+
 /// Creates a hashset from all elements passed to this macro.
 macro_rules! set {
     ($($item:expr),* $(,)*) => {
@@ -107,47 +112,57 @@ macro_rules! assert_eq_order {
         assert_eq!($list, []);
     }};
     ($list:expr, [$a:expr $(, $tail:expr)*] $(,)?) => {{
-        let actual = $list;
-        let expected = [$a $(, $tail)*];
-
-        if actual.len() != expected.len() {
-            panic!(
-                "assert_eq_order failed (length mismatch): \n  \
-                    left: `{:?}` (`{}`),\n \
-                    right: `{:?}`",
-                actual,
-                stringify!($list),
-                expected,
-            );
-        }
-
-        let pos = actual.iter().position(|&e| e == $a).expect(concat!(
-            "assert_eq_order failed: ",
-            stringify!($a),
-            " not found in ",
+        crate::ds::tests::assert_eq_order_fn(
+            &$list[..],
+            &[$a $(, $tail)*],
             stringify!($list),
-            " (expected `[",
-            stringify!($a),
-            $(", ", stringify!($tail),)*
-            "]`)",
-        ));
-
-        let mut rotated = expected;
-        rotated.rotate_right(pos);
-
-
-        if actual != rotated {
-            panic!(
-                "assert_eq_order failed: \n  \
-                    left: `{:?}` (`{}`),\n \
-                    right: `{:?}` (original `{:?}`)",
-                actual,
-                stringify!($list),
-                rotated,
-                expected,
-            );
-        }
+        );
     }};
+}
+
+/// Helper function for macro `assert_eq_order`. Function instead of macro to
+/// improve test compile times (no inlining!).
+#[inline(never)]
+pub fn assert_eq_order_fn<T: Debug + PartialEq + Copy>(
+    actual: &[T],
+    expected: &[T],
+    actual_str: &str,
+) {
+    if actual.len() != expected.len() {
+        panic!(
+            "assert_eq_order failed (length mismatch): \n  \
+                left: `{:?}` (`{}`),\n \
+                right: `{:?}`",
+            actual,
+            actual_str,
+            expected,
+        );
+    }
+
+    let pos = actual.iter().position(|&e| e == expected[0]).unwrap_or_else(|| {
+        panic!(
+            "assert_eq_order failed: {:?} not found in {} (expected {:?})",
+            expected[0],
+            actual_str,
+            expected,
+        );
+    });
+
+    let mut rotated = expected.to_vec();
+    rotated.rotate_right(pos);
+
+
+    if actual != &rotated[..] {
+        panic!(
+            "assert_eq_order failed: \n  \
+                left: `{:?}` (`{}`),\n \
+                right: `{:?}` (original `{:?}`)",
+            actual,
+            actual_str,
+            rotated,
+            expected,
+        );
+    }
 }
 
 /// Generates unit tests for the mesh data structure `$name`.
