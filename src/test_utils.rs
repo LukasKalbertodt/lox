@@ -1,4 +1,4 @@
-use std::fmt::{self, Debug};
+use std::fmt::Debug;
 
 
 pub(crate) fn file_failure(actual: &[u8], expected: &[u8], filename: &str) {
@@ -56,14 +56,7 @@ macro_rules! assert_eq {
         assert_eq!($left, $right)
     };
     ($left:expr, $right:expr, $( $arg:tt ) + ) => {
-        crate::test_utils::assert_eq_fn_with_msg(
-            &*&$left,
-            &*&$right,
-            file!(),
-            line!(),
-            column!(),
-            format_args!($($arg)*),
-        )
+        std::assert_eq($left, $right, $($arg)+)
     };
 }
 
@@ -83,31 +76,4 @@ where
             col,
         )
     }
-}
-
-#[inline(never)]
-pub fn assert_eq_fn_with_msg<T, U>(
-    left: &T,
-    right: &U,
-    file: &str,
-    line: u32,
-    col: u32,
-    args: fmt::Arguments,
-)
-where
-    T: Debug + PartialEq<U>,
-    U: Debug,
-{
-    if left != right {
-        panic!(
-            "assert_eq failed:\n  left: `{:?}`, \n right: `{:?}`\nAt: {}:{}:{}. Message: {}\n",
-            left,
-            right,
-            file,
-            line,
-            col,
-            args
-        )
-    }
-    std::assert_eq!(left, right, "{}", args);
 }
