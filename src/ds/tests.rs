@@ -19,6 +19,78 @@ macro_rules! assert_eq_set {
     }
 }
 
+/// Takes three edges `$e0`, `$e1` and `$e2` that all belong to one face `$f`
+/// and makes sure:
+/// - Each edge is adjacent to the face `$f`
+/// - The set of the other adjacent faces equals the set of neighbor faces
+///   `$neighbor`, where neighborfaces are an `Option`.
+macro_rules! assert_face_edges {
+    ($mesh:ident, [$e0:expr, $e1:expr, $e2:expr] of $f:expr => [$($neighbor:expr),* $(,)*]) => {{
+        let mut actual = std::collections::HashSet::new();
+        for &edge in &[$e0, $e1, $e2] {
+            let adjacent_faces = $mesh.faces_of_edge(edge).into_vec();
+
+            match adjacent_faces.len() {
+                0 => {
+                    panic!(
+                        "assert_face_edges failed: {:?} is supposed to be an edge of face {:?}, \
+                            but the list returned by faces_of_edge({:?}) is empty",
+                        edge,
+                        $f,
+                        edge,
+                    );
+                }
+                1 => {
+                    assert!(
+                        adjacent_faces[0] == $f,
+                        "assert_face_edges failed: {:?} is supposed to be an edge of face {:?}, \
+                            but the list returned by faces_of_edge({:?}) does not contain {:1?} \
+                            (it just contains {:?})",
+                        edge,
+                        $f,
+                        edge,
+                        $f,
+                        adjacent_faces[0],
+                    );
+                }
+                2 => {
+                    match adjacent_faces.iter().position(|&f| f == $f) {
+                        None => {
+                            panic!(
+                                "assert_face_edges failed: {:?} is supposed to be an edge of \
+                                    face {:?}, but the list returned by faces_of_edge({:?}) \
+                                    does not contain {:?} (actual list: {:?})",
+                                edge,
+                                $f,
+                                edge,
+                                $f,
+                                adjacent_faces,
+                            );
+                        }
+                        Some(pos) => {
+                            let other_pos = if pos == 0 { 1 } else { 0 };
+                            actual.insert(adjacent_faces[other_pos]);
+                        }
+                    }
+                }
+                _ => unreachable!(), // guaranteed by `DiList`
+            }
+        }
+
+        let expected = set!($($neighbor),*);
+        assert_eq!(
+            actual,
+            expected,
+            "assert_face_edges failed: the expected neighborfaces ({:?}) of face {:?} with \
+                edges {:?} do not equal the actual neighborfaces reported by faces_of_edge ({:?})",
+            expected,
+            $f,
+            [$e0, $e1, $e2],
+            actual,
+        );
+    }}
+}
+
 /// Takes something slice-like and a list of elements. Asserts that the
 /// elements occur in the slice exactly in the specified order (but potentially
 /// shifted).
