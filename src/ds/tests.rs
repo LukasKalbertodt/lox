@@ -2,10 +2,9 @@
 //! structures.
 
 use std::{
-    collections::HashSet,
+    collections::{BTreeSet, HashSet},
     cmp::PartialEq,
     fmt::{Debug, Write},
-    hash::Hash,
 };
 
 use crate::{
@@ -19,24 +18,32 @@ use crate::{
 /// compares those sets for equality via `assert_eq`.
 macro_rules! assert_eq_set {
     ($iter:expr, [$($item:expr),* $(,)*] $(,)?) => {
-        crate::ds::tests::assert_eq_set_fn($iter, &[$($item),*], line!());
+        crate::ds::tests::assert_eq_set_fn(
+            $iter,
+            &[$($item),*],
+            stringify!($iter),
+            stringify!([$($item),*]),
+        );
     }
 }
 
 /// Internal helper function for `assert_eq_set`.
-pub fn assert_eq_set_fn<I, T>(actual: I, expected: &[T], line: u32)
+pub fn assert_eq_set_fn<I, T>(actual: I, expected: &[T], left_str: &str, right_str: &str)
 where
     I: Iterator<Item = T>,
-    T: Debug + Clone + Eq + Hash,
+    T: Debug + Clone + Eq + Ord,
 {
-    let actual = actual.collect::<HashSet<_>>();
-    let expected = expected.iter().cloned().collect::<HashSet<_>>();
-    assert_eq!(
-        actual,
-        expected,
-        "assert_eq_set failed (line {})",
-        line,
-    );
+    let actual = actual.collect::<BTreeSet<_>>();
+    let expected = expected.iter().cloned().collect::<BTreeSet<_>>();
+    if actual != expected {
+        panic!(
+            "assert_eq_set({}, {}) failed:\n  left: {:?}\n right: {:?} ",
+            left_str,
+            right_str,
+            actual,
+            expected,
+        );
+    }
 }
 
 
