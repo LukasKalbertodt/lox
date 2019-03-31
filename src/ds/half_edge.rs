@@ -8,7 +8,7 @@ use crate::{
     handle::{hsize, Opt, Handle},
     map::VecMap,
     traits::marker::TriFaces,
-    util::TriList,
+    util::{DiList, TriList},
 };
 
 
@@ -43,8 +43,27 @@ impl HalfEdgeHandle {
     /// stored right next to each other and that the handles start counting at
     /// an even number (0 in our case). Thus, we can simply flip the last bit
     /// of the handle id to get the twin handle.
-    fn twin(&self) -> HalfEdgeHandle {
+    fn twin(self) -> HalfEdgeHandle {
         Self::new(self.idx() ^ 1)
+    }
+
+    /// Returns one (arbitrary) half-edge of the given edge.
+    ///
+    /// Again, due to our assumptions on how edges are stored, we just have to
+    /// multiply the edges handle with 2 to get a corresponding half edge
+    /// handle. This method does not check if the half edge actually exists.
+    fn one_half_of(edge: EdgeHandle) -> Self {
+        Self(edge.idx() * 2)
+    }
+
+    /// Returns the full edge this half-edge belongs to.
+    ///
+    /// This works only because we know we store the half edges adjacent to one
+    /// another. Of one edge, the half edge with the smaller index always has
+    /// an even index, while the other one has an odd one. This means we can
+    /// just integer divide by 2 and get the edge index.
+    fn full_edge(self) -> EdgeHandle {
+        EdgeHandle::new(self.0 / 2)
     }
 }
 
@@ -536,12 +555,12 @@ impl EdgeMesh for HalfEdgeMesh {
         Box::new(
             self.half_edges.handles()
                 .filter(|he| he.idx() % 2 == 0)
-                .map(|he| EdgeHandle::new(he.idx() / 2))
+                .map(|he| he.full_edge())
         )
     }
 
     fn contains_edge(&self, edge: EdgeHandle) -> bool {
-        let he = HalfEdgeHandle::new(edge.idx() * 2);
+        let he = HalfEdgeHandle::one_half_of(edge);
         self.half_edges.contains_handle(he)
     }
 }
@@ -644,6 +663,26 @@ impl FacesAroundVertex for HalfEdgeMesh {
         })
     }
 }
+
+impl EToV for HalfEdgeMesh {
+    fn endpoints_of_edge(&self, edge: EdgeHandle) -> [VertexHandle; 2] {
+        let a = HalfEdgeHandle::one_half_of(edge);
+        let b = a.twin();
+        [self.half_edges[a].target, self.half_edges[b].target]
+    }
+}
+
+impl EToF for HalfEdgeMesh {
+    fn faces_of_edge(&self, edge: EdgeHandle) -> DiList<FaceHandle> {
+        let a = HalfEdgeHandle::one_half_of(edge);
+        let b = a.twin();
+        DiList::from_options(
+            self.half_edges[a].face.to_option(),
+            self.half_edges[b].face.to_option(),
+        )
+    }
+}
+
 
 /// Iterator over all faces of a vertex. Is returned by `faces_around_vertex`.
 struct FaceCirculator<'a> {
