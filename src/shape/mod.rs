@@ -96,17 +96,16 @@ impl StreamSource for Tetrahedron {
         let top = sink.add_vertex();
         sink.set_vertex_position::<f64>(top, self.center + Vector3::new(0.0, 0.0, self.radius));
 
-        let z_bottom = -self.radius / 3.0;
-        let apos = Vector3::new((8.0f64 / 9.0).sqrt(), 0.0, z_bottom);
-        let bpos = Vector3::new(-(2.0f64 / 9.0).sqrt(), (2.0f64 / 3.0).sqrt(), z_bottom);
-        let cpos = Vector3::new(-(2.0f64 / 9.0).sqrt(), -(2.0f64 / 3.0).sqrt(), z_bottom);
+        let apos = Vector3::new((8.0f64 / 9.0).sqrt(), 0.0, -1.0 / 3.0);
+        let bpos = Vector3::new(-(2.0f64 / 9.0).sqrt(), (2.0f64 / 3.0).sqrt(), -1.0 / 3.0);
+        let cpos = Vector3::new(-(2.0f64 / 9.0).sqrt(), -(2.0f64 / 3.0).sqrt(), -1.0 / 3.0);
 
         let a = sink.add_vertex();
         let b = sink.add_vertex();
         let c = sink.add_vertex();
-        sink.set_vertex_position::<f64>(a, self.center + apos);
-        sink.set_vertex_position::<f64>(b, self.center + bpos);
-        sink.set_vertex_position::<f64>(c, self.center + cpos);
+        sink.set_vertex_position::<f64>(a, self.center + self.radius * apos);
+        sink.set_vertex_position::<f64>(b, self.center + self.radius * bpos);
+        sink.set_vertex_position::<f64>(c, self.center + self.radius * cpos);
 
         // Add faces
         sink.add_face([a, c, b]);
