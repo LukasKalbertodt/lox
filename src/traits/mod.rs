@@ -243,7 +243,7 @@ pub trait EdgeMesh: Mesh {
     /// Returns an iterator over the handles of all edges in this mesh.
     ///
     /// Note that this iterator only yields the handles. To get an iterator
-    /// over `EdgeRef`s, use [`edges()`][EdgeMesh::edge], which is often more
+    /// over `EdgeRef`s, use [`edges()`][EdgeMesh::edges], which is often more
     /// useful.
     ///
     /// The order of the edges is unspecified, but each edge is yielded by the

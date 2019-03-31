@@ -20,8 +20,8 @@ pub trait VerticesAroundFace: Mesh {
     /// Returns the vertices around the given face in front-face CCW order.
     ///
     /// If you are dealing with a triangular mesh, rather use
-    /// [`vertices_around_triangle`][Self::vertices_around_triangle] instead as
-    /// it's usually faster.
+    /// [`vertices_around_triangle`][VerticesAroundFace::vertices_around_triangle]
+    /// instead as it's usually faster.
     fn vertices_around_face(&self, face: FaceHandle) -> DynList<'_, VertexHandle>;
 
     /// Checks whether the given vertex is adjacent to the given face.
@@ -41,8 +41,8 @@ pub trait FacesAroundFace: Mesh {
     /// Returns the faces around the given face in front-face CCW order.
     ///
     /// If you are dealing with a triangular mesh, rather use
-    /// [`faces_around_triangle`][Self::faces_around_triangle] instead as it's
-    /// usually faster.
+    /// [`faces_around_triangle`][FacesAroundFace::faces_around_triangle]
+    /// instead as it's usually faster.
     fn faces_around_face(&self, face: FaceHandle) -> DynList<'_, FaceHandle>;
 
     /// Checks whether the two given faces share an edge (are "adjacent" to one
