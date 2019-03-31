@@ -309,3 +309,37 @@ impl<'a, MeshT: 'a> FaceRef<'a, MeshT> {
         self.mesh.are_faces_adjacent(self.handle, fh)
     }
 }
+
+impl<'a, MeshT: 'a> EdgeRef<'a, MeshT> {
+    /// Returns the two vertex endpoints of this edge.
+    pub fn endpoints(&self) -> [VertexRef<'_, MeshT>; 2]
+    where
+        MeshT: EToV,
+    {
+        let mesh = self.mesh;
+        let handles = self.mesh.endpoints_of_edge(self.handle);
+        [VertexRef::new(mesh, handles[0]), VertexRef::new(mesh, handles[1])]
+    }
+
+    /// Returns an iterator over all faces adjacent to this face.
+    ///
+    /// See `VertexRef::adjacent_faces` for more information.
+    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'_, MeshT>>
+    where
+        MeshT: EToF,
+    {
+        let mesh = &*self.mesh;
+        self.mesh.faces_of_edge(self.handle)
+            .into_iter()
+            .map(move |h| FaceRef::new(mesh, h))
+    }
+
+    /// Returns whether or not this edge is a boundary edge (that is, if it has
+    /// less than 2 adjacent faces).
+    pub fn is_at_boundary(&self) -> bool
+    where
+        MeshT: EToF,
+    {
+        self.mesh.faces_of_edge(self.handle).len() != 2
+    }
+}
