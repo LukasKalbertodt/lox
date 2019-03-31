@@ -295,6 +295,10 @@ macro_rules! gen_tri_mesh_tests {
                 assert!(m.contains_edge(e0));
                 assert!(m.contains_edge(e1));
                 assert!(m.contains_edge(e2));
+
+                gen_tri_mesh_tests!(@if EToF in [$($extra),*] => {
+                    assert_face_edges!(m, [e0, e1, e2] of f => []);
+                });
             });
         }
 
@@ -377,6 +381,28 @@ macro_rules! gen_tri_mesh_tests {
                         m.faces_around_triangle(f_ca).into_vec(),
                         [f_ab, f_bc, f_bottom],
                     );
+                });
+            });
+
+            gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                let e0 = EdgeHandle::new(0);
+                let e1 = EdgeHandle::new(1);
+                let e2 = EdgeHandle::new(2);
+                let e3 = EdgeHandle::new(3);
+                let e4 = EdgeHandle::new(4);
+                let e5 = EdgeHandle::new(5);
+
+                assert_eq!(m.num_edges(), 6);
+                assert_eq_set!(m.edge_handles(), [e0, e1, e2, e3, e4, e5]);
+                assert!(m.contains_edge(e0));
+                assert!(m.contains_edge(e1));
+                assert!(m.contains_edge(e2));
+                assert!(m.contains_edge(e3));
+                assert!(m.contains_edge(e4));
+                assert!(m.contains_edge(e5));
+
+                gen_tri_mesh_tests!(@if EToF in [$($extra),*] => {
+                    // assert_face_edges!(m, [e0, e1, e2] of f_bottom => []);
                 });
             });
         }
@@ -1078,6 +1104,8 @@ macro_rules! gen_tri_mesh_tests {
     (@is_valid_extra_trait FacesAroundVertex) => {};
     (@is_valid_extra_trait VerticesAroundVertex) => {};
     (@is_valid_extra_trait FacesAroundFace) => {};
+    (@is_valid_extra_trait EToF) => {};
+    (@is_valid_extra_trait EToV) => {};
     (@is_valid_extra_trait TriMesh) => {};
     (@is_valid_extra_trait EdgeMesh) => {};
     (@is_valid_extra_trait Manifold) => {}; // this is not a real trait yet...

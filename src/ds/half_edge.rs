@@ -744,6 +744,8 @@ mod test {
         VerticesAroundVertex,
         FacesAroundFace,
         FacesAroundVertex,
+        EToF,
+        EToV,
         Manifold,
         SupportsMultiBlade
     ]);
