@@ -43,6 +43,82 @@ use crate::{
 };
 
 
+/// A regular Tetrahedron: pyramide with triangle-base and pointy top, all
+/// sides are equilateral triangles.
+#[derive(Debug, Clone, Copy)]
+pub struct Tetrahedron {
+    /// The center (centroid of vertices) point of the tetrahedron. *Default*:
+    /// `[0, 0, 0]`.
+    pub center: Point3<f64>,
+
+    /// The outer "radius" (distance between vertices and center) *Default*:
+    /// 1.0.
+    pub radius: f64,
+}
+
+impl Default for Tetrahedron {
+    fn default() -> Self {
+        Self {
+            center: Point3::origin(),
+            radius: 1.0,
+        }
+    }
+}
+
+impl StreamSource for Tetrahedron {
+    fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error> {
+        // ASCII-art:
+        //
+        //             (T)
+        //            / | \
+        //           /  |  \
+        //          /   |   \
+        //         /   (B)   \
+        //        / ⋰     ⋱  \
+        //       (C) ------- (A)
+        //
+        // T is at (0, 0, r), A is at (_, 0, _).
+        //
+
+        // Prepare the sink
+        let vertex_count = 4;
+        let face_count = 4;
+
+        sink.size_hint(MeshSizeHint {
+            vertex_count: Some(vertex_count),
+            face_count: Some(face_count),
+        });
+
+        sink.prepare_vertex_positions::<f64>(vertex_count)?;
+        // sink.prepare_face_normals::<f64>(face_count)?;
+
+        // Add vertices
+        let top = sink.add_vertex();
+        sink.set_vertex_position::<f64>(top, self.center + Vector3::new(0.0, 0.0, self.radius));
+
+        let z_bottom = -self.radius / 3.0;
+        let apos = Vector3::new((8.0f64 / 9.0).sqrt(), 0.0, z_bottom);
+        let bpos = Vector3::new(-(2.0f64 / 9.0).sqrt(), (2.0f64 / 3.0).sqrt(), z_bottom);
+        let cpos = Vector3::new(-(2.0f64 / 9.0).sqrt(), -(2.0f64 / 3.0).sqrt(), z_bottom);
+
+        let a = sink.add_vertex();
+        let b = sink.add_vertex();
+        let c = sink.add_vertex();
+        sink.set_vertex_position::<f64>(a, self.center + apos);
+        sink.set_vertex_position::<f64>(b, self.center + bpos);
+        sink.set_vertex_position::<f64>(c, self.center + cpos);
+
+        // Add faces
+        sink.add_face([a, c, b]);
+        sink.add_face([a, b, top]);
+        sink.add_face([b, c, top]);
+        sink.add_face([c, a, top]);
+
+        Ok(())
+    }
+}
+
+
 /// A flat round disc that lies in the XY-plane and which normals point upwards
 /// (+z).
 #[derive(Debug)]
