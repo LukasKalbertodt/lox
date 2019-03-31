@@ -1,3 +1,5 @@
+use std::fmt::{self, Debug};
+
 
 pub(crate) fn file_failure(actual: &[u8], expected: &[u8], filename: &str) {
     use std::fmt::Write;
@@ -44,4 +46,68 @@ macro_rules! include_test_file {
         let bytes = include_bytes!(concat!("test_files/", $filename)) as &[u8];
         std::io::Cursor::new(bytes)
     }}
+}
+
+macro_rules! assert_eq {
+    ($left:expr, $right:expr) => {
+        crate::test_utils::assert_eq_fn(&*&$left, &*&$right, file!(), line!(), column!())
+    };
+    ($left:expr, $right:expr, ) => {
+        assert_eq!($left, $right)
+    };
+    ($left:expr, $right:expr, $( $arg:tt ) + ) => {
+        crate::test_utils::assert_eq_fn_with_msg(
+            &*&$left,
+            &*&$right,
+            file!(),
+            line!(),
+            column!(),
+            format_args!($($arg)*),
+        )
+    };
+}
+
+#[inline(never)]
+pub fn assert_eq_fn<T, U>(left: &T, right: &U, file: &str, line: u32, col: u32)
+where
+    T: Debug + PartialEq<U>,
+    U: Debug,
+{
+    if left != right {
+        panic!(
+            "assert_eq failed:\n  left: `{:?}`, \n right: `{:?}`\nAt: {}:{}:{}",
+            left,
+            right,
+            file,
+            line,
+            col,
+        )
+    }
+}
+
+#[inline(never)]
+pub fn assert_eq_fn_with_msg<T, U>(
+    left: &T,
+    right: &U,
+    file: &str,
+    line: u32,
+    col: u32,
+    args: fmt::Arguments,
+)
+where
+    T: Debug + PartialEq<U>,
+    U: Debug,
+{
+    if left != right {
+        panic!(
+            "assert_eq failed:\n  left: `{:?}`, \n right: `{:?}`\nAt: {}:{}:{}. Message: {}\n",
+            left,
+            right,
+            file,
+            line,
+            col,
+            args
+        )
+    }
+    std::assert_eq!(left, right, "{}", args);
 }
