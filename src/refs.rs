@@ -283,11 +283,23 @@ impl<'a, MeshT: 'a> FaceRef<'a, MeshT> {
     /// Returns an iterator over all vertices of this face.
     pub fn adjacent_vertices(&self) -> impl Iterator<Item = VertexRef<'_, MeshT>>
     where
-        MeshT: TriMesh + VerticesAroundFace,
+        MeshT: VerticesAroundFace,
     {
         let mesh = self.mesh;
         self.mesh.vertices_around_face(self.handle)
             .map(move |h| VertexRef::new(mesh, h))
+    }
+
+    /// Returns an iterator over all faces adjacent to this face.
+    ///
+    /// See `VertexRef::adjacent_faces` for more information.
+    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'_, MeshT>>
+    where
+        MeshT: FacesAroundFace,
+    {
+        let mesh = &*self.mesh;
+        self.mesh.faces_around_face(self.handle)
+            .map(move |h| FaceRef::new(mesh, h))
     }
 
     pub fn is_adjacent_to_face(&self, fh: FaceHandle) -> bool
