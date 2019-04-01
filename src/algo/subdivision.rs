@@ -4,7 +4,6 @@ use crate::{
     map::VecMap,
     math::PrimitiveFloat,
     prop::Pos3Like,
-    refs::VertexRef,
 };
 
 
@@ -26,12 +25,7 @@ where
     MapT::Target: Pos3Like<Scalar = ScalarT>,
     ScalarT: PrimitiveFloat,
 {
-    // Helper function to get the position of a vertex.
-    let pos_of = |vertex_positions: &MapT, v: VertexRef<'_, MeshT>| {
-        *vertex_positions.get(v.handle()).expect("missing vertex position")
-    };
-
-
+    // ----- (1) Calculate new positions for old vertices ----------------------------------------
     // We have to calculate a new position for all already existing vertices.
     // To do that we need their old positions, so we have no choice but making
     // a copy. We write the new positions into this copy and only write them
@@ -39,17 +33,16 @@ where
     // new vertex points also relies on the old positions.
     let mut new_positions = vertex_positions.clone();
 
-    // Calculate new positions for old vertices
     for vh in mesh.vertex_handles() {
         let v = mesh.get_ref(vh);
-        let old_pos = pos_of(vertex_positions, v);
+        let old_pos = vertex_positions[vh];
 
         // Count the number of neighbors and calculate the centroid of all
         // neighbors.
         let mut valence = 0;
         let maybe_centroid = v.ring1_neighbors()
             .inspect(|_| valence += 1)
-            .map(|v| pos_of(vertex_positions, v))
+            .map(|v| vertex_positions[v.handle()])
             .centroid();
 
         // Set the new vertex position
@@ -76,6 +69,8 @@ where
         }).unwrap_or(old_pos);
     }
 
+
+    // ----- (2) Create new vertices -------------------------------------------------------------
     // We create a new vertex per face, so we will create a map from face
     // handle to vertex handle. This is done in two steps since we run in
     // borrowing problems.
@@ -87,7 +82,7 @@ where
         // vertices. We can unwrap because the face always has three vertices.
         let point_pos = mesh.get_ref(fh)
             .adjacent_vertices()
-            .map(|v| pos_of(vertex_positions, v))
+            .map(|v| vertex_positions[v.handle()])
             .centroid()
             .unwrap();
 
@@ -100,6 +95,7 @@ where
     }).collect::<VecMap<_, _>>();
 
 
+    // ----- (3) Create new faces ----------------------------------------------------------------
     // Create a list of new faces we want to add
     let mut new_faces = Vec::new();
     let mut faces_cache = Vec::new();
@@ -128,6 +124,8 @@ where
         mesh.add_triangle(new_face);
     }
 
+
+    // ----- Cleanup -----------------------------------------------------------------------------
     for vh in new_positions.handles() {
         vertex_positions[vh] = new_positions[vh];
     }
