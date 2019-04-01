@@ -70,6 +70,10 @@ impl MeshMut for SharedVertexMesh {
     fn remove_all_faces(&mut self) {
         self.faces.clear();
     }
+
+    fn split_face(&mut self, _f: FaceHandle) -> VertexHandle {
+        unimplemented!()
+    }
 }
 
 

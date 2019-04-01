@@ -506,6 +506,10 @@ impl MeshMut for FaceDelegateMesh {
             v.face = Opt::none();
         }
     }
+
+    fn split_face(&mut self, _f: FaceHandle) -> VertexHandle {
+        unimplemented!()
+    }
 }
 
 impl VerticesAroundFace for FaceDelegateMesh {

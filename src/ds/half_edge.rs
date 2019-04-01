@@ -522,6 +522,119 @@ impl MeshMut for HalfEdgeMesh {
             v.outgoing = Opt::none();
         }
     }
+
+    fn split_face(&mut self, f: FaceHandle) -> VertexHandle {
+        // Assuming the face `f` has N adjacent edges, then we need to add:
+        // - N - 1 new faces
+        // - N new edges (2N new half edges)
+        // - 1 new vertex (the "midpoint")
+        //
+        // Let's visualize what are are about to do (for the N=3 case, but it
+        // works for all Ns). On the left is the current situation, on the
+        // right what it looks like after this method is done. The outer half
+        // edges of the original faces are not shown.
+        //
+        //               (A)                |               (A)
+        //              /   ^               |             / ^ | ^
+        //             /     \              |            /  | |  \
+        //            /       \             |           /   | |   \
+        //           /         \            |          /    | v    \
+        //          /           \           |         /     (M)     \
+        //         /             \          |        /    ↗⟋   ↖⟍    \
+        //        /               \         |       /   ⟋⟋      ⟍⟍   \
+        //       /                 \        |      /  ⟋⟋          ⟍⟍  \
+        //      v                   \       |     v ⟋↙              ⟍↘ \
+        //    (B) ----------------> (C)     |    (B) ----------------> (C)
+        //
+        //
+        // In the beginning, we add the `midpoint` vertex. We also add the
+        // first edge: between `midpoint` and one vertex of `f` (let's say it's
+        // (A), but it doesn't matter).
+        //
+        // In the loop, we iterate N - 1 times counter click-wise around (M).
+        // In each iteration, we will add one edge and one face. Example for
+        // the triangle case above:
+        // - 1st iteration: add edge between (B) and (M), add face [M, A, B].
+        // - 2nd iteration: add edge between (C and (M), add face [M, B, C].
+        //
+        // The last face is "added" outside of the loop. That's because (a), we
+        // don't have to add a new edge (we use the one added at the very
+        // start) and (b) because we can then reuse the old face.
+        //
+        // For half edge handles, this method uses the following naming scheme:
+        // half edges that existed before the function was called are called
+        // `_ohe` (old half edge). Half edges that are inserted by this
+        // function are called `_nhe` (new half edge).
+
+        // Add new vertex "in the middle".
+        let midpoint = self.add_vertex();
+
+        // Pick arbitrary start edge and vertex. In the example above that are
+        // `(A) -> (B)` and (A), respectively.
+        let start_ohe = self.faces[f].edge;
+        let start_vertex = self.half_edges[start_ohe.twin()].target;
+
+        // Add first edge and set midpoint's `outgoing` to that edge.
+        let start_nhe = self.add_edge_partially(midpoint, start_vertex);
+        self.vertices[midpoint].outgoing = Opt::some(start_nhe);
+
+        // `border_ohe` is one if the inner half edges of the original face.
+        // Each loop iteration changes this value to its `next` half edge. That
+        // way we circulate around the face/midpoint. This is `(A) -> (B)` in
+        // the example above in the first loop iteration.
+        //
+        // `last_nhe`: The edge that was last added. The variable stores the
+        // half edge pointing away from `midpoint`. This is also changed in
+        // each loop iteration as each loop iteration creates a new edge. This
+        // is `(M) -> (A)` in the example above in the first loop iteration.
+        let mut border_ohe = start_ohe;
+        let mut last_nhe = start_nhe;
+
+        // We iterate N - 1 times. We handle the last face manually.
+        while self.half_edges[border_ohe].target != start_vertex {
+            // We store the next iteration edge now already, because we will
+            // overwrite the `next` value below.
+            let next_border_ohe = self.half_edges[border_ohe].next;
+
+            // Add the a edge
+            let next_vertex = self.half_edges[border_ohe].target;
+            let next_nhe = self.add_edge_partially(midpoint, next_vertex);
+
+            // Add the new face. This includes setting the `next` and `face`
+            // fields of the edges of the new triangle. These are:
+            // `border_ohe`, `last_nhe` and `next_nhe.twin()`.
+            let inner_new = next_nhe.twin();
+            let new_face = self.faces.push(Face { edge: inner_new });
+
+            self.half_edges[inner_new].next = last_nhe;
+            self.half_edges[last_nhe].next = border_ohe;
+            self.half_edges[border_ohe].next = inner_new;
+
+            self.half_edges[inner_new].face = Opt::some(new_face);
+            self.half_edges[last_nhe].face = Opt::some(new_face);
+            self.half_edges[border_ohe].face = Opt::some(new_face);
+
+
+            // Advance the iteration edges
+            last_nhe = next_nhe;
+            border_ohe = next_border_ohe;
+        }
+
+        // "Add" the last face. We are reusing the existing one.
+        let start_inner_nhe = start_nhe.twin();
+        self.faces[f].edge = start_inner_nhe;
+
+        self.half_edges[start_inner_nhe].next = last_nhe;
+        self.half_edges[last_nhe].next = border_ohe;
+        self.half_edges[border_ohe].next = start_inner_nhe;
+
+        self.half_edges[start_inner_nhe].face = Opt::some(f);
+        self.half_edges[last_nhe].face = Opt::some(f);
+        // `border_ohe.face` is already `f`
+
+
+        midpoint
+    }
 }
 
 impl EdgeMesh for HalfEdgeMesh {

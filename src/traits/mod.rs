@@ -233,6 +233,8 @@ pub trait MeshMut: Mesh {
     /// done by this data structure. But this function might also do nothing
     /// (that's exactly what the provided default implementation does).
     fn reserve_for_faces(&mut self, _count: hsize) {}
+
+    fn split_face(&mut self, f: FaceHandle) -> VertexHandle;
 }
 
 /// A mesh that has explicit edges. This allows to store per-edge attributes.
