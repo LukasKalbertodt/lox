@@ -662,6 +662,100 @@ impl EdgeMesh for HalfEdgeMesh {
     }
 }
 
+impl TriEdgeMeshMut for HalfEdgeMesh {
+    fn flip_edge(&mut self, edge: EdgeHandle) {
+        //                                  |
+        //            Before                |                After
+        //            ------                |                -----
+        //                                  |
+        //                                  |
+        //              [C]                 |                 [C]
+        //                                  |
+        //          ^  /   ^  \             |             ^  /   ^  \
+        //         /  /     \  \            |            /  / ^ | \  \
+        //        /  /       \  \           |           /  /  | |  \  \
+        //       /  /         \  \          |          /  /   | |   \  \
+        //      /  /c         d\  \         |         /  /c   | |   d\  \
+        //     /  /     (X)     \  \        |        /  /     | |     \  \
+        //    /  /               \  \       |       /  /      | |      \  \
+        //   /  /                 \  \      |      /  /       | |       \  \
+        //  /  v         a         \  v     |     /  v        | |        \  v
+        //       --------------->           |                 | |
+        //  [A]                     [B]     |     [A]   (Y)  b| |a  (X)   [B]
+        //       <---------------           |                 | |
+        //  ^  \         b         ^  /     |     ^  \        | |        ^  /
+        //   \  \                 /  /      |      \  \       | |       /  /
+        //    \  \               /  /       |       \  \      | |      /  /
+        //     \  \     (Y)     /  /        |        \  \     | |     /  /
+        //      \  \e         f/  /         |         \  \e   | |   f/  /
+        //       \  \         /  /          |          \  \   | |   /  /
+        //        \  \       /  /           |           \  \  | |  /  /
+        //         \  \     /  /            |            \  \ | v /  /
+        //          \  v   /  v             |             \  v   /  v
+        //                                  |
+        //              [D]                 |                 [D]
+        //
+        //
+        // ### A mapping from graphic names to variable names:
+        //
+        //  Edges                      Vertices               Faces
+        //  -----                      --------               -----
+        //  a: center_above            [A]: v_left             (X): f_above
+        //  b: center_below            [B]: v_right            (Y): f_below
+        //  c: above_left              [C]: v_above
+        //  d: above_right             [D]: v_below
+        //  e: below_left
+        //  f: below_right
+        //
+        //
+        // We just imagine that the "random" half-edge we get from
+        // `one_half_of()` is the edge `a` in the drawing.
+
+        assert!(
+            self.faces_of_edge(edge).len() == 2,
+            "`flip_edge` called on boundary edge {:?}",
+            edge,
+        );
+
+        // First, let's just obtain all handles
+        let center_above = HalfEdgeHandle::one_half_of(edge);
+        let center_below = center_above.twin();
+        let above_right = self.half_edges[center_above].next;
+        let above_left = self.half_edges[above_right].next;
+        let below_left = self.half_edges[center_below].next;
+        let below_right = self.half_edges[below_left].next;
+
+        let f_above = self.half_edges[center_above].face.unwrap();
+        let f_below = self.half_edges[center_below].face.unwrap();
+
+        let v_right = self.half_edges[center_above].target;
+        let v_left = self.half_edges[center_below].target;
+        let v_above = self.half_edges[above_right].target;
+        let v_below = self.half_edges[below_left].target;
+
+
+        // Update all fields
+        self.vertices[v_left].outgoing = Opt::some(below_left);
+        self.vertices[v_right].outgoing = Opt::some(above_right);
+
+        self.faces[f_above].edge = center_above;
+        self.faces[f_below].edge = center_below;
+
+        self.half_edges[center_above].target = v_below;
+        self.half_edges[center_above].next = below_right;
+        self.half_edges[center_below].target = v_above;
+        self.half_edges[center_below].next = above_left;
+
+        self.half_edges[below_right].face = Opt::some(f_above);
+        self.half_edges[below_right].next = above_right;
+        self.half_edges[above_right].next = center_above;
+
+        self.half_edges[above_left].face = Opt::some(f_below);
+        self.half_edges[above_left].next = below_left;
+        self.half_edges[below_left].next = center_below;
+    }
+}
+
 impl SupportsMultiBlade for HalfEdgeMesh {}
 
 // ===============================================================================================
