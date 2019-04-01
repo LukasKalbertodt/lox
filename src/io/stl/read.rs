@@ -7,7 +7,7 @@ use std::{
     path::Path,
 };
 
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder::{ByteOrder, LittleEndian, ReadBytesExt};
 use hashbrown::{HashMap, hash_map::Entry};
 
 use crate::{
@@ -366,8 +366,6 @@ impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
         triangle_count: u32,
         mut add_triangle: impl FnMut(RawTriangle),
     ) -> Result<(), Error> {
-        use byteorder::{ByteOrder, LittleEndian};
-
         const BYTES_PER_TRI: usize = 4 * 3 * 4 + 2;
 
 
