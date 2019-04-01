@@ -17,6 +17,7 @@ pub fn sqrt3<MeshT, MapT, ScalarT>(
 )
 where
     MeshT: TriMeshMut
+        + TriEdgeMeshMut
         + VerticesAroundFace
         + FacesAroundVertex
         + FacesAroundFace
@@ -25,6 +26,10 @@ where
     MapT::Target: Pos3Like<Scalar = ScalarT>,
     ScalarT: PrimitiveFloat,
 {
+    // Remember the original edges of the mesh.
+    // TODO: replace with proper prop set
+    let old_edges: VecMap<EdgeHandle, ()> = mesh.edge_handles().map(|eh| (eh, ())).collect();
+
     // ----- (1) Calculate new positions for old vertices ----------------------------------------
     // We have to calculate a new position for all already existing vertices.
     // To do that we need their old positions, so we have no choice but making
@@ -70,14 +75,13 @@ where
     }
 
 
-    // ----- (2) Create new vertices -------------------------------------------------------------
-    // We create a new vertex per face, so we will create a map from face
-    // handle to vertex handle. This is done in two steps since we run in
-    // borrowing problems.
+    // ----- (2) Split faces and calc new vertex positions ---------------------------------------
+    // We create a new vertex per face by splitting each face into three new
+    // ones.
     //
     // TODO: collecting face handles first should not be necessary
     let face_handles = mesh.face_handles().collect::<Vec<_>>();
-    let new_vertices = face_handles.into_iter().map(|fh| {
+    for fh in face_handles {
         // The position of the new vertex is just the centroid of the face's
         // vertices. We can unwrap because the face always has three vertices.
         let point_pos = mesh.get_ref(fh)
@@ -86,46 +90,16 @@ where
             .centroid()
             .unwrap();
 
-        // Add a vertex with the calculate position
-        let vh = mesh.add_vertex();
+        // Split face and set position of the midpoint.
+        let vh = mesh.split_face(fh);
         vertex_positions.insert(vh, point_pos);
-
-        // We want build a face -> vertex map
-        (fh, vh)
-    }).collect::<VecMap<_, _>>();
-
-
-    // ----- (3) Create new faces ----------------------------------------------------------------
-    // Create a list of new faces we want to add
-    let mut new_faces = Vec::new();
-    let mut faces_cache = Vec::new();
-    for v in mesh.vertices() {
-        faces_cache.clear();
-        faces_cache.extend(v.adjacent_faces());
-
-        for i in 0..faces_cache.len() {
-            let curr = faces_cache[i];
-            let next = faces_cache[(i + 1) % faces_cache.len()];
-            if curr.is_adjacent_to_face(next.handle()) {
-                new_faces.push([
-                    new_vertices[next.handle()],
-                    new_vertices[curr.handle()],
-                    v.handle(),
-                ]);
-            }
-        }
     }
 
-    // All old faces will be replaced
-    mesh.remove_all_faces();
-
-    // Now add all the faces to the mesh
-    for new_face in new_faces {
-        mesh.add_triangle(new_face);
+    // ----- Flip all old edges and set relaxed vertex positions ---------------------------------
+    for eh in old_edges.handles() {
+        mesh.flip_edge(eh);
     }
 
-
-    // ----- Cleanup -----------------------------------------------------------------------------
     for vh in new_positions.handles() {
         vertex_positions[vh] = new_positions[vh];
     }

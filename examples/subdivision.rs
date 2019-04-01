@@ -2,12 +2,12 @@ use failure::Error;
 
 use lox::{
     algo,
-    ds::FaceDelegateMesh,
+    ds,
     fat::MiniMesh,
     io,
 };
 
-type MyMesh = MiniMesh<FaceDelegateMesh>;
+type MyMesh = MiniMesh<ds::HalfEdgeMesh>;
 
 fn main() -> Result<(), Error> {
     // Read CLI arguments
