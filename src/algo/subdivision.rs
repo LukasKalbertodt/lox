@@ -22,14 +22,59 @@ where
         + FacesAroundVertex
         + FacesAroundFace
         + VerticesAroundVertex,
-    MapT: PropStoreMut<VertexHandle>,
+    MapT: PropStoreMut<VertexHandle> + Clone,
     MapT::Target: Pos3Like<Scalar = ScalarT>,
     ScalarT: PrimitiveFloat,
 {
     // Helper function to get the position of a vertex.
-    let pos_of = |vertex_positions: &mut MapT, v: VertexRef<'_, MeshT>| {
+    let pos_of = |vertex_positions: &MapT, v: VertexRef<'_, MeshT>| {
         *vertex_positions.get(v.handle()).expect("missing vertex position")
     };
+
+
+    // We have to calculate a new position for all already existing vertices.
+    // To do that we need their old positions, so we have no choice but making
+    // a copy. We write the new positions into this copy and only write them
+    // back into `vertex_positions` at the very end, since the calculation of
+    // new vertex points also relies on the old positions.
+    let mut new_positions = vertex_positions.clone();
+
+    // Calculate new positions for old vertices
+    for vh in mesh.vertex_handles() {
+        let v = mesh.get_ref(vh);
+        let old_pos = pos_of(vertex_positions, v);
+
+        // Count the number of neighbors and calculate the centroid of all
+        // neighbors.
+        let mut valence = 0;
+        let maybe_centroid = v.ring1_neighbors()
+            .inspect(|_| valence += 1)
+            .map(|v| pos_of(vertex_positions, v))
+            .centroid();
+
+        // Set the new vertex position
+        new_positions[vh] = maybe_centroid.map(|centroid| {
+            // Helper macro to create literal values of type `ScalarT`
+            macro_rules! lit {
+                ($x:literal) => (cast::lossless::<f32, ScalarT>($x));
+            }
+
+            // We know that there is at least one neighbor vertex, so `valence`
+            // is not 0. We simply use the formula from the paper.
+            let alpha = (
+                lit!(4.0) - lit!(2.0) * (
+                    lit!(2.0) * ScalarT::PI() / cast::rounding::<_, ScalarT>(valence)
+                ).cos()
+            ) / lit!(9.0);
+
+            // Lerp between `old_pos? and `centroid` by the amount `alpha`
+            MapT::Target::from_coords(
+                (lit!(1.0) - alpha) * old_pos.x() + alpha * centroid.x(),
+                (lit!(1.0) - alpha) * old_pos.y() + alpha * centroid.y(),
+                (lit!(1.0) - alpha) * old_pos.z() + alpha * centroid.z(),
+            )
+        }).unwrap_or(old_pos);
+    }
 
     // We create a new vertex per face, so we will create a map from face
     // handle to vertex handle. This is done in two steps since we run in
@@ -37,8 +82,6 @@ where
     //
     // TODO: collecting face handles first should not be necessary
     let face_handles = mesh.face_handles().collect::<Vec<_>>();
-    let old_vertices = mesh.vertex_handles().collect::<Vec<_>>();
-
     let new_vertices = face_handles.into_iter().map(|fh| {
         // The position of the new vertex is just the centroid of the face's
         // vertices. We can unwrap because the face always has three vertices.
@@ -85,39 +128,7 @@ where
         mesh.add_triangle(new_face);
     }
 
-    for vh in old_vertices {
-        let v = mesh.get_ref(vh);
-        let old_pos = pos_of(vertex_positions, v);
-
-        // Count the number of neighbors and calculate the centroid of all
-        // neighbors.
-        let mut valence = 0;
-        let maybe_centroid = v.ring1_neighbors()
-            .inspect(|_| valence += 1)
-            .map(|v| pos_of(vertex_positions, v))
-            .centroid();
-
-        // Set the new vertex position
-        vertex_positions[vh] = maybe_centroid.map(|centroid| {
-            // Helper macro to create literal values of type `ScalarT`
-            macro_rules! lit {
-                ($x:literal) => (cast::lossless::<f32, ScalarT>($x));
-            }
-
-            // We know that there is at least one neighbor vertex, so `valence`
-            // is not 0. We simply use the formula from the paper.
-            let alpha = (
-                lit!(4.0) - lit!(2.0) * (
-                    lit!(2.0) * ScalarT::PI() / cast::rounding::<_, ScalarT>(valence)
-                ).cos()
-            ) / lit!(9.0);
-
-            // Lerp between `old_pos? and `centroid` by the amount `alpha`
-            MapT::Target::from_coords(
-                (lit!(1.0) - alpha) * old_pos.x() + alpha * centroid.x(),
-                (lit!(1.0) - alpha) * old_pos.y() + alpha * centroid.y(),
-                (lit!(1.0) - alpha) * old_pos.z() + alpha * centroid.z(),
-            )
-        }).unwrap_or(old_pos);
+    for vh in new_positions.handles() {
+        vertex_positions[vh] = new_positions[vh];
     }
 }
