@@ -50,7 +50,7 @@ pub mod any;
 /// The type of the core mesh is specified by the type parameter `M`. The cast
 /// rigor for the vertex positions is "lossy", i.e. all kinds of casts are
 /// allowed.
-#[derive(Empty, MemSink, MemSource, Debug)]
+#[derive(Empty, MemSink, MemSource, Debug, Clone)]
 pub struct MiniMesh<M: TriMeshMut + VerticesAroundFace> {
     #[lox(core_mesh)]
     pub mesh: M,
@@ -77,7 +77,7 @@ pub struct MiniMesh<M: TriMeshMut + VerticesAroundFace> {
 ///
 /// The `MemSource` implementation always casts to the requested type, so the
 /// property getters never fail.
-#[derive(Debug, Empty)]
+#[derive(Debug, Empty, Clone)]
 pub struct AnyMesh {
     pub mesh: SharedVertexMesh,
     pub vertex_positions: Option<AnyPointMap<VertexHandle>>,
