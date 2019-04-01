@@ -157,6 +157,23 @@ impl HalfEdgeMesh {
             .find(|&incoming| self.half_edges[incoming].next == he)
             .expect("internal HEM error: could not find `prev` half edge")
     }
+
+    /// Adds two half edges between `from` and `to`, partially filled with
+    /// dummy values. Returns the handle of the halfedge pointing to `to`.
+    ///
+    /// This function:
+    /// - Correctly sets the `target` field of the half edges.
+    /// - Always sets the `face` field of the half edges to `None`.
+    /// - Sets the `next` field of the half edges to a dummy value. You
+    ///   have to overwrite this value!
+    /// - Does not set the `outgoing` fields of the vertices.
+    fn add_edge_partially(&mut self, from: VertexHandle, to: VertexHandle) -> HalfEdgeHandle {
+        let face = Opt::none();
+        let next = HalfEdgeHandle::new(0);
+
+        self.half_edges.push(HalfEdge { target: from, face, next });
+        self.half_edges.push(HalfEdge { target: to, face, next })
+    }
 }
 
 
@@ -216,39 +233,6 @@ impl MeshMut for HalfEdgeMesh {
         // very end in order to use the vertex circulator (to iterate around
         // the vertex in the state before `add_face` was called).
 
-        /// Adds two half edges between `from` and `to`, partially filled with
-        /// dummy values. Returns the handle of the edge point to `to`.
-        ///
-        /// This function:
-        /// - Correctly sets the `target` field of the half edges.
-        /// - Always sets the `face` field of the half edges to `None`.
-        /// - Sets the `next` field of the half edges to a dummy value. You
-        ///   have to overwrite this value!
-        /// - Does not set the `outgoing` fields of the vertices.
-        fn add_edge(
-            mesh: &mut HalfEdgeMesh,
-            from: VertexHandle,
-            to: VertexHandle,
-        ) -> HalfEdgeHandle {
-            // Default values that mostly get overwritten later.
-            let default = HalfEdge {
-                // Never used, because it's "overwritten" below
-                target: VertexHandle::new(0),
-
-                // This might get overwritten later
-                face: Opt::none(),
-
-                // This will always be overwritten later!
-                next: HalfEdgeHandle::new(0),
-            };
-
-            // Create the two new half edges.
-            let out = mesh.half_edges.push(HalfEdge { target: to, .. default });
-            mesh.half_edges.push(HalfEdge { target: from, .. default });
-
-            out
-        };
-
         /// Tries to find the half edge from `from` to `to`. If found, it is
         /// asserted that it is a boundary edge. If not found, a new edge is
         /// created via `add_edge`.
@@ -262,7 +246,7 @@ impl MeshMut for HalfEdgeMesh {
                     assert!(mesh.half_edges[he].face.is_none(), NON_MANIFOLD_EDGE_ERR);
                     he
                 }
-                None => add_edge(mesh, from, to),
+                None => mesh.add_edge_partially(from, to),
             }
         }
 
