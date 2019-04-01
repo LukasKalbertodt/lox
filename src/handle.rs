@@ -228,7 +228,7 @@ impl<H: Handle> Opt<H> {
 
     /// Converts `self` to `Option<H>`.
     #[inline(always)]
-    pub fn to_option(&self) -> Option<H> {
+    pub fn to_option(self) -> Option<H> {
         if self.is_none() {
             None
         } else {
@@ -238,14 +238,24 @@ impl<H: Handle> Opt<H> {
 
     /// Returns `true` if there is no handle inside.
     #[inline(always)]
-    pub fn is_none(&self) -> bool {
+    pub fn is_none(self) -> bool {
         self.0.idx() == hsize::max_value()
     }
 
     /// Returns `true` if there is a handle inside.
     #[inline(always)]
-    pub fn is_some(&self) -> bool {
+    pub fn is_some(self) -> bool {
         !self.is_none()
+    }
+
+    /// Returns the stored handle or panics if `self.is_none()`.
+    #[inline(always)]
+    pub fn unwrap(self) -> H {
+        if self.is_none() {
+            panic!("called `unwrap()` on a `Opt::none` value");
+        }
+
+        self.0
     }
 }
 
