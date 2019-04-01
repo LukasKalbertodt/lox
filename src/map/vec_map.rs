@@ -110,6 +110,12 @@ impl<H: Handle, T> VecMap<H, T> {
         }
     }
 
+    pub fn values(&self) -> Values<'_, T> {
+        Values {
+            iter: self.vec.iter(),
+        }
+    }
+
     pub fn values_mut(&mut self) -> ValuesMut<'_, T> {
         ValuesMut {
             iter: self.vec.iter_mut(),
@@ -270,6 +276,18 @@ impl<'map, H: Handle> Iterator for Handles<'map, H> {
     type Item = H;
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(H::from_usize)
+    }
+}
+
+#[derive(Debug)]
+pub struct Values<'map, T> {
+    iter: stable_vec::Iter<'map, T>,
+}
+
+impl<'map, T> Iterator for Values<'map, T> {
+    type Item = &'map T;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
     }
 }
 
