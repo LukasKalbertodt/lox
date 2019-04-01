@@ -19,7 +19,7 @@ pub use crate::{
         util::{MemSourceExt},
     },
     traits::{
-        Empty, Mesh, MeshMut, TriMesh, PolyMesh, TriMeshMut, PolyMeshMut, EdgeMesh,
+        Empty, Mesh, MeshMut, TriMesh, PolyMesh, TriMeshMut, PolyMeshMut, EdgeMesh, TriEdgeMeshMut,
         adj::{
             VerticesAroundFace, FacesAroundVertex, VerticesAroundVertex, FacesAroundFace,
             EToF, EToV,

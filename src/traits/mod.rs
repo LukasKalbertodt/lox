@@ -234,6 +234,7 @@ pub trait MeshMut: Mesh {
     /// (that's exactly what the provided default implementation does).
     fn reserve_for_faces(&mut self, _count: hsize) {}
 
+    // TODO: default impl this with `remove_face`
     fn split_face(&mut self, f: FaceHandle) -> VertexHandle;
 }
 
@@ -299,6 +300,10 @@ impl<T> TriMeshMut for T where T: MeshMut<FaceKind = TriFaces> {}
 /// PolyFaces>`.
 pub trait PolyMeshMut: MeshMut<FaceKind = PolyFaces> {}
 impl<T> PolyMeshMut for T where T: MeshMut<FaceKind = PolyFaces> {}
+
+pub trait TriEdgeMeshMut: EdgeMesh + MeshMut<FaceKind = TriFaces> {
+    fn flip_edge(&mut self, edge: EdgeHandle);
+}
 
 
 
