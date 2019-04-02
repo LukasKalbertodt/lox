@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use crate::{
     handle::{Handle, hsize, FaceHandle, VertexHandle, EdgeHandle},
     refs::{ElementRef, ElementRefMut, EdgeRef, FaceRef, VertexRef},
@@ -310,20 +312,63 @@ pub trait TriEdgeMeshMut: EdgeMesh + MeshMut<FaceKind = TriFaces> {
 // ===========================================================================
 // ===== Implementations
 // ===========================================================================
-impl Empty for () {
-    fn empty() -> Self {
-        ()
+macro_rules! impl_empty_via_default {
+    ($( { $($impl_header:tt)+ } ,)*) => {
+        $(
+            $($impl_header)* {
+                fn empty() -> Self {
+                    Self::default()
+                }
+            }
+        )*
     }
 }
 
-impl<T> Empty for Vec<T> {
+impl_empty_via_default!(
+    { impl Empty for () },
+    { impl<T: ?Sized> Empty for PhantomData<T> },
+    { impl<T> Empty for Option<T> },
+    { impl Empty for String },
+    { impl<T> Empty for Vec<T> },
+    { impl<T: Ord> Empty for std::collections::BTreeSet<T> },
+    { impl<T: Eq + std::hash::Hash> Empty for std::collections::HashSet<T> },
+    { impl<T> Empty for std::collections::LinkedList<T> },
+    { impl<T> Empty for std::collections::VecDeque<T> },
+    { impl<K: Ord, V> Empty for std::collections::BTreeMap<K, V> },
+    { impl<K: Eq + std::hash::Hash, V> Empty for std::collections::HashMap<K, V> },
+);
+
+impl<T: Empty> Empty for Box<T> {
     fn empty() -> Self {
-        Vec::new()
+        Box::new(T::empty())
     }
 }
 
-impl<T> Empty for Option<T> {
-    fn empty() -> Self {
-        None
-    }
+impl<A: Empty> Empty for (A,) {
+    fn empty() -> Self { (A::empty(),) }
+}
+impl<A: Empty, B: Empty> Empty for (A, B) {
+    fn empty() -> Self { (A::empty(), B::empty()) }
+}
+impl<A: Empty, B: Empty, C: Empty> Empty for (A, B, C) {
+    fn empty() -> Self { (A::empty(), B::empty(), C::empty()) }
+}
+impl<A: Empty, B: Empty, C: Empty, D: Empty> Empty for (A, B, C, D) {
+    fn empty() -> Self { (A::empty(), B::empty(), C::empty(), D::empty()) }
+}
+
+impl<T: Empty> Empty for [T; 0] {
+    fn empty() -> Self { [] }
+}
+impl<T: Empty> Empty for [T; 1] {
+    fn empty() -> Self { [T::empty()] }
+}
+impl<T: Empty> Empty for [T; 2] {
+    fn empty() -> Self { [T::empty(), T::empty()] }
+}
+impl<T: Empty> Empty for [T; 3] {
+    fn empty() -> Self { [T::empty(), T::empty(), T::empty()] }
+}
+impl<T: Empty> Empty for [T; 4] {
+    fn empty() -> Self { [T::empty(), T::empty(), T::empty(), T::empty()] }
 }
