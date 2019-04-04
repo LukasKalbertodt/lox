@@ -15,16 +15,22 @@ pub trait SupportsMultiBlade: MeshMut {}
 ///
 /// This is a sealed trait, meaning you cannot implement it for your own types.
 /// This library provides exactly two types that implement this trait.
-pub trait FaceKind: Sealed {}
+pub trait FaceKind: Sealed {
+    const ONLY_TRIANGLES: bool;
+}
 
 /// Only triangular faces are supported.
 #[allow(missing_debug_implementations)]
 pub enum TriFaces {}
 impl Sealed for TriFaces {}
-impl FaceKind for TriFaces {}
+impl FaceKind for TriFaces {
+    const ONLY_TRIANGLES: bool = true;
+}
 
 /// Arbitrary polygons are allowed as faces.
 #[allow(missing_debug_implementations)]
 pub enum PolyFaces {}
 impl Sealed for PolyFaces {}
-impl FaceKind for PolyFaces {}
+impl FaceKind for PolyFaces {
+    const ONLY_TRIANGLES: bool = false;
+}
