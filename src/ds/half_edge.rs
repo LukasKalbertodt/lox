@@ -215,6 +215,18 @@ impl fmt::Debug for HalfEdge {
 // ===============================================================================================
 
 impl<C: Config> HalfEdgeMesh<C> {
+    /// Returns an iterator the circulates around the face `center`. The
+    /// iterator yields inner half edges.
+    fn circulate_around_face(&self, center: FaceHandle) -> FaceCirculator<'_, C> {
+        // TODO: optimize for tri mesh
+        let start_he = self.faces[center].edge;
+        FaceCirculator::NonEmpty {
+            mesh: self,
+            current_he: start_he,
+            start_he,
+        }
+    }
+
     /// Returns an iterator the circulates around the vertex `center`. The
     /// iterator yields outgoing half edges.
     fn circulate_around_vertex(&self, center: VertexHandle) -> CwVertexCirculator<'_, C> {
@@ -891,6 +903,45 @@ impl<C: Config> Iterator for CwVertexCirculator<'_, C> {
                     // If we reached the start edge again, we are done and set
                     // the iterator to `Empty`.
                     *self = CwVertexCirculator::Empty;
+                } else {
+                    // If not, we just set the `current_he` to the next one in
+                    // the cycle.
+                    *current_he = next;
+                }
+
+                Some(out)
+            }
+        }
+    }
+}
+
+
+/// An iterator that circulates around a face in counter-clockwise order,
+/// yielding the inner halfedge.
+enum FaceCirculator<'a, C: Config> {
+    Empty,
+    NonEmpty {
+        mesh: &'a HalfEdgeMesh<C>,
+        current_he: HalfEdgeHandle,
+        start_he: HalfEdgeHandle,
+    },
+}
+
+impl<C: Config> Iterator for FaceCirculator<'_, C> {
+    type Item = HalfEdgeHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match *self {
+            FaceCirculator::Empty => None,
+            FaceCirculator::NonEmpty { mesh, ref mut current_he, start_he } => {
+                let out = *current_he;
+
+                // Advance iterator
+                let next = mesh.half_edges[out].next;
+                if next == start_he {
+                    // If we reached the start edge again, we are done and set
+                    // the iterator to `Empty`.
+                    *self = FaceCirculator::Empty;
                 } else {
                     // If not, we just set the `current_he` to the next one in
                     // the cycle.
