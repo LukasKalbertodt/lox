@@ -183,10 +183,10 @@ struct HalfEdge {
 impl<C: Config> HalfEdgeMesh<C> {
     /// Returns an iterator the circulates around the vertex `center`. The
     /// iterator yields outgoing half edges.
-    fn circulate_around(&self, center: VertexHandle) -> CirculatorAroundVertex<'_, C> {
+    fn circulate_around_vertex(&self, center: VertexHandle) -> CwVertexCirculator<'_, C> {
         match self.vertices[center].outgoing.to_option() {
-            None => CirculatorAroundVertex::Empty,
-            Some(start_he) => CirculatorAroundVertex::NonEmpty {
+            None => CwVertexCirculator::Empty,
+            Some(start_he) => CwVertexCirculator::NonEmpty {
                 mesh: self,
                 current_he: start_he,
                 start_he,
@@ -197,8 +197,8 @@ impl<C: Config> HalfEdgeMesh<C> {
     /// Returns an iterator the circulates around the vertex `start_he` is
     /// coming out of (i.e. `start_he.twin.target` is the center vertex). The
     /// iterator yields outgoing half edges, starting with `start_he`.
-    fn circulate_around_from(&self, start_he: HalfEdgeHandle) -> CirculatorAroundVertex<'_, C> {
-        CirculatorAroundVertex::NonEmpty {
+    fn circulate_around_vertex_from(&self, start_he: HalfEdgeHandle) -> CwVertexCirculator<'_, C> {
+        CwVertexCirculator::NonEmpty {
             mesh: self,
             current_he: start_he,
             start_he,
@@ -208,7 +208,7 @@ impl<C: Config> HalfEdgeMesh<C> {
     /// Tries to find the half edge from `from` to `to`. Returns `None` if
     /// there is no edge between the two vertices.
     fn he_between(&self, from: VertexHandle, to: VertexHandle) -> Option<HalfEdgeHandle> {
-        self.circulate_around(from)
+        self.circulate_around_vertex(from)
             .find(|&outgoing| self.half_edges[outgoing].target == to)
     }
 
@@ -217,7 +217,7 @@ impl<C: Config> HalfEdgeMesh<C> {
     /// If `prev` handles would be stored, this would be easy. But since we
     /// don't store them, we have to circulate around the whole vertex.
     fn prev(&self, he: HalfEdgeHandle) -> HalfEdgeHandle {
-        self.circulate_around(self.half_edges[he.twin()].target)
+        self.circulate_around_vertex(self.half_edges[he.twin()].target)
             .map(|outgoing| outgoing.twin())
             .find(|&incoming| self.half_edges[incoming].next == he)
             .expect("internal HEM error: could not find `prev` half edge")
@@ -423,7 +423,7 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
                         //
 
                         // Find the end edge of some blade.
-                        let end = self.circulate_around(vh)
+                        let end = self.circulate_around_vertex(vh)
                             .map(|outgoing| outgoing.twin())
                             .find(|&incoming| self.half_edges[incoming].face.is_none())
                             .expect(NON_MANIFOLD_VERTEX_ERR);
@@ -524,7 +524,7 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
                         // into the right position. We choose to "move" the fan
                         // blade starting with `incoming`.
                         let extra_blade_end = self.prev(incoming.twin());
-                        let incoming_blade_end = self.circulate_around_from(incoming.twin())
+                        let incoming_blade_end = self.circulate_around_vertex_from(incoming.twin())
                             .map(|outgoing| outgoing.twin())
                             .find(|&incoming| self.half_edges[incoming].face.is_none())
                             .expect("internal HEM error: cannot find `incoming_blade_end`");
@@ -833,7 +833,7 @@ impl SupportsMultiBlade for HalfEdgeMesh {}
 
 /// An iterator that circulates around a vertex in clockwise order, yielding
 /// the outgoing halfedge.
-enum CirculatorAroundVertex<'a, C: Config> {
+enum CwVertexCirculator<'a, C: Config> {
     Empty,
     NonEmpty {
         mesh: &'a HalfEdgeMesh<C>,
@@ -842,13 +842,13 @@ enum CirculatorAroundVertex<'a, C: Config> {
     },
 }
 
-impl<C: Config> Iterator for CirculatorAroundVertex<'_, C> {
+impl<C: Config> Iterator for CwVertexCirculator<'_, C> {
     type Item = HalfEdgeHandle;
 
     fn next(&mut self) -> Option<Self::Item> {
         match *self {
-            CirculatorAroundVertex::Empty => None,
-            CirculatorAroundVertex::NonEmpty { mesh, ref mut current_he, start_he } => {
+            CwVertexCirculator::Empty => None,
+            CwVertexCirculator::NonEmpty { mesh, ref mut current_he, start_he } => {
                 let out = *current_he;
 
                 // Advance iterator
@@ -856,7 +856,7 @@ impl<C: Config> Iterator for CirculatorAroundVertex<'_, C> {
                 if next == start_he {
                     // If we reached the start edge again, we are done and set
                     // the iterator to `Empty`.
-                    *self = CirculatorAroundVertex::Empty;
+                    *self = CwVertexCirculator::Empty;
                 } else {
                     // If not, we just set the `current_he` to the next one in
                     // the cycle.
@@ -915,8 +915,8 @@ impl FacesAroundVertex for HalfEdgeMesh {
         &self,
         vh: VertexHandle,
     ) -> DynList<'_, FaceHandle> {
-        Box::new(FaceCirculator {
-            it: self.circulate_around(vh),
+        Box::new(VertexToFaceIter {
+            it: self.circulate_around_vertex(vh),
             mesh: self,
         })
     }
@@ -943,12 +943,12 @@ impl<C: Config> EToF for HalfEdgeMesh<C> {
 
 
 /// Iterator over all faces of a vertex. Is returned by `faces_around_vertex`.
-struct FaceCirculator<'a, C: Config> {
-    it: CirculatorAroundVertex<'a, C>,
+struct VertexToFaceIter<'a, C: Config> {
+    it: CwVertexCirculator<'a, C>,
     mesh: &'a HalfEdgeMesh<C>,
 }
 
-impl<C: Config> Iterator for FaceCirculator<'_, C> {
+impl<C: Config> Iterator for VertexToFaceIter<'_, C> {
     type Item = FaceHandle;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -965,8 +965,8 @@ impl VerticesAroundVertex for HalfEdgeMesh {
         &self,
         vh: VertexHandle,
     ) -> DynList<'_, VertexHandle> {
-        Box::new(VertexCirculator {
-            it: self.circulate_around(vh),
+        Box::new(VertexToVertexIter {
+            it: self.circulate_around_vertex(vh),
             mesh: self,
         })
     }
@@ -974,12 +974,12 @@ impl VerticesAroundVertex for HalfEdgeMesh {
 
 /// Iterator over all neighbor vertices of a vertex. Is returned by
 /// `vertices_around_vertex`.
-struct VertexCirculator<'a, C: Config> {
-    it: CirculatorAroundVertex<'a, C>,
+struct VertexToVertexIter<'a, C: Config> {
+    it: CwVertexCirculator<'a, C>,
     mesh: &'a HalfEdgeMesh<C>,
 }
 
-impl<C: Config> Iterator for VertexCirculator<'_, C> {
+impl<C: Config> Iterator for VertexToVertexIter<'_, C> {
     type Item = VertexHandle;
 
     fn next(&mut self) -> Option<Self::Item> {
