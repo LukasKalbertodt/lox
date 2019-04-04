@@ -1,13 +1,27 @@
 //! Everything related to the `HalfEdgeMesh`.
 
-use std::fmt;
+// # Some notes for developers about this implementation
+//
+// - The twin half edges are stored implicitly: twins are always stored next to
+//   one another in the underlying vector and thus always have handle indices
+//   only one apart. Furthermore, since we start with the handle index 0, the
+//   indices of two twins are always 2k and 2k + 1 where k is an integer.
+// - We map edge handles to half edge handles by multiplying by two. Half edge
+//   to edge is integer division by two. This works out very nicely: the edge
+//   handle space is contiguous and the conversion operations are a simple
+//   shift.
+
+use std::{
+    fmt,
+    marker::PhantomData,
+};
 
 use crate as lox;
 use crate::{
     prelude::*,
     handle::{hsize, Opt, Handle},
     map::VecMap,
-    traits::marker::TriFaces,
+    traits::marker::{TriFaces, FaceKind, PolyFaces},
     util::{DiList, TriList},
 };
 
@@ -18,20 +32,55 @@ const NON_MANIFOLD_VERTEX_ERR: &str =
 const NON_MANIFOLD_EDGE_ERR: &str =
     "new face would add a non-manifold edge";
 
+
+
 // ===============================================================================================
-// ===== Definition of types stored inside the data structure & HeHandle
+// ===== Compile time configuration of HalfEdgeMesh
 // ===============================================================================================
 
-#[derive(Clone, Empty, Debug)]
-pub struct HalfEdgeMesh {
-    vertices: VecMap<VertexHandle, Vertex>,
-    faces: VecMap<FaceHandle, Face>,
-    half_edges: VecMap<HalfEdgeHandle, HalfEdge>,
+/// Compile-time configuration for [`HalfEdgeMesh`].
+///
+/// To configure a half edge mesh, either use one of the existing types
+/// implementing this trait, or create your own (preferably inhabitable) type
+/// and implement this trait.
+pub trait Config {
+    /// What kind of faces are allowed in this half edge mesh.
+    ///
+    /// The data structure supports poly meshes, but if you only need triangle
+    /// faces (and you really need a half edge mesh), restricting the faces to
+    /// triangles here can speed up a few operations.
+    ///
+    /// The `HalfEdgeMesh` will forward this type to `Mesh::FaceKind` in the
+    /// `Mesh` implementation.
+    type FaceKind: FaceKind;
+
+    // TODO:
+    // - prev handles
+    // - allow multi fan blades?
 }
+
+/// The standard configuration for the half edge mesh. Poly faces are
+/// supported.
+#[allow(missing_debug_implementations)]
+pub enum PolyConfig {}
+impl Config for PolyConfig {
+    type FaceKind = PolyFaces;
+}
+
+#[allow(missing_debug_implementations)]
+pub enum TriConfig {}
+impl Config for TriConfig {
+    type FaceKind = TriFaces;
+}
+
+
+// ===============================================================================================
+// ===== HalfEdgeHandle
+// ===============================================================================================
 
 /// Handle to refer to half edges.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct HalfEdgeHandle(hsize);
+struct HalfEdgeHandle(hsize);
 
 impl HalfEdgeHandle {
     /// Returns the handle of the half edge twin (the half edge right next to
@@ -71,6 +120,7 @@ impl Handle for HalfEdgeHandle {
     fn new(id: hsize) -> Self {
         HalfEdgeHandle(id)
     }
+
     fn idx(&self) -> hsize {
         self.0
     }
@@ -80,6 +130,21 @@ impl fmt::Debug for HalfEdgeHandle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "HE{}", self.idx())
     }
+}
+
+
+
+// ===============================================================================================
+// ===== Definition of types stored inside the data structure
+// ===============================================================================================
+
+/// TODO
+#[derive(Clone, Empty, Debug)]
+pub struct HalfEdgeMesh<C: Config = PolyConfig> {
+    vertices: VecMap<VertexHandle, Vertex>,
+    faces: VecMap<FaceHandle, Face>,
+    half_edges: VecMap<HalfEdgeHandle, HalfEdge>,
+    _config: PhantomData<C>,
 }
 
 /// Data stored per `Face`.
@@ -115,10 +180,10 @@ struct HalfEdge {
 // ===== Internal helper methods
 // ===============================================================================================
 
-impl HalfEdgeMesh {
+impl<C: Config> HalfEdgeMesh<C> {
     /// Returns an iterator the circulates around the vertex `center`. The
     /// iterator yields outgoing half edges.
-    fn circulate_around(&self, center: VertexHandle) -> CirculatorAroundVertex<'_> {
+    fn circulate_around(&self, center: VertexHandle) -> CirculatorAroundVertex<'_, C> {
         match self.vertices[center].outgoing.to_option() {
             None => CirculatorAroundVertex::Empty,
             Some(start_he) => CirculatorAroundVertex::NonEmpty {
@@ -132,7 +197,7 @@ impl HalfEdgeMesh {
     /// Returns an iterator the circulates around the vertex `start_he` is
     /// coming out of (i.e. `start_he.twin.target` is the center vertex). The
     /// iterator yields outgoing half edges, starting with `start_he`.
-    fn circulate_around_from(&self, start_he: HalfEdgeHandle) -> CirculatorAroundVertex<'_> {
+    fn circulate_around_from(&self, start_he: HalfEdgeHandle) -> CirculatorAroundVertex<'_, C> {
         CirculatorAroundVertex::NonEmpty {
             mesh: self,
             current_he: start_he,
@@ -181,8 +246,8 @@ impl HalfEdgeMesh {
 // ===== Mesh trait implementations
 // ===============================================================================================
 
-impl Mesh for HalfEdgeMesh {
-    type FaceKind = TriFaces; // TODO
+impl<C: Config> Mesh for HalfEdgeMesh<C> {
+    type FaceKind = C::FaceKind;
 
     fn num_vertices(&self) -> hsize {
         self.vertices.num_elements()
@@ -209,7 +274,7 @@ impl Mesh for HalfEdgeMesh {
     }
 }
 
-impl MeshMut for HalfEdgeMesh {
+impl<C: Config> MeshMut for HalfEdgeMesh<C> {
     fn add_vertex(&mut self) -> VertexHandle {
         self.vertices.push(Vertex {
             outgoing: Opt::none()
@@ -236,8 +301,8 @@ impl MeshMut for HalfEdgeMesh {
         /// Tries to find the half edge from `from` to `to`. If found, it is
         /// asserted that it is a boundary edge. If not found, a new edge is
         /// created via `add_edge`.
-        fn find_or_add_edge(
-            mesh: &mut HalfEdgeMesh,
+        fn find_or_add_edge<C: Config>(
+            mesh: &mut HalfEdgeMesh<C>,
             from: VertexHandle,
             to: VertexHandle,
         ) -> HalfEdgeHandle {
@@ -637,7 +702,7 @@ impl MeshMut for HalfEdgeMesh {
     }
 }
 
-impl EdgeMesh for HalfEdgeMesh {
+impl<C: Config> EdgeMesh for HalfEdgeMesh<C> {
     fn num_edges(&self) -> hsize {
         // There are always exactly twice as many half edge as there are edges
         self.half_edges.num_elements() / 2
@@ -662,7 +727,10 @@ impl EdgeMesh for HalfEdgeMesh {
     }
 }
 
-impl TriEdgeMeshMut for HalfEdgeMesh {
+impl<C> TriEdgeMeshMut for HalfEdgeMesh<C>
+where
+    C: Config<FaceKind = TriFaces>,
+{
     fn flip_edge(&mut self, edge: EdgeHandle) {
         //                                  |
         //            Before                |                After
@@ -758,22 +826,23 @@ impl TriEdgeMeshMut for HalfEdgeMesh {
 
 impl SupportsMultiBlade for HalfEdgeMesh {}
 
+
 // ===============================================================================================
 // ===== Internal circulators
 // ===============================================================================================
 
 /// An iterator that circulates around a vertex in clockwise order, yielding
-/// the outgoing edge.
-enum CirculatorAroundVertex<'a> {
+/// the outgoing halfedge.
+enum CirculatorAroundVertex<'a, C: Config> {
     Empty,
     NonEmpty {
-        mesh: &'a HalfEdgeMesh,
+        mesh: &'a HalfEdgeMesh<C>,
         current_he: HalfEdgeHandle,
         start_he: HalfEdgeHandle,
     },
 }
 
-impl Iterator for CirculatorAroundVertex<'_> {
+impl<C: Config> Iterator for CirculatorAroundVertex<'_, C> {
     type Item = HalfEdgeHandle;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -805,7 +874,7 @@ impl Iterator for CirculatorAroundVertex<'_> {
 // ===== Neighborhood trait implementations
 // ===============================================================================================
 
-impl VerticesAroundFace for HalfEdgeMesh {
+impl<C: Config> VerticesAroundFace for HalfEdgeMesh<C> {
     fn vertices_around_triangle(&self, face: FaceHandle) -> [VertexHandle; 3]
     where
         Self: TriMesh,
@@ -817,13 +886,12 @@ impl VerticesAroundFace for HalfEdgeMesh {
         [he0, he1, he2].map(|he| self.half_edges[he].target)
     }
 
-    fn vertices_around_face(&self, face: FaceHandle) -> DynList<'_, VertexHandle> {
-        // TODO: change to support polygons
-        Box::new(self.vertices_around_triangle(face).owned_iter())
+    fn vertices_around_face(&self, _face: FaceHandle) -> DynList<'_, VertexHandle> {
+        unimplemented!()
     }
 }
 
-impl FacesAroundFace for HalfEdgeMesh {
+impl<C: Config> FacesAroundFace for HalfEdgeMesh<C> {
     fn faces_around_triangle(&self, face: FaceHandle) -> TriList<FaceHandle>
     where
         Self: TriMesh,
@@ -837,9 +905,8 @@ impl FacesAroundFace for HalfEdgeMesh {
         )
     }
 
-    fn faces_around_face(&self, face: FaceHandle) -> DynList<'_, FaceHandle> {
-        // TODO: change to support polygons
-        Box::new(self.faces_around_triangle(face).into_iter())
+    fn faces_around_face(&self, _face: FaceHandle) -> DynList<'_, FaceHandle> {
+        unimplemented!()
     }
 }
 
@@ -855,7 +922,7 @@ impl FacesAroundVertex for HalfEdgeMesh {
     }
 }
 
-impl EToV for HalfEdgeMesh {
+impl<C: Config> EToV for HalfEdgeMesh<C> {
     fn endpoints_of_edge(&self, edge: EdgeHandle) -> [VertexHandle; 2] {
         let a = HalfEdgeHandle::one_half_of(edge);
         let b = a.twin();
@@ -863,7 +930,7 @@ impl EToV for HalfEdgeMesh {
     }
 }
 
-impl EToF for HalfEdgeMesh {
+impl<C: Config> EToF for HalfEdgeMesh<C> {
     fn faces_of_edge(&self, edge: EdgeHandle) -> DiList<FaceHandle> {
         let a = HalfEdgeHandle::one_half_of(edge);
         let b = a.twin();
@@ -876,12 +943,12 @@ impl EToF for HalfEdgeMesh {
 
 
 /// Iterator over all faces of a vertex. Is returned by `faces_around_vertex`.
-struct FaceCirculator<'a> {
-    it: CirculatorAroundVertex<'a>,
-    mesh: &'a HalfEdgeMesh,
+struct FaceCirculator<'a, C: Config> {
+    it: CirculatorAroundVertex<'a, C>,
+    mesh: &'a HalfEdgeMesh<C>,
 }
 
-impl Iterator for FaceCirculator<'_> {
+impl<C: Config> Iterator for FaceCirculator<'_, C> {
     type Item = FaceHandle;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -907,12 +974,12 @@ impl VerticesAroundVertex for HalfEdgeMesh {
 
 /// Iterator over all neighbor vertices of a vertex. Is returned by
 /// `vertices_around_vertex`.
-struct VertexCirculator<'a> {
-    it: CirculatorAroundVertex<'a>,
-    mesh: &'a HalfEdgeMesh,
+struct VertexCirculator<'a, C: Config> {
+    it: CirculatorAroundVertex<'a, C>,
+    mesh: &'a HalfEdgeMesh<C>,
 }
 
-impl Iterator for VertexCirculator<'_> {
+impl<C: Config> Iterator for VertexCirculator<'_, C> {
     type Item = VertexHandle;
 
     fn next(&mut self) -> Option<Self::Item> {

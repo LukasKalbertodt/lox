@@ -2,6 +2,7 @@
 //!
 //! **TODO**: Everything.
 
+#![feature(trivial_bounds)]
 #![feature(never_type)]
 #![feature(doc_cfg)]
 #![feature(proc_macro_hygiene)]

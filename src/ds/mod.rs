@@ -12,7 +12,7 @@
 mod tests;
 
 mod face_delegate;
-mod half_edge;
+pub mod half_edge;
 mod shared_vertex;
 
 pub use self::{
