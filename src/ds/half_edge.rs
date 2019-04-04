@@ -139,7 +139,7 @@ impl fmt::Debug for HalfEdgeHandle {
 // ===============================================================================================
 
 /// TODO
-#[derive(Clone, Empty, Debug)]
+#[derive(Clone, Empty)]
 pub struct HalfEdgeMesh<C: Config = PolyConfig> {
     vertices: VecMap<VertexHandle, Vertex>,
     faces: VecMap<FaceHandle, Face>,
@@ -148,21 +148,21 @@ pub struct HalfEdgeMesh<C: Config = PolyConfig> {
 }
 
 /// Data stored per `Face`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 struct Face {
     /// Handle of one (arbitrary) half edge adjacent to the face.
     edge: HalfEdgeHandle,
 }
 
 /// Data stored per `Vertex`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 struct Vertex {
     /// Handle of one (arbitrary) outgoing half edge.
     outgoing: Opt<HalfEdgeHandle>,
 }
 
 /// Data stored per half edge.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 struct HalfEdge {
     /// The adjacent face, if one exists.
     face: Opt<FaceHandle>,
@@ -173,6 +173,40 @@ struct HalfEdge {
     /// The next half edge around the face or hole this half edge is adjacent
     /// to (going counter clock wise).
     next: HalfEdgeHandle,
+}
+
+impl<C: Config> fmt::Debug for HalfEdgeMesh<C> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("HalfEdgeMesh")
+            .field("vertices", &self.vertices)
+            .field("faces", &self.faces)
+            .field("half_edges", &self.half_edges)
+            .finish()
+    }
+}
+
+impl fmt::Debug for Vertex {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Vertex {{ outgoing: {:?} }}", self.outgoing)
+    }
+}
+
+impl fmt::Debug for Face {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Face {{ edge: {:?} }}", self.edge)
+    }
+}
+
+impl fmt::Debug for HalfEdge {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "HalfEdge {{ target: {:5} next: {:6} face: {:?} }}",
+            format!("{:?},", self.target),
+            format!("{:?},", self.next),
+            self.face,
+        )
+    }
 }
 
 
