@@ -971,8 +971,11 @@ impl<C: Config> VerticesAroundFace for HalfEdgeMesh<C> {
         [he0, he1, he2].map(|he| self.half_edges[he].target)
     }
 
-    fn vertices_around_face(&self, _face: FaceHandle) -> DynList<'_, VertexHandle> {
-        unimplemented!()
+    fn vertices_around_face(&self, face: FaceHandle) -> DynList<'_, VertexHandle> {
+        Box::new(FaceToVertexIter {
+            it: self.circulate_around_face(face),
+            mesh: self,
+        })
     }
 }
 
@@ -990,17 +993,32 @@ impl<C: Config> FacesAroundFace for HalfEdgeMesh<C> {
         )
     }
 
-    fn faces_around_face(&self, _face: FaceHandle) -> DynList<'_, FaceHandle> {
-        unimplemented!()
+    fn faces_around_face(&self, face: FaceHandle) -> DynList<'_, FaceHandle> {
+        Box::new(FaceToFaceIter {
+            it: self.circulate_around_face(face),
+            mesh: self,
+        })
     }
 }
 
-impl FacesAroundVertex for HalfEdgeMesh {
+impl<C: Config> FacesAroundVertex for HalfEdgeMesh<C> {
     fn faces_around_vertex(
         &self,
         vh: VertexHandle,
     ) -> DynList<'_, FaceHandle> {
         Box::new(VertexToFaceIter {
+            it: self.circulate_around_vertex(vh),
+            mesh: self,
+        })
+    }
+}
+
+impl<C: Config> VerticesAroundVertex for HalfEdgeMesh<C> {
+    fn vertices_around_vertex(
+        &self,
+        vh: VertexHandle,
+    ) -> DynList<'_, VertexHandle> {
+        Box::new(VertexToVertexIter {
             it: self.circulate_around_vertex(vh),
             mesh: self,
         })
@@ -1026,6 +1044,40 @@ impl<C: Config> EToF for HalfEdgeMesh<C> {
     }
 }
 
+/// Iterator over all faces of a vertex. Is returned by `faces_around_vertex`.
+struct FaceToFaceIter<'a, C: Config> {
+    it: FaceCirculator<'a, C>,
+    mesh: &'a HalfEdgeMesh<C>,
+}
+
+impl<C: Config> Iterator for FaceToFaceIter<'_, C> {
+    type Item = FaceHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // We simply skip the edge that don't have a face adjacent to them.
+        let mesh = self.mesh;
+        self.it.by_ref()
+            .filter_map(|inner| mesh.half_edges[inner.twin()].face.to_option())
+            .next()
+    }
+}
+
+/// Iterator over all neighbor vertices of a vertex. Is returned by
+/// `vertices_around_vertex`.
+struct FaceToVertexIter<'a, C: Config> {
+    it: FaceCirculator<'a, C>,
+    mesh: &'a HalfEdgeMesh<C>,
+}
+
+impl<C: Config> Iterator for FaceToVertexIter<'_, C> {
+    type Item = VertexHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.it.next().map(|inner| self.mesh.half_edges[inner].target)
+    }
+}
+
+
 
 /// Iterator over all faces of a vertex. Is returned by `faces_around_vertex`.
 struct VertexToFaceIter<'a, C: Config> {
@@ -1042,18 +1094,6 @@ impl<C: Config> Iterator for VertexToFaceIter<'_, C> {
         self.it.by_ref()
             .filter_map(|outgoing| mesh.half_edges[outgoing].face.to_option())
             .next()
-    }
-}
-
-impl VerticesAroundVertex for HalfEdgeMesh {
-    fn vertices_around_vertex(
-        &self,
-        vh: VertexHandle,
-    ) -> DynList<'_, VertexHandle> {
-        Box::new(VertexToVertexIter {
-            it: self.circulate_around_vertex(vh),
-            mesh: self,
-        })
     }
 }
 
