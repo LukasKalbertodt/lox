@@ -139,7 +139,7 @@ impl fmt::Debug for HalfEdgeHandle {
 // ===============================================================================================
 
 /// TODO
-#[derive(Clone, Empty)]
+#[derive(Empty)]
 pub struct HalfEdgeMesh<C: Config = PolyConfig> {
     vertices: VecMap<VertexHandle, Vertex>,
     faces: VecMap<FaceHandle, Face>,
@@ -182,6 +182,17 @@ impl<C: Config> fmt::Debug for HalfEdgeMesh<C> {
             .field("faces", &self.faces)
             .field("half_edges", &self.half_edges)
             .finish()
+    }
+}
+
+impl<C: Config> Clone for HalfEdgeMesh<C> {
+    fn clone(&self) -> Self {
+        Self {
+            vertices: self.vertices.clone(),
+            faces: self.faces.clone(),
+            half_edges: self.half_edges.clone(),
+            _config: PhantomData,
+        }
     }
 }
 
