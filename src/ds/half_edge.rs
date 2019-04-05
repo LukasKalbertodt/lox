@@ -92,6 +92,7 @@ impl HalfEdgeHandle {
     /// stored right next to each other and that the handles start counting at
     /// an even number (0 in our case). Thus, we can simply flip the last bit
     /// of the handle id to get the twin handle.
+    #[inline(always)]
     fn twin(self) -> HalfEdgeHandle {
         Self::new(self.idx() ^ 1)
     }
@@ -101,6 +102,7 @@ impl HalfEdgeHandle {
     /// Again, due to our assumptions on how edges are stored, we just have to
     /// multiply the edges handle with 2 to get a corresponding half edge
     /// handle. This method does not check if the half edge actually exists.
+    #[inline(always)]
     fn one_half_of(edge: EdgeHandle) -> Self {
         Self(edge.idx() * 2)
     }
@@ -111,16 +113,19 @@ impl HalfEdgeHandle {
     /// another. Of one edge, the half edge with the smaller index always has
     /// an even index, while the other one has an odd one. This means we can
     /// just integer divide by 2 and get the edge index.
+    #[inline(always)]
     fn full_edge(self) -> EdgeHandle {
         EdgeHandle::new(self.0 / 2)
     }
 }
 
 impl Handle for HalfEdgeHandle {
+    #[inline(always)]
     fn new(id: hsize) -> Self {
         HalfEdgeHandle(id)
     }
 
+    #[inline(always)]
     fn idx(&self) -> hsize {
         self.0
     }
@@ -1253,6 +1258,7 @@ enum CwVertexCirculator<'a, C: Config> {
 impl<C: Config> Iterator for CwVertexCirculator<'_, C> {
     type Item = HalfEdgeHandle;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         match *self {
             CwVertexCirculator::Empty => None,
@@ -1292,6 +1298,7 @@ enum FaceCirculator<'a, C: Config> {
 impl<C: Config> Iterator for FaceCirculator<'_, C> {
     type Item = HalfEdgeHandle;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         match *self {
             FaceCirculator::Empty => None,
