@@ -296,6 +296,340 @@ impl<C: Config> HalfEdgeMesh<C> {
         self.half_edges.push(HalfEdge { target: from, face, next });
         self.half_edges.push(HalfEdge { target: to, face, next })
     }
+
+    /// Adds a face defined by the given `vertices`.
+    ///
+    /// The function works pretty much like `MeshMut::add_face`. The
+    /// `inner_half_edges` is just some storage this function can use. It is
+    /// completely overwritten before it is read, so it can (should) be
+    /// initialized with dummy values. It has to be the same length as
+    /// `vertices`!
+    fn add_face_impl(
+        &mut self,
+        vertices: &[VertexHandle],
+        inner_half_edges: &mut [HalfEdgeHandle],
+    ) -> FaceHandle {
+        // ===================================================================
+        // ===== Find edges between vertices
+        // ===================================================================
+        // In this step, we find the inner edges of the new face. If some edges
+        // are missing, we will add them in an incomplete form (e.g. `next` and
+        // `outgoing` handles won't be changed anywhere).
+        //
+        // We could do this step by simply circulating around each vertex and
+        // finding the connecting edges that way, but this is often not
+        // optimal. We want to avoid unnecessary cache misses at all cost. If
+        // we have found an edge between the previous pair of vertices already,
+        // we can simply check its `next` handle: it's not unlikely that it is
+        // already the edge we are looking for. If it's not the edge, we at
+        // least already have an edge that we can use to circulate around the
+        // vertex. That way we don't have to check the `outgoing` value of the
+        // vertex, avoiding one memory access of potentially cold memory.
+        //
+        // `inner_half_edges` will store the half edges between the vertices of
+        // the new face. The half edge at index `i` goes from `vertices[i]` to
+        // `vertices[(i + 1) % len]]`.
+
+        // If in the last iteration of the loop, an edge between the vertices
+        // was found, it's stored here.
+        let mut last_edge = None;
+
+        for vi in 0..vertices.len() {
+            let from = vertices[vi];
+            let to = vertices[(vi + 1) % vertices.len()];
+
+            let he = if let Some(last_edge) = last_edge {
+                // We know the edge going from `vertices[i - 1]` to `from`.
+                // That means we don't have to lookup `from` anymore to get an
+                // adjacent edge. Furthermore, `last_edge.next` is probably
+                // already the edge we are looking for!
+
+                // TODO: if we do not allow multi-blades we don't have to loop!
+                // Then the `next` has to be the edge we are looking for or we
+                // know that the edge does not exist.
+
+                // Edge starting at `from`.
+                let mut outgoing = self.half_edges[last_edge].next;
+
+                loop {
+                    // Check if we have found the edge we are looking for.
+                    if self.half_edges[outgoing].target == to {
+                        break Some(outgoing);
+                    }
+
+                    // Check if we reached the starting point again (meaning
+                    // there is no edge from `from` to `to`).
+                    let ingoing = outgoing.twin();
+                    if ingoing == last_edge {
+                        break None;
+                    }
+
+                    outgoing = self.half_edges[ingoing].next;
+                }
+            } else {
+                // We have no previous edge, so we have to start at the vertex.
+                self.he_between(from, to)
+            };
+
+            // Update the last edge
+            last_edge = he;
+
+            // Make sure the half edge we found is not connected to a face
+            // already. This would mean that we would create a non-manifold
+            // edge.
+            if let Some(he) = he {
+                assert!(self.half_edges[he].face.is_none(), NON_MANIFOLD_EDGE_ERR);
+            }
+
+            let he = he.unwrap_or_else(|| self.add_edge_partially(from, to));
+            inner_half_edges[vi] = he;
+        }
+
+
+        // ===================================================================
+        // ===== Add face and fix `face` handle of inner edges
+        // ===================================================================
+        // Insert new face
+        let new_face = self.faces.push(Face {
+            edge: inner_half_edges[0], // just an arbitrary edge
+        });
+
+        // Set the `face` handle of the inner edges.
+        for he in &*inner_half_edges {
+            self.half_edges[*he].face = Opt::some(new_face);
+        }
+
+
+        // ===================================================================
+        // ===== Fix `next` handles
+        // ===================================================================
+        // This fixes the next handles of the outer three edges plus additional
+        // edges not adjacent to this face, as necessary. We handle each corner
+        // seperately.
+        //
+        // So for each corner, we have this situation (the corner vertex `v`,
+        // the new face `F`, the two outer edges `incoming and `outgoing` and
+        // we don't yet know what `v` is also connected too):
+        //
+        //                 ?
+        //           ?           ?
+        //
+        //                (v)
+        //               ^/ ^\
+        //              //   \\
+        //   incoming  //     \\  outgoing
+        //            //   F   \\
+        //           /v         \v
+        //          ( ) ------> ( )
+        //              <------
+        //
+        // This is difficult in particular, because there can be multiple fan
+        // blades around the vertex. Here is an example: there are three
+        // fan-blades around the central vertex X. One fan blade consists of
+        // two faces, the other two of only one face.
+        //
+        //
+        //               o---------o
+        //                \       /
+        //                 \     /
+        //                  \   /
+        //                   \ /
+        //          o---------X---------o
+        //          |       ╱ | ╲       |
+        //          |     ╱   |   ╲     |
+        //          |   ╱     |     ╲   |
+        //          | ╱       |       ╲ |
+        //          o         o---------o
+        //
+        // The order of fan blades is ambigious. When inserting a new fan
+        // blade, we do not know where in the cycle to insert it. So we have to
+        // accept a bit of chaos while multiple blades still exist. But often,
+        // blades are reconnected (this is the `(true, true)` case below) in
+        // which case we need to take special care.
+        for vi in 0..vertices.len() {
+            let prev_idx = vi.checked_sub(1).unwrap_or(vertices.len() - 1);
+
+            let vh = vertices[vi];
+            let incoming = inner_half_edges[vi].twin();
+            let outgoing = inner_half_edges[prev_idx].twin();
+
+            let v = &self.vertices[vh];
+            let incoming_face = self.half_edges[incoming].face;
+            let outgoing_face = self.half_edges[outgoing].face;
+
+            // We have four different cases: it just depends whether incoming
+            // and/or outgoing are already adjacent to a face.
+            match (incoming_face.is_some(), outgoing_face.is_some()) {
+                // Both edge pairs were newly inserted. This is usually easy,
+                // but it can be a bit tricky when there are other edges (and
+                // thus a face) connected to that vertex.
+                (false, false) => {
+                    if v.outgoing.is_some() {
+                        // More difficult case: we are creating a multi
+                        // fan-blade vertex here. In order to correctly set the
+                        // `next` handles, we need to find the start of some
+                        // blade and the end of some blade. We will insert the
+                        // new blade between the two.
+                        //
+                        //
+                        //
+                        //           ^  ?     ?  /
+                        //            \         /
+                        //      start  \   ?   /  end
+                        //              \     /
+                        //               \   v
+                        //                (v)
+                        //               ^/ ^\
+                        //              //   \\
+                        //             //     \\
+                        //            //   F   \\
+                        //           /v         \v
+                        //          ( )         ( )
+                        //
+
+                        // Find the end edge of some blade.
+                        let end = self.circulate_around_vertex(vh)
+                            .map(|outgoing| outgoing.twin())
+                            .find(|&incoming| self.half_edges[incoming].face.is_none())
+                            .expect(NON_MANIFOLD_VERTEX_ERR);
+
+                        // The start of another blade.
+                        let start = self.half_edges[end].next;
+
+                        // Insert new blade in between.
+                        self.half_edges[incoming].next = start;
+                        self.half_edges[end].next = outgoing;
+                    } else {
+                        // This is the easy case: `incoming` and `outgoing` are
+                        // the only edges adjacent to `v`.
+                        self.half_edges[incoming].next = outgoing;
+                    }
+                }
+
+                // The incoming edge is adjacent to another face (OF), but the
+                // outgoing is not. We have to find the edge `before_new` whose
+                // `next` handle points to `incoming`'s twin (a soon to be
+                // inner edge of our new face). Because that `next` handle now
+                // needs to point to `outgoing`.
+                //
+                //                      /
+                //      ?         ?    /
+                //           ?        /  before_new
+                //                   /
+                //                  v
+                //      <-------- (v)
+                //               ^/ ^\
+                //         OF   //   \\
+                //             //     \\
+                //            //   F   \\
+                //           /v         \v
+                //          ( )         ( )
+                //
+                //                 ^-- this face and
+                //                       ^-- this edge are new in the cycle
+                //
+                (true, false) => {
+                    let before_new = self.prev(incoming.twin());
+                    self.half_edges[before_new].next = outgoing;
+                }
+
+                // The outgoing edge is adjacent to another face (OF), but the
+                // incoming is not. This is fairly easy: the twin of outgoing
+                // points to some edge. The incoming edge just needs to point
+                // that edge now. The `next` of the outgoing twin will be set
+                // later (since it's an inner edge of our new face).
+                //
+                //            ^
+                //             \   ?
+                //              \           ?
+                //               \   ?
+                //                \
+                //                (v)<---------
+                //               ^/ ^\
+                //              //   \\  OF
+                //             //     \\
+                //            //   F   \\
+                //           /v         \v
+                //          ( )         ( )
+                //
+                //                 ^-- this face and
+                //           ^-- this edge are new in the cycle
+                //
+                (false, true) => {
+                    self.half_edges[incoming].next = self.half_edges[outgoing.twin()].next;
+                }
+
+                // This can be easy or the ugliest case. The incoming and
+                // outgoing edge are both adjacent to a face. That means we are
+                // connecting two fan blades. If the fan blade of `incoming` is
+                // already directly after the fan blade of `outgoing` (speaking
+                // about the "circulate around vertex" order), then everything
+                // is fine.
+                //
+                //                 ?
+                //           ?           ?
+                //
+                //      <-------- (v) -------->
+                //               ^/ ^\
+                //         IF   //   \\   OF
+                //             //     \\
+                //            //   F   \\
+                //           /v         \v
+                //          ( )         ( )
+                //
+                //                 ^-- this face is new,
+                //                     the edges already exist
+                //
+                // BUT, if that is not the case, we need to change the order of
+                // fan blades to match the "good" situation described above.
+                (true, true) => {
+                    if self.half_edges[outgoing.twin()].next != incoming.twin() {
+                        // Here we need to conceptually delete one fan blade
+                        // from the `next` circle around `v` and re-insert it
+                        // into the right position. We choose to "move" the fan
+                        // blade starting with `incoming`.
+                        let extra_blade_end = self.prev(incoming.twin());
+                        let incoming_blade_end = self.circulate_around_vertex_from(incoming.twin())
+                            .map(|outgoing| outgoing.twin())
+                            .find(|&incoming| self.half_edges[incoming].face.is_none())
+                            .expect("internal HEM error: cannot find `incoming_blade_end`");
+
+                        // Here we remove the "incoming blade" from the cycle.
+                        self.half_edges[extra_blade_end].next
+                            = self.half_edges[incoming_blade_end].next;
+
+                        // Now we reinsert it again, right after the "outgoing
+                        // blade". After this, the cycle is still a bit broken,
+                        // but that doesn't matter, because (a) the cycle will
+                        // be repaired by setting the `next` link of the inner
+                        // edges below, and (b) the broken cycle won't be
+                        // accessed (in this direction) before it is repaired.
+                        self.half_edges[incoming_blade_end].next
+                            = self.half_edges[outgoing.twin()].next;
+                    }
+                }
+            }
+        }
+
+        // Now we only need to set the `next` handles of the inner half edges.
+        // This is easy.
+        for he_i in 0..inner_half_edges.len() {
+            let curr = inner_half_edges[he_i];
+            let next = inner_half_edges[(he_i + 1) % inner_half_edges.len()];
+            self.half_edges[curr].next = next;
+        }
+
+        // ===================================================================
+        // ===== Step 4: Set `outgoing` handles of vertices where necessary
+        // ===================================================================
+        for vi in 0..vertices.len() {
+            // TODO: benchmark if it's better if we only update it if necessary
+            // (i.e. if the vertex has no `outgoing` yet).
+            self.vertices[vertices[vi]].outgoing = Opt::some(inner_half_edges[vi]);
+        }
+
+        new_face
+    }
 }
 
 
@@ -781,6 +1115,23 @@ impl<C: Config> EdgeMesh for HalfEdgeMesh<C> {
     fn contains_edge(&self, edge: EdgeHandle) -> bool {
         let he = HalfEdgeHandle::one_half_of(edge);
         self.half_edges.contains_handle(he)
+    }
+}
+
+impl<C> PolyMeshMut for HalfEdgeMesh<C>
+where
+    C: Config<FaceKind = PolyFaces>,
+{
+    fn add_face(&mut self, vertices: &[VertexHandle]) -> FaceHandle {
+        assert!(
+            vertices.len() >= 3,
+            "attempt to add a face with only {} vertices",
+            vertices.len(),
+        );
+        // TODO: check uniqueness of vertices?
+
+        let mut inner_half_edges = vec![HalfEdgeHandle::new(0); vertices.len()];
+        self.add_face_impl(vertices, &mut inner_half_edges)
     }
 }
 

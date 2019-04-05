@@ -300,8 +300,16 @@ impl<T> TriMeshMut for T where T: MeshMut<FaceKind = TriFaces> {}
 
 /// A poly mesh that allows modifications. Alias for `MeshMut<FaceKind =
 /// PolyFaces>`.
-pub trait PolyMeshMut: MeshMut<FaceKind = PolyFaces> {}
-impl<T> PolyMeshMut for T where T: MeshMut<FaceKind = PolyFaces> {}
+pub trait PolyMeshMut: MeshMut<FaceKind = PolyFaces> {
+    /// Adds a new face to this mesh and returns the handle representing that
+    /// face.
+    ///
+    /// The `vertices` have to be given in front-face CCW (counterclockwise)
+    /// order. This means: if you look at front of the face you want to create
+    /// (the face's normal is pointing to you), the vertices should appear in
+    /// CCW order.
+    fn add_face(&mut self, vertices: &[VertexHandle]) -> FaceHandle;
+}
 
 pub trait TriEdgeMeshMut: EdgeMesh + MeshMut<FaceKind = TriFaces> {
     fn flip_edge(&mut self, edge: EdgeHandle);
