@@ -256,17 +256,6 @@ impl<C: Config> HalfEdgeMesh<C> {
         }
     }
 
-    /// Returns an iterator the circulates around the vertex `start_he` is
-    /// coming out of (i.e. `start_he.twin.target` is the center vertex). The
-    /// iterator yields outgoing half edges, starting with `start_he`.
-    fn circulate_around_vertex_from(&self, start_he: HalfEdgeHandle) -> CwVertexCirculator<'_, C> {
-        CwVertexCirculator::NonEmpty {
-            mesh: self,
-            current_he: start_he,
-            start_he,
-        }
-    }
-
     /// Tries to find the half edge from `from` to `to`. Returns `None` if
     /// there is no edge between the two vertices.
     fn he_between(&self, from: VertexHandle, to: VertexHandle) -> Option<HalfEdgeHandle> {
@@ -279,10 +268,32 @@ impl<C: Config> HalfEdgeMesh<C> {
     /// If `prev` handles would be stored, this would be easy. But since we
     /// don't store them, we have to circulate around the whole vertex.
     fn prev(&self, he: HalfEdgeHandle) -> HalfEdgeHandle {
-        self.circulate_around_vertex(self.half_edges[he.twin()].target)
-            .map(|outgoing| outgoing.twin())
-            .find(|&incoming| self.half_edges[incoming].next == he)
+        self.find_incoming_he(he.twin(), |incoming| self.half_edges[incoming].next == he)
             .expect("internal HEM error: could not find `prev` half edge")
+    }
+
+    /// Tries to find a half edge pointing towards `start_edge.target` that
+    /// satisfies the given predicate. Returns `None` if no edge around
+    /// `start_edge.target` satisfying `predicate` is found.
+    #[inline(always)]
+    fn find_incoming_he(
+        &self,
+        start_edge: HalfEdgeHandle,
+        mut predicate: impl FnMut(HalfEdgeHandle) -> bool,
+    ) -> Option<HalfEdgeHandle> {
+        let mut incoming = start_edge;
+        loop {
+            if predicate(incoming) {
+                return Some(incoming);
+            }
+
+            let next = self.half_edges[incoming].next.twin();
+            if next == start_edge {
+                return None;
+            }
+
+            incoming = next;
+        }
     }
 
     /// Adds two half edges between `from` and `to`, partially filled with
@@ -493,10 +504,10 @@ impl<C: Config> HalfEdgeMesh<C> {
                         //
 
                         // Find the end edge of some blade.
-                        let end = self.circulate_around_vertex(vh)
-                            .map(|outgoing| outgoing.twin())
-                            .find(|&incoming| self.half_edges[incoming].face.is_none())
-                            .expect(NON_MANIFOLD_VERTEX_ERR);
+                        let end = self.find_incoming_he(
+                            self.vertices[vh].outgoing.unwrap().twin(),
+                            |incoming| self.half_edges[incoming].face.is_none(),
+                        ).expect(NON_MANIFOLD_VERTEX_ERR);
 
                         // The start of another blade.
                         let start = self.half_edges[end].next;
@@ -594,10 +605,10 @@ impl<C: Config> HalfEdgeMesh<C> {
                         // into the right position. We choose to "move" the fan
                         // blade starting with `incoming`.
                         let extra_blade_end = self.prev(incoming.twin());
-                        let incoming_blade_end = self.circulate_around_vertex_from(incoming.twin())
-                            .map(|outgoing| outgoing.twin())
-                            .find(|&incoming| self.half_edges[incoming].face.is_none())
-                            .expect("internal HEM error: cannot find `incoming_blade_end`");
+                        let incoming_blade_end = self.find_incoming_he(
+                            incoming,
+                            |incoming| self.half_edges[incoming].face.is_none(),
+                        ).expect("internal HEM error: cannot find `incoming_blade_end`");
 
                         // Here we remove the "incoming blade" from the cycle.
                         self.half_edges[extra_blade_end].next
