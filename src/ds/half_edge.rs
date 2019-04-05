@@ -684,6 +684,16 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         self.add_face_impl(&[a, b, c], &mut [HalfEdgeHandle::new(0); 3])
     }
 
+    fn reserve_for_vertices(&mut self, count: hsize) {
+        self.vertices.reserve(count);
+    }
+
+    fn reserve_for_faces(&mut self, count: hsize) {
+        // We have at least three half edges per face
+        self.half_edges.reserve(count * 3);
+        self.faces.reserve(count);
+    }
+
     fn remove_all_vertices(&mut self) {
         assert!(
             self.num_faces() == 0,
