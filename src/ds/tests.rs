@@ -250,7 +250,7 @@ pub fn assert_eq_order_fn<T: Debug + PartialEq + Copy>(
 /// - `FacesAroundVertex`
 /// - `VerticesAroundVertex`
 macro_rules! gen_tri_mesh_tests {
-    ($name:ident : [$($extra:ident),*]) => {
+    ($name:ty : [$($extra:ident),*]) => {
         $(
             gen_tri_mesh_tests!(@is_valid_extra_trait $extra);
         )*
@@ -266,7 +266,7 @@ macro_rules! gen_tri_mesh_tests {
 
         #[test]
         fn empty() {
-            let m = $name::empty();
+            let m = <$name>::empty();
 
             assert_eq!(m.num_faces(), 0);
             assert_eq!(m.num_vertices(), 0);
@@ -289,7 +289,7 @@ macro_rules! gen_tri_mesh_tests {
 
         #[test]
         fn single_vertex() {
-            let mut m = $name::empty();
+            let mut m = <$name>::empty();
             let v = m.add_vertex();
 
             assert_eq!(m.num_faces(), 0);
@@ -324,7 +324,7 @@ macro_rules! gen_tri_mesh_tests {
             //      /       \
             //    (A) ----- (B)
             //
-            let mut m = $name::empty();
+            let mut m = <$name>::empty();
             let va = m.add_vertex();
             let vb = m.add_vertex();
             let vc = m.add_vertex();
@@ -398,7 +398,7 @@ macro_rules! gen_tri_mesh_tests {
             //        / ⋰     ⋱  \
             //       (A) ------- (B)
             //
-            let mut m = $name::empty();
+            let mut m = <$name>::empty();
             let va = m.add_vertex();
             let vb = m.add_vertex();
             let vc = m.add_vertex();
@@ -513,7 +513,7 @@ macro_rules! gen_tri_mesh_tests {
             //     |    \|    \
             //    (B)---(C)---(E)
             //
-            let mut m = $name::empty();
+            let mut m = <$name>::empty();
             let va = m.add_vertex();
             let vb = m.add_vertex();
             let vc = m.add_vertex();
@@ -667,7 +667,7 @@ macro_rules! gen_tri_mesh_tests {
             //                  z: [c, e, f]
             //
 
-            let mut m = $name::empty();
+            let mut m = <$name>::empty();
             let va = m.add_vertex();
             let vb = m.add_vertex();
             let vc = m.add_vertex();
@@ -811,7 +811,7 @@ macro_rules! gen_tri_mesh_tests {
                 //      (d)-------(e)
                 //
 
-                let mut m = $name::empty();
+                let mut m = <$name>::empty();
                 let va = m.add_vertex();
                 let vb = m.add_vertex();
                 let vc = m.add_vertex();
@@ -896,7 +896,7 @@ macro_rules! gen_tri_mesh_tests {
                 //       (f)       (e)
                 //
 
-                let mut m = $name::empty();
+                let mut m = <$name>::empty();
                 let va = m.add_vertex();
                 let vb = m.add_vertex();
                 let vc = m.add_vertex();
@@ -1011,7 +1011,7 @@ macro_rules! gen_tri_mesh_tests {
                 //       (f)       (e)
                 //
 
-                let mut m = $name::empty();
+                let mut m = <$name>::empty();
                 let va = m.add_vertex();
                 let vb = m.add_vertex();
                 let vc = m.add_vertex();
@@ -1232,7 +1232,7 @@ macro_rules! gen_tri_mesh_tests {
                 //           \ | / ⟋
                 //            (b)⟋
                 //
-                let mut m = $name::empty();
+                let mut m = <$name>::empty();
                 let va = m.add_vertex();
                 let vb = m.add_vertex();
                 let vc = m.add_vertex();
@@ -1260,7 +1260,7 @@ macro_rules! gen_tri_mesh_tests {
                 //         / ⟋    ⟍ \
                 //        (C) ----- (D)
                 //
-                let mut m = $name::empty();
+                let mut m = <$name>::empty();
                 let va = m.add_vertex();
                 let vb = m.add_vertex();
                 let vc = m.add_vertex();
