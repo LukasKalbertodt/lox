@@ -1480,18 +1480,38 @@ impl<C: Config> Iterator for VertexToVertexIter<'_, C> {
 // ===============================================================================================
 #[cfg(test)]
 mod test {
-    use super::*;
 
-    gen_tri_mesh_tests!(HalfEdgeMesh: [
-        TriMesh,
-        EdgeMesh,
-        VerticesAroundFace,
-        VerticesAroundVertex,
-        FacesAroundFace,
-        FacesAroundVertex,
-        EToF,
-        EToV,
-        Manifold,
-        SupportsMultiBlade
-    ]);
+    mod tri {
+        use super::super::*;
+
+        gen_tri_mesh_tests!(HalfEdgeMesh::<TriConfig>: [
+            TriMesh,
+            EdgeMesh,
+            VerticesAroundFace,
+            VerticesAroundVertex,
+            FacesAroundFace,
+            FacesAroundVertex,
+            EToF,
+            EToV,
+            Manifold,
+            SupportsMultiBlade
+        ]);
+    }
+
+    mod poly {
+        use super::super::*;
+
+        gen_tri_mesh_tests!(HalfEdgeMesh::<PolyConfig>: [
+            PolyMesh,
+            EdgeMesh,
+            VerticesAroundFace,
+            VerticesAroundVertex,
+            FacesAroundFace,
+            FacesAroundVertex,
+            EToF,
+            EToV,
+            Manifold,
+            SupportsMultiBlade
+        ]);
+    }
 }
