@@ -700,7 +700,7 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_order!(m.vertices_around_face(fy).into_vec(), [vc, vf, vd]);
                 assert_eq_order!(m.vertices_around_face(fz).into_vec(), [vc, ve, vf]);
 
-                gen_tri_mesh_tests!(@if FacesAroundFace in [$($extra),*] => {
+                gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
                     assert_eq_order!(m.vertices_around_triangle(fu), [va, vc, vb]);
                     assert_eq_order!(m.vertices_around_triangle(fv), [vb, vc, vd]);
                     assert_eq_order!(m.vertices_around_triangle(fw), [va, vb, ve]);
@@ -736,7 +736,7 @@ macro_rules! gen_tri_mesh_tests {
                 assert_eq_order!(m.faces_around_face(fy).into_vec(), [fv, fz]);
                 assert_eq_order!(m.faces_around_face(fz).into_vec(), [fx, fy]);
 
-                gen_tri_mesh_tests!(@if FacesAroundFace in [$($extra),*] => {
+                gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
                     assert_eq_order!(
                         *m.faces_around_triangle(fu).to_array(),
                         [Some(fv), Some(fw), None],
@@ -1331,6 +1331,7 @@ macro_rules! gen_tri_mesh_tests {
     (@is_valid_extra_trait EToF) => {};
     (@is_valid_extra_trait EToV) => {};
     (@is_valid_extra_trait TriMesh) => {};
+    (@is_valid_extra_trait PolyMesh) => {};
     (@is_valid_extra_trait EdgeMesh) => {};
     (@is_valid_extra_trait Manifold) => {}; // this is not a real trait yet...
     (@is_valid_extra_trait SupportsMultiBlade) => {};
