@@ -27,44 +27,27 @@ impl<'a, M: Mesh + ?Sized, H: Handle> HandleIter<'a, M, H> {
     }
 }
 
-impl<M: Mesh + ?Sized> Iterator for HandleIter<'_, M, VertexHandle> {
-    type Item = VertexHandle;
+macro_rules! impl_handle_iter {
+    ($mesh_trait:ident, $handle:ident, $method:ident) => {
+        impl<M: $mesh_trait + ?Sized> Iterator for HandleIter<'_, M, $handle> {
+            type Item = $handle;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let out = self.mesh.next_vertex_handle_from(self.current);
-        if let Some(out) = out {
-            self.current = VertexHandle::new(out.idx().next());
+            fn next(&mut self) -> Option<Self::Item> {
+                let out = self.mesh.$method(self.current);
+                if let Some(out) = out {
+                    self.current = $handle::new(out.idx().next());
+                }
+
+                out
+            }
         }
-
-        out
     }
 }
 
-impl<M: Mesh + ?Sized> Iterator for HandleIter<'_, M, FaceHandle> {
-    type Item = FaceHandle;
+impl_handle_iter!(Mesh, VertexHandle, next_vertex_handle_from);
+impl_handle_iter!(Mesh, FaceHandle, next_face_handle_from);
+impl_handle_iter!(EdgeMesh, EdgeHandle, next_edge_handle_from);
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let out = self.mesh.next_face_handle_from(self.current);
-        if let Some(out) = out {
-            self.current = FaceHandle::new(out.idx().next());
-        }
-
-        out
-    }
-}
-
-impl<M: EdgeMesh + ?Sized> Iterator for HandleIter<'_, M, EdgeHandle> {
-    type Item = EdgeHandle;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let out = self.mesh.next_edge_handle_from(self.current);
-        if let Some(out) = out {
-            self.current = EdgeHandle::new(out.idx().next());
-        }
-
-        out
-    }
-}
 
 /// An iterator over elements of a mesh. Yields elements with increasing handle
 /// index value.
