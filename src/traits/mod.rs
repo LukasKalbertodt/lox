@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{
     handle::{Handle, hsize, FaceHandle, VertexHandle, EdgeHandle},
+    mesh::HandleIter,
     refs::{ElementRef, ElementRefMut, EdgeRef, FaceRef, VertexRef},
 };
 use self::{
@@ -71,21 +72,28 @@ pub trait Mesh: Empty {
     /// Returns the number of vertices in this mesh.
     fn num_vertices(&self) -> hsize;
 
-    /// Returns an iterator over the handles of all vertices in this mesh.
+    /// Returns the next handle of an existing vertex with an index ≥ `start`'s
+    /// index, or `None` if there is no such handle.
     ///
-    /// Note that this iterator only yields the handles. To get an iterator
-    /// over `VertexRef`s, use [`vertices()`][Mesh::vertices], which is often
-    /// more useful.
+    /// This is a low level building block for iteration. As a user of this
+    /// library, you usually don't want to use this method directly.
     ///
-    /// The order of these vertices is unspecified, but each vertex is yielded
-    /// by the iterator exactly once.
-    fn vertex_handles(&self) -> Box<dyn Iterator<Item = VertexHandle> + '_>;
+    /// Example: assume a mesh contains three vertices, with the handles with
+    /// indices 0, 1 and 3. Then this method returns the following values:
+    /// - `next_vertex_handle_from(VertexHandle(0))` → `Some(VertexHandle(0))`
+    /// - `next_vertex_handle_from(VertexHandle(1))` → `Some(VertexHandle(1))`
+    /// - `next_vertex_handle_from(VertexHandle(2))` → `Some(VertexHandle(3))`
+    /// - `next_vertex_handle_from(VertexHandle(3))` → `Some(VertexHandle(3))`
+    /// - `next_vertex_handle_from(VertexHandle(4))` → `None`
+    ///
+    /// In particular, this implies the following properties:
+    /// - If a vertex exists, calling this method with its handle will return
+    ///   the same handle.
+    /// - Using this for simple iteration (starting at 0, each consecutive call
+    ///   with the last returned handle + 1, stop at `None`), each vertex
+    ///   handle is returned exactly once.
+    fn next_vertex_handle_from(&self, start: VertexHandle) -> Option<VertexHandle>;
 
-
-
-    /// Checks if the given vertex handle refers to a valid vertex of this
-    /// mesh.
-    fn contains_vertex(&self, vertex: VertexHandle) -> bool;
 
     // TODO: visit_mut
     // TODO: mutable iterator?
@@ -95,18 +103,16 @@ pub trait Mesh: Empty {
     /// Returns the number of faces in this mesh.
     fn num_faces(&self) -> hsize;
 
-    /// Returns an iterator over the handles of all faces in this mesh.
+    /// Returns the next handle of an existing face with an index ≥ `start`'s
+    /// index, or `None` if there is no such handle.
     ///
-    /// Note that this iterator only yields the handles. To get an iterator
-    /// over `VertexRef`s, use [`faces()`][Mesh::faces], which is often more
-    /// useful.
+    /// This is a low level building block for iteration. As a user of this
+    /// library, you usually don't want to use this method directly.
     ///
-    /// The order of these faces is unspecified, but each vertex is yielded by
-    /// the iterator exactly once.
-    fn face_handles(&self) -> Box<dyn Iterator<Item = FaceHandle> + '_>;
+    /// See the documentation of [`Mesh::next_vertex_handle_from`] for more
+    /// information. This method works exactly like that, but for faces.
+    fn next_face_handle_from(&self, start: FaceHandle) -> Option<FaceHandle>;
 
-    /// Checks if the given face handle refers to a valid face of this mesh.
-    fn contains_face(&self, face: FaceHandle) -> bool;
 
     // TODO: visit_mut
     // TODO: mutable iterator?
@@ -122,12 +128,48 @@ pub trait Mesh: Empty {
         ElementRefMut::new(self, handle)
     }
 
+    /// Checks if the given vertex handle refers to a valid vertex of this
+    /// mesh.
+    fn contains_vertex(&self, vertex: VertexHandle) -> bool {
+        self.next_vertex_handle_from(vertex) == Some(vertex)
+    }
+
+    /// Returns an iterator over the handles of all vertices in this mesh.
+    ///
+    /// Note that this iterator only yields the handles. To get an iterator
+    /// over `VertexRef`s, use [`vertices()`][Mesh::vertices], which is often
+    /// more useful.
+    ///
+    /// The order of these vertices is unspecified, but each vertex is yielded
+    /// by the iterator exactly once.
+    fn vertex_handles(&self) -> HandleIter<'_, Self, VertexHandle> {
+        HandleIter::new(self)
+    }
+
     /// Returns an iterator over all vertices in this mesh.
     ///
     /// This iterator yields `VertexRef`s. If you are only interested in the
     /// handle, use [`vertex_handles()`][Mesh::vertex_handles].
     fn vertices(&self) -> Box<dyn Iterator<Item = VertexRef<'_, Self>> + '_> {
         Box::new(self.vertex_handles().map(move |h| ElementRef::new(self, h)))
+    }
+
+
+    /// Checks if the given face handle refers to a valid face of this mesh.
+    fn contains_face(&self, face: FaceHandle) -> bool {
+        self.next_face_handle_from(face) == Some(face)
+    }
+
+    /// Returns an iterator over the handles of all faces in this mesh.
+    ///
+    /// Note that this iterator only yields the handles. To get an iterator
+    /// over `VertexRef`s, use [`faces()`][Mesh::faces], which is often more
+    /// useful.
+    ///
+    /// The order of these faces is unspecified, but each vertex is yielded by
+    /// the iterator exactly once.
+    fn face_handles(&self) -> HandleIter<'_, Self, FaceHandle> {
+        HandleIter::new(self)
     }
 
     /// Returns an iterator over all faces in this mesh.
@@ -245,6 +287,16 @@ pub trait EdgeMesh: Mesh {
     /// Returns the number of edges in this mesh.
     fn num_edges(&self) -> hsize;
 
+    /// Returns the next handle of an existing edge with an index ≥ `start`'s
+    /// index, or `None` if there is no such handle.
+    ///
+    /// This is a low level building block for iteration. As a user of this
+    /// library, you usually don't want to use this method directly.
+    ///
+    /// See the documentation of [`Mesh::next_vertex_handle_from`] for more
+    /// information. This method works exactly like that, but for edges.
+    fn next_edge_handle_from(&self, start: EdgeHandle) -> Option<EdgeHandle>;
+
     /// Returns an iterator over the handles of all edges in this mesh.
     ///
     /// Note that this iterator only yields the handles. To get an iterator
@@ -253,10 +305,14 @@ pub trait EdgeMesh: Mesh {
     ///
     /// The order of the edges is unspecified, but each edge is yielded by the
     /// iterator exactly once.
-    fn edge_handles(&self) -> Box<dyn Iterator<Item = EdgeHandle> + '_>;
+    fn edge_handles(&self) -> HandleIter<'_, Self, EdgeHandle> {
+        HandleIter::new(self)
+    }
 
     /// Checks if the given edge handle refers to a valid edge of this mesh.
-    fn contains_edge(&self, edge: EdgeHandle) -> bool;
+    fn contains_edge(&self, edge: EdgeHandle) -> bool {
+        self.next_edge_handle_from(edge) == Some(edge)
+    }
 
     /// Returns an iterator over all edges in this mesh.
     ///

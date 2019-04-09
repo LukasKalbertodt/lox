@@ -429,8 +429,18 @@ impl Mesh for FaceDelegateMesh {
         self.vertices.num_elements()
     }
 
-    fn vertex_handles(&self) -> Box<Iterator<Item = VertexHandle> + '_> {
-        Box::new(self.vertices.handles())
+    fn next_vertex_handle_from(&self, start: VertexHandle) -> Option<VertexHandle> {
+        // TODO: optimize
+        (start.idx()..self.vertices.next_push_handle().idx())
+            .map(VertexHandle::new)
+            .find(|&vh| self.vertices.contains_handle(vh))
+    }
+
+    fn next_face_handle_from(&self, start: FaceHandle) -> Option<FaceHandle> {
+        // TODO: optimize
+        (start.idx()..self.faces.next_push_handle().idx())
+            .map(FaceHandle::new)
+            .find(|&fh| self.faces.contains_handle(fh))
     }
 
     fn contains_vertex(&self, vertex: VertexHandle) -> bool {
@@ -439,10 +449,6 @@ impl Mesh for FaceDelegateMesh {
 
     fn num_faces(&self) -> hsize {
         self.faces.num_elements()
-    }
-
-    fn face_handles(&self) -> Box<Iterator<Item = FaceHandle> + '_> {
-        Box::new(self.faces.handles())
     }
 
     fn contains_face(&self, face: FaceHandle) -> bool {

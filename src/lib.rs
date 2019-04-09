@@ -31,6 +31,7 @@ pub mod handle;
 pub mod io;
 pub mod map;
 pub mod math;
+pub mod mesh;
 pub mod prop;
 pub mod traits;
 pub mod prelude;

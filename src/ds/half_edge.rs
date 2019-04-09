@@ -660,8 +660,18 @@ impl<C: Config> Mesh for HalfEdgeMesh<C> {
         self.vertices.num_elements()
     }
 
-    fn vertex_handles(&self) -> Box<Iterator<Item = VertexHandle> + '_> {
-        Box::new(self.vertices.handles())
+    fn next_vertex_handle_from(&self, start: VertexHandle) -> Option<VertexHandle> {
+        // TODO: optimize
+        (start.idx()..self.vertices.next_push_handle().idx())
+            .map(VertexHandle::new)
+            .find(|&vh| self.vertices.contains_handle(vh))
+    }
+
+    fn next_face_handle_from(&self, start: FaceHandle) -> Option<FaceHandle> {
+        // TODO: optimize
+        (start.idx()..self.faces.next_push_handle().idx())
+            .map(FaceHandle::new)
+            .find(|&fh| self.faces.contains_handle(fh))
     }
 
     fn contains_vertex(&self, vertex: VertexHandle) -> bool {
@@ -670,10 +680,6 @@ impl<C: Config> Mesh for HalfEdgeMesh<C> {
 
     fn num_faces(&self) -> hsize {
         self.faces.num_elements()
-    }
-
-    fn face_handles(&self) -> Box<Iterator<Item = FaceHandle> + '_> {
-        Box::new(self.faces.handles())
     }
 
     fn contains_face(&self, face: FaceHandle) -> bool {
@@ -843,17 +849,20 @@ impl<C: Config> EdgeMesh for HalfEdgeMesh<C> {
         self.half_edges.num_elements() / 2
     }
 
-    fn edge_handles(&self) -> Box<dyn Iterator<Item = EdgeHandle> + '_> {
-        // This, again, only works because of how we store data. We always
-        // store both half edges of an edge right next to each other in
-        // memory. The half edge with lower index has an even index (we start
-        // at 0). We map half edges to edges by always using the half edge
-        // with the lower index and divide its index by 2.
-        Box::new(
-            self.half_edges.handles()
-                .filter(|he| he.idx() % 2 == 0)
-                .map(|he| he.full_edge())
-        )
+    fn next_edge_handle_from(&self, start: EdgeHandle) -> Option<EdgeHandle> {
+        // TODO: optimize
+        let mut idx = HalfEdgeHandle::lower_half_of(start).idx();
+        let end = self.half_edges.next_push_handle().idx();
+        while idx < end {
+            let he = HalfEdgeHandle::new(idx);
+            if self.half_edges.contains_handle(he) {
+                return Some(he.full_edge());
+            }
+
+            idx += 2;
+        }
+
+        None
     }
 
     fn contains_edge(&self, edge: EdgeHandle) -> bool {
