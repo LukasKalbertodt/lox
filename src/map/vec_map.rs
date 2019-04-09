@@ -99,6 +99,10 @@ impl<H: Handle, T> VecMap<H, T> {
         H::from_usize(self.vec.next_index())
     }
 
+    pub(crate) fn last_handle(&self) -> Option<H> {
+        self.vec.find_last_index().map(H::from_usize)
+    }
+
     pub fn num_elements(&self) -> hsize {
         self.vec.num_elements() as hsize
     }

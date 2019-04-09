@@ -39,6 +39,13 @@ impl Mesh for SharedVertexMesh {
             .find(|&fh| self.faces.contains_handle(fh))
     }
 
+    fn last_vertex_handle(&self) -> Option<VertexHandle> {
+        self.vertices.last_handle()
+    }
+    fn last_face_handle(&self) -> Option<FaceHandle> {
+        self.faces.last_handle()
+    }
+
     fn contains_vertex(&self, vertex: VertexHandle) -> bool {
         self.vertices.contains_handle(vertex)
     }

@@ -94,6 +94,12 @@ pub trait Mesh: Empty {
     ///   handle is returned exactly once.
     fn next_vertex_handle_from(&self, start: VertexHandle) -> Option<VertexHandle>;
 
+    /// Returns the vertex handle for an existing vertex with the highest
+    /// index, or `None` if there are no vertices in the mesh.
+    ///
+    /// This is a low level building block. As a user of this library, you
+    /// probably don't want to use this method directly.
+    fn last_vertex_handle(&self) -> Option<VertexHandle>;
 
     // TODO: visit_mut
     // TODO: mutable iterator?
@@ -112,6 +118,13 @@ pub trait Mesh: Empty {
     /// See the documentation of [`Mesh::next_vertex_handle_from`] for more
     /// information. This method works exactly like that, but for faces.
     fn next_face_handle_from(&self, start: FaceHandle) -> Option<FaceHandle>;
+
+    /// Returns the face handle for an existing face with the highest index, or
+    /// `None` if there are no vertices in the mesh.
+    ///
+    /// This is a low level building block. As a user of this library, you
+    /// probably don't want to use this method directly.
+    fn last_face_handle(&self) -> Option<FaceHandle>;
 
 
     // TODO: visit_mut
@@ -296,6 +309,14 @@ pub trait EdgeMesh: Mesh {
     /// See the documentation of [`Mesh::next_vertex_handle_from`] for more
     /// information. This method works exactly like that, but for edges.
     fn next_edge_handle_from(&self, start: EdgeHandle) -> Option<EdgeHandle>;
+
+    /// Returns the edge handle for an existing edge with the highest index, or
+    /// `None` if there are no vertices in the mesh.
+    ///
+    /// This is a low level building block. As a user of this library, you
+    /// probably don't want to use this method directly.
+    fn last_edge_handle(&self) -> Option<EdgeHandle>;
+
 
     /// Returns an iterator over the handles of all edges in this mesh.
     ///

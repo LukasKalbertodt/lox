@@ -674,6 +674,13 @@ impl<C: Config> Mesh for HalfEdgeMesh<C> {
             .find(|&fh| self.faces.contains_handle(fh))
     }
 
+    fn last_vertex_handle(&self) -> Option<VertexHandle> {
+        self.vertices.last_handle()
+    }
+    fn last_face_handle(&self) -> Option<FaceHandle> {
+        self.faces.last_handle()
+    }
+
     fn contains_vertex(&self, vertex: VertexHandle) -> bool {
         self.vertices.contains_handle(vertex)
     }
@@ -863,6 +870,10 @@ impl<C: Config> EdgeMesh for HalfEdgeMesh<C> {
         }
 
         None
+    }
+
+    fn last_edge_handle(&self) -> Option<EdgeHandle> {
+        self.half_edges.last_handle().map(|he| he.full_edge())
     }
 
     fn contains_edge(&self, edge: EdgeHandle) -> bool {
