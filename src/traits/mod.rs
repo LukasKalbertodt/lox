@@ -2,8 +2,8 @@ use std::marker::PhantomData;
 
 use crate::{
     handle::{Handle, hsize, FaceHandle, VertexHandle, EdgeHandle},
-    mesh::HandleIter,
-    refs::{ElementRef, ElementRefMut, EdgeRef, FaceRef, VertexRef},
+    mesh::{ElementRefIter, HandleIter},
+    refs::{ElementRef, ElementRefMut},
 };
 use self::{
     marker::{FaceKind, TriFaces, PolyFaces},
@@ -150,8 +150,8 @@ pub trait Mesh: Empty {
     ///
     /// This iterator yields `VertexRef`s. If you are only interested in the
     /// handle, use [`vertex_handles()`][Mesh::vertex_handles].
-    fn vertices(&self) -> Box<dyn Iterator<Item = VertexRef<'_, Self>> + '_> {
-        Box::new(self.vertex_handles().map(move |h| ElementRef::new(self, h)))
+    fn vertices(&self) -> ElementRefIter<'_, Self, VertexHandle> {
+        ElementRefIter::new(self)
     }
 
 
@@ -176,8 +176,8 @@ pub trait Mesh: Empty {
     ///
     /// This iterator yields `FaceRef`s. If you are only interested in the
     /// handle, use [`face_handles()`][Mesh::face_handles].
-    fn faces(&self) -> Box<dyn Iterator<Item = FaceRef<'_, Self>> + '_> {
-        Box::new(self.face_handles().map(move |h| ElementRef::new(self, h)))
+    fn faces(&self) -> ElementRefIter<'_, Self, FaceHandle> {
+        ElementRefIter::new(self)
     }
 }
 
@@ -318,8 +318,8 @@ pub trait EdgeMesh: Mesh {
     ///
     /// This iterator yields `EdgeRef`s. If you are only interested in the
     /// handle, use [`edge_handles()`][EdgeMesh::edge_handles].
-    fn edges(&self) -> Box<dyn Iterator<Item = EdgeRef<'_, Self>> + '_> {
-        Box::new(self.edge_handles().map(move |h| ElementRef::new(self, h)))
+    fn edges(&self) -> ElementRefIter<'_, Self, EdgeHandle> {
+        ElementRefIter::new(self)
     }
 }
 

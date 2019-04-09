@@ -1,6 +1,7 @@
 use crate::{
     handle::{Handle, HSizeExt, EdgeHandle, FaceHandle, VertexHandle},
     traits::{EdgeMesh, Mesh},
+    refs::ElementRef,
 };
 
 
@@ -62,5 +63,38 @@ impl<M: EdgeMesh + ?Sized> Iterator for HandleIter<'_, M, EdgeHandle> {
         }
 
         out
+    }
+}
+
+/// An iterator over elements of a mesh. Yields elements with increasing handle
+/// index value.
+///
+/// Instances of this type are returned by:
+/// - [`Mesh::vertices`]
+/// - [`Mesh::faces`]
+/// - [`EdgeMesh::edges`]
+#[derive(Debug, Clone)]
+pub struct ElementRefIter<'a, M: Mesh + ?Sized, H: Handle> {
+    handles: HandleIter<'a, M, H>,
+}
+
+impl<'a, M: Mesh + ?Sized, H: Handle> ElementRefIter<'a, M, H> {
+    pub(crate) fn new(mesh: &'a M) -> Self {
+        Self {
+            handles: HandleIter::new(mesh),
+        }
+    }
+}
+
+impl<'a, M, H> Iterator for ElementRefIter<'a, M, H>
+where
+    M: Mesh + ?Sized,
+    H: Handle,
+    HandleIter<'a, M, H>: Iterator<Item = H>,
+{
+    type Item = ElementRef<'a, H, M>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.handles.next().map(|h| ElementRef::new(self.handles.mesh, h))
     }
 }
