@@ -97,13 +97,13 @@ impl HalfEdgeHandle {
         Self::new(self.idx() ^ 1)
     }
 
-    /// Returns one (arbitrary) half-edge of the given edge.
+    /// Returns the half-edge of the given edge with the lower index value.
     ///
     /// Again, due to our assumptions on how edges are stored, we just have to
     /// multiply the edges handle with 2 to get a corresponding half edge
     /// handle. This method does not check if the half edge actually exists.
     #[inline(always)]
-    fn one_half_of(edge: EdgeHandle) -> Self {
+    fn lower_half_of(edge: EdgeHandle) -> Self {
         Self(edge.idx() * 2)
     }
 
@@ -857,7 +857,7 @@ impl<C: Config> EdgeMesh for HalfEdgeMesh<C> {
     }
 
     fn contains_edge(&self, edge: EdgeHandle) -> bool {
-        let he = HalfEdgeHandle::one_half_of(edge);
+        let he = HalfEdgeHandle::lower_half_of(edge);
         self.half_edges.contains_handle(he)
     }
 }
@@ -929,7 +929,7 @@ where
         //
         //
         // We just imagine that the "random" half-edge we get from
-        // `one_half_of()` is the edge `a` in the drawing.
+        // `lower_half_of()` is the edge `a` in the drawing.
 
         assert!(
             self.faces_of_edge(edge).len() == 2,
@@ -938,7 +938,7 @@ where
         );
 
         // First, let's just obtain all handles
-        let center_above = HalfEdgeHandle::one_half_of(edge);
+        let center_above = HalfEdgeHandle::lower_half_of(edge);
         let center_below = center_above.twin();
         let above_right = self.half_edges[center_above].next;
         let above_left = self.half_edges[above_right].next;
@@ -1135,7 +1135,7 @@ impl<C: Config> VerticesAroundVertex for HalfEdgeMesh<C> {
 
 impl<C: Config> EToV for HalfEdgeMesh<C> {
     fn endpoints_of_edge(&self, edge: EdgeHandle) -> [VertexHandle; 2] {
-        let a = HalfEdgeHandle::one_half_of(edge);
+        let a = HalfEdgeHandle::lower_half_of(edge);
         let b = a.twin();
         [self.half_edges[a].target, self.half_edges[b].target]
     }
@@ -1143,7 +1143,7 @@ impl<C: Config> EToV for HalfEdgeMesh<C> {
 
 impl<C: Config> EToF for HalfEdgeMesh<C> {
     fn faces_of_edge(&self, edge: EdgeHandle) -> DiList<FaceHandle> {
-        let a = HalfEdgeHandle::one_half_of(edge);
+        let a = HalfEdgeHandle::lower_half_of(edge);
         let b = a.twin();
         DiList::from_options(
             self.half_edges[a].face.to_option(),
