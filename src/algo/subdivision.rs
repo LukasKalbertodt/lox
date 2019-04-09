@@ -78,20 +78,18 @@ where
     // ----- (2) Split faces and calc new vertex positions ---------------------------------------
     // We create a new vertex per face by splitting each face into three new
     // ones.
-    //
-    // TODO: collecting face handles first should not be necessary
-    let face_handles = mesh.face_handles().collect::<Vec<_>>();
-    for fh in face_handles {
+    let mut it = mesh.face_handles_mut();
+    while let Some(fh) = it.next() {
         // The position of the new vertex is just the centroid of the face's
         // vertices. We can unwrap because the face always has three vertices.
-        let point_pos = mesh.get_ref(fh)
+        let point_pos = it.mesh().get_ref(fh)
             .adjacent_vertices()
             .map(|v| vertex_positions[v.handle()])
             .centroid()
             .unwrap();
 
         // Split face and set position of the midpoint.
-        let vh = mesh.split_face(fh);
+        let vh = it.mesh().split_face(fh);
         vertex_positions.insert(vh, point_pos);
     }
 
