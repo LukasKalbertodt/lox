@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{
     handle::{Handle, hsize, FaceHandle, VertexHandle, EdgeHandle},
-    mesh::{ElementRefIter, HandleIter},
+    mesh::{ElementRefIter, HandleIter, HandleIterMut},
     refs::{ElementRef, ElementRefMut},
 };
 use self::{
@@ -159,6 +159,16 @@ pub trait Mesh: Empty {
         HandleIter::new(self)
     }
 
+    /// Returns an iterator over the handles of all vertices which can return a
+    /// mutable reference to the mesh. This is useful when it is necessary to
+    /// mutate the mesh while iterating.
+    ///
+    /// Using this iterator is tricky, so please see the documentation of
+    /// [`HandleIterMut`] for more information.
+    fn vertex_handles_mut(&mut self) -> HandleIterMut<'_, Self, VertexHandle> {
+        HandleIterMut::<'_, Self, VertexHandle>::new(self)
+    }
+
     /// Returns an iterator over all vertices in this mesh.
     ///
     /// This iterator yields `VertexRef`s. If you are only interested in the
@@ -183,6 +193,16 @@ pub trait Mesh: Empty {
     /// the iterator exactly once.
     fn face_handles(&self) -> HandleIter<'_, Self, FaceHandle> {
         HandleIter::new(self)
+    }
+
+    /// Returns an iterator over the handles of all faces which can return a
+    /// mutable reference to the mesh. This is useful when it is necessary to
+    /// mutate the mesh while iterating.
+    ///
+    /// Using this iterator is tricky, so please see the documentation of
+    /// [`HandleIterMut`] for more information.
+    fn face_handles_mut(&mut self) -> HandleIterMut<'_, Self, FaceHandle> {
+        HandleIterMut::<'_, Self, FaceHandle>::new(self)
     }
 
     /// Returns an iterator over all faces in this mesh.
@@ -328,6 +348,16 @@ pub trait EdgeMesh: Mesh {
     /// iterator exactly once.
     fn edge_handles(&self) -> HandleIter<'_, Self, EdgeHandle> {
         HandleIter::new(self)
+    }
+
+    /// Returns an iterator over the handles of all edges which can return a
+    /// mutable reference to the mesh. This is useful when it is necessary to
+    /// mutate the mesh while iterating.
+    ///
+    /// Using this iterator is tricky, so please see the documentation of
+    /// [`HandleIterMut`] for more information.
+    fn edge_handles_mut(&mut self) -> HandleIterMut<'_, Self, EdgeHandle> {
+        HandleIterMut::<'_, Self, EdgeHandle>::new(self)
     }
 
     /// Checks if the given edge handle refers to a valid edge of this mesh.
