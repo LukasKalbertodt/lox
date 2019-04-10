@@ -78,6 +78,7 @@ where
     // ----- (2) Split faces and calc new vertex positions ---------------------------------------
     // We create a new vertex per face by splitting each face into three new
     // ones.
+    vertex_positions.reserve(mesh.num_faces());
     let mut it = mesh.face_handles_mut();
     while let Some(fh) = it.next() {
         // The position of the new vertex is just the centroid of the face's
