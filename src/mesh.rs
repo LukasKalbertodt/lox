@@ -1,5 +1,5 @@
 use crate::{
-    handle::{Handle, HSizeExt, EdgeHandle, FaceHandle, VertexHandle},
+    handle::{hsize, Handle, HSizeExt, EdgeHandle, FaceHandle, VertexHandle},
     traits::{EdgeMesh, Mesh},
     refs::ElementRef,
 };
@@ -16,19 +16,23 @@ use crate::{
 pub struct HandleIter<'a, M: Mesh + ?Sized, H: Handle> {
     current: H,
     mesh: &'a M,
+    count: hsize,
 }
 
-impl<'a, M: Mesh + ?Sized, H: Handle> HandleIter<'a, M, H> {
-    pub(crate) fn new(mesh: &'a M) -> Self {
-        Self {
-            current: H::new(0),
-            mesh,
-        }
-    }
-}
+
 
 macro_rules! impl_handle_iter {
-    ($mesh_trait:ident, $handle:ident, $method:ident) => {
+    ($mesh_trait:ident, $handle:ident, $method:ident, $num_fn:ident) => {
+        impl<'a, M: $mesh_trait + ?Sized> HandleIter<'a, M, $handle> {
+            pub(crate) fn new(mesh: &'a M) -> Self {
+                Self {
+                    current: $handle::new(0),
+                    mesh,
+                    count: mesh.$num_fn(),
+                }
+            }
+        }
+
         impl<M: $mesh_trait + ?Sized> Iterator for HandleIter<'_, M, $handle> {
             type Item = $handle;
 
@@ -36,17 +40,24 @@ macro_rules! impl_handle_iter {
                 let out = self.mesh.$method(self.current);
                 if let Some(out) = out {
                     self.current = $handle::new(out.idx().next());
+                    self.count -= 1;
                 }
 
                 out
             }
+
+            fn size_hint(&self) -> (usize, Option<usize>) {
+                (self.count as usize, Some(self.count as usize))
+            }
         }
+
+        impl<M: $mesh_trait + ?Sized> ExactSizeIterator for HandleIter<'_, M, $handle> {}
     }
 }
 
-impl_handle_iter!(Mesh, VertexHandle, next_vertex_handle_from);
-impl_handle_iter!(Mesh, FaceHandle, next_face_handle_from);
-impl_handle_iter!(EdgeMesh, EdgeHandle, next_edge_handle_from);
+impl_handle_iter!(Mesh, VertexHandle, next_vertex_handle_from, num_vertices);
+impl_handle_iter!(Mesh, FaceHandle, next_face_handle_from, num_faces);
+impl_handle_iter!(EdgeMesh, EdgeHandle, next_edge_handle_from, num_edges);
 
 
 
@@ -129,14 +140,6 @@ pub struct ElementRefIter<'a, M: Mesh + ?Sized, H: Handle> {
     handles: HandleIter<'a, M, H>,
 }
 
-impl<'a, M: Mesh + ?Sized, H: Handle> ElementRefIter<'a, M, H> {
-    pub(crate) fn new(mesh: &'a M) -> Self {
-        Self {
-            handles: HandleIter::new(mesh),
-        }
-    }
-}
-
 impl<'a, M, H> Iterator for ElementRefIter<'a, M, H>
 where
     M: Mesh + ?Sized,
@@ -148,4 +151,31 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         self.handles.next().map(|h| ElementRef::new(self.handles.mesh, h))
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.handles.size_hint()
+    }
 }
+
+impl<'a, M, H> ExactSizeIterator for ElementRefIter<'a, M, H>
+where
+    M: Mesh + ?Sized,
+    H: Handle,
+    HandleIter<'a, M, H>: Iterator<Item = H>,
+{}
+
+macro_rules! impl_element_iter {
+    ($mesh_trait:ident, $handle:ident) => {
+        impl<'a, M: $mesh_trait + ?Sized> ElementRefIter<'a, M, $handle> {
+            pub(crate) fn new(mesh: &'a M) -> Self {
+                Self {
+                    handles: HandleIter::<M, $handle>::new(mesh),
+                }
+            }
+        }
+    }
+}
+
+impl_element_iter!(Mesh, VertexHandle);
+impl_element_iter!(Mesh, FaceHandle);
+impl_element_iter!(EdgeMesh, EdgeHandle);

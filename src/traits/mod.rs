@@ -156,7 +156,7 @@ pub trait Mesh: Empty {
     /// The order of these vertices is unspecified, but each vertex is yielded
     /// by the iterator exactly once.
     fn vertex_handles(&self) -> HandleIter<'_, Self, VertexHandle> {
-        HandleIter::new(self)
+        HandleIter::<Self, VertexHandle>::new(self)
     }
 
     /// Returns an iterator over the handles of all vertices which can return a
@@ -174,7 +174,7 @@ pub trait Mesh: Empty {
     /// This iterator yields `VertexRef`s. If you are only interested in the
     /// handle, use [`vertex_handles()`][Mesh::vertex_handles].
     fn vertices(&self) -> ElementRefIter<'_, Self, VertexHandle> {
-        ElementRefIter::new(self)
+        ElementRefIter::<Self, VertexHandle>::new(self)
     }
 
 
@@ -192,7 +192,7 @@ pub trait Mesh: Empty {
     /// The order of these faces is unspecified, but each vertex is yielded by
     /// the iterator exactly once.
     fn face_handles(&self) -> HandleIter<'_, Self, FaceHandle> {
-        HandleIter::new(self)
+        HandleIter::<Self, FaceHandle>::new(self)
     }
 
     /// Returns an iterator over the handles of all faces which can return a
@@ -210,7 +210,7 @@ pub trait Mesh: Empty {
     /// This iterator yields `FaceRef`s. If you are only interested in the
     /// handle, use [`face_handles()`][Mesh::face_handles].
     fn faces(&self) -> ElementRefIter<'_, Self, FaceHandle> {
-        ElementRefIter::new(self)
+        ElementRefIter::<Self, FaceHandle>::new(self)
     }
 }
 
@@ -347,7 +347,7 @@ pub trait EdgeMesh: Mesh {
     /// The order of the edges is unspecified, but each edge is yielded by the
     /// iterator exactly once.
     fn edge_handles(&self) -> HandleIter<'_, Self, EdgeHandle> {
-        HandleIter::new(self)
+        HandleIter::<Self, EdgeHandle>::new(self)
     }
 
     /// Returns an iterator over the handles of all edges which can return a
@@ -370,7 +370,7 @@ pub trait EdgeMesh: Mesh {
     /// This iterator yields `EdgeRef`s. If you are only interested in the
     /// handle, use [`edge_handles()`][EdgeMesh::edge_handles].
     fn edges(&self) -> ElementRefIter<'_, Self, EdgeHandle> {
-        ElementRefIter::new(self)
+        ElementRefIter::<Self, EdgeHandle>::new(self)
     }
 }
 
