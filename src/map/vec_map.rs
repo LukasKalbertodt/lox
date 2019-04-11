@@ -6,7 +6,7 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use stable_vec::{Keys, StableVec};
+use stable_vec::{Indices, StableVec};
 
 use crate::{
     handle::{hsize, Handle},
@@ -107,9 +107,9 @@ impl<H: Handle, T> VecMap<H, T> {
         self.vec.num_elements() as hsize
     }
 
-    pub fn handles(&self) -> Handles<H> {
+    pub fn handles(&self) -> Handles<H, T> {
         Handles {
-            iter: self.vec.keys(),
+            iter: self.vec.indices(),
             _dummy: PhantomData,
         }
     }
@@ -234,7 +234,7 @@ impl<H: Handle, T> PropStoreMut<H> for VecMap<H, T> {
 impl<H: Handle, T: fmt::Debug> fmt::Debug for VecMap<H, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_map()
-            .entries(self.vec.keys().map(|k| (H::from_usize(k), &self.vec[k])))
+            .entries(self.vec.indices().map(|k| (H::from_usize(k), &self.vec[k])))
             .finish()
     }
 }
@@ -271,12 +271,12 @@ impl<H: Handle, T> FromIterator<(H, T)> for VecMap<H, T> {
 
 
 #[derive(Debug)]
-pub struct Handles<'map, H: Handle> {
-    iter: Keys<'map>,
+pub struct Handles<'map, H: Handle, T> {
+    iter: Indices<'map, T>,
     _dummy: PhantomData<H>,
 }
 
-impl<'map, H: Handle> Iterator for Handles<'map, H> {
+impl<'map, H: Handle, T> Iterator for Handles<'map, H, T> {
     type Item = H;
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(H::from_usize)
