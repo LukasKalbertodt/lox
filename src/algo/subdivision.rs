@@ -75,10 +75,15 @@ where
     }
 
 
-    // ----- (2) Split faces and calc new vertex positions ---------------------------------------
-    // We create a new vertex per face by splitting each face into three new
-    // ones.
+    // ----- (2) Split faces and calc new vertex positions
+    //       --------------------------------------- We create a new vertex per
+    //       face by splitting each face into three new ones. First we can
+    //       reserve a bunch of memory, because we know exactly how many
+    //       elements we will end up with.
     vertex_positions.reserve(mesh.num_faces());
+    mesh.reserve_for_vertices(mesh.num_faces());
+    mesh.reserve_for_faces(mesh.num_faces() * 3);
+
     let mut it = mesh.face_handles_mut();
     while let Some(fh) = it.next() {
         // The position of the new vertex is just the centroid of the face's
