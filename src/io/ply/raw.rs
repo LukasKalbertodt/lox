@@ -21,7 +21,6 @@ use derive_more::{Add, AddAssign, From, Sub, SubAssign};
 use smallvec::SmallVec;
 
 use crate::{
-    self as lox, // for proc macros
     Empty,
     io::{Error, ErrorKind, Primitive, PrimitiveType},
 };

@@ -46,7 +46,6 @@ use std::{
 };
 
 use crate::{
-    self as lox, // for proc macros
     Empty,
     io::{
         FileEncoding,

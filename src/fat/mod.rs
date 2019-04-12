@@ -30,7 +30,6 @@
 use cgmath::{Point3, Vector3};
 
 use crate::{
-    self as lox, // for proc macros
     prelude::*,
     ds::SharedVertexMesh,
     handle::hsize,

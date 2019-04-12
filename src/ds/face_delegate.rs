@@ -1,7 +1,6 @@
 //! Everything related to the `FaceDelegateMesh`.
 
 use crate::{
-    self as lox, // for proc macros
     prelude::*,
     handle::{hsize, FaceHandle, VertexHandle, Opt},
     map::{VecMap, PropMap, PropStoreMut},

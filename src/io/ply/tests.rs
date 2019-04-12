@@ -2,7 +2,6 @@ use cgmath::{Point3, Vector3};
 use failure::Error;
 
 use crate::{
-    self as lox, // for proc-macros
     mesh, MemSource, MemSink,
     prelude::*,
     ds::SharedVertexMesh,

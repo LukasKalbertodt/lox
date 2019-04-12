@@ -18,6 +18,12 @@
 
 pub extern crate cgmath;
 
+// This is done for proc macros from `lox-macros`. These use paths starting
+// with `lox`. This makes sense for all crates using `lox` as dependency. But
+// we also want to use proc macros in this library. So we alias `crate` with
+// `lox`.
+extern crate self as lox;
+
 
 #[cfg(test)]
 #[macro_use]
