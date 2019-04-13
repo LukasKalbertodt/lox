@@ -6,7 +6,7 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use stable_vec::{Indices, StableVec};
+use stable_vec::{Indices, StableVec, DefaultCore};
 
 use crate::{
     handle::{hsize, Handle},
@@ -272,7 +272,7 @@ impl<H: Handle, T> FromIterator<(H, T)> for VecMap<H, T> {
 
 #[derive(Debug)]
 pub struct Handles<'map, H: Handle, T> {
-    iter: Indices<'map, T>,
+    iter: Indices<'map, T, DefaultCore<T>>,
     _dummy: PhantomData<H>,
 }
 
@@ -285,7 +285,7 @@ impl<'map, H: Handle, T> Iterator for Handles<'map, H, T> {
 
 #[derive(Debug)]
 pub struct Values<'map, T> {
-    iter: stable_vec::Iter<'map, T>,
+    iter: stable_vec::Iter<'map, T, DefaultCore<T>>,
 }
 
 impl<'map, T> Iterator for Values<'map, T> {
@@ -297,7 +297,7 @@ impl<'map, T> Iterator for Values<'map, T> {
 
 #[derive(Debug)]
 pub struct ValuesMut<'map, T> {
-    iter: stable_vec::IterMut<'map, T>,
+    iter: stable_vec::IterMut<'map, T, DefaultCore<T>>,
 }
 
 impl<'map, T> Iterator for ValuesMut<'map, T> {
