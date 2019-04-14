@@ -321,10 +321,7 @@ impl<H: Handle> IndexHandleMap<H> {
                 } else {
                     // This is bad: now we have to convert this simple map into
                     // the arbitrary map. First transfer all old values.
-                    let mut map = StableVec::with_capacity(*len + 1);
-                    for i in 0..*len {
-                        map.push(H::from_usize(i));
-                    }
+                    let mut map: StableVec<H> = (0..*len).map(H::from_usize).collect();
 
                     // Insert new value
                     Self::insert_into_sv(&mut map, index, handle);
@@ -357,16 +354,12 @@ impl<H: Handle> IndexHandleMap<H> {
         if sv.has_element_at(idx) {
             panic!("IndexHandleMap::insert called with the same index twice");
         } else {
-            // Make sure `idx` is not out of bounds by growing the vector if
-            // necessary.
-            let next_index = sv.next_index();
-            if next_index <= idx {
-                sv.grow(1 + idx - next_index);
-            }
+            // Make sure `idx` is not out of bounds.
+            sv.reserve_for(idx);
 
             // We made sure that there is no element at `idx` and that `idx`
             // is not out of bounds. So we can unwrap here.
-            sv.insert_into_hole(idx, elem).ok().unwrap();
+            sv.insert(idx, elem);
         }
     }
 }

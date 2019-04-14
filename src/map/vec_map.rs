@@ -2,7 +2,6 @@ use std::{
     fmt,
     iter::FromIterator,
     marker::PhantomData,
-    mem,
     ops::{Index, IndexMut},
 };
 
@@ -198,28 +197,19 @@ impl<H: Handle, T> PropStoreMut<H> for VecMap<H, T> {
         self.vec.get_mut(handle.to_usize())
     }
 
-    fn insert(&mut self, handle: H, mut elem: Self::Output) -> Option<Self::Output> {
+    fn insert(&mut self, handle: H, elem: Self::Output) -> Option<Self::Output> {
         let idx = handle.to_usize();
-        if self.vec.has_element_at(idx) {
-            mem::swap(&mut self.vec[idx], &mut elem);
-            Some(elem)
-        } else {
-            // Make sure `idx` is not out of bounds by growing the vector if
-            // necessary.
-            let next_index = self.vec.next_index();
-            if next_index <= idx {
-                self.vec.grow(1 + idx - next_index);
-            }
-
-            // We made sure that there is no element at `idx` and that `idx`
-            // is not out of bounds. So we can unwrap here.
-            self.vec.insert_into_hole(idx, elem).ok().unwrap();
-            None
-        }
+        self.vec.reserve_for(idx);
+        self.vec.insert(idx, elem)
     }
 
     fn remove(&mut self, handle: H) -> Option<Self::Output> {
-        self.vec.remove(handle.to_usize())
+        let idx = handle.to_usize();
+        if idx >= self.vec.capacity() {
+            return None;
+        }
+
+        self.vec.remove(idx)
     }
 
     fn clear(&mut self) {
