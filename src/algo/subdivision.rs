@@ -21,6 +21,7 @@ where
         + VerticesAroundFace
         + FacesAroundVertex
         + FacesAroundFace
+        + EToF
         + VerticesAroundVertex,
     MapT: PropStoreMut<VertexHandle> + Clone,
     MapT::Target: Pos3Like<Scalar = ScalarT>,
@@ -28,7 +29,10 @@ where
 {
     // Remember the original edges of the mesh.
     // TODO: replace with proper prop set
-    let old_edges: VecMap<EdgeHandle, ()> = mesh.edge_handles().map(|eh| (eh, ())).collect();
+    let old_edges: VecMap<EdgeHandle, ()> = mesh.edges()
+        .filter(|e| !e.is_boundary())
+        .map(|e| (e.handle(), ()))
+        .collect();
 
     // ----- (1) Calculate new positions for old vertices ----------------------------------------
     // We have to calculate a new position for all already existing vertices.
