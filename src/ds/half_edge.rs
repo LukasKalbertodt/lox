@@ -940,12 +940,12 @@ where
         //
         //  Edges                      Vertices               Faces
         //  -----                      --------               -----
-        //  a: center_above            [A]: v_left             (X): f_above
-        //  b: center_below            [B]: v_right            (Y): f_below
-        //  c: above_left              [C]: v_above
-        //  d: above_right             [D]: v_below
-        //  e: below_left
-        //  f: below_right
+        //  a: he_center_above            [A]: v_left             (X): f_above
+        //  b: he_center_below            [B]: v_right            (Y): f_below
+        //  c: he_above_left              [C]: v_above
+        //  d: he_above_right             [D]: v_below
+        //  e: he_below_left
+        //  f: he_below_right
         //
         //
         // We just imagine that the "random" half-edge we get from
@@ -958,41 +958,41 @@ where
         );
 
         // First, let's just obtain all handles
-        let center_above = HalfEdgeHandle::lower_half_of(edge);
-        let center_below = center_above.twin();
-        let above_right = self.half_edges[center_above].next;
-        let above_left = self.half_edges[above_right].next;
-        let below_left = self.half_edges[center_below].next;
-        let below_right = self.half_edges[below_left].next;
+        let he_center_above = HalfEdgeHandle::lower_half_of(edge);
+        let he_center_below = he_center_above.twin();
+        let he_above_right = self.half_edges[he_center_above].next;
+        let he_above_left = self.half_edges[he_above_right].next;
+        let he_below_left = self.half_edges[he_center_below].next;
+        let he_below_right = self.half_edges[he_below_left].next;
 
-        let f_above = self.half_edges[center_above].face.unwrap();
-        let f_below = self.half_edges[center_below].face.unwrap();
+        let f_above = self.half_edges[he_center_above].face.unwrap();
+        let f_below = self.half_edges[he_center_below].face.unwrap();
 
-        let v_right = self.half_edges[center_above].target;
-        let v_left = self.half_edges[center_below].target;
-        let v_above = self.half_edges[above_right].target;
-        let v_below = self.half_edges[below_left].target;
+        let v_right = self.half_edges[he_center_above].target;
+        let v_left = self.half_edges[he_center_below].target;
+        let v_above = self.half_edges[he_above_right].target;
+        let v_below = self.half_edges[he_below_left].target;
 
 
         // Update all fields
-        self.vertices[v_left].outgoing = Opt::some(below_left);
-        self.vertices[v_right].outgoing = Opt::some(above_right);
+        self.vertices[v_left].outgoing = Opt::some(he_below_left);
+        self.vertices[v_right].outgoing = Opt::some(he_above_right);
 
-        self.faces[f_above].edge = center_above;
-        self.faces[f_below].edge = center_below;
+        self.faces[f_above].edge = he_center_above;
+        self.faces[f_below].edge = he_center_below;
 
-        self.half_edges[center_above].target = v_below;
-        self.half_edges[center_above].next = below_right;
-        self.half_edges[center_below].target = v_above;
-        self.half_edges[center_below].next = above_left;
+        self.half_edges[he_center_above].target = v_below;
+        self.half_edges[he_center_above].next = he_below_right;
+        self.half_edges[he_center_below].target = v_above;
+        self.half_edges[he_center_below].next = he_above_left;
 
-        self.half_edges[below_right].face = Opt::some(f_above);
-        self.half_edges[below_right].next = above_right;
-        self.half_edges[above_right].next = center_above;
+        self.half_edges[he_below_right].face = Opt::some(f_above);
+        self.half_edges[he_below_right].next = he_above_right;
+        self.half_edges[he_above_right].next = he_center_above;
 
-        self.half_edges[above_left].face = Opt::some(f_below);
-        self.half_edges[above_left].next = below_left;
-        self.half_edges[below_left].next = center_below;
+        self.half_edges[he_above_left].face = Opt::some(f_below);
+        self.half_edges[he_above_left].next = he_below_left;
+        self.half_edges[he_below_left].next = he_center_below;
     }
 }
 
