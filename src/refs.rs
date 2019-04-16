@@ -336,7 +336,7 @@ impl<'a, MeshT: 'a> EdgeRef<'a, MeshT> {
 
     /// Returns whether or not this edge is a boundary edge (that is, if it has
     /// less than 2 adjacent faces).
-    pub fn is_at_boundary(&self) -> bool
+    pub fn is_boundary(&self) -> bool
     where
         MeshT: EToF,
     {
