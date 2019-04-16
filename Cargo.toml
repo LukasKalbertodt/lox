@@ -23,7 +23,7 @@ lox-macros = { path = "lox-macros" }
 hashbrown = "0.1.3"
 num-traits = "0.2"
 smallvec = { version = "0.6", features = ["union"] }
-stable-vec = "0.3.0"
+stable-vec = { git = "https://github.com/LukasKalbertodt/stable-vec", branch = "v0.4-pre" }
 
 [dev-dependencies]
 criterion = { version = "0.2", features = ["real_blackbox"] }
