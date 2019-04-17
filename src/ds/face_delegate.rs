@@ -721,10 +721,8 @@ mod test {
 
     gen_tri_mesh_tests!(FaceDelegateMesh: [
         TriMesh,
-        FacesAroundVertex,
-        VerticesAroundVertex,
-        VerticesAroundFace,
-        FacesAroundFace,
+        BasicAdj,
+        FullAdj,
         Manifold,
         SupportsMultiBlade
     ]);

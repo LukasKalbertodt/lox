@@ -1248,12 +1248,9 @@ mod test {
         gen_tri_mesh_tests!(HalfEdgeMesh::<TriConfig>: [
             TriMesh,
             EdgeMesh,
-            VerticesAroundFace,
-            VerticesAroundVertex,
-            FacesAroundFace,
-            FacesAroundVertex,
-            EToF,
-            EToV,
+            BasicAdj,
+            FullAdj,
+            EdgeAdj,
             Manifold,
             SupportsMultiBlade
         ]);
@@ -1265,12 +1262,9 @@ mod test {
         gen_tri_mesh_tests!(HalfEdgeMesh::<PolyConfig>: [
             PolyMesh,
             EdgeMesh,
-            VerticesAroundFace,
-            VerticesAroundVertex,
-            FacesAroundFace,
-            FacesAroundVertex,
-            EToF,
-            EToV,
+            BasicAdj,
+            FullAdj,
+            EdgeAdj,
             Manifold,
             SupportsMultiBlade
         ]);

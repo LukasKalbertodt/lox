@@ -123,5 +123,5 @@ impl fmt::Debug for SharedVertexMesh {
 mod test {
     use super::*;
 
-    gen_tri_mesh_tests!(SharedVertexMesh: [TriMesh, VerticesAroundFace, SupportsMultiBlade]);
+    gen_tri_mesh_tests!(SharedVertexMesh: [TriMesh, BasicAdj, SupportsMultiBlade]);
 }
