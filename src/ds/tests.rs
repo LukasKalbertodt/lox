@@ -179,13 +179,10 @@ pub fn assert_face_edges_fn(
 /// This check is a stricter version of `assert_eq_set`. For <= 2 elements,
 /// it's more or less equivalent to `assert_eq_set`.
 macro_rules! assert_eq_order {
-    ($list:expr, [] $(,)?) => {{
-        assert_eq!($list, []);
-    }};
-    ($list:expr, [$a:expr $(, $tail:expr)*] $(,)?) => {{
+    ($list:expr, [$($x:expr),*] $(,)?) => {{
         crate::ds::tests::assert_eq_order_fn(
             &$list[..],
-            &[$a $(, $tail)*],
+            &[$($x),*],
             stringify!($list),
         );
     }};
@@ -208,6 +205,10 @@ pub fn assert_eq_order_fn<T: Debug + PartialEq + Copy>(
             actual_str,
             expected,
         );
+    }
+
+    if actual.len() == 0 {
+        return;
     }
 
     let pos = actual.iter().position(|&e| e == expected[0]).unwrap_or_else(|| {
