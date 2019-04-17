@@ -85,12 +85,19 @@ pub trait FullAdj: BasicAdj {
 
     /// Checks if the given vertex lies on a boundary. A vertex is a boundary
     /// vertex if the number of adjacent faces does not match the number of
-    /// adjacent vertices.
+    /// adjacent vertices *or* if it is an isolated vertex.
     ///
     /// *Note to implementors*: you should usually overwrite this method, as
     /// the default implementation is fairly slow.
     fn is_boundary_vertex(&self, vertex: VertexHandle) -> bool {
         self.faces_around_vertex(vertex).count() != self.vertices_around_vertex(vertex).count()
+            || self.is_isolated_vertex(vertex)
+    }
+
+    /// Checks if the given vertex is isolated, meaning that it has no adjacent
+    /// faces, edges or vertices.
+    fn is_isolated_vertex(&self, vertex: VertexHandle) -> bool {
+        self.vertices_around_vertex(vertex).next().is_none()
     }
 
     /// Checks whether the two given faces share an edge (are "adjacent" to one
