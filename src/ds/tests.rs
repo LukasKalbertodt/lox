@@ -9,6 +9,7 @@ use std::{
 
 use crate::{
     prelude::*,
+    handle::hsize,
     util::DiList,
 };
 
@@ -235,6 +236,240 @@ pub fn assert_eq_order_fn<T: Debug + PartialEq + Copy>(
     }
 }
 
+macro_rules! test_helper {
+    () => { compile_error!("internal macro: don't use anywhere else") };
+    (@is_boundary boundary) => { true };
+    (@is_boundary interior) => { false };
+}
+
+
+// ===============================================================================================
+// ===== `assert_vertices` and helpers
+// ===============================================================================================
+
+macro_rules! assert_vertices {
+    (
+        $mesh:ident; [$($extra:ident),*]; $(
+            $vh:ident => [$($nf:ident),*], [$($nv:ident),*], $boundary:ident
+        );* $(;)?
+    ) =>  {
+        let vertices = vec![$(
+            crate::ds::tests::VertexInfo {
+                handle: $vh,
+                boundary: test_helper!(@is_boundary $boundary),
+                adjacent_faces: vec![$($nf),*],
+                adjacent_vertices: vec![$($nv),*],
+            }
+        ),*];
+
+        crate::ds::tests::assert_vertices_basic(&$mesh, &vertices);
+
+        gen_tri_mesh_tests!(@if FullAdj in [$($extra),*] => {
+            crate::ds::tests::assert_vertices_full_adj(&$mesh, &vertices);
+        });
+    };
+}
+
+pub struct VertexInfo {
+    pub handle: VertexHandle,
+    pub boundary: bool,
+    pub adjacent_faces: Vec<FaceHandle>,
+    pub adjacent_vertices: Vec<VertexHandle>,
+}
+
+pub fn assert_vertices_basic<M: Mesh>(mesh: &M, vertices: &[VertexInfo]) {
+    if mesh.num_vertices() != vertices.len() as hsize {
+        panic!(
+            "num_vertices() returned {}, but is supposed to return {}",
+            mesh.num_vertices(),
+            vertices.len(),
+        );
+    }
+
+    let vertex_handles = vertices.iter().map(|v| v.handle).collect::<Vec<_>>();
+    assert_eq_set_fn(
+        mesh.vertex_handles(),
+        &vertex_handles,
+        "mesh.vertex_handles()",
+        &format!("{:?}", vertex_handles),
+    );
+
+    for v in vertices {
+        let vh = v.handle;
+        if !mesh.contains_vertex(vh) {
+            panic!("mesh.contains_vertex({:?}) returned false, should return true", vh);
+        }
+
+        let last_vertex_handle = mesh.last_vertex_handle().unwrap();
+        if vh.idx() > last_vertex_handle.idx() {
+            panic!(
+                "mesh.last_vertex_handle() returned {:?} which has a smaller index than {:?}",
+                last_vertex_handle,
+                vh,
+            );
+        }
+    }
+}
+
+pub fn assert_vertices_full_adj<M: FullAdj>(mesh: &M, vertices: &[VertexInfo]) {
+    for v in vertices {
+        if v.boundary != mesh.is_boundary_vertex(v.handle) {
+            panic!(
+                "mesh says {:?} is {}a boundary vertex, but it is{}",
+                v.handle,
+                if v.boundary { "not " } else { "" },
+                if v.boundary { "" } else { " not" },
+            );
+        }
+
+        assert_eq_order_fn(
+            &mesh.faces_around_vertex(v.handle).into_vec(),
+            &v.adjacent_faces,
+            &format!("mesh.faces_around_vertex({:?})", v.handle),
+        );
+        assert_eq_order_fn(
+            &mesh.vertices_around_vertex(v.handle).into_vec(),
+            &v.adjacent_vertices,
+            &format!("mesh.vertices_around_vertex({:?})", v.handle),
+        );
+    }
+}
+
+
+// ===============================================================================================
+// ===== `assert_faces` and helpers
+// ===============================================================================================
+
+macro_rules! assert_faces {
+    (
+        $mesh:ident; [$($extra:ident),*]; $(
+            $fh:ident => [$($nf:ident),*], [$($nv:ident),*], $boundary:ident
+        );* $(;)?
+    ) =>  {
+        let faces = vec![$(
+            crate::ds::tests::FaceInfo {
+                handle: $fh,
+                boundary: test_helper!(@is_boundary $boundary),
+                adjacent_faces: vec![$($nf),*],
+                adjacent_vertices: vec![$($nv),*],
+            }
+        ),*];
+
+        crate::ds::tests::assert_faces_basic(&$mesh, &faces);
+
+        gen_tri_mesh_tests!(@if BasicAdj in [$($extra),*] => {
+            crate::ds::tests::assert_faces_basic_adj(&$mesh, &faces);
+
+            gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                crate::ds::tests::assert_faces_basic_adj_tri(&$mesh, &faces);
+            });
+        });
+
+        gen_tri_mesh_tests!(@if FullAdj in [$($extra),*] => {
+            crate::ds::tests::assert_faces_full_adj(&$mesh, &faces);
+
+            gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+                crate::ds::tests::assert_faces_full_adj_tri(&$mesh, &faces);
+            });
+        });
+    };
+}
+
+pub struct FaceInfo {
+    pub handle: FaceHandle,
+    pub boundary: bool,
+    pub adjacent_faces: Vec<FaceHandle>,
+    pub adjacent_vertices: Vec<VertexHandle>,
+}
+
+pub fn assert_faces_basic<M: Mesh>(mesh: &M, faces: &[FaceInfo]) {
+    if mesh.num_faces() != faces.len() as hsize {
+        panic!(
+            "num_faces() returned {}, but is supposed to return {}",
+            mesh.num_faces(),
+            faces.len(),
+        );
+    }
+
+    let face_handles = faces.iter().map(|f| f.handle).collect::<Vec<_>>();
+    assert_eq_set_fn(
+        mesh.face_handles(),
+        &face_handles,
+        "mesh.face_handles()",
+        &format!("{:?}", face_handles),
+    );
+
+    for f in faces {
+        let fh = f.handle;
+        if !mesh.contains_face(fh) {
+            panic!("mesh.contains_face({:?}) returned false, should return true", fh);
+        }
+
+        let last_face_handle = mesh.last_face_handle().unwrap();
+        if fh.idx() > last_face_handle.idx() {
+            panic!(
+                "mesh.last_face_handle() returned {:?} which has a smaller index than {:?}",
+                last_face_handle,
+                fh,
+            );
+        }
+    }
+}
+
+pub fn assert_faces_basic_adj<M: BasicAdj>(mesh: &M, faces: &[FaceInfo]) {
+    for f in faces {
+        assert_eq_order_fn(
+            &mesh.vertices_around_face(f.handle).into_vec(),
+            &f.adjacent_vertices,
+            &format!("mesh.vertices_around_face({:?})", f.handle),
+        );
+    }
+}
+
+pub fn assert_faces_basic_adj_tri<M: BasicAdj + TriMesh>(mesh: &M, faces: &[FaceInfo]) {
+    for f in faces {
+        assert_eq_order_fn(
+            &mesh.vertices_around_triangle(f.handle),
+            &f.adjacent_vertices,
+            &format!("mesh.vertices_around_triangle({:?})", f.handle),
+        );
+    }
+}
+
+pub fn assert_faces_full_adj<M: FullAdj>(mesh: &M, faces: &[FaceInfo]) {
+    for f in faces {
+        if f.boundary != mesh.is_boundary_face(f.handle) {
+            panic!(
+                "mesh says {:?} is {}a boundary face, but it is{}",
+                f.handle,
+                if f.boundary { "not " } else { "" },
+                if f.boundary { "" } else { " not" },
+            );
+        }
+
+        assert_eq_order_fn(
+            &mesh.faces_around_face(f.handle).into_vec(),
+            &f.adjacent_faces,
+            &format!("mesh.faces_around_face({:?})", f.handle),
+        );
+    }
+}
+
+pub fn assert_faces_full_adj_tri<M: FullAdj + TriMesh>(mesh: &M, faces: &[FaceInfo]) {
+    for f in faces {
+        assert_eq_order_fn(
+            &mesh.faces_around_triangle(f.handle).into_vec(),
+            &f.adjacent_faces,
+            &format!("mesh.faces_around_triangle({:?})", f.handle),
+        );
+    }
+}
+
+
+// ===============================================================================================
+// ===== The main macro containing the test suite
+// ===============================================================================================
+
 /// Generates unit tests for the mesh data structure `$name`.
 ///
 /// In the brackets, you should specify additional traits that are implemented
@@ -397,61 +632,19 @@ macro_rules! gen_tri_mesh_tests {
             let f_bc = m.add_triangle([vb, vc, v_top]);
             let f_ca = m.add_triangle([vc, va, v_top]);
 
-            assert_eq!(m.num_faces(), 4);
-            assert_eq!(m.num_vertices(), 4);
+            assert_faces!(m; [$($extra),*];
+                f_bottom => [f_ca, f_bc, f_ab],     [va, vc, vb],    interior;
+                f_ab     => [f_bc, f_ca, f_bottom], [va, vb, v_top], interior;
+                f_bc     => [f_ca, f_ab, f_bottom], [vb, vc, v_top], interior;
+                f_ca     => [f_ab, f_bc, f_bottom], [vc, va, v_top], interior;
+            );
 
-            assert_eq_set!(m.face_handles(), [f_bottom, f_ab, f_bc, f_ca]);
-            assert_eq_set!(m.vertex_handles(), [va, vb, vc, v_top]);
-
-            gen_tri_mesh_tests!(@if BasicAdj in [$($extra),*] => {
-                assert_eq_order!(m.vertices_around_face(f_bottom).into_vec(), [va, vc, vb]);
-                assert_eq_order!(m.vertices_around_face(f_ab).into_vec(), [va, vb, v_top]);
-                assert_eq_order!(m.vertices_around_face(f_bc).into_vec(), [vb, vc, v_top]);
-                assert_eq_order!(m.vertices_around_face(f_ca).into_vec(), [vc, va, v_top]);
-
-                gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
-                    assert_eq_order!(m.vertices_around_triangle(f_bottom), [va, vc, vb]);
-                    assert_eq_order!(m.vertices_around_triangle(f_ab), [va, vb, v_top]);
-                    assert_eq_order!(m.vertices_around_triangle(f_bc), [vb, vc, v_top]);
-                    assert_eq_order!(m.vertices_around_triangle(f_ca), [vc, va, v_top]);
-                });
-            });
-
-            gen_tri_mesh_tests!(@if FullAdj in [$($extra),*] => {
-                assert_eq_order!(m.faces_around_vertex(va).into_vec(), [f_bottom, f_ca, f_ab]);
-                assert_eq_order!(m.faces_around_vertex(vb).into_vec(), [f_bottom, f_ab, f_bc]);
-                assert_eq_order!(m.faces_around_vertex(vc).into_vec(), [f_bottom, f_bc, f_ca]);
-                assert_eq_order!(m.faces_around_vertex(v_top).into_vec(), [f_ca, f_bc, f_ab]);
-
-                assert_eq_order!(m.vertices_around_vertex(va).into_vec(), [v_top, vb, vc]);
-                assert_eq_order!(m.vertices_around_vertex(vb).into_vec(), [v_top, vc, va]);
-                assert_eq_order!(m.vertices_around_vertex(vc).into_vec(), [v_top, va, vb]);
-                assert_eq_order!(m.vertices_around_vertex(v_top).into_vec(), [va, vc, vb]);
-
-                assert_eq_order!(m.faces_around_face(f_bottom).into_vec(), [f_ca, f_bc, f_ab]);
-                assert_eq_order!(m.faces_around_face(f_ab).into_vec(), [f_bc, f_ca, f_bottom]);
-                assert_eq_order!(m.faces_around_face(f_bc).into_vec(), [f_ca, f_ab, f_bottom]);
-                assert_eq_order!(m.faces_around_face(f_ca).into_vec(), [f_ab, f_bc, f_bottom]);
-
-                gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
-                    assert_eq_order!(
-                        m.faces_around_triangle(f_bottom).into_vec(),
-                        [f_ca, f_bc, f_ab],
-                    );
-                    assert_eq_order!(
-                        m.faces_around_triangle(f_ab).into_vec(),
-                        [f_bc, f_ca, f_bottom],
-                    );
-                    assert_eq_order!(
-                        m.faces_around_triangle(f_bc).into_vec(),
-                        [f_ca, f_ab, f_bottom],
-                    );
-                    assert_eq_order!(
-                        m.faces_around_triangle(f_ca).into_vec(),
-                        [f_ab, f_bc, f_bottom],
-                    );
-                });
-            });
+            assert_vertices!(m; [$($extra),*];
+                va    => [f_bottom, f_ca, f_ab], [v_top, vb, vc], interior;
+                vb    => [f_bottom, f_ab, f_bc], [v_top, vc, va], interior;
+                vc    => [f_bottom, f_bc, f_ca], [v_top, va, vb], interior;
+                v_top => [f_ca, f_bc, f_ab],     [va, vc, vb],    interior;
+            );
 
             gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
                 let e0 = EdgeHandle::new(0);
