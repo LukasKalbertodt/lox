@@ -58,8 +58,8 @@ pub trait FullAdj: BasicAdj {
     /// Returns the faces around the given face in front-face CCW order.
     ///
     /// If you are dealing with a triangular mesh, rather use
-    /// [`faces_around_triangle`][FacesAroundFace::faces_around_triangle]
-    /// instead as it's usually faster.
+    /// [`faces_around_triangle`][FullAdj::faces_around_triangle] instead as
+    /// it's usually faster.
     fn faces_around_face(&self, face: FaceHandle) -> DynList<'_, FaceHandle>;
 
     /// Returns a list of all faces adjacent to the given vertex.
@@ -72,6 +72,26 @@ pub trait FullAdj: BasicAdj {
     /// The faces are listed in front-face CW (clockwise) order.
     fn vertices_around_vertex(&self, vertex: VertexHandle) -> DynList<'_, VertexHandle>;
 
+
+    /// Checks if the given face lies on a boundary. A face is a boundary face
+    /// if the number of adjacent faces does not match the number of adjacent
+    /// vertices.
+    ///
+    /// *Note to implementors*: you should usually overwrite this method, as
+    /// the default implementation is fairly slow.
+    fn is_boundary_face(&self, face: FaceHandle) -> bool {
+        self.faces_around_face(face).count() != self.vertices_around_face(face).count()
+    }
+
+    /// Checks if the given vertex lies on a boundary. A vertex is a boundary
+    /// vertex if the number of adjacent faces does not match the number of
+    /// adjacent vertices.
+    ///
+    /// *Note to implementors*: you should usually overwrite this method, as
+    /// the default implementation is fairly slow.
+    fn is_boundary_vertex(&self, vertex: VertexHandle) -> bool {
+        self.faces_around_vertex(vertex).count() != self.vertices_around_vertex(vertex).count()
+    }
 
     /// Checks whether the two given faces share an edge (are "adjacent" to one
     /// another).
