@@ -90,7 +90,7 @@ impl MeshMut for SharedVertexMesh {
 }
 
 
-impl VerticesAroundFace for SharedVertexMesh {
+impl BasicAdj for SharedVertexMesh {
     fn vertices_around_triangle(&self, face: FaceHandle) -> [VertexHandle; 3] {
         self.faces[face]
     }

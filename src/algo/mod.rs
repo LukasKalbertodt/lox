@@ -14,7 +14,7 @@ pub fn smooth_simple<MeshT, MapT>(
     vertex_positions: &MapT,
 ) -> VecMap<VertexHandle, MapT::Target>
 where
-    MeshT: Mesh + VerticesAroundVertex,
+    MeshT: FullAdj,
     MapT: VertexPropMap,
     MapT::Target: Pos3Like,
 {
@@ -37,7 +37,7 @@ where
 }
 pub fn is_closed<MeshT>(mesh: &MeshT) -> bool
 where
-    MeshT: Mesh + FacesAroundFace + VerticesAroundFace,
+    MeshT: FullAdj,
 {
     // TODO: We can check this property in two ways:
     // - (a) each edge has two adjacent faces

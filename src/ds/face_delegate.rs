@@ -524,7 +524,7 @@ impl MeshMut for FaceDelegateMesh {
     }
 }
 
-impl VerticesAroundFace for FaceDelegateMesh {
+impl BasicAdj for FaceDelegateMesh {
     fn vertices_around_triangle(&self, face: FaceHandle) -> [VertexHandle; 3] {
         self.faces[face].vertex_data.map(|d| d.handle)
     }
@@ -534,7 +534,7 @@ impl VerticesAroundFace for FaceDelegateMesh {
     }
 }
 
-impl FacesAroundFace for FaceDelegateMesh {
+impl FullAdj for FaceDelegateMesh {
     fn faces_around_triangle(&self, face: FaceHandle) -> TriList<FaceHandle>
     where
         Self: TriMesh,
@@ -558,15 +558,23 @@ impl FacesAroundFace for FaceDelegateMesh {
     fn faces_around_face(&self, face: FaceHandle) -> DynList<'_, FaceHandle> {
         Box::new(self.faces_around_triangle(face).into_iter())
     }
-}
 
-impl FacesAroundVertex for FaceDelegateMesh {
     fn faces_around_vertex(
         &self,
         vh: VertexHandle,
     ) -> DynList<'_, FaceHandle> {
         Box::new(FaceCirculator {
             it: self.circulate_around(vh, self.vertices[vh].face),
+        })
+    }
+
+    fn vertices_around_vertex(
+        &self,
+        vh: VertexHandle,
+    ) -> DynList<'_, VertexHandle> {
+        Box::new(VertexCirculator {
+            it: self.circulate_around(vh, self.vertices[vh].face),
+            queue: None,
         })
     }
 }
@@ -588,17 +596,6 @@ impl Iterator for FaceCirculator<'_> {
 
 impl SupportsMultiBlade for FaceDelegateMesh {}
 
-impl VerticesAroundVertex for FaceDelegateMesh {
-    fn vertices_around_vertex(
-        &self,
-        vh: VertexHandle,
-    ) -> DynList<'_, VertexHandle> {
-        Box::new(VertexCirculator {
-            it: self.circulate_around(vh, self.vertices[vh].face),
-            queue: None,
-        })
-    }
-}
 
 /// Iterator over all neighbor vertices of a vertex. Is returned by
 /// `vertices_around_vertex`.

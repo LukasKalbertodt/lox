@@ -111,7 +111,7 @@ fn rectangle_multi_props() {
     }
 }
 
-fn check_vertices_of_face_are_unique(mesh: &(impl VerticesAroundFace + TriMesh)) {
+fn check_vertices_of_face_are_unique(mesh: &(impl BasicAdj + TriMesh)) {
     for face in mesh.faces() {
         let [va, vb, vc] = mesh.vertices_around_triangle(face.handle());
         assert_ne!(va, vb);

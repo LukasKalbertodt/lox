@@ -1087,7 +1087,7 @@ impl<C: Config> Iterator for FaceCirculator<'_, C> {
 // ===== Neighborhood trait implementations
 // ===============================================================================================
 
-impl<C: Config> VerticesAroundFace for HalfEdgeMesh<C> {
+impl<C: Config> BasicAdj for HalfEdgeMesh<C> {
     fn vertices_around_triangle(&self, face: FaceHandle) -> [VertexHandle; 3]
     where
         Self: TriMesh,
@@ -1107,7 +1107,7 @@ impl<C: Config> VerticesAroundFace for HalfEdgeMesh<C> {
     }
 }
 
-impl<C: Config> FacesAroundFace for HalfEdgeMesh<C> {
+impl<C: Config> FullAdj for HalfEdgeMesh<C> {
     fn faces_around_triangle(&self, face: FaceHandle) -> TriList<FaceHandle>
     where
         Self: TriMesh,
@@ -1127,9 +1127,7 @@ impl<C: Config> FacesAroundFace for HalfEdgeMesh<C> {
             mesh: self,
         })
     }
-}
 
-impl<C: Config> FacesAroundVertex for HalfEdgeMesh<C> {
     fn faces_around_vertex(
         &self,
         vh: VertexHandle,
@@ -1139,9 +1137,7 @@ impl<C: Config> FacesAroundVertex for HalfEdgeMesh<C> {
             mesh: self,
         })
     }
-}
 
-impl<C: Config> VerticesAroundVertex for HalfEdgeMesh<C> {
     fn vertices_around_vertex(
         &self,
         vh: VertexHandle,
@@ -1153,15 +1149,14 @@ impl<C: Config> VerticesAroundVertex for HalfEdgeMesh<C> {
     }
 }
 
-impl<C: Config> EToV for HalfEdgeMesh<C> {
+
+impl<C: Config> EdgeAdj for HalfEdgeMesh<C> {
     fn endpoints_of_edge(&self, edge: EdgeHandle) -> [VertexHandle; 2] {
         let a = HalfEdgeHandle::lower_half_of(edge);
         let b = a.twin();
         [self.half_edges[a].target, self.half_edges[b].target]
     }
-}
 
-impl<C: Config> EToF for HalfEdgeMesh<C> {
     fn faces_of_edge(&self, edge: EdgeHandle) -> DiList<FaceHandle> {
         let a = HalfEdgeHandle::lower_half_of(edge);
         let b = a.twin();

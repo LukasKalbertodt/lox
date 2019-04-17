@@ -20,10 +20,7 @@ pub use crate::{
     },
     traits::{
         Empty, Mesh, MeshMut, TriMesh, PolyMesh, TriMeshMut, PolyMeshMut, EdgeMesh, TriEdgeMeshMut,
-        adj::{
-            VerticesAroundFace, FacesAroundVertex, VerticesAroundVertex, FacesAroundFace,
-            EToF, EToV,
-        },
+        adj::{BasicAdj, FullAdj, EdgeAdj},
         marker::{SupportsMultiBlade},
     },
     util::{IteratorExt, TriArrayExt, DynList},

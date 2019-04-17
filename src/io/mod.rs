@@ -177,7 +177,7 @@ use crate::{
     sealed::Sealed,
     traits::{
         Empty, TriMesh,
-        adj::VerticesAroundFace,
+        adj::BasicAdj,
     },
     util::MeshSizeHint,
 };
@@ -1642,7 +1642,7 @@ where
 ///       implement [`Primitive`].
 pub trait MemSource {
     /// The type of the core mesh.
-    type CoreMesh: TriMesh + VerticesAroundFace;
+    type CoreMesh: TriMesh + BasicAdj;
 
     /// Returns the core mesh (storing the connectivity).
     fn core_mesh(&self) -> &Self::CoreMesh;

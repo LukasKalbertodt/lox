@@ -16,13 +16,7 @@ pub fn sqrt3<MeshT, MapT, ScalarT>(
     vertex_positions: &mut MapT,
 )
 where
-    MeshT: TriMeshMut
-        + TriEdgeMeshMut
-        + VerticesAroundFace
-        + FacesAroundVertex
-        + FacesAroundFace
-        + EToF
-        + VerticesAroundVertex,
+    MeshT: TriEdgeMeshMut + EdgeAdj, // TODO: doesn't need to be tri in the beginning
     MapT: PropStoreMut<VertexHandle> + Clone,
     MapT::Target: Pos3Like<Scalar = ScalarT>,
     ScalarT: PrimitiveFloat,

@@ -50,7 +50,7 @@ pub mod any;
 /// rigor for the vertex positions is "lossy", i.e. all kinds of casts are
 /// allowed.
 #[derive(Empty, MemSink, MemSource, Debug, Clone)]
-pub struct MiniMesh<M: TriMeshMut + VerticesAroundFace> {
+pub struct MiniMesh<M: TriMeshMut + BasicAdj> { // TODO: shouldn't ned to be tri mesh
     #[lox(core_mesh)]
     pub mesh: M,
 

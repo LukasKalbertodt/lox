@@ -149,7 +149,7 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
     /// vertices, take a look at its documentation.
     pub fn ring1_neighbors(&self) -> impl Iterator<Item = VertexRef<'a, MeshT>>
     where
-        MeshT: VerticesAroundVertex,
+        MeshT: FullAdj,
     {
         let mesh = self.mesh;
         self.mesh.vertices_around_vertex(self.handle)
@@ -231,7 +231,7 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
     ///
     pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'a, MeshT>>
     where
-        MeshT: FacesAroundVertex,
+        MeshT: FullAdj,
     {
         let mesh = self.mesh;
         self.mesh.faces_around_vertex(self.handle)
@@ -240,30 +240,30 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
 }
 
 impl<'a, MeshT: 'a> VertexRefMut<'a, MeshT> {
-    /// Returns an iterator over all ring1 neighbors of this vertex (the
-    /// vertices that are directly connected to `self` via an edge).
-    ///
-    /// See `VertexRef::ring1_neighbors` for more information.
-    pub fn ring1_neighbors(&self) -> impl Iterator<Item = VertexRef<'_, MeshT>>
-    where
-        MeshT: VerticesAroundVertex,
-    {
-        let mesh = &*self.mesh;
-        self.mesh.vertices_around_vertex(self.handle)
-            .map(move |h| VertexRef::new(mesh, h))
-    }
+    // /// Returns an iterator over all ring1 neighbors of this vertex (the
+    // /// vertices that are directly connected to `self` via an edge).
+    // ///
+    // /// See `VertexRef::ring1_neighbors` for more information.
+    // pub fn ring1_neighbors(&self) -> impl Iterator<Item = VertexRef<'_, MeshT>>
+    // where
+    //     MeshT: VerticesAroundVertex,
+    // {
+    //     let mesh = &*self.mesh;
+    //     self.mesh.vertices_around_vertex(self.handle)
+    //         .map(move |h| VertexRef::new(mesh, h))
+    // }
 
-    /// Returns an iterator over all faces adjacent to this vertex.
-    ///
-    /// See `VertexRef::adjacent_faces` for more information.
-    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'_, MeshT>>
-    where
-        MeshT: FacesAroundVertex,
-    {
-        let mesh = &*self.mesh;
-        self.mesh.faces_around_vertex(self.handle)
-            .map(move |h| FaceRef::new(mesh, h))
-    }
+    // /// Returns an iterator over all faces adjacent to this vertex.
+    // ///
+    // /// See `VertexRef::adjacent_faces` for more information.
+    // pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'_, MeshT>>
+    // where
+    //     MeshT: FacesAroundVertex,
+    // {
+    //     let mesh = &*self.mesh;
+    //     self.mesh.faces_around_vertex(self.handle)
+    //         .map(move |h| FaceRef::new(mesh, h))
+    // }
 }
 
 
@@ -283,7 +283,7 @@ impl<'a, MeshT: 'a> FaceRef<'a, MeshT> {
     /// Returns an iterator over all vertices of this face.
     pub fn adjacent_vertices(&self) -> impl Iterator<Item = VertexRef<'_, MeshT>>
     where
-        MeshT: VerticesAroundFace,
+        MeshT: BasicAdj,
     {
         let mesh = self.mesh;
         self.mesh.vertices_around_face(self.handle)
@@ -295,7 +295,7 @@ impl<'a, MeshT: 'a> FaceRef<'a, MeshT> {
     /// See `VertexRef::adjacent_faces` for more information.
     pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'_, MeshT>>
     where
-        MeshT: FacesAroundFace,
+        MeshT: FullAdj,
     {
         let mesh = &*self.mesh;
         self.mesh.faces_around_face(self.handle)
@@ -304,7 +304,7 @@ impl<'a, MeshT: 'a> FaceRef<'a, MeshT> {
 
     pub fn is_adjacent_to_face(&self, fh: FaceHandle) -> bool
     where
-        MeshT: TriMesh + FacesAroundFace,
+        MeshT: FullAdj,
     {
         self.mesh.are_faces_adjacent(self.handle, fh)
     }
@@ -314,7 +314,7 @@ impl<'a, MeshT: 'a> EdgeRef<'a, MeshT> {
     /// Returns the two vertex endpoints of this edge.
     pub fn endpoints(&self) -> [VertexRef<'_, MeshT>; 2]
     where
-        MeshT: EToV,
+        MeshT: EdgeAdj,
     {
         let mesh = self.mesh;
         let handles = self.mesh.endpoints_of_edge(self.handle);
@@ -326,7 +326,7 @@ impl<'a, MeshT: 'a> EdgeRef<'a, MeshT> {
     /// See `VertexRef::adjacent_faces` for more information.
     pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'_, MeshT>>
     where
-        MeshT: EToF,
+        MeshT: EdgeAdj,
     {
         let mesh = &*self.mesh;
         self.mesh.faces_of_edge(self.handle)
@@ -338,7 +338,7 @@ impl<'a, MeshT: 'a> EdgeRef<'a, MeshT> {
     /// less than 2 adjacent faces).
     pub fn is_boundary(&self) -> bool
     where
-        MeshT: EToF,
+        MeshT: EdgeAdj,
     {
         self.mesh.faces_of_edge(self.handle).len() != 2
     }
