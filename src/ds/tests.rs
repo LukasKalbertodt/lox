@@ -241,8 +241,40 @@ macro_rules! test_helper {
     () => { compile_error!("internal macro: don't use anywhere else") };
     (@is_boundary boundary) => { true };
     (@is_boundary interior) => { false };
+    (@as_neighbors no_check) => { crate::ds::tests::Neighbors::NoCheck };
+    (@as_neighbors [$($n:ident),*]) => {
+        crate::ds::tests::Neighbors::OrderDefined(vec![$($n),*])
+    };
+    (@as_neighbors {$($n:ident),*}) => {
+        crate::ds::tests::Neighbors::OrderUndefined(vec![$($n),*])
+    };
 }
 
+#[allow(dead_code)]
+pub enum Neighbors<H: Handle> {
+    OrderDefined(Vec<H>),
+    OrderUndefined(Vec<H>),
+    NoCheck,
+}
+
+impl<H: Handle> Neighbors<H> {
+    fn check(&self, actual: &[H], actual_str: &str) {
+        match self {
+            Neighbors::NoCheck => {}
+            Neighbors::OrderDefined(neighbors) => {
+                assert_eq_order_fn(actual, neighbors, actual_str);
+            }
+            Neighbors::OrderUndefined(neighbors) => {
+                assert_eq_set_fn(
+                    actual.iter().cloned(),
+                    neighbors,
+                    actual_str,
+                    &format!("{:?}", neighbors),
+                );
+            }
+        }
+    }
+}
 
 // ===============================================================================================
 // ===== `assert_vertices` and helpers
@@ -251,15 +283,15 @@ macro_rules! test_helper {
 macro_rules! assert_vertices {
     (
         $mesh:ident; [$($extra:ident),*]; $(
-            $vh:ident => [$($nf:ident),*], [$($nv:ident),*], $boundary:ident
+            $vh:ident => $nf:tt, $nv:tt, $boundary:ident
         );* $(;)?
     ) =>  {
         let vertices = vec![$(
             crate::ds::tests::VertexInfo {
                 handle: $vh,
                 boundary: test_helper!(@is_boundary $boundary),
-                adjacent_faces: vec![$($nf),*],
-                adjacent_vertices: vec![$($nv),*],
+                adjacent_faces: test_helper!(@as_neighbors $nf),
+                adjacent_vertices: test_helper!(@as_neighbors $nv),
             }
         ),*];
 
@@ -274,8 +306,8 @@ macro_rules! assert_vertices {
 pub struct VertexInfo {
     pub handle: VertexHandle,
     pub boundary: bool,
-    pub adjacent_faces: Vec<FaceHandle>,
-    pub adjacent_vertices: Vec<VertexHandle>,
+    pub adjacent_faces: Neighbors<FaceHandle>,
+    pub adjacent_vertices: Neighbors<VertexHandle>,
 }
 
 pub fn assert_vertices_basic<M: Mesh>(mesh: &M, vertices: &[VertexInfo]) {
@@ -323,14 +355,12 @@ pub fn assert_vertices_full_adj<M: FullAdj>(mesh: &M, vertices: &[VertexInfo]) {
             );
         }
 
-        assert_eq_order_fn(
+        v.adjacent_faces.check(
             &mesh.faces_around_vertex(v.handle).into_vec(),
-            &v.adjacent_faces,
             &format!("mesh.faces_around_vertex({:?})", v.handle),
         );
-        assert_eq_order_fn(
+        v.adjacent_vertices.check(
             &mesh.vertices_around_vertex(v.handle).into_vec(),
-            &v.adjacent_vertices,
             &format!("mesh.vertices_around_vertex({:?})", v.handle),
         );
     }
@@ -344,15 +374,15 @@ pub fn assert_vertices_full_adj<M: FullAdj>(mesh: &M, vertices: &[VertexInfo]) {
 macro_rules! assert_faces {
     (
         $mesh:ident; [$($extra:ident),*]; $(
-            $fh:ident => [$($nf:ident),*], [$($nv:ident),*], $boundary:ident
+            $fh:ident => $nf:tt, $nv:tt, $boundary:ident
         );* $(;)?
     ) =>  {
         let faces = vec![$(
             crate::ds::tests::FaceInfo {
                 handle: $fh,
                 boundary: test_helper!(@is_boundary $boundary),
-                adjacent_faces: vec![$($nf),*],
-                adjacent_vertices: vec![$($nv),*],
+                adjacent_faces: test_helper!(@as_neighbors $nf),
+                adjacent_vertices: test_helper!(@as_neighbors $nv),
             }
         ),*];
 
@@ -379,8 +409,8 @@ macro_rules! assert_faces {
 pub struct FaceInfo {
     pub handle: FaceHandle,
     pub boundary: bool,
-    pub adjacent_faces: Vec<FaceHandle>,
-    pub adjacent_vertices: Vec<VertexHandle>,
+    pub adjacent_faces: Neighbors<FaceHandle>,
+    pub adjacent_vertices: Neighbors<VertexHandle>,
 }
 
 pub fn assert_faces_basic<M: Mesh>(mesh: &M, faces: &[FaceInfo]) {
@@ -419,9 +449,8 @@ pub fn assert_faces_basic<M: Mesh>(mesh: &M, faces: &[FaceInfo]) {
 
 pub fn assert_faces_basic_adj<M: BasicAdj>(mesh: &M, faces: &[FaceInfo]) {
     for f in faces {
-        assert_eq_order_fn(
+        f.adjacent_vertices.check(
             &mesh.vertices_around_face(f.handle).into_vec(),
-            &f.adjacent_vertices,
             &format!("mesh.vertices_around_face({:?})", f.handle),
         );
     }
@@ -429,9 +458,8 @@ pub fn assert_faces_basic_adj<M: BasicAdj>(mesh: &M, faces: &[FaceInfo]) {
 
 pub fn assert_faces_basic_adj_tri<M: BasicAdj + TriMesh>(mesh: &M, faces: &[FaceInfo]) {
     for f in faces {
-        assert_eq_order_fn(
+        f.adjacent_vertices.check(
             &mesh.vertices_around_triangle(f.handle),
-            &f.adjacent_vertices,
             &format!("mesh.vertices_around_triangle({:?})", f.handle),
         );
     }
@@ -448,9 +476,8 @@ pub fn assert_faces_full_adj<M: FullAdj>(mesh: &M, faces: &[FaceInfo]) {
             );
         }
 
-        assert_eq_order_fn(
+        f.adjacent_faces.check(
             &mesh.faces_around_face(f.handle).into_vec(),
-            &f.adjacent_faces,
             &format!("mesh.faces_around_face({:?})", f.handle),
         );
     }
@@ -458,9 +485,8 @@ pub fn assert_faces_full_adj<M: FullAdj>(mesh: &M, faces: &[FaceInfo]) {
 
 pub fn assert_faces_full_adj_tri<M: FullAdj + TriMesh>(mesh: &M, faces: &[FaceInfo]) {
     for f in faces {
-        assert_eq_order_fn(
+        f.adjacent_faces.check(
             &mesh.faces_around_triangle(f.handle).into_vec(),
-            &f.adjacent_faces,
             &format!("mesh.faces_around_triangle({:?})", f.handle),
         );
     }
