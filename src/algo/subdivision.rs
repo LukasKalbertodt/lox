@@ -29,15 +29,18 @@ where
         .collect();
 
     // ----- (1) Calculate new positions for old vertices ----------------------------------------
-    // We have to calculate a new position for all already existing vertices.
-    // To do that we need their old positions, so we have no choice but making
-    // a copy. We write the new positions into this copy and only write them
-    // back into `vertex_positions` at the very end, since the calculation of
-    // new vertex points also relies on the old positions.
+
+    // We have to calculate a new position for all already existing vertices
+    // (except boundary vertices!). To do that we need their old positions, so
+    // we have no choice but making a copy. We write the new positions into
+    // this copy and only write them back into `vertex_positions` at the very
+    // end, since the calculation of new vertex points also relies on the old
+    // positions.
     let mut new_positions = vertex_positions.clone();
 
-    for vh in mesh.vertex_handles() {
-        let v = mesh.get_ref(vh);
+    // Filter out all boundary vertices
+    for v in mesh.vertices().filter(|v| !v.is_boundary()) {
+        let vh = v.handle();
         let old_pos = vertex_positions[vh];
 
         // Count the number of neighbors and calculate the centroid of all
@@ -73,11 +76,11 @@ where
     }
 
 
-    // ----- (2) Split faces and calc new vertex positions
-    //       --------------------------------------- We create a new vertex per
-    //       face by splitting each face into three new ones. First we can
-    //       reserve a bunch of memory, because we know exactly how many
-    //       elements we will end up with.
+    // ----- (2) Split faces and calc new vertex positions ---------------------------------------
+
+    // We create a new vertex per face by splitting each face into three new
+    // ones. First we can reserve a bunch of memory, because we know exactly
+    // how many elements we will end up with.
     vertex_positions.reserve(mesh.num_faces());
     mesh.reserve_for_vertices(mesh.num_faces());
     mesh.reserve_for_faces(mesh.num_faces() * 3);
