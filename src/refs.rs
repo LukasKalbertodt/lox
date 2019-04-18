@@ -34,66 +34,10 @@ pub type FaceRef<'a, MeshT> = ElementRef<'a, FaceHandle, MeshT>;
 pub type VertexRef<'a, MeshT> = ElementRef<'a, VertexHandle, MeshT>;
 
 
-/// A mutable reference to an element within a mesh.
-///
-/// This is just a handle paired with a mutable reference to the mesh
-/// associated with that handle.
-#[derive(Debug)]
-pub struct ElementRefMut<'a, HandleT: Handle, MeshT: 'a + ?Sized> {
-    handle: HandleT,
-    mesh: &'a mut MeshT,
-}
-
-/// A mutable reference to an edge within a mesh.
-///
-/// This is just an edge handle with a mutable reference to the mesh. See
-/// [`ElementRefMut`] for more information.
-pub type EdgeRefMut<'a, MeshT> = ElementRefMut<'a, EdgeHandle, MeshT>;
-
-/// A mutable reference to a face within a mesh.
-///
-/// This is just a face handle with a mutable reference to the mesh. See
-/// [`ElementRefMut`] for more information.
-pub type FaceRefMut<'a, MeshT> = ElementRefMut<'a, FaceHandle, MeshT>;
-
-/// A mutable reference to a vertex within a mesh.
-///
-/// This is just a vertex handle with a mutable reference to the mesh. See
-/// [`ElementRefMut`] for more information.
-pub type VertexRefMut<'a, MeshT> = ElementRefMut<'a, VertexHandle, MeshT>;
-
-
-
-/// Allows to create multiple impl blocks with different headers but same body.
-macro_rules! multi_impl {
-    (
-        [$(
-            { $($header:tt)* },
-        )*]
-        $body:tt
-    ) => {
-        $(
-            $($header)*
-            $body
-        )*
-    }
-}
-
 
 impl<'a, HandleT: Handle, MeshT: 'a + ?Sized> ElementRef<'a, HandleT, MeshT> {
     pub fn new(mesh: &'a MeshT, handle: HandleT) -> Self {
         Self { mesh, handle }
-    }
-}
-
-impl<'a, HandleT: Handle, MeshT: 'a + ?Sized> ElementRefMut<'a, HandleT, MeshT> {
-    pub fn new(mesh: &'a mut MeshT, handle: HandleT) -> Self {
-        Self { mesh, handle }
-    }
-
-    /// Returns a mutable reference to the linked mesh.
-    pub fn mesh_mut(&mut self) -> &mut MeshT {
-        self.mesh
     }
 }
 
@@ -109,36 +53,21 @@ impl<'a, HandleT: Handle, MeshT: 'a> Clone for ElementRef<'a, HandleT, MeshT> {
 impl<'a, HandleT: Handle, MeshT: 'a> Copy for ElementRef<'a, HandleT, MeshT> {}
 
 
-multi_impl!{
-    [
-        { impl<'a, HandleT: Handle, MeshT: 'a> ElementRef<'a, HandleT, MeshT> },
-        { impl<'a, HandleT: Handle, MeshT: 'a> ElementRefMut<'a, HandleT, MeshT> },
-    ]
-    {
-        /// Returns the stored handle.
-        pub fn handle(&self) -> HandleT {
-            self.handle
-        }
+impl<'a, HandleT: Handle, MeshT: 'a> ElementRef<'a, HandleT, MeshT> {
+    /// Returns the stored handle.
+    pub fn handle(&self) -> HandleT {
+        self.handle
+    }
 
-        /// Returns an immutable reference to the linked mesh.
-        pub fn mesh(&self) -> &MeshT {
-            self.mesh
-        }
+    /// Returns an immutable reference to the linked mesh.
+    pub fn mesh(&self) -> &MeshT {
+        self.mesh
     }
 }
 
 // ===========================================================================
 // ===== With VertexHandle
 // ===========================================================================
-multi_impl!{
-    [
-        { impl<'a, MeshT: 'a> VertexRef<'a, MeshT> },
-        { impl<'a, MeshT: 'a> VertexRefMut<'a, MeshT> },
-    ]
-    {
-
-    }
-}
 
 impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
     /// Returns an iterator over all ring1 neighbors of this vertex (the
@@ -228,7 +157,6 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
     ///     .collect::<VecMap<_, _>>();
     /// ```
     ///
-    ///
     pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'a, MeshT>>
     where
         MeshT: FullAdj,
@@ -239,45 +167,10 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
     }
 }
 
-impl<'a, MeshT: 'a> VertexRefMut<'a, MeshT> {
-    // /// Returns an iterator over all ring1 neighbors of this vertex (the
-    // /// vertices that are directly connected to `self` via an edge).
-    // ///
-    // /// See `VertexRef::ring1_neighbors` for more information.
-    // pub fn ring1_neighbors(&self) -> impl Iterator<Item = VertexRef<'_, MeshT>>
-    // where
-    //     MeshT: VerticesAroundVertex,
-    // {
-    //     let mesh = &*self.mesh;
-    //     self.mesh.vertices_around_vertex(self.handle)
-    //         .map(move |h| VertexRef::new(mesh, h))
-    // }
-
-    // /// Returns an iterator over all faces adjacent to this vertex.
-    // ///
-    // /// See `VertexRef::adjacent_faces` for more information.
-    // pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'_, MeshT>>
-    // where
-    //     MeshT: FacesAroundVertex,
-    // {
-    //     let mesh = &*self.mesh;
-    //     self.mesh.faces_around_vertex(self.handle)
-    //         .map(move |h| FaceRef::new(mesh, h))
-    // }
-}
-
 
 // ===========================================================================
 // ===== With FaceHandle
 // ===========================================================================
-multi_impl!{
-    [
-        { impl<'a, MeshT: 'a> FaceRef<'a, MeshT> },
-        { impl<'a, MeshT: 'a> FaceRefMut<'a, MeshT> },
-    ]
-    {
-    }
-}
 
 impl<'a, MeshT: 'a> FaceRef<'a, MeshT> {
     /// Returns an iterator over all vertices of this face.

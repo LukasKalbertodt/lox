@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::{
     handle::{Handle, hsize, FaceHandle, VertexHandle, EdgeHandle},
     mesh::{ElementRefIter, HandleIter, HandleIterMut},
-    refs::{ElementRef, ElementRefMut},
+    refs::ElementRef,
 };
 use self::{
     marker::{FaceKind, TriFaces, PolyFaces},
@@ -134,11 +134,6 @@ pub trait Mesh: Empty {
     /// Returns an `ElementRef` with the given handle referencing this mesh.
     fn get_ref<H: Handle>(&self, handle: H) -> ElementRef<'_, H, Self> {
         ElementRef::new(self, handle)
-    }
-
-    /// Returns an `ElementRefMut` with the given handle referencing this mesh.
-    fn get_ref_mut<H: Handle>(&mut self, handle: H) -> ElementRefMut<'_, H, Self> {
-        ElementRefMut::new(self, handle)
     }
 
     /// Checks if the given vertex handle refers to a valid vertex of this
