@@ -1293,6 +1293,30 @@ macro_rules! gen_tri_mesh_tests {
 
         // TODO: Double Sided triangle
         // TODO: Möbius strip
+
+        // TODO: something that maybe challenges the assumption repeated
+        // next() in a HEM equals a prev(). Maybe something like this?
+        //
+        //          (b)---(d)
+        //         / |   / | \
+        //      (a)  |  /  |  (a)
+        //         \ | /   | /
+        //          (c)---(e)
+        //
+        // The (a) vertex exists only once.
+
+        // TODO: something that "only" has multi fan blades but cannot be
+        // repaired into anything useful anymore. Like:
+        //
+        //          (b)---(d)            (f)---(h)
+        //         / |   / | \          / |   / | \
+        //      (a)  |  /  |  (a)    (a)  |  /  |  (a)
+        //         \ | /   | /          \ | /   | /
+        //          (c)---(e)            (g)---(i)
+        //
+        // The (a) vertex exists only once. Although... that doesn't necessarly
+        // break things right? It cannot be closed without breaking stuff, but
+        // it's fine as a manifold open mesh?
     };
 
     // These two arms are used to conditionally expand to a given body.

@@ -162,7 +162,14 @@ struct Face {
 /// Data stored per `Vertex`.
 #[derive(Clone, Copy)]
 struct Vertex {
-    /// Handle of one (arbitrary) outgoing half edge.
+    /// Handle of one outgoing half edge.
+    ///
+    /// - If the vertex is isolated, this is `None`.
+    /// - If the vertex is a boundary vertex, this stores one arbitrary of the
+    ///   boundary half edges. There only exists one such half edge per fan
+    ///   blade.
+    /// - If the vertex is not on the boundary, the half edge is completely
+    ///   arbitrary.
     outgoing: Opt<HalfEdgeHandle>,
 }
 
@@ -480,7 +487,7 @@ impl<C: Config> HalfEdgeMesh<C> {
                 // but it can be a bit tricky when there are other edges (and
                 // thus a face) connected to that vertex.
                 (false, false) => {
-                    if v.outgoing.is_some() {
+                    if let Some(outgoing_from_v) = v.outgoing.to_option() {
                         // More difficult case: we are creating a multi
                         // fan-blade vertex here. In order to correctly set the
                         // `next` handles, we need to find the start of some
@@ -503,9 +510,14 @@ impl<C: Config> HalfEdgeMesh<C> {
                         //          ( )         ( )
                         //
 
+                        // TODO: if we have `prev` pointer, we can simplify
+                        // this. Since we know `outgoing_from_v` is a boundary
+                        // half edge, we can use it as `start` and
+                        // `prev(start)` as `end`.
+
                         // Find the end edge of some blade.
                         let end = self.find_incoming_he(
-                            self.vertices[vh].outgoing.unwrap().twin(),
+                            outgoing_from_v.twin(),
                             |incoming| self.half_edges[incoming].face.is_none(),
                         ).expect(NON_MANIFOLD_VERTEX_ERR);
 
@@ -515,14 +527,22 @@ impl<C: Config> HalfEdgeMesh<C> {
                         // Insert new blade in between.
                         self.half_edges[incoming].next = start;
                         self.half_edges[end].next = outgoing;
+
+                        // Regarding the `outgoing` field of `v`: before adding
+                        // this face, it was a boundary half edge. Since we
+                        // didn't add a face adjacent to it, it still is. So we
+                        // can keep it unchanged.
                     } else {
                         // This is the easy case: `incoming` and `outgoing` are
-                        // the only edges adjacent to `v`.
+                        // the only edges adjacent to `v`. This also means that
+                        // `v` was isolated before and we now need to set its
+                        // `outgoing` handle.
                         self.half_edges[incoming].next = outgoing;
+                        self.vertices[vh].outgoing = Opt::some(outgoing);
                     }
                 }
 
-                // The incoming edge is adjacent to another face (OF), but the
+                // The incoming edge is adjacent to another face (IF), but the
                 // outgoing is not. We have to find the edge `before_new` whose
                 // `next` handle points to `incoming`'s twin (a soon to be
                 // inner edge of our new face). Because that `next` handle now
@@ -535,7 +555,7 @@ impl<C: Config> HalfEdgeMesh<C> {
                 //                  v
                 //      <-------- (v)
                 //               ^/ ^\
-                //         OF   //   \\
+                //         IF   //   \\
                 //             //     \\
                 //            //   F   \\
                 //           /v         \v
@@ -547,6 +567,13 @@ impl<C: Config> HalfEdgeMesh<C> {
                 (true, false) => {
                     let before_new = self.prev(incoming.twin());
                     self.half_edges[before_new].next = outgoing;
+
+                    // The half edge `incoming.twin()` might have been
+                    // `v.outgoing`. But this is bad because it's not a
+                    // boundary half edge anymore (which we require). Therefore
+                    // we update it to `outgoing` which is certainly a boundary
+                    // half edge.
+                    self.vertices[vh].outgoing = Opt::some(outgoing);
                 }
 
                 // The outgoing edge is adjacent to another face (OF), but the
@@ -573,6 +600,11 @@ impl<C: Config> HalfEdgeMesh<C> {
                 //
                 (false, true) => {
                     self.half_edges[incoming].next = self.half_edges[outgoing.twin()].next;
+
+                    // We don't need to update `v.outgoing` here because the
+                    // only old half edge that won't be boundary anymore is
+                    // `outgoing.twin()`. But this is not an outgoing edge for
+                    // `v`.
                 }
 
                 // This can be easy or the ugliest case. The incoming and
@@ -585,7 +617,7 @@ impl<C: Config> HalfEdgeMesh<C> {
                 //                 ?
                 //           ?           ?
                 //
-                //      <-------- (v) -------->
+                //      <-------- (v) <--------
                 //               ^/ ^\
                 //         IF   //   \\   OF
                 //             //     \\
@@ -598,30 +630,106 @@ impl<C: Config> HalfEdgeMesh<C> {
                 //
                 // BUT, if that is not the case, we need to change the order of
                 // fan blades to match the "good" situation described above.
+                //
+                // Additionally, we might need to update `v.outgoing` because
+                // it might have been `incoming.twin()` which is not a boundary
+                // half edge anymore (after this method).
                 (true, true) => {
+                    // Find the end of the fan blade "IB". See below for
+                    // explanation of the important fan blades.
+                    let ib_end_opt = self.find_incoming_he(
+                        incoming,
+                        |incoming| self.half_edges[incoming].face.is_none(),
+                    );
+
                     if self.half_edges[outgoing.twin()].next != incoming.twin() {
                         // Here we need to conceptually delete one fan blade
                         // from the `next` circle around `v` and re-insert it
                         // into the right position. We choose to "move" the fan
-                        // blade starting with `incoming`.
-                        let extra_blade_end = self.prev(incoming.twin());
-                        let incoming_blade_end = self.find_incoming_he(
-                            incoming,
-                            |incoming| self.half_edges[incoming].face.is_none(),
-                        ).expect("internal HEM error: cannot find `incoming_blade_end`");
+                        // blade starting with `incoming` (IB).
+                        //
+                        // We have to deal with four fan blades:
+                        // - IB: the blade containing `incoming` (where
+                        //   `incoming.twin()` is its start).
+                        // - OB: the blade containing `outgoing` (where
+                        //   `outgoing.twin()` is its end)
+                        // - BIB (before incoming blade): the blade before IB
+                        // - AOB (after outgoing blade): the blade after OB
+                        //   (outgoing.twin.next is its start).
+                        //
+                        // Current situation:
+                        //
+                        //       ┌────┐    ┌─────┐         ┌─────┐    ┌────┐
+                        //  +--> │ OB │ -> │ AOB │ -> ? -> │ BIB │ -> │ IB │ -> ?
+                        //  |    └────┘    └─────┘         └─────┘    └────┘    |
+                        //  +---------------------------------------------------+
+                        //
+
+                        // TODO: if we have `prev` pointer, we want to say
+                        // `incoming.prev`. If not, however, we want to
+                        // circulate around `v` to find the `bib_end` to avoid
+                        // the worst case of finding the `prev` by walking
+                        // around a huge part of the mesh.
+
+                        // Find the end half edges of the blades BIB and IB.
+                        let ib_end = ib_end_opt.expect("internal HEM error: cannot find `ib_end`");
+                        let bib_end = self.prev(incoming.twin());
 
                         // Here we remove the "incoming blade" from the cycle.
-                        self.half_edges[extra_blade_end].next
-                            = self.half_edges[incoming_blade_end].next;
+                        // Situation after this assignment:
+                        //
+                        //                                  ┌────┐
+                        //                                  │ IB │ -------+
+                        //                                  └────┘        |
+                        //                                                v
+                        //       ┌────┐    ┌─────┐         ┌─────┐
+                        //  +--> │ OB │ -> │ AOB │ -> ? -> │ BIB │ -----> ?
+                        //  |    └────┘    └─────┘         └─────┘        |
+                        //  +---------------------------------------------+
+                        //
+                        self.half_edges[bib_end].next = self.half_edges[ib_end].next;
 
                         // Now we reinsert it again, right after the "outgoing
-                        // blade". After this, the cycle is still a bit broken,
-                        // but that doesn't matter, because (a) the cycle will
-                        // be repaired by setting the `next` link of the inner
+                        // blade". Situation after assignment:
+                        //
+                        //
+                        //       ┌────┐
+                        //       │ IB │ ------+
+                        //       └────┘       |
+                        //                    v
+                        //       ┌────┐    ┌─────┐         ┌─────┐
+                        //  +--> │ OB │ -> │ AOB │ -> ? -> │ BIB │ -----> ?
+                        //  |    └────┘    └─────┘         └─────┘        |
+                        //  +---------------------------------------------+
+                        //
+                        let aob_start = self.half_edges[outgoing.twin()].next;
+                        self.half_edges[ib_end].next = aob_start;
+
+                        // Right now, the cycle is still a bit broken, but that
+                        // doesn't matter, because (a) the cycle will be
+                        // repaired by setting the `next` link of the inner
                         // edges below, and (b) the broken cycle won't be
                         // accessed (in this direction) before it is repaired.
-                        self.half_edges[incoming_blade_end].next
-                            = self.half_edges[outgoing.twin()].next;
+
+                        // To update `v.outgoing`, we luckily already know a
+                        // boundary outgoing half edge of `v`: it's the start
+                        // of AOB.
+                        self.vertices[vh].outgoing = Opt::some(aob_start);
+                    } else {
+                        // The order of fan blades around the vertex is fine,
+                        // but we might need to update `v.outgoing`. To do
+                        // that, we try to find the end of IB. Its `next` half
+                        // edge is the start of the next blade (which is an
+                        // outgoing edge). However, we might not find the end
+                        // of that blade because there might only be one blade
+                        // left. In that case, we don't update `outgoing`
+                        // because it can be an arbitrary half edge in that
+                        // case (the vertex won't be boundary anymore after
+                        // this method call).
+                        if let Some(ib_end) = ib_end_opt {
+                            let new_outgoing = self.half_edges[ib_end].next;
+                            self.vertices[vh].outgoing = Opt::some(new_outgoing);
+                        }
                     }
                 }
             }
@@ -633,15 +741,6 @@ impl<C: Config> HalfEdgeMesh<C> {
             let curr = inner_half_edges[he_i];
             let next = inner_half_edges[(he_i + 1) % inner_half_edges.len()];
             self.half_edges[curr].next = next;
-        }
-
-        // ===================================================================
-        // ===== Step 4: Set `outgoing` handles of vertices where necessary
-        // ===================================================================
-        for vi in 0..vertices.len() {
-            // TODO: benchmark if it's better if we only update it if necessary
-            // (i.e. if the vertex has no `outgoing` yet).
-            self.vertices[vertices[vi]].outgoing = Opt::some(inner_half_edges[vi]);
         }
 
         new_face
@@ -787,7 +886,9 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         let start_ohe = self.faces[f].edge;
         let start_vertex = self.half_edges[start_ohe.twin()].target;
 
-        // Add first edge and set midpoint's `outgoing` to that edge.
+        // Add first edge and set midpoint's `outgoing` to that edge. The
+        // midpoint is not a boundary vertex, we don't have to pay attention to
+        // the `outgoing` edge.
         let start_nhe = self.add_edge_partially(midpoint, start_vertex);
         self.vertices[midpoint].outgoing = Opt::some(start_nhe);
 
@@ -974,9 +1075,20 @@ where
         let v_below = self.half_edges[he_below_left].target;
 
 
-        // Update all fields
-        self.vertices[v_left].outgoing = Opt::some(he_below_left);
-        self.vertices[v_right].outgoing = Opt::some(he_above_right);
+        // Update all fields.
+        //
+        // We have to pay extra attention to the `outgoing` fields of the
+        // vertices (they have to point to an adjacent boundary edge if there
+        // exists one). We only update them if we need to. And if we need to,
+        // their old `outgoing` edge was a center one, which is not boundary,
+        // which means that the vertex is also not a boundary vertex. So we can
+        // simply set the new one.
+        if self.vertices[v_left].outgoing == Opt::some(he_center_above) {
+            self.vertices[v_left].outgoing = Opt::some(he_below_left);
+        }
+        if self.vertices[v_right].outgoing == Opt::some(he_center_below) {
+            self.vertices[v_right].outgoing = Opt::some(he_above_right);
+        }
 
         self.faces[f_above].edge = he_center_above;
         self.faces[f_below].edge = he_center_below;
@@ -1146,6 +1258,21 @@ impl<C: Config> FullAdj for HalfEdgeMesh<C> {
             it: self.circulate_around_vertex(vh),
             mesh: self,
         })
+    }
+
+    fn is_boundary_vertex(&self, vertex: VertexHandle) -> bool {
+        // This half edge mesh keeps an important invariant for exactly this
+        // function: if a vertex is a boundary vertex, its `outgoing` half edge
+        // is a boundary half edge. So we can very easily check if a vertex is
+        // a boundary vertex.
+        match self.vertices[vertex].outgoing.to_option() {
+            None => true,
+            Some(outgoing) => self.half_edges[outgoing].face.is_none(),
+        }
+    }
+
+    fn is_isolated_vertex(&self, vertex: VertexHandle) -> bool {
+        self.vertices[vertex].outgoing.is_none()
     }
 }
 
