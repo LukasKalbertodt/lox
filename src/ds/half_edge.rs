@@ -1260,6 +1260,11 @@ impl<C: Config> FullAdj for HalfEdgeMesh<C> {
         })
     }
 
+    fn is_boundary_face(&self, face: FaceHandle) -> bool {
+        self.circulate_around_face(face)
+            .any(|inner| self.half_edges[inner.twin()].face.is_none())
+    }
+
     fn is_boundary_vertex(&self, vertex: VertexHandle) -> bool {
         // This half edge mesh keeps an important invariant for exactly this
         // function: if a vertex is a boundary vertex, its `outgoing` half edge

@@ -1317,6 +1317,8 @@ macro_rules! gen_tri_mesh_tests {
         // The (a) vertex exists only once. Although... that doesn't necessarly
         // break things right? It cannot be closed without breaking stuff, but
         // it's fine as a manifold open mesh?
+
+        // TODO: test with 4 or more fan blades
     };
 
     // These two arms are used to conditionally expand to a given body.
