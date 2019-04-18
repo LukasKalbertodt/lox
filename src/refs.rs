@@ -144,7 +144,7 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
     /// Returns an iterator over all ring1 neighbors of this vertex (the
     /// vertices that are directly connected to `self` via an edge).
     ///
-    /// This is just a convenience method wrapping [`VerticesAroundVertex`].
+    /// This is just a convenience method wrapping [`FullAdj::vertices_around_vertex`].
     /// For more information about guarantees and the order of returned
     /// vertices, take a look at its documentation.
     pub fn ring1_neighbors(&self) -> impl Iterator<Item = VertexRef<'a, MeshT>>
@@ -158,7 +158,7 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
 
     /// Returns an iterator over all faces adjacent to this vertex.
     ///
-    /// This is just a convenience method wrapping [`FacesAroundVertex`]. For
+    /// This is just a convenience method wrapping [`FullAdj::faces_around_vertex`]. For
     /// more information about guarantees and the order of returned faces, take
     /// a look at its documentation.
     ///
