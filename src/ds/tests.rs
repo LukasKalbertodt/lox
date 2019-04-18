@@ -333,6 +333,20 @@ pub fn assert_vertices_full_adj<M: FullAdj>(mesh: &M, vertices: &[VertexInfo]) {
             );
         }
 
+        match &v.adjacent_vertices {
+            Neighbors::OrderDefined(n) | Neighbors::OrderUndefined(n) => {
+                if mesh.is_isolated_vertex(v.handle) != n.is_empty() {
+                    panic!(
+                        "mesh says {:?} is {}an isolated vertex, but it is{}",
+                        v.handle,
+                        if n.is_empty() { "not " }  else { "" },
+                        if n.is_empty() { "" }  else { " not" },
+                    );
+                }
+            }
+            _ => {}
+        }
+
         v.adjacent_faces.check(
             &mesh.faces_around_vertex(v.handle).into_vec(),
             &format!("mesh.faces_around_vertex({:?})", v.handle),
