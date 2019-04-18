@@ -821,6 +821,67 @@ macro_rules! gen_tri_mesh_tests {
             });
         }
 
+        #[test]
+        fn octahedron_with_hole() {
+            //
+            //                      (b)
+            //                      / \
+            //                     /   \
+            //                    /  U  \
+            //                   /       \
+            //       (b) ----- (c) ----- (a) ----- (b)
+            //         \       / \       / \       /
+            //          \  X  /   \  T  /   \  Y  /
+            //           \   /  V  \   /  W  \   /
+            //            \ /       \ /       \ /
+            //            (f) ----- (d) ----- (e)
+            //              \       /
+            //               \  Z  /
+            //                \   /
+            //                 \ /
+            //                 (e)
+            //
+            // The face at the opposite site of `T` is missing.
+
+            let mut m = <$name>::empty();
+            let va = m.add_vertex();
+            let vb = m.add_vertex();
+            let vc = m.add_vertex();
+            let vd = m.add_vertex();
+            let ve = m.add_vertex();
+            let vf = m.add_vertex();
+
+            let ft = m.add_triangle([va, vc, vd]);
+            let fu = m.add_triangle([vb, vc, va]);
+            let fv = m.add_triangle([vc, vf, vd]);
+            let fw = m.add_triangle([va, vd, ve]);
+            let fx = m.add_triangle([vb, vf, vc]);
+            let fy = m.add_triangle([va, ve, vb]);
+            let fz = m.add_triangle([vf, ve, vd]);
+
+            // -- check stuff with hole in the middle (real triforce)
+            assert_faces!(m; [$($extra),*];
+                ft => [fu, fv, fw], [va, vc, vd], interior;
+                fu => [fx, ft, fy], [vb, vc, va], interior;
+                fv => [fz, ft, fx], [vc, vf, vd], interior;
+                fw => [fy, ft, fz], [va, vd, ve], interior;
+                fx => [fv, fu],     [vb, vf, vc], boundary;
+                fy => [fu, fw],     [va, ve, vb], boundary;
+                fz => [fw, fv],     [vf, ve, vd], boundary;
+            );
+
+            assert_vertices!(m; [$($extra),*];
+                va => [fu, fy, fw, ft], [vb, ve, vd, vc], interior;
+                vb => [fy, fu, fx],     [ve, va, vc, vf], boundary;
+                vc => [fu, ft, fv, fx], [va, vd, vf, vb], interior;
+                vd => [ft, fw, fz, fv], [va, ve, vf, vc], interior;
+                ve => [fz, fw, fy],     [vf, vd, va, vb], boundary;
+                vf => [fx, fv, fz],     [vb, vc, vd, ve], boundary;
+            );
+
+            // TODO: check edges
+        }
+
         gen_tri_mesh_tests!(@if_item SupportsMultiBlade in [$($extra),*] => {
             #[test]
             fn vertex_with_two_blades() {
@@ -1081,6 +1142,74 @@ macro_rules! gen_tri_mesh_tests {
                 m.clone().add_triangle([vb, vg, va]);
                 m.clone().add_triangle([va, vd, vg]);
                 m.clone().add_triangle([ve, va, vf]);
+            }
+
+
+            #[test]
+            fn triforce() {
+                //
+                //             (a)
+                //             / \
+                //            /   \
+                //           /  X  \
+                //          /       \
+                //        (b) ----- (c)
+                //        / \       / \
+                //       /   \  W  /   \
+                //      /  Y  \   /  Z  \
+                //     /       \ /       \
+                //   (d) ----- (e) ----- (f)
+                //
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                let ve = m.add_vertex();
+                let vf = m.add_vertex();
+
+                let fx = m.add_triangle([va, vb, vc]);
+                let fy = m.add_triangle([vb, vd, ve]);
+                let fz = m.add_triangle([vc, ve, vf]);
+
+                // -- check stuff with hole in the middle (real triforce)
+                assert_faces!(m; [$($extra),*];
+                    fx => [], [va, vb, vc], boundary;
+                    fy => [], [vb, vd, ve], boundary;
+                    fz => [], [vc, ve, vf], boundary;
+                );
+
+                assert_vertices!(m; [$($extra),*];
+                    va => [fx],     [vb, vc],         boundary;
+                    vb => [fx, fy], [va, vc, ve, vd], boundary;
+                    vc => [fx, fz], [vf, ve, vb, va], boundary;
+                    vd => [fy],     [vb, ve],         boundary;
+                    ve => [fy, fz], [vd, vb, vc, vf], boundary;
+                    vf => [fz],     [ve, vc],         boundary;
+                );
+
+                // TODO: check edges
+
+                // -- fill hole in middle
+                let fw = m.add_triangle([vb, ve, vc]);
+
+                assert_faces!(m; [$($extra),*];
+                    fx => [fw],         [va, vb, vc], boundary;
+                    fy => [fw],         [vb, vd, ve], boundary;
+                    fz => [fw],         [vc, ve, vf], boundary;
+                    fw => [fx, fy, fz], [vb, ve, vc], interior;
+                );
+
+                assert_vertices!(m; [$($extra),*];
+                    va => [fx],         [vb, vc],         boundary;
+                    vb => [fx, fw, fy], [va, vc, ve, vd], boundary;
+                    vc => [fz, fw, fx], [vf, ve, vb, va], boundary;
+                    vd => [fy],         [vb, ve],         boundary;
+                    ve => [fy, fw, fz], [vd, vb, vc, vf], boundary;
+                    vf => [fz],         [ve, vc],         boundary;
+                );
+
+                // TODO: check edges
             }
         });
 
