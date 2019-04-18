@@ -69,17 +69,25 @@ impl<'a, HandleT: Handle, MeshT: 'a> ElementRef<'a, HandleT, MeshT> {
 // ===== With VertexHandle
 // ===========================================================================
 
-impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
+impl<'a, MeshT: 'a + FullAdj> VertexRef<'a, MeshT> {
+    /// Checks if this vertex is isolated. See [`FullAdj::is_isolated_vertex`]
+    /// for more information.
+    pub fn is_isolated(&self) -> bool {
+        self.mesh.is_isolated_vertex(self.handle)
+    }
+
+    /// Checks if this vertex is a boundary vertex. See
+    /// [`FullAdj::is_boundary_vertex`] for more information.
+    pub fn is_boundary(&self) -> bool {
+        self.mesh.is_boundary_vertex(self.handle)
+    }
+
     /// Returns an iterator over all ring1 neighbors of this vertex (the
     /// vertices that are directly connected to `self` via an edge).
     ///
-    /// This is just a convenience method wrapping [`FullAdj::vertices_around_vertex`].
-    /// For more information about guarantees and the order of returned
-    /// vertices, take a look at its documentation.
-    pub fn ring1_neighbors(&self) -> impl Iterator<Item = VertexRef<'a, MeshT>>
-    where
-        MeshT: FullAdj,
-    {
+    /// See [`FullAdj::vertices_around_vertex`] for more information about
+    /// guarantees and the order of returned vertices.
+    pub fn ring1_neighbors(&self) -> impl Iterator<Item = VertexRef<'a, MeshT>> {
         let mesh = self.mesh;
         self.mesh.vertices_around_vertex(self.handle)
             .map(move |h| VertexRef::new(mesh, h))
@@ -87,9 +95,8 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
 
     /// Returns an iterator over all faces adjacent to this vertex.
     ///
-    /// This is just a convenience method wrapping [`FullAdj::faces_around_vertex`]. For
-    /// more information about guarantees and the order of returned faces, take
-    /// a look at its documentation.
+    /// See [`FullAdj::faces_around_vertex`] for more information about
+    /// guarantees and the order of returned faces.
     ///
     /// # Examples
     ///
@@ -157,10 +164,7 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
     ///     .collect::<VecMap<_, _>>();
     /// ```
     ///
-    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'a, MeshT>>
-    where
-        MeshT: FullAdj,
-    {
+    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'a, MeshT>> {
         let mesh = self.mesh;
         self.mesh.faces_around_vertex(self.handle)
             .map(move |h| FaceRef::new(mesh, h))
@@ -172,34 +176,32 @@ impl<'a, MeshT: 'a> VertexRef<'a, MeshT> {
 // ===== With FaceHandle
 // ===========================================================================
 
-impl<'a, MeshT: 'a> FaceRef<'a, MeshT> {
+impl<'a, MeshT: 'a + BasicAdj> FaceRef<'a, MeshT> {
     /// Returns an iterator over all vertices of this face.
-    pub fn adjacent_vertices(&self) -> impl Iterator<Item = VertexRef<'_, MeshT>>
-    where
-        MeshT: BasicAdj,
-    {
+    pub fn adjacent_vertices(&self) -> impl Iterator<Item = VertexRef<'_, MeshT>> {
         let mesh = self.mesh;
         self.mesh.vertices_around_face(self.handle)
             .map(move |h| VertexRef::new(mesh, h))
     }
+}
 
+impl<'a, MeshT: 'a + FullAdj> FaceRef<'a, MeshT> {
     /// Returns an iterator over all faces adjacent to this face.
-    ///
-    /// See `VertexRef::adjacent_faces` for more information.
-    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'_, MeshT>>
-    where
-        MeshT: FullAdj,
-    {
+    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'_, MeshT>> {
         let mesh = &*self.mesh;
         self.mesh.faces_around_face(self.handle)
             .map(move |h| FaceRef::new(mesh, h))
     }
 
-    pub fn is_adjacent_to_face(&self, fh: FaceHandle) -> bool
-    where
-        MeshT: FullAdj,
-    {
+    /// Checks if this face is adjacent to the given other face.
+    pub fn is_adjacent_to_face(&self, fh: FaceHandle) -> bool {
         self.mesh.are_faces_adjacent(self.handle, fh)
+    }
+
+    /// Checks if this face is a boundary face. See
+    /// [`FullAdj::is_boundary_face`] for more information.
+    pub fn is_boundary(&self) -> bool {
+        self.mesh.is_boundary_face(self.handle)
     }
 }
 
