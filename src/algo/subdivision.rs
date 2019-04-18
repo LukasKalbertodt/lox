@@ -6,14 +6,30 @@ use crate::{
     prop::Pos3Like,
 };
 
+pub fn sqrt3<MeshT, MapT, ScalarT>(
+    mesh: &mut MeshT,
+    vertex_positions: &mut MapT,
+    num_iterations: u32,
+)
+where
+    MeshT: TriEdgeMeshMut + EdgeAdj, // TODO: doesn't need to be tri in the beginning
+    MapT: PropStoreMut<VertexHandle> + Clone,
+    MapT::Target: Pos3Like<Scalar = ScalarT>,
+    ScalarT: PrimitiveFloat,
+{
+    for i in 0..num_iterations {
+        sqrt3_impl(mesh, vertex_positions, i % 2 == 1);
+    }
+}
 
 /// The sqrt(3) subdivision algorithm.
 ///
 /// TODO: explain & link to paper
 #[inline(never)]
-pub fn sqrt3<MeshT, MapT, ScalarT>(
+fn sqrt3_impl<MeshT, MapT, ScalarT>(
     mesh: &mut MeshT,
     vertex_positions: &mut MapT,
+    split_boundary: bool,
 )
 where
     MeshT: TriEdgeMeshMut + EdgeAdj, // TODO: doesn't need to be tri in the beginning

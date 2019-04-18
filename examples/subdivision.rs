@@ -1,3 +1,4 @@
+use std::env;
 use failure::Error;
 
 use lox::{
@@ -13,13 +14,17 @@ use lox::{
 type MyMesh = MiniMesh<HalfEdgeMesh<TriConfig>>;
 
 fn main() -> Result<(), Error> {
-    // Read CLI arguments
-    let input_file = std::env::args().nth(1).expect("no input filename given");
-    let output_file = std::env::args().nth(2).expect("no output filename given");
+    // Quick and dirty CLI argument parsing (not lox related)
+    let num_iterations = env::args().nth(1)
+        .expect("no iteration count given (first argument)")
+        .parse::<u32>()
+        .expect("iteration count (first argument) cannot be parsed as u32");
+    let input_file = env::args().nth(2).expect("no input filename given");
+    let output_file = env::args().nth(3).expect("no output filename given");
 
     // Read, smooth, write
     let mut m: MyMesh = io::read_file(&input_file)?;
-    algo::subdivision::sqrt3(&mut m.mesh, &mut m.vertex_positions);
+    algo::subdivision::sqrt3(&mut m.mesh, &mut m.vertex_positions, num_iterations);
     io::write_file(&m, &output_file)?;
 
     Ok(())
