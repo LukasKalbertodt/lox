@@ -226,6 +226,65 @@ macro_rules! test_helper {
     (@as_neighbors {$($n:ident),*}) => {
         crate::ds::tests::Neighbors::OrderUndefined(vec![$($n),*])
     };
+
+    // These two arms are used to conditionally expand to a given body.
+    //
+    // If the first ident ($needle) is in the list following it, these arms
+    // expand to `$body`, otherwise they expand to an empty expression.
+    (@if $needle:ident in [] => $body:tt) => {{
+        // The needle was not found in the extra traits. To make sure there
+        // wasn't a typo bug in this macro definition, we check that `$needle`
+        // is a valid extra trait to begin with.
+        test_helper!(@is_valid_extra_trait $needle);
+    }};
+    (@if $needle:ident in [$head:ident $(, $tail:ident)*] => $body:tt) => {{
+        // This is a pretty nifty (or ugly?) trick. To check two idents for
+        // equality, we define a helper macro here. Note that the patterns in
+        // this macro don't contain any meta variables (the meta variables
+        // $meta and $head are interpolated). If the two are not equal, we
+        // recursively search through the list.
+        macro_rules! __inner_helper {
+            ($needle $needle) => { $body };
+            ($needle $head) => { test_helper!(@if $needle in [$($tail),*] => $body) }
+        };
+
+        __inner_helper!($needle $head)
+    }};
+
+    // This is the same as above but for bodies which expand to items (instead
+    // of expressions).
+    (@if_item $needle:ident in [] => { $($body:tt)* }) => {
+        test_helper!(@is_valid_extra_trait $needle);
+    };
+    (@if_item $needle:ident in [$head:ident $(, $tail:ident)*] => { $($body:tt)* }) => {
+        macro_rules! __inner_helper {
+            ($needle $needle) => { $($body)* };
+            ($needle $head) => {
+                test_helper!(@if_item $needle in [$($tail),*] => { $($body)* });
+            }
+        }
+
+        __inner_helper!($needle $head);
+    };
+
+    // These arms are used to make sure all traits passed into the macro
+    // (include the ones used in the definition of the macro) are valid.
+    // Otherwise it's too easy to make a typo.
+    (@is_valid_extra_trait BasicAdj) => {};
+    (@is_valid_extra_trait FullAdj) => {};
+    (@is_valid_extra_trait EdgeAdj) => {};
+    (@is_valid_extra_trait TriMesh) => {};
+    (@is_valid_extra_trait PolyMesh) => {};
+    (@is_valid_extra_trait EdgeMesh) => {};
+    (@is_valid_extra_trait Manifold) => {}; // this is not a real trait yet...
+    (@is_valid_extra_trait SupportsMultiBlade) => {};
+    (@is_valid_extra_trait $other:ident) => {
+        compile_error!(concat!(
+            "`",
+            stringify!($other),
+            "` is not a valid trait to pass to `gen_tri_mesh_tests`",
+        ));
+    };
 }
 
 #[allow(dead_code)]
@@ -275,7 +334,7 @@ macro_rules! assert_vertices {
 
         crate::ds::tests::assert_vertices_basic(&$mesh, &vertices);
 
-        gen_tri_mesh_tests!(@if FullAdj in [$($extra),*] => {
+        test_helper!(@if FullAdj in [$($extra),*] => {
             crate::ds::tests::assert_vertices_full_adj(&$mesh, &vertices);
         });
     };
@@ -380,18 +439,18 @@ macro_rules! assert_faces {
 
         crate::ds::tests::assert_faces_basic(&$mesh, &faces);
 
-        gen_tri_mesh_tests!(@if BasicAdj in [$($extra),*] => {
+        test_helper!(@if BasicAdj in [$($extra),*] => {
             crate::ds::tests::assert_faces_basic_adj(&$mesh, &faces);
 
-            gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+            test_helper!(@if TriMesh in [$($extra),*] => {
                 crate::ds::tests::assert_faces_basic_adj_tri(&$mesh, &faces);
             });
         });
 
-        gen_tri_mesh_tests!(@if FullAdj in [$($extra),*] => {
+        test_helper!(@if FullAdj in [$($extra),*] => {
             crate::ds::tests::assert_faces_full_adj(&$mesh, &faces);
 
-            gen_tri_mesh_tests!(@if TriMesh in [$($extra),*] => {
+            test_helper!(@if TriMesh in [$($extra),*] => {
                 crate::ds::tests::assert_faces_full_adj_tri(&$mesh, &faces);
             });
         });
@@ -500,7 +559,7 @@ pub fn assert_faces_full_adj_tri<M: FullAdj + TriMesh>(mesh: &M, faces: &[FaceIn
 macro_rules! gen_tri_mesh_tests {
     ($name:ty : [$($extra:ident),*]) => {
         $(
-            gen_tri_mesh_tests!(@is_valid_extra_trait $extra);
+            test_helper!(@is_valid_extra_trait $extra);
         )*
 
         // TODO: make sure exactly once of `TriMesh` and `PolyMesh` is
@@ -527,7 +586,7 @@ macro_rules! gen_tri_mesh_tests {
             assert!(!m.contains_face(FaceHandle::new(0)));
             assert!(!m.contains_face(FaceHandle::new(27)));
 
-            gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+            test_helper!(@if EdgeMesh in [$($extra),*] => {
                 assert_eq!(m.num_edges(), 0);
                 assert!(m.edges().next().is_none());
                 assert!(!m.contains_edge(EdgeHandle::new(0)));
@@ -548,7 +607,7 @@ macro_rules! gen_tri_mesh_tests {
                 v    => [], [], boundary;
             );
 
-            gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+            test_helper!(@if EdgeMesh in [$($extra),*] => {
                 assert_eq!(m.num_edges(), 0);
                 assert!(m.edges().next().is_none());
             });
@@ -581,7 +640,7 @@ macro_rules! gen_tri_mesh_tests {
 
             assert!(!m.contains_face(FaceHandle::new(f.idx().next())));
 
-            gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+            test_helper!(@if EdgeMesh in [$($extra),*] => {
                 let e0 = EdgeHandle::new(0);
                 let e1 = EdgeHandle::new(1);
                 let e2 = EdgeHandle::new(2);
@@ -592,7 +651,7 @@ macro_rules! gen_tri_mesh_tests {
                 assert!(m.contains_edge(e1));
                 assert!(m.contains_edge(e2));
 
-                gen_tri_mesh_tests!(@if EdgeAdj in [$($extra),*] => {
+                test_helper!(@if EdgeAdj in [$($extra),*] => {
                     assert_face_edges!(m, [e0, e1, e2], f, []);
                 });
             });
@@ -634,7 +693,7 @@ macro_rules! gen_tri_mesh_tests {
                 v_top => [f_ca, f_bc, f_ab],     [va, vc, vb],    interior;
             );
 
-            gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+            test_helper!(@if EdgeMesh in [$($extra),*] => {
                 let e0 = EdgeHandle::new(0);
                 let e1 = EdgeHandle::new(1);
                 let e2 = EdgeHandle::new(2);
@@ -651,7 +710,7 @@ macro_rules! gen_tri_mesh_tests {
                 assert!(m.contains_edge(e4));
                 assert!(m.contains_edge(e5));
 
-                gen_tri_mesh_tests!(@if EdgeAdj in [$($extra),*] => {
+                test_helper!(@if EdgeAdj in [$($extra),*] => {
                     let e = assert_face_edges!(m, [e0, e1, e2], f_bottom, [f_ab, f_bc, f_ca]);
                     let e_ab = e[0];
                     let e_bc = e[1];
@@ -701,12 +760,12 @@ macro_rules! gen_tri_mesh_tests {
                 vd => [fy],     [vc, va],     boundary;
             );
 
-            gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+            test_helper!(@if EdgeMesh in [$($extra),*] => {
                 let eh = EdgeHandle::new;
                 assert_eq!(m.num_edges(), 5);
                 assert_eq_set!(m.edge_handles(), [eh(0), eh(1), eh(2), eh(3), eh(4)]);
 
-                gen_tri_mesh_tests!(@if EdgeAdj in [$($extra),*] => {
+                test_helper!(@if EdgeAdj in [$($extra),*] => {
                     let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, [fy]);
                     let e_ac = e[0];
                     assert_face_edges!(m, [e_ac, eh(3), eh(4)], fy, [fx]);
@@ -730,7 +789,7 @@ macro_rules! gen_tri_mesh_tests {
                 ve => [fz],         [vc, vd],         boundary;
             );
 
-            gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+            test_helper!(@if EdgeMesh in [$($extra),*] => {
                 let eh = EdgeHandle::new;
                 assert_eq!(m.num_edges(), 7);
                 assert_eq_set!(
@@ -738,7 +797,7 @@ macro_rules! gen_tri_mesh_tests {
                     [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5), eh(6)],
                 );
 
-                gen_tri_mesh_tests!(@if EdgeAdj in [$($extra),*] => {
+                test_helper!(@if EdgeAdj in [$($extra),*] => {
                     let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, [fy]);
                     let e_ac = e[0];
                     let e = assert_face_edges!(m, [e_ac, eh(3), eh(4)], fy, [fx, fz]);
@@ -805,7 +864,7 @@ macro_rules! gen_tri_mesh_tests {
                 vf => [fx, fz, fy],     [vb, ve, vc, vd],     boundary;
             );
 
-            gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+            test_helper!(@if EdgeMesh in [$($extra),*] => {
                 let eh = EdgeHandle::new;
                 assert_eq!(m.num_edges(), 12);
                 assert_eq_set!(m.edge_handles(), [
@@ -813,7 +872,7 @@ macro_rules! gen_tri_mesh_tests {
                     eh(6), eh(7), eh(8), eh(9), eh(10), eh(11),
                 ]);
 
-                gen_tri_mesh_tests!(@if EdgeAdj in [$($extra),*] => {
+                test_helper!(@if EdgeAdj in [$($extra),*] => {
                     let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fu, [fv, fw]);
                     let e_bc = e[0];
                     let e_ab = e[1];
@@ -896,7 +955,7 @@ macro_rules! gen_tri_mesh_tests {
             // TODO: check edges
         }
 
-        gen_tri_mesh_tests!(@if_item SupportsMultiBlade in [$($extra),*] => {
+        test_helper!(@if_item SupportsMultiBlade in [$($extra),*] => {
             #[test]
             fn vertex_with_two_blades() {
                 //
@@ -938,7 +997,7 @@ macro_rules! gen_tri_mesh_tests {
                     ve => [fy],     [vd, va],         boundary;
                 );
 
-                gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                test_helper!(@if EdgeMesh in [$($extra),*] => {
                     let eh = EdgeHandle::new;
                     assert_eq!(m.num_edges(), 6);
                     assert_eq_set!(
@@ -946,7 +1005,7 @@ macro_rules! gen_tri_mesh_tests {
                         [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5)],
                     );
 
-                    gen_tri_mesh_tests!(@if EdgeAdj in [$($extra),*] => {
+                    test_helper!(@if EdgeAdj in [$($extra),*] => {
                         assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, []);
                         assert_face_edges!(m, [eh(3), eh(4), eh(5)], fy, []);
                     });
@@ -1000,7 +1059,7 @@ macro_rules! gen_tri_mesh_tests {
                     vg => [fz],         [vf, va],                 boundary;
                 );
 
-                gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                test_helper!(@if EdgeMesh in [$($extra),*] => {
                     let eh = EdgeHandle::new;
                     assert_eq!(m.num_edges(), 9);
                     assert_eq_set!(
@@ -1008,7 +1067,7 @@ macro_rules! gen_tri_mesh_tests {
                         [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5), eh(6), eh(7), eh(8)],
                     );
 
-                    gen_tri_mesh_tests!(@if EdgeAdj in [$($extra),*] => {
+                    test_helper!(@if EdgeAdj in [$($extra),*] => {
                         assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, []);
                         assert_face_edges!(m, [eh(3), eh(4), eh(5)], fy, []);
                         assert_face_edges!(m, [eh(6), eh(7), eh(8)], fz, []);
@@ -1084,7 +1143,7 @@ macro_rules! gen_tri_mesh_tests {
                         vg => [fz],            [vf, va],                 boundary;
                     );
 
-                    gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                    test_helper!(@if EdgeMesh in [$($extra),*] => {
                         let eh = EdgeHandle::new;
                         assert_eq!(m.num_edges(), 10);
                         assert_eq_set!(
@@ -1092,7 +1151,7 @@ macro_rules! gen_tri_mesh_tests {
                             [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5), eh(6), eh(7), eh(8), eh(9)],
                         );
 
-                        gen_tri_mesh_tests!(@if EdgeAdj in [$($extra),*] => {
+                        test_helper!(@if EdgeAdj in [$($extra),*] => {
                             let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, [f]);
                             let e_ac = e[0];
 
@@ -1128,7 +1187,7 @@ macro_rules! gen_tri_mesh_tests {
                         vg => [fz],            [vf, va],                 boundary;
                     );
 
-                    gen_tri_mesh_tests!(@if EdgeMesh in [$($extra),*] => {
+                    test_helper!(@if EdgeMesh in [$($extra),*] => {
                         let eh = EdgeHandle::new;
                         assert_eq!(m.num_edges(), 10);
                         assert_eq_set!(
@@ -1136,7 +1195,7 @@ macro_rules! gen_tri_mesh_tests {
                             [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5), eh(6), eh(7), eh(8), eh(9)],
                         );
 
-                        gen_tri_mesh_tests!(@if EdgeAdj in [$($extra),*] => {
+                        test_helper!(@if EdgeAdj in [$($extra),*] => {
                             let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, [f]);
                             let e_ac = e[0];
 
@@ -1227,7 +1286,7 @@ macro_rules! gen_tri_mesh_tests {
             }
         });
 
-        gen_tri_mesh_tests!(@if_item Manifold in [$($extra),*] => {
+        test_helper!(@if_item Manifold in [$($extra),*] => {
             #[test]
             #[should_panic]
             fn non_manifold_triple_edge() {
@@ -1319,64 +1378,5 @@ macro_rules! gen_tri_mesh_tests {
         // it's fine as a manifold open mesh?
 
         // TODO: test with 4 or more fan blades
-    };
-
-    // These two arms are used to conditionally expand to a given body.
-    //
-    // If the first ident ($needle) is in list following it, these arms expand
-    // to `$body`, otherwise they expand to an empty expression.
-    (@if $needle:ident in [] => $body:tt) => {{
-        // The needle was not found in the extra traits. To make sure there
-        // wasn't a typo bug in this macro definition, we check that `$needle`
-        // is a valid extra trait to begin with. We know that all idents in the
-        // list are valid, because we checked it above.
-        gen_tri_mesh_tests!(@is_valid_extra_trait $needle);
-    }};
-    (@if $needle:ident in [$head:ident $(, $tail:ident)*] => $body:tt) => {{
-        macro_rules! __inner_helper {
-            ($needle $needle) => { $body };
-            ($needle $head) => { gen_tri_mesh_tests!(@if $needle in [$($tail),*] => $body) }
-        };
-
-        __inner_helper!($needle $head)
-    }};
-
-    // This is the same as above but for bodies which expand to items (instead
-    // of expressions).
-    (@if_item $needle:ident in [] => { $($body:tt)* }) => {
-        // The needle was not found in the extra traits. To make sure there
-        // wasn't a typo bug in this macro definition, we check that `$needle`
-        // is a valid extra trait to begin with. We know that all idents in the
-        // list are valid, because we checked it above.
-        gen_tri_mesh_tests!(@is_valid_extra_trait $needle);
-    };
-    (@if_item $needle:ident in [$head:ident $(, $tail:ident)*] => { $($body:tt)* }) => {
-        macro_rules! __inner_helper {
-            ($needle $needle) => { $($body)* };
-            ($needle $head) => {
-                gen_tri_mesh_tests!(@if_item $needle in [$($tail),*] => { $($body)* });
-            }
-        }
-
-        __inner_helper!($needle $head);
-    };
-
-    // These arms are used to make sure all traits passed into the macro
-    // (include the ones used in the definition of the macro) are valid.
-    // Otherwise it's too easy to make a typo.
-    (@is_valid_extra_trait BasicAdj) => {};
-    (@is_valid_extra_trait FullAdj) => {};
-    (@is_valid_extra_trait EdgeAdj) => {};
-    (@is_valid_extra_trait TriMesh) => {};
-    (@is_valid_extra_trait PolyMesh) => {};
-    (@is_valid_extra_trait EdgeMesh) => {};
-    (@is_valid_extra_trait Manifold) => {}; // this is not a real trait yet...
-    (@is_valid_extra_trait SupportsMultiBlade) => {};
-    (@is_valid_extra_trait $other:ident) => {
-        compile_error!(concat!(
-            "`",
-            stringify!($other),
-            "` is not a valid trait to pass to `gen_tri_mesh_tests`",
-        ));
     };
 }
