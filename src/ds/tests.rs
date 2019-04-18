@@ -166,32 +166,10 @@ pub fn assert_face_edges_fn(
         .collect()
 }
 
-
-/// Takes something slice-like and a list of elements. Asserts that the
-/// elements occur in the slice exactly in the specified order (but potentially
-/// shifted).
-///
-/// So `assert_eq_order(v, [a, b, c])` would be fine if `v` is any of this:
-/// - `[a, b, c]`
-/// - `[b, c, a]`
-/// - `[c, a, b]`
-///
-/// This check is a stricter version of `assert_eq_set`. For <= 2 elements,
-/// it's more or less equivalent to `assert_eq_set`.
-macro_rules! assert_eq_order {
-    ($list:expr, [$($x:expr),*] $(,)?) => {{
-        crate::ds::tests::assert_eq_order_fn(
-            &$list[..],
-            &[$($x),*],
-            stringify!($list),
-        );
-    }};
-}
-
 /// Helper function for macro `assert_eq_order`. Function instead of macro to
 /// improve test compile times (no inlining!).
 #[inline(never)]
-pub fn assert_eq_order_fn<T: Debug + PartialEq + Copy>(
+pub fn assert_eq_order<T: Debug + PartialEq + Copy>(
     actual: &[T],
     expected: &[T],
     actual_str: &str,
@@ -262,7 +240,7 @@ impl<H: Handle> Neighbors<H> {
         match self {
             Neighbors::NoCheck => {}
             Neighbors::OrderDefined(neighbors) => {
-                assert_eq_order_fn(actual, neighbors, actual_str);
+                assert_eq_order(actual, neighbors, actual_str);
             }
             Neighbors::OrderUndefined(neighbors) => {
                 assert_eq_set_fn(

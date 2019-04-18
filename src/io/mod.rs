@@ -1604,7 +1604,7 @@ where
 /// use lox::{
 ///     MemSource, VertexHandle,
 ///     cgmath::Point3,
-///     ds::HalfEdgeMesh,
+///     ds::SharedVertexMesh,
 ///     map::VecMap,
 /// };
 ///
@@ -1612,7 +1612,7 @@ where
 /// #[derive(MemSource)]
 /// struct MyMesh {
 ///     #[lox(core_mesh)]
-///     mesh: HalfEdgeMesh,
+///     mesh: SharedVertexMesh,
 ///
 ///     #[lox(vertex_position)]
 ///     positions: VecMap<VertexHandle, Point3<f32>>,
