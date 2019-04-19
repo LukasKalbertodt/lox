@@ -253,18 +253,23 @@ macro_rules! test_helper {
 
     // This is the same as above but for bodies which expand to items (instead
     // of expressions).
-    (@if_item $needle:ident in [] => { $($body:tt)* }) => {
+    (@if_item [$needle:ident] in [] => { $($body:tt)* }) => {
         test_helper!(@is_valid_extra_trait $needle);
     };
-    (@if_item $needle:ident in [$head:ident $(, $tail:ident)*] => { $($body:tt)* }) => {
+    (@if_item [$needle:ident] in [$head:ident $(, $tail:ident)*] => { $($body:tt)* }) => {
         macro_rules! __inner_helper {
             ($needle $needle) => { $($body)* };
             ($needle $head) => {
-                test_helper!(@if_item $needle in [$($tail),*] => { $($body)* });
+                test_helper!(@if_item [$needle] in [$($tail),*] => { $($body)* });
             }
         }
 
         __inner_helper!($needle $head);
+    };
+    (@if_item [$head:ident $(, $tail:ident)*] in $extra:tt => $body:tt) => {
+        test_helper!(@if_item [$head] in $extra => {
+            test_helper!(@if_item [$($tail),*] in $extra => $body);
+        });
     };
 
     // These arms are used to make sure all traits passed into the macro
@@ -955,7 +960,7 @@ macro_rules! gen_tri_mesh_tests {
             // TODO: check edges
         }
 
-        test_helper!(@if_item SupportsMultiBlade in [$($extra),*] => {
+        test_helper!(@if_item [SupportsMultiBlade] in [$($extra),*] => {
             #[test]
             fn vertex_with_two_blades() {
                 //
@@ -1286,7 +1291,7 @@ macro_rules! gen_tri_mesh_tests {
             }
         });
 
-        test_helper!(@if_item Manifold in [$($extra),*] => {
+        test_helper!(@if_item [Manifold] in [$($extra),*] => {
             #[test]
             #[should_panic]
             fn non_manifold_triple_edge() {
