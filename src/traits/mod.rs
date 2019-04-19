@@ -414,7 +414,11 @@ pub trait PolyMeshMut: MeshMut<FaceKind = PolyFaces> {
 }
 
 pub trait TriEdgeMeshMut: EdgeMesh + MeshMut<FaceKind = TriFaces> {
+    // TODO: think about adding these method with a version where you specify
+    // two faces? Or once face? (e.g. `flip_edge_between`,
+    // `split_face_2_to_4(a, b)` and `split_boundary_face_1to2`)
     fn flip_edge(&mut self, edge: EdgeHandle);
+    fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> VertexHandle;
 }
 
 

@@ -1106,6 +1106,139 @@ where
         self.half_edges[he_above_left].next = he_below_left;
         self.half_edges[he_below_left].next = he_center_below;
     }
+
+    fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> VertexHandle {
+        // ===================================================================
+        // ===== Split just the edge
+        // ===================================================================
+
+        // Situation now (ignoring faces):
+        //
+        //                      above
+        //   (left) -----------------------------> (right)
+        //          <-----------------------------
+        //                      below
+        //
+        // Of course, these names don't fit to any real property of the mesh
+        // elements. We just call them like that to fit to the ASCII art.
+        let he_above = HalfEdgeHandle::lower_half_of(edge);
+        let he_below = he_above.twin();
+        let v_right = self.half_edges[he_above].target;
+
+        let he_below_prev = self.prev(he_below);
+
+        // We need to insert a new vertex and two new half edge. Goal:
+        //
+        //             above           new_above
+        //   (left) ----------> (mid) -----------> (right)
+        //          <---------- (mid) <-----------
+        //             below           new_below
+        //
+        let v_mid = self.add_vertex();
+        let he_new_above = self.add_edge_partially(v_mid, v_right);
+        let he_new_below = he_new_above.twin();
+
+        // Fix next handles
+        self.half_edges[he_new_above].next = self.half_edges[he_above].next;
+        self.half_edges[he_above].next = he_new_above;
+        self.half_edges[he_above].target = v_mid;
+        self.half_edges[he_new_below].next = he_below;
+        self.half_edges[he_below_prev].next = he_new_below;
+
+        // If the `outgoing` handle of `right` was `he_below`, we have to
+        // update it to `he_new_below`. Otherwise it should stay as it is
+        // (because of the boundary-condition).
+        if self.vertices[v_right].outgoing == Opt::some(he_below) {
+            self.vertices[v_right].outgoing = Opt::some(he_new_below)
+        }
+
+        // Set a fitting `outgoing` edge for mid-vertex
+        let face_above = self.half_edges[he_above].face.to_option();
+        let face_below = self.half_edges[he_below].face.to_option();
+        let outgoing = match (face_above.is_some(), face_below.is_some()) {
+            // No face above but below, `he_new_above` is boundary edge, we
+            // need to use that edge.
+            (false, true) => he_new_above,
+
+            // No face below but above, `he_below` is boundary edge, we need to
+            // use this.
+            (true, false) => he_below,
+
+            // Either both edges are boundary edges or `mid` is not a boundary
+            // vertex. In either case, it doesn't matter.
+            (false, false) | (true, true) => he_new_above,
+        };
+        self.vertices[v_mid].outgoing = Opt::some(outgoing);
+
+
+        // ===================================================================
+        // ===== Split the (up to two) faces
+        // ===================================================================
+        let split_face = |
+            mesh: &mut Self,
+            old_face: FaceHandle,
+            he_bottom_left: HalfEdgeHandle,
+            he_bottom_right: HalfEdgeHandle,
+        | {
+            // Current situation:
+            //
+            //                      (top)
+            //                    ⟋      ↖
+            //                  ⟋          ⟍
+            //      top_left  ⟋              ⟍  top_right
+            //              ⟋                  ⟍
+            //            ⟋                      ⟍
+            //          ↙                           ⟍
+            //   (left) ----------> (mid) -----------> (right)
+            //          bottom_left       bottom_right
+            //
+            // Goal:
+            //
+            //                      (top)
+            //                    ⟋  ^ |  ↖
+            //                  ⟋    | |    ⟍                      1: mid_right
+            //      top_left  ⟋      | |      ⟍  top_right         2: mid_left
+            //              ⟋      2 | | 1      ⟍
+            //            ⟋          | |          ⟍
+            //          ↙            | v             ⟍
+            //   (left) ----------> (mid) -----------> (right)
+            //          bottom_left       bottom_right
+            //
+            // The old face will be the left one.
+
+            let he_top_right = mesh.half_edges[he_bottom_right].next;
+            let v_top = mesh.half_edges[he_top_right].target;
+            let he_top_left = mesh.half_edges[he_top_right].next;
+
+            let he_mid_left = mesh.add_edge_partially(v_mid, v_top);
+            let he_mid_right = he_mid_left.twin();
+
+            // Fix left face
+            mesh.half_edges[he_bottom_left].next = he_mid_left;
+            mesh.half_edges[he_mid_left].next = he_top_left;
+            mesh.half_edges[he_mid_left].face = Opt::some(old_face);
+            mesh.faces[old_face].edge = he_bottom_left;
+
+            // Create and fix right face
+            let right_face = mesh.faces.push(Face { edge: he_bottom_right });
+            mesh.half_edges[he_mid_right].face = Opt::some(right_face);
+            mesh.half_edges[he_bottom_right].face = Opt::some(right_face);
+            mesh.half_edges[he_top_right].face = Opt::some(right_face);
+            mesh.half_edges[he_top_right].next = he_mid_right;
+            mesh.half_edges[he_mid_right].next = he_bottom_right;
+        };
+
+        if let Some(face) = face_above {
+            split_face(self, face, he_above, he_new_above);
+        }
+        if let Some(face) = face_below {
+            split_face(self, face, he_new_below, he_below);
+        }
+
+
+
+        v_mid
+    }
 }
 
 impl SupportsMultiBlade for HalfEdgeMesh {}

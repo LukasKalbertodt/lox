@@ -960,6 +960,112 @@ macro_rules! gen_tri_mesh_tests {
             // TODO: check edges
         }
 
+        test_helper!(@if_item [TriMesh, EdgeMesh, FullAdj] in [$($extra),*] => {
+            #[test]
+            fn split_edge_with_two_faces() {
+                //
+                //             (A)                    (A)
+                //            / | \                  / | \
+                //           /  |  \                / (N) \
+                //          /   |   \      =>      / / | \ \
+                //         /   (M)   \            / / (M) \ \
+                //        /  ⟋    ⟍  \          / / ⟋   ⟍\ \
+                //       (B) ------- (C)        (B) ------- (C)
+                //
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vm = m.add_vertex();
+
+                m.add_triangle([va, vb, vm]);
+                let f_bc = m.add_triangle([vb, vc, vm]);
+                m.add_triangle([vc, va, vm]);
+
+                let edge = m.edge_between_vertices(va, vm)
+                    .expect("`edge_between_vertices` returned `None` incorrectly");
+
+                let vn = m.split_edge_with_faces(edge);
+
+                // -- check stuff
+                assert_eq!(m.num_faces(), 5);
+                assert_eq!(m.num_edges(), 9);
+
+                let split_faces = m.faces_around_vertex(vn).collect::<Vec<_>>();
+                assert_eq!(split_faces.len(), 4);
+                crate::ds::tests::assert_eq_set_fn(
+                    split_faces.into_iter().chain(vec![f_bc]),
+                    &m.face_handles().collect::<Vec<_>>(),
+                    "split_faces.into_iter().chain(vec![f_bc])",
+                    "m.face_handles()",
+                );
+
+                // TODO: we should check more stuff here
+
+                assert_vertices!(m; [$($extra),*];
+                    va    => no_check, [vc, vn, vb],     boundary;
+                    vb    => no_check, [va, vn, vm, vc], boundary;
+                    vc    => no_check, [vb, vm, vn, va], boundary;
+                    vm    => no_check, [vb, vn, vc],     interior;
+                    vn    => no_check, [va, vc, vm, vb], interior;
+                );
+            }
+
+            #[test]
+            fn split_edge_with_one_face() {
+                //
+                //  (a) ------- (b) ------- (c)      (a) ------- (b) ------- (c)
+                //     \         |         /            \       / |         /
+                //      \        |        /              \     /  |        /
+                //       \       |       /                \   /   |       /
+                //        \      |      /                  \ /    |      /
+                //         \     |     /        =>         (m)    |     /
+                //          \    |    /                      \    |    /
+                //           \   |   /                        \   |   /
+                //            \  |  /                          \  |  /
+                //             \ | /                            \ | /
+                //              (d)                              (d)
+                //
+                //
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+
+                m.add_triangle([va, vd, vb]);
+                let f_bdc = m.add_triangle([vb, vd, vc]);
+
+                let edge = m.edge_between_vertices(va, vd)
+                    .expect("`edge_between_vertices` returned `None` incorrectly");
+
+                let vm = m.split_edge_with_faces(edge);
+
+                // -- check stuff
+                assert_eq!(m.num_faces(), 3);
+                assert_eq!(m.num_edges(), 7);
+
+                let split_faces = m.faces_around_vertex(vm).collect::<Vec<_>>();
+                assert_eq!(split_faces.len(), 2);
+                crate::ds::tests::assert_eq_set_fn(
+                    split_faces.into_iter().chain(vec![f_bdc]),
+                    &m.face_handles().collect::<Vec<_>>(),
+                    "split_faces.into_iter().chain(vec![f_bdc])",
+                    "m.face_handles()",
+                );
+
+                // TODO: we should check more stuff here
+
+                assert_vertices!(m; [$($extra),*];
+                    va => no_check, [vb, vm],         boundary;
+                    vb => no_check, [vc, vd, vm, va], boundary;
+                    vc => [f_bdc],  [vd, vb],         boundary;
+                    vd => no_check, [vm, vb, vc],     boundary;
+                    vm => no_check, [va, vb, vd],     boundary;
+                );
+            }
+        });
+
         test_helper!(@if_item [SupportsMultiBlade] in [$($extra),*] => {
             #[test]
             fn vertex_with_two_blades() {
@@ -1383,5 +1489,9 @@ macro_rules! gen_tri_mesh_tests {
         // it's fine as a manifold open mesh?
 
         // TODO: test with 4 or more fan blades
+
+        // TODO: flip edge
+        // TODO: split edge
+        // TODO: split face
     };
 }
