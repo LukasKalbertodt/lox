@@ -230,6 +230,18 @@ impl<'a, MeshT: 'a + EdgeAdj> EdgeRef<'a, MeshT> {
         [VertexRef::new(mesh, handles[0]), VertexRef::new(mesh, handles[1])]
     }
 
+    /// Returns the endpoint of this edge that is not `vertex`. *Note*: if
+    /// `vertex` is not an endpoint of this edge, it's unspecified which vertex
+    /// is returned.
+    pub fn opposite_endpoint_of(&self, vertex: VertexHandle) -> VertexRef<'a, MeshT> {
+        let endpoints = self.mesh.endpoints_of_edge(self.handle);
+        if endpoints[0] == vertex {
+            VertexRef::new(self.mesh, endpoints[1])
+        } else {
+            VertexRef::new(self.mesh, endpoints[0])
+        }
+    }
+
     /// Returns an iterator over all faces adjacent to this face.
     ///
     /// See `VertexRef::adjacent_faces` for more information.
