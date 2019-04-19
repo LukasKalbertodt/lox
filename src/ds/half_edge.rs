@@ -1297,6 +1297,13 @@ impl<C: Config> EdgeAdj for HalfEdgeMesh<C> {
             self.half_edges[b].face.to_option(),
         )
     }
+
+    fn edges_around_vertex(&self, vertex: VertexHandle) -> DynList<'_, EdgeHandle> {
+        Box::new(VertexToEdgeIter {
+            it: self.circulate_around_vertex(vertex),
+        })
+    }
+
 }
 
 /// Iterator over all faces of a vertex. Is returned by `faces_around_vertex`.
@@ -1364,6 +1371,19 @@ impl<C: Config> Iterator for VertexToVertexIter<'_, C> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.it.next().map(|outgoing| self.mesh.half_edges[outgoing].target)
+    }
+}
+
+/// Iterator over all edges of a vertex. Is returned by `edges_around_vertex`.
+struct VertexToEdgeIter<'a, C: Config> {
+    it: CwVertexCirculator<'a, C>,
+}
+
+impl<C: Config> Iterator for VertexToEdgeIter<'_, C> {
+    type Item = EdgeHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.it.next().map(|outgoing| outgoing.full_edge())
     }
 }
 

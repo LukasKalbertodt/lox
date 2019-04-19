@@ -126,4 +126,11 @@ pub trait EdgeAdj: FullAdj + EdgeMesh {
     fn endpoints_of_edge(&self, edge: EdgeHandle) -> [VertexHandle; 2];
     fn faces_of_edge(&self, edge: EdgeHandle) -> DiList<FaceHandle>;
     // TODO
+
+    fn edges_around_vertex(&self, vertex: VertexHandle) -> DynList<'_, EdgeHandle>;
+
+    fn edge_between_vertices(&self, a: VertexHandle, b: VertexHandle) -> Option<EdgeHandle> {
+        self.edges_around_vertex(a)
+            .find(|&e| self.endpoints_of_edge(e).contains(&b))
+    }
 }
