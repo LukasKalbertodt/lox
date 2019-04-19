@@ -27,7 +27,7 @@ where
         // We use the centroid of all neighbors' position as new positon. If
         // the vertex does not have any neighbor vertices, its position stays
         // the same.
-        let new_pos = v.ring1_neighbors()
+        let new_pos = v.adjacent_vertices()
             .map(|n| pos_of(n))
             .centroid()
             .unwrap_or(pos_of(v));

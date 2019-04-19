@@ -87,7 +87,7 @@ impl<'a, MeshT: 'a + FullAdj> VertexRef<'a, MeshT> {
     ///
     /// See [`FullAdj::vertices_around_vertex`] for more information about
     /// guarantees and the order of returned vertices.
-    pub fn ring1_neighbors(&self) -> impl Iterator<Item = VertexRef<'a, MeshT>> {
+    pub fn adjacent_vertices(&self) -> impl Iterator<Item = VertexRef<'a, MeshT>> {
         let mesh = self.mesh;
         self.mesh.vertices_around_vertex(self.handle)
             .map(move |h| VertexRef::new(mesh, h))
