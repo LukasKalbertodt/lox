@@ -128,6 +128,11 @@ pub trait EdgeAdj: FullAdj + EdgeMesh {
     // TODO
 
     fn edges_around_vertex(&self, vertex: VertexHandle) -> DynList<'_, EdgeHandle>;
+    fn edges_around_face(&self, face: FaceHandle) -> DynList<'_, EdgeHandle>;
+    fn edges_around_triangle(&self, face: FaceHandle) -> [EdgeHandle; 3]
+    where
+        Self: TriMesh;
+
     fn is_boundary_edge(&self, edge: EdgeHandle) -> bool {
         self.faces_of_edge(edge).len() != 2
     }

@@ -205,6 +205,15 @@ impl<'a, MeshT: 'a + FullAdj> FaceRef<'a, MeshT> {
     }
 }
 
+impl<'a, MeshT: 'a + EdgeAdj> FaceRef<'a, MeshT> {
+    /// Returns an iterator over all faces adjacent to this face.
+    pub fn adjacent_edges(&self) -> impl Iterator<Item = EdgeRef<'_, MeshT>> {
+        let mesh = &*self.mesh;
+        self.mesh.edges_around_face(self.handle)
+            .map(move |h| EdgeRef::new(mesh, h))
+    }
+}
+
 impl<'a, MeshT: 'a + EdgeAdj> EdgeRef<'a, MeshT> {
     /// Returns the two vertex endpoints of this edge.
     pub fn endpoints(&self) -> [VertexRef<'_, MeshT>; 2] {

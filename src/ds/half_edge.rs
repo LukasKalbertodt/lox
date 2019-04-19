@@ -1440,9 +1440,25 @@ impl<C: Config> EdgeAdj for HalfEdgeMesh<C> {
         })
     }
 
+    fn edges_around_face(&self, face: FaceHandle) -> DynList<'_, EdgeHandle> {
+        Box::new(FaceToEdgeIter {
+            it: self.circulate_around_face(face),
+        })
+    }
+
+    fn edges_around_triangle(&self, face: FaceHandle) -> [EdgeHandle; 3]
+    where
+        Self: TriMesh
+    {
+        let he0 = self.faces[face].edge;
+        let he1 = self.half_edges[he0].next;
+        let he2 = self.half_edges[he1].next;
+
+        [he0, he1, he2].map(|he| he.full_edge())
+    }
 }
 
-/// Iterator over all faces of a vertex. Is returned by `faces_around_vertex`.
+/// Iterator over all faces of a face. Is returned by `faces_around_face`.
 struct FaceToFaceIter<'a, C: Config> {
     it: FaceCirculator<'a, C>,
     mesh: &'a HalfEdgeMesh<C>,
@@ -1457,6 +1473,19 @@ impl<C: Config> Iterator for FaceToFaceIter<'_, C> {
         self.it.by_ref()
             .filter_map(|inner| mesh.half_edges[inner.twin()].face.to_option())
             .next()
+    }
+}
+
+/// Iterator over all edges of a face. Is returned by `edges_around_face`.
+struct FaceToEdgeIter<'a, C: Config> {
+    it: FaceCirculator<'a, C>,
+}
+
+impl<C: Config> Iterator for FaceToEdgeIter<'_, C> {
+    type Item = EdgeHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.it.next().map(|inner| inner.full_edge())
     }
 }
 
