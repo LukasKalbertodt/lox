@@ -205,12 +205,9 @@ impl<'a, MeshT: 'a + FullAdj> FaceRef<'a, MeshT> {
     }
 }
 
-impl<'a, MeshT: 'a> EdgeRef<'a, MeshT> {
+impl<'a, MeshT: 'a + EdgeAdj> EdgeRef<'a, MeshT> {
     /// Returns the two vertex endpoints of this edge.
-    pub fn endpoints(&self) -> [VertexRef<'_, MeshT>; 2]
-    where
-        MeshT: EdgeAdj,
-    {
+    pub fn endpoints(&self) -> [VertexRef<'_, MeshT>; 2] {
         let mesh = self.mesh;
         let handles = self.mesh.endpoints_of_edge(self.handle);
         [VertexRef::new(mesh, handles[0]), VertexRef::new(mesh, handles[1])]
@@ -219,10 +216,7 @@ impl<'a, MeshT: 'a> EdgeRef<'a, MeshT> {
     /// Returns an iterator over all faces adjacent to this face.
     ///
     /// See `VertexRef::adjacent_faces` for more information.
-    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'_, MeshT>>
-    where
-        MeshT: EdgeAdj,
-    {
+    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'_, MeshT>> {
         let mesh = &*self.mesh;
         self.mesh.faces_of_edge(self.handle)
             .into_iter()
@@ -231,10 +225,7 @@ impl<'a, MeshT: 'a> EdgeRef<'a, MeshT> {
 
     /// Returns whether or not this edge is a boundary edge (that is, if it has
     /// less than 2 adjacent faces).
-    pub fn is_boundary(&self) -> bool
-    where
-        MeshT: EdgeAdj,
-    {
-        self.mesh.faces_of_edge(self.handle).len() != 2
+    pub fn is_boundary(&self) -> bool {
+        self.mesh.is_boundary_edge(self.handle)
     }
 }

@@ -128,6 +128,9 @@ pub trait EdgeAdj: FullAdj + EdgeMesh {
     // TODO
 
     fn edges_around_vertex(&self, vertex: VertexHandle) -> DynList<'_, EdgeHandle>;
+    fn is_boundary_edge(&self, edge: EdgeHandle) -> bool {
+        self.faces_of_edge(edge).len() != 2
+    }
 
     fn edge_between_vertices(&self, a: VertexHandle, b: VertexHandle) -> Option<EdgeHandle> {
         self.edges_around_vertex(a)
