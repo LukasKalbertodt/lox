@@ -29,6 +29,7 @@
 
 use std::{
     f64::consts,
+    mem,
 };
 
 use cgmath::{
@@ -112,6 +113,122 @@ impl StreamSource for Tetrahedron {
         sink.add_face([a, b, top]);
         sink.add_face([b, c, top]);
         sink.add_face([c, a, top]);
+
+        Ok(())
+    }
+}
+
+
+
+/// A flat square that lies in the XY-plane, with its normals pointing upwards
+/// (+z).
+#[derive(Debug)]
+pub struct Square {
+    /// The number of faces generated per side. Has to be at least 1 or else
+    /// creating a mesh will panic. The resulting mesh has `2 *
+    /// faces_per_side²` many triangular faces. *Default*: 1.
+    pub faces_per_side: hsize,
+
+    /// The center point of the square. *Default*: `[0, 0, 0]`.
+    pub center: Point3<f64>,
+
+    /// The side length. *Default*: 1.0.
+    pub side_length: f64,
+}
+
+impl Default for Square {
+    fn default() -> Self {
+        Self {
+            faces_per_side: 1,
+            center: Point3::origin(),
+            side_length: 1.0,
+        }
+    }
+}
+
+
+impl StreamSource for Square {
+    fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error> {
+        assert!(
+            self.faces_per_side >= 1,
+            "trying to build a square with 0 faces per side (minimum is 1)",
+        );
+
+        // This is what we will build:
+        //
+        //  3   x ---- x ---- x ---- x
+        //      |      |      |      |
+        //      |      |      |      |
+        //  2   x ---- x ---- x ---- x
+        //      |      |      |      |
+        //      |      |      |      |
+        //  1   x ---- x ---- x ---- x
+        //      |      |      |      |
+        //      |      |      |      |
+        //  0   x ---- x ---- x ---- x
+        //  y
+        //   x  0      1      2      3
+        //
+        //
+
+        // Prepare the sink
+        let vertex_count = (self.faces_per_side + 1).pow(2);
+        let face_count = 2 * self.faces_per_side.pow(2);
+
+        sink.size_hint(MeshSizeHint {
+            vertex_count: Some(vertex_count),
+            face_count: Some(face_count),
+        });
+
+        sink.prepare_vertex_positions::<f64>(vertex_count)?;
+        sink.prepare_vertex_normals::<f64>(vertex_count)?;
+        sink.prepare_face_normals::<f64>(face_count)?;
+
+        let normal = Vector3::<f64>::unit_z();
+        let face_length = self.side_length / self.faces_per_side as f64;
+
+        // Here we will store the vertex of the last and current line
+        let mut last_line = Vec::with_capacity(self.faces_per_side as usize + 1);
+        let mut curr_line = Vec::with_capacity(self.faces_per_side as usize + 1);
+
+        // Iterate through the vertices we need to add
+        for line in 0..=self.faces_per_side {
+            for col in 0..=self.faces_per_side {
+                let position = self.center + Vector3::new(
+                    (col as f64 * face_length) - (self.side_length / 2.0),
+                    (line as f64 * face_length) - (self.side_length / 2.0),
+                    0.0,
+                );
+
+                let vh = sink.add_vertex();
+                curr_line.push(vh);
+                sink.set_vertex_position::<f64>(vh, position);
+                sink.set_vertex_normal::<f64>(vh, normal);
+
+                // If we have at least one vertex above us and left of us, we
+                // can add faces.
+                if line > 0 && col > 0 {
+                    //
+                    //  |         ...
+                    //  x ---- v
+                    //  |    / |
+                    //  |   /  |
+                    //  |  /   |
+                    //  | /    |
+                    //  x ---- x--
+                    //
+                    let col = col as usize;
+                    let fa = sink.add_face([vh, curr_line[col - 1], last_line[col - 1]]);
+                    let fb = sink.add_face([vh, last_line[col - 1], last_line[col]]);
+
+                    sink.set_face_normal::<f64>(fa, normal);
+                    sink.set_face_normal::<f64>(fb, normal);
+                }
+            }
+
+            mem::swap(&mut last_line, &mut curr_line);
+            curr_line.clear();
+        }
 
         Ok(())
     }
