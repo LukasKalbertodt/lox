@@ -1054,7 +1054,7 @@ where
         // `lower_half_of()` is the edge `a` in the drawing.
 
         assert!(
-            self.faces_of_edge(edge).len() == 2,
+            !self.is_boundary_edge(edge),
             "`flip_edge` called on boundary edge {:?}",
             edge,
         );
@@ -1216,6 +1216,7 @@ where
 
             // Fix left face
             mesh.half_edges[he_bottom_left].next = he_mid_left;
+            mesh.half_edges[he_bottom_left].face = Opt::some(old_face);
             mesh.half_edges[he_mid_left].next = he_top_left;
             mesh.half_edges[he_mid_left].face = Opt::some(old_face);
             mesh.faces[old_face].edge = he_bottom_left;
