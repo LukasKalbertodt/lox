@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{
     handle::{Handle, hsize, FaceHandle, VertexHandle, EdgeHandle},
-    mesh::{ElementRefIter, HandleIter, HandleIterMut},
+    mesh::{ElementRefIter, HandleIter, HandleIterMut, SplitEdgeWithFacesResult},
     refs::ElementRef,
 };
 use self::{
@@ -418,7 +418,11 @@ pub trait TriEdgeMeshMut: EdgeMesh + MeshMut<FaceKind = TriFaces> {
     // two faces? Or once face? (e.g. `flip_edge_between`,
     // `split_face_2_to_4(a, b)` and `split_boundary_face_1to2`)
     fn flip_edge(&mut self, edge: EdgeHandle);
-    fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> VertexHandle;
+
+    /// TODO
+    ///
+    /// - edge handle stays valid and is one of the resulting center edges
+    fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> SplitEdgeWithFacesResult;
 }
 
 

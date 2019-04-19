@@ -21,6 +21,7 @@ use crate::{
     prelude::*,
     handle::{hsize, Opt, Handle},
     map::VecMap,
+    mesh::SplitEdgeWithFacesResult,
     traits::marker::{TriFaces, FaceKind, PolyFaces},
     util::{DiList, TriList},
 };
@@ -1107,7 +1108,7 @@ where
         self.half_edges[he_below_left].next = he_center_below;
     }
 
-    fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> VertexHandle {
+    fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> SplitEdgeWithFacesResult {
         // ===================================================================
         // ===== Split just the edge
         // ===================================================================
@@ -1236,8 +1237,10 @@ where
         }
 
 
-
-        v_mid
+        SplitEdgeWithFacesResult {
+            vertex: v_mid,
+            replacement_edges: [he_above.full_edge(), he_new_above.full_edge()],
+        }
     }
 }
 

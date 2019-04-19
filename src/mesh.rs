@@ -179,3 +179,9 @@ macro_rules! impl_element_iter {
 impl_element_iter!(Mesh, VertexHandle);
 impl_element_iter!(Mesh, FaceHandle);
 impl_element_iter!(EdgeMesh, EdgeHandle);
+
+#[derive(Debug, Copy, Clone)]
+pub struct SplitEdgeWithFacesResult {
+    pub vertex: VertexHandle,
+    pub replacement_edges: [EdgeHandle; 2],
+}
