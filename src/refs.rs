@@ -171,6 +171,14 @@ impl<'a, MeshT: 'a + FullAdj> VertexRef<'a, MeshT> {
     }
 }
 
+impl<'a, MeshT: 'a + EdgeAdj> VertexRef<'a, MeshT> {
+    /// Returns an iterator over all faces adjacent to this face.
+    pub fn adjacent_edges(&self) -> impl Iterator<Item = EdgeRef<'a, MeshT>> {
+        let mesh = &*self.mesh;
+        self.mesh.edges_around_vertex(self.handle)
+            .map(move |h| EdgeRef::new(mesh, h))
+    }
+}
 
 // ===========================================================================
 // ===== With FaceHandle
