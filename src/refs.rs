@@ -178,7 +178,7 @@ impl<'a, MeshT: 'a + FullAdj> VertexRef<'a, MeshT> {
 
 impl<'a, MeshT: 'a + BasicAdj> FaceRef<'a, MeshT> {
     /// Returns an iterator over all vertices of this face.
-    pub fn adjacent_vertices(&self) -> impl Iterator<Item = VertexRef<'_, MeshT>> {
+    pub fn adjacent_vertices(&self) -> impl Iterator<Item = VertexRef<'a, MeshT>> {
         let mesh = self.mesh;
         self.mesh.vertices_around_face(self.handle)
             .map(move |h| VertexRef::new(mesh, h))
@@ -187,7 +187,7 @@ impl<'a, MeshT: 'a + BasicAdj> FaceRef<'a, MeshT> {
 
 impl<'a, MeshT: 'a + FullAdj> FaceRef<'a, MeshT> {
     /// Returns an iterator over all faces adjacent to this face.
-    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'_, MeshT>> {
+    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'a, MeshT>> {
         let mesh = &*self.mesh;
         self.mesh.faces_around_face(self.handle)
             .map(move |h| FaceRef::new(mesh, h))
@@ -207,7 +207,7 @@ impl<'a, MeshT: 'a + FullAdj> FaceRef<'a, MeshT> {
 
 impl<'a, MeshT: 'a + EdgeAdj> FaceRef<'a, MeshT> {
     /// Returns an iterator over all faces adjacent to this face.
-    pub fn adjacent_edges(&self) -> impl Iterator<Item = EdgeRef<'_, MeshT>> {
+    pub fn adjacent_edges(&self) -> impl Iterator<Item = EdgeRef<'a, MeshT>> {
         let mesh = &*self.mesh;
         self.mesh.edges_around_face(self.handle)
             .map(move |h| EdgeRef::new(mesh, h))
@@ -225,7 +225,7 @@ impl<'a, MeshT: 'a + EdgeAdj> EdgeRef<'a, MeshT> {
     /// Returns an iterator over all faces adjacent to this face.
     ///
     /// See `VertexRef::adjacent_faces` for more information.
-    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'_, MeshT>> {
+    pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'a, MeshT>> {
         let mesh = &*self.mesh;
         self.mesh.faces_of_edge(self.handle)
             .into_iter()
