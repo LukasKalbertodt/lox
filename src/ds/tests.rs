@@ -316,6 +316,14 @@ impl<H: Handle> Neighbors<H> {
             }
         }
     }
+
+    fn raw_neighbors(&self) -> Option<&[H]> {
+        match self {
+            Neighbors::NoCheck => None,
+            Neighbors::OrderDefined(neighbors) => Some(neighbors),
+            Neighbors::OrderUndefined(neighbors) => Some(neighbors),
+        }
+    }
 }
 
 // ===============================================================================================
@@ -419,6 +427,22 @@ pub fn assert_vertices_full_adj<M: FullAdj>(mesh: &M, vertices: &[VertexInfo]) {
             &mesh.vertices_around_vertex(v.handle).into_vec(),
             &format!("mesh.vertices_around_vertex({:?})", v.handle),
         );
+
+        if let Some(adjacent_vertices) = v.adjacent_vertices.raw_neighbors() {
+            for vb in mesh.vertex_handles() {
+                let are_adjacent = mesh.are_vertices_adjacent(vb, v.handle);
+                if are_adjacent != adjacent_vertices.contains(&vb) {
+                    panic!(
+                        "are_vertices_adjacent({:?}, {:?}) returned {}, but those vertices \
+                            are{} adjacent",
+                        vb,
+                        v.handle,
+                        are_adjacent,
+                        if adjacent_vertices.contains(&vb) { "" } else { " not" },
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -536,6 +560,22 @@ pub fn assert_faces_full_adj<M: FullAdj>(mesh: &M, faces: &[FaceInfo]) {
             &mesh.faces_around_face(f.handle).into_vec(),
             &format!("mesh.faces_around_face({:?})", f.handle),
         );
+
+        if let Some(adjacent_faces) = f.adjacent_faces.raw_neighbors() {
+            for fb in mesh.face_handles() {
+                let are_adjacent = mesh.are_faces_adjacent(fb, f.handle);
+                if are_adjacent != adjacent_faces.contains(&fb) {
+                    panic!(
+                        "are_faces_adjacent({:?}, {:?}) returned {}, but those faces \
+                            are{} adjacent",
+                        fb,
+                        f.handle,
+                        are_adjacent,
+                        if adjacent_faces.contains(&fb) { "" } else { " not" },
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -1040,7 +1080,8 @@ macro_rules! gen_tri_mesh_tests {
                 let edge = m.edge_between_vertices(va, vd)
                     .expect("`edge_between_vertices` returned `None` incorrectly");
 
-                let vm = m.split_edge_with_faces(edge);
+                let res = m.split_edge_with_faces(edge);
+                let vm = res.vertex;
 
                 // -- check stuff
                 assert_eq!(m.num_faces(), 3);
