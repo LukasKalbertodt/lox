@@ -985,7 +985,8 @@ macro_rules! gen_tri_mesh_tests {
                 let edge = m.edge_between_vertices(va, vm)
                     .expect("`edge_between_vertices` returned `None` incorrectly");
 
-                let vn = m.split_edge_with_faces(edge);
+                let res = m.split_edge_with_faces(edge);
+                let vn = res.vertex;
 
                 // -- check stuff
                 assert_eq!(m.num_faces(), 5);
