@@ -6,7 +6,7 @@ use cgmath::{
 use crate::{
     prelude::*,
     cast,
-    map::VecMap,
+    map::{VecMap, HashMap},
     math::PrimitiveFloat,
     prop::Pos3Like,
 };
@@ -52,14 +52,60 @@ where
         ($x:literal) => (cast::lossless::<f32, ScalarT>($x));
     }
 
-    // Remember the original edges of the mesh.
-    // TODO: replace with proper prop set
-    let old_edges: VecMap<EdgeHandle, ()> = mesh.edges()
-        .filter(|e| !e.is_boundary())
-        .map(|e| (e.handle(), ()))
-        .collect();
 
-    // ----- (1) Calculate new positions for old vertices ----------------------------------------
+    // ----- (1) Calculate positions for new boundary vertices -----------------------------------
+
+    // Remember the original edges of the mesh and calculate boundary vertex
+    // positions if we will split the boundaries. We have to do this now
+    // because later we will already change the topology and can't properly
+    // calculate the positions anymore.
+    //
+    //TODO: replace with proper prop set
+    let mut old_edges = VecMap::with_capacity(mesh.num_edges());
+    let mut new_boundary_points = HashMap::new();
+    for e in mesh.edges() {
+        if e.is_boundary() {
+            if split_boundary {
+                // Here we prepare the positions for the two new vertices that
+                // will be created by splitting the boundary face later on.
+                //
+                //      ll         x         rr       ll         x         rr
+                //       \       /   \       /         \       /| |\       /
+                //        \     /     \     /           \     / | | \     /
+                //         \   /   F   \   /             \   / /   \ \   /
+                //          \ /         \ /               \ /  |   |  \ /
+                //           l --------- r                 l - a - b - r
+                //                 e
+                //
+                let [l, r] = e.endpoints();
+
+                let ll = l.adjacent_edges()
+                    .find(|en| en.is_boundary() && en.handle() != e.handle())
+                    .map(|en| en.opposite_endpoint_of(l.handle()))
+                    .unwrap();
+                let rr = r.adjacent_edges()
+                    .find(|en| en.is_boundary() && en.handle() != e.handle())
+                    .map(|en| en.opposite_endpoint_of(r.handle()))
+                    .unwrap();
+
+                let pos_l = vertex_positions[l.handle()].to_point3().to_vec();
+                let pos_r = vertex_positions[r.handle()].to_point3().to_vec();
+                let pos_ll = vertex_positions[ll.handle()].to_point3().to_vec();
+                let pos_rr = vertex_positions[rr.handle()].to_point3().to_vec();
+
+                let pos_a = Point3::origin()
+                    + (pos_r * lit!(10.0) + pos_l * lit!(16.0) + pos_ll) / lit!(27.0);
+                let pos_b = Point3::origin()
+                    + (pos_l * lit!(10.0) + pos_r * lit!(16.0) + pos_rr) / lit!(27.0);
+
+                new_boundary_points.insert(e.handle(), [pos_a, pos_b]);
+            }
+        } else {
+            old_edges.insert(e.handle(), ());
+        }
+    }
+
+    // ----- (2) Calculate new positions for old vertices ----------------------------------------
 
     // We have to calculate a new position for all already existing vertices
     // (except boundary vertices!). To do that we need their old positions, so
@@ -167,29 +213,14 @@ where
             //           boundary_edge
             //
             let boundary_edge = boundary_edge.unwrap();
-            let [l, r] = boundary_edge.endpoints();
+            let [_, r] = boundary_edge.endpoints();
             let rh = r.handle();
-
-            let ll = l.adjacent_vertices()
-                .find(|vn| vn.is_boundary() && vn.handle() != r.handle())
-                .unwrap();
-            let rr = r.adjacent_vertices()
-                .find(|vn| vn.is_boundary() && vn.handle() != l.handle())
-                .unwrap();
-
-            let pos_l = vertex_positions[l.handle()].to_point3().to_vec();
-            let pos_r = vertex_positions[r.handle()].to_point3().to_vec();
-            let pos_ll = vertex_positions[ll.handle()].to_point3().to_vec();
-            let pos_rr = vertex_positions[rr.handle()].to_point3().to_vec();
-
-            let pos_a: MapT::Target = (
-                Point3::origin() + (pos_r * lit!(10.0) + pos_l * lit!(16.0) + pos_ll) / lit!(27.0)
-            ).convert();
-            let pos_b: MapT::Target = (
-                Point3::origin() + (pos_l * lit!(10.0) + pos_r * lit!(16.0) + pos_rr) / lit!(27.0)
-            ).convert();
-
             let eh = boundary_edge.handle();
+
+            // Retrieve the new points we calculated before
+            let [pos_a, pos_b] = new_boundary_points[eh];
+
+            // Split the boundary edge/face once
             let res = it.mesh().split_edge_with_faces(eh);
             let va = res.vertex;
 
@@ -200,11 +231,12 @@ where
                 .find(|&new_edge| it.mesh().endpoints_of_edge(new_edge).contains(&rh))
                 .unwrap();
 
+            // Split another edge
             let res = it.mesh().split_edge_with_faces(other_edge);
             let vb = res.vertex;
 
-            vertex_positions.insert(va, pos_a);
-            vertex_positions.insert(vb, pos_b);
+            vertex_positions.insert(va, pos_a.convert());
+            vertex_positions.insert(vb, pos_b.convert());
         } else {
             // The position of the new vertex is just the centroid of the
             // face's vertices. We can unwrap because the face always has three

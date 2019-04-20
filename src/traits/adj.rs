@@ -123,6 +123,7 @@ pub trait FullAdj: BasicAdj {
 /// - Vertex to Edge
 /// - Face to Edge
 pub trait EdgeAdj: FullAdj + EdgeMesh {
+    // Most not change! Always same order for one given edge.
     fn endpoints_of_edge(&self, edge: EdgeHandle) -> [VertexHandle; 2];
     fn faces_of_edge(&self, edge: EdgeHandle) -> DiList<FaceHandle>;
     // TODO
