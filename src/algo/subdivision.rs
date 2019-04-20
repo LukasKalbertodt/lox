@@ -74,20 +74,17 @@ where
         let old_pos = vertex_positions[vh];
 
         let new_pos = if v.is_boundary() {
-            println!("boundary!");
             if !split_boundary || v.is_isolated() {
                 old_pos
             } else {
-                println!("hallo!");
-
                 // Instead of taking the centroid of all adjacent vertices,
                 // only the two adjacent boundary vertices are used. We checked
-                // that this vertex is adjacent and not isolated, so it has at
+                // that this vertex is boundary and not isolated, so it has at
                 // least two adjacent boundary vertices. If it has more, it's a
                 // multi-blade vertex which we don't allow (right now).
-                let mut neighbors = v.adjacent_vertices()
-                    .inspect(|vn| println!("--- {:?}", vn.handle()))
-                    .filter(|vn| vn.is_boundary());
+                let mut neighbors = v.adjacent_edges()
+                    .filter(|e| e.is_boundary())
+                    .map(|e| e.opposite_endpoint_of(vh));
                 let neighbor_a = neighbors.next().unwrap();
                 let neighbor_b = neighbors.next().unwrap();
                 if neighbors.next().is_some() {
