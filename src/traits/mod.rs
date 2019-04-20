@@ -1,4 +1,7 @@
-use std::marker::PhantomData;
+use std::{
+    fmt,
+    marker::PhantomData,
+};
 
 use crate::{
     handle::{Handle, hsize, FaceHandle, VertexHandle, EdgeHandle},
@@ -56,7 +59,7 @@ pub trait Empty {
 ///
 /// TODO: add info:
 /// - rather use `TriMesh` or `PolyMesh` as bound
-pub trait Mesh: Empty {
+pub trait Mesh: Empty + fmt::Debug {
     /// The kind of faces this mesh type can store. Either [`TriFaces`]
     /// or [`PolyFaces`].
     ///
