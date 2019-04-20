@@ -1416,6 +1416,16 @@ impl<C: Config> FullAdj for HalfEdgeMesh<C> {
     fn is_isolated_vertex(&self, vertex: VertexHandle) -> bool {
         self.vertices[vertex].outgoing.is_none()
     }
+
+    fn are_faces_adjacent(&self, a: FaceHandle, b: FaceHandle) -> bool {
+        self.circulate_around_face(a)
+            .any(|inner| self.half_edges[inner.twin()].face == Opt::some(b))
+    }
+
+    fn are_vertices_adjacent(&self, a: VertexHandle, b: VertexHandle) -> bool {
+        self.circulate_around_vertex(a)
+            .any(|outgoing| self.half_edges[outgoing].target == b)
+    }
 }
 
 
@@ -1456,6 +1466,17 @@ impl<C: Config> EdgeAdj for HalfEdgeMesh<C> {
         let he2 = self.half_edges[he1].next;
 
         [he0, he1, he2].map(|he| he.full_edge())
+    }
+
+    fn is_boundary_edge(&self, edge: EdgeHandle) -> bool {
+        let he = HalfEdgeHandle::lower_half_of(edge);
+        self.half_edges[he].face.is_none() || self.half_edges[he.twin()].face.is_none()
+    }
+
+    fn edge_between_vertices(&self, a: VertexHandle, b: VertexHandle) -> Option<EdgeHandle> {
+        self.circulate_around_vertex(a)
+            .find(|&outgoing| self.half_edges[outgoing].target == b)
+            .map(|he| he.full_edge())
     }
 }
 
