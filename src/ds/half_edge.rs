@@ -882,14 +882,16 @@ macro_rules! impl_index {
 
             #[inline(always)]
             fn index(&self, idx: Checked<$handle>) -> &Self::Output {
-                &self.$field[*idx]
+                // &self.$field[*idx]
+                unsafe { self.$field.get_unchecked(*idx) }
             }
         }
 
         impl<C: Config> ops::IndexMut<Checked<$handle>> for HalfEdgeMesh<C> {
             #[inline(always)]
             fn index_mut(&mut self, idx: Checked<$handle>) -> &mut Self::Output {
-                &mut self.$field[*idx]
+                // &mut self.$field[*idx]
+                unsafe { self.$field.get_unchecked_mut(*idx) }
             }
         }
     }

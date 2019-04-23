@@ -124,6 +124,14 @@ impl<H: Handle, T> VecMap<H, T> {
             iter: self.vec.iter_mut(),
         }
     }
+
+    pub unsafe fn get_unchecked(&self, handle: H) -> &T {
+        self.vec.get_unchecked(handle.to_usize())
+    }
+
+    pub unsafe fn get_unchecked_mut(&mut self, handle: H) -> &mut T {
+        self.vec.get_unchecked_mut(handle.to_usize())
+    }
 }
 
 impl<H: Handle, T: Clone> VecMap<H, T> {
