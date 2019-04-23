@@ -14,6 +14,8 @@
 use std::{
     fmt,
     marker::PhantomData,
+    ops,
+    slice,
 };
 
 use crate as lox;
@@ -76,7 +78,7 @@ impl Config for TriConfig {
 
 
 // ===============================================================================================
-// ===== HalfEdgeHandle
+// ===== HalfEdgeHandle and handle helper
 // ===============================================================================================
 
 /// Handle to refer to half edges.
@@ -84,20 +86,6 @@ impl Config for TriConfig {
 struct HalfEdgeHandle(hsize);
 
 impl HalfEdgeHandle {
-    /// Returns the handle of the half edge twin (the half edge right next to
-    /// this half edge, but pointing in the opposite direction).
-    ///
-    /// This method only works due to some assumptions about the data
-    /// structure, so this is only valid together with data structure in this
-    /// module! In particular, it assumes that two half edge twins are always
-    /// stored right next to each other and that the handles start counting at
-    /// an even number (0 in our case). Thus, we can simply flip the last bit
-    /// of the handle id to get the twin handle.
-    #[inline(always)]
-    fn twin(self) -> HalfEdgeHandle {
-        Self::new(self.idx() ^ 1)
-    }
-
     /// Returns the half-edge of the given edge with the lower index value.
     ///
     /// Again, due to our assumptions on how edges are stored, we just have to
@@ -132,12 +120,76 @@ impl Handle for HalfEdgeHandle {
     }
 }
 
+impl Checked<HalfEdgeHandle> {
+    /// Returns the handle of the half edge twin (the half edge right next to
+    /// this half edge, but pointing in the opposite direction).
+    ///
+    /// This method only works due to some assumptions about the data
+    /// structure, so this is only valid together with data structure in this
+    /// module! In particular, it assumes that two half edge twins are always
+    /// stored right next to each other and that the handles start counting at
+    /// an even number (0 in our case). Thus, we can simply flip the last bit
+    /// of the handle id to get the twin handle.
+    #[inline(always)]
+    fn twin(self) -> Checked<HalfEdgeHandle> {
+        Self::new(self.idx() ^ 1)
+    }
+}
+
 impl fmt::Debug for HalfEdgeHandle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "HE{}", self.idx())
     }
 }
 
+
+/// A wrapper for handles to signal that they point to an existing element.
+///
+/// We optimally want to remove all bound checks when accessing mesh elements.
+/// However, we certainly don't want to cause UB if the user specifies an
+/// incorrect handle. But we can get rid of internal bound checks: as long as
+/// our implementation is correct, it's fine. Internal bound checks account for
+/// the majority of checks anyway.
+///
+/// To distinguish handles given by the user and handles that our
+/// implementation guarantees to be correct, we use this wrapper type.
+///
+/// Note that this is not a super strict requirement: there can exist instance
+/// of this with a handle that is invalid (does not point to an existing
+/// element). But these instances should be temporary and must never persist
+/// over multiple public method calls.
+///
+/// To check user provided handles, use the methods `check_face`,
+/// `check_vertex` and `checked_half_of`. Elements can be accessed via the
+/// `Index<Checked<_>>` impls of `HalfEdgeMesh`.
+#[repr(transparent)] // <-- Danger: some unsafe code relies on this!
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct Checked<H: Handle>(H);
+
+impl<H: Handle> Handle for Checked<H> {
+    #[inline(always)]
+    fn new(idx: hsize) -> Self {
+        Self(H::new(idx))
+    }
+
+    #[inline(always)]
+    fn idx(&self) -> hsize {
+        self.0.idx()
+    }
+}
+
+impl<H: Handle> fmt::Debug for Checked<H> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<H: Handle> ops::Deref for Checked<H> {
+    type Target = H;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 
 // ===============================================================================================
@@ -157,7 +209,7 @@ pub struct HalfEdgeMesh<C: Config = PolyConfig> {
 #[derive(Clone, Copy)]
 struct Face {
     /// Handle of one (arbitrary) half edge adjacent to the face.
-    edge: HalfEdgeHandle,
+    edge: Checked<HalfEdgeHandle>,
 }
 
 /// Data stored per `Vertex`.
@@ -171,21 +223,21 @@ struct Vertex {
     ///   blade.
     /// - If the vertex is not on the boundary, the half edge is completely
     ///   arbitrary.
-    outgoing: Opt<HalfEdgeHandle>,
+    outgoing: Opt<Checked<HalfEdgeHandle>>,
 }
 
 /// Data stored per half edge.
 #[derive(Clone, Copy)]
 struct HalfEdge {
     /// The adjacent face, if one exists.
-    face: Opt<FaceHandle>,
+    face: Opt<Checked<FaceHandle>>,
 
     /// The vertex this half edge points to.
-    target: VertexHandle,
+    target: Checked<VertexHandle>,
 
     /// The next half edge around the face or hole this half edge is adjacent
     /// to (going counter clock wise).
-    next: HalfEdgeHandle,
+    next: Checked<HalfEdgeHandle>,
 }
 
 impl<C: Config> fmt::Debug for HalfEdgeMesh<C> {
@@ -239,11 +291,52 @@ impl fmt::Debug for HalfEdge {
 // ===============================================================================================
 
 impl<C: Config> HalfEdgeMesh<C> {
+    /// Makes sure the given handle points to an existing element. If that's
+    /// not the case, this method panics.
+    fn check_face(&self, fh: FaceHandle) -> Checked<FaceHandle> {
+        if self.faces.contains_handle(fh) {
+            Checked(fh)
+        } else {
+            panic!(
+                "{:?} was passed to a half edge mesh, but this face does not exist in this mesh",
+                fh,
+            );
+        }
+    }
+
+    /// Makes sure the given handle points to an existing element. If that's
+    /// not the case, this method panics.
+    fn check_vertex(&self, vh: VertexHandle) -> Checked<VertexHandle> {
+        if self.vertices.contains_handle(vh) {
+            Checked(vh)
+        } else {
+            panic!(
+                "{:?} was passed to a half edge mesh, but this vertex does not exist in this mesh",
+                vh,
+            );
+        }
+    }
+
+    /// Makes sure the given handle points to an existing element. If that's
+    /// not the case, this method panics. Otherwise, the half edge with the
+    /// lower index is returned.
+    fn checked_half_of(&self, eh: EdgeHandle) -> Checked<HalfEdgeHandle> {
+        let heh = HalfEdgeHandle::lower_half_of(eh);
+        if self.half_edges.contains_handle(heh) {
+            Checked(heh)
+        } else {
+            panic!(
+                "{:?} was passed to a half edge mesh, but this edge does not exist in this mesh",
+                eh,
+            );
+        }
+    }
+
     /// Returns an iterator the circulates around the face `center`. The
     /// iterator yields inner half edges.
-    fn circulate_around_face(&self, center: FaceHandle) -> FaceCirculator<'_, C> {
+    fn circulate_around_face(&self, center: Checked<FaceHandle>) -> FaceCirculator<'_, C> {
         // TODO: optimize for tri mesh
-        let start_he = self.faces[center].edge;
+        let start_he = self[center].edge;
         FaceCirculator::NonEmpty {
             mesh: self,
             current_he: start_he,
@@ -253,8 +346,8 @@ impl<C: Config> HalfEdgeMesh<C> {
 
     /// Returns an iterator the circulates around the vertex `center`. The
     /// iterator yields outgoing half edges.
-    fn circulate_around_vertex(&self, center: VertexHandle) -> CwVertexCirculator<'_, C> {
-        match self.vertices[center].outgoing.to_option() {
+    fn circulate_around_vertex(&self, center: Checked<VertexHandle>) -> CwVertexCirculator<'_, C> {
+        match self[center].outgoing.to_option() {
             None => CwVertexCirculator::Empty,
             Some(start_he) => CwVertexCirculator::NonEmpty {
                 mesh: self,
@@ -266,17 +359,21 @@ impl<C: Config> HalfEdgeMesh<C> {
 
     /// Tries to find the half edge from `from` to `to`. Returns `None` if
     /// there is no edge between the two vertices.
-    fn he_between(&self, from: VertexHandle, to: VertexHandle) -> Option<HalfEdgeHandle> {
+    fn he_between(
+        &self,
+        from: Checked<VertexHandle>,
+        to: Checked<VertexHandle>,
+    ) -> Option<Checked<HalfEdgeHandle>> {
         self.circulate_around_vertex(from)
-            .find(|&outgoing| self.half_edges[outgoing].target == to)
+            .find(|&outgoing| self[outgoing].target == to)
     }
 
     /// Returns the half edge whose `next` points to `he`.
     ///
     /// If `prev` handles would be stored, this would be easy. But since we
     /// don't store them, we have to circulate around the whole vertex.
-    fn prev(&self, he: HalfEdgeHandle) -> HalfEdgeHandle {
-        self.find_incoming_he(he.twin(), |incoming| self.half_edges[incoming].next == he)
+    fn prev(&self, he: Checked<HalfEdgeHandle>) -> Checked<HalfEdgeHandle> {
+        self.find_incoming_he(he.twin(), |incoming| self[incoming].next == he)
             .expect("internal HEM error: could not find `prev` half edge")
     }
 
@@ -286,16 +383,16 @@ impl<C: Config> HalfEdgeMesh<C> {
     #[inline(always)]
     fn find_incoming_he(
         &self,
-        start_edge: HalfEdgeHandle,
-        mut predicate: impl FnMut(HalfEdgeHandle) -> bool,
-    ) -> Option<HalfEdgeHandle> {
+        start_edge: Checked<HalfEdgeHandle>,
+        mut predicate: impl FnMut(Checked<HalfEdgeHandle>) -> bool,
+    ) -> Option<Checked<HalfEdgeHandle>> {
         let mut incoming = start_edge;
         loop {
             if predicate(incoming) {
                 return Some(incoming);
             }
 
-            let next = self.half_edges[incoming].next.twin();
+            let next = self[incoming].next.twin();
             if next == start_edge {
                 return None;
             }
@@ -313,12 +410,21 @@ impl<C: Config> HalfEdgeMesh<C> {
     /// - Sets the `next` field of the half edges to a dummy value. You
     ///   have to overwrite this value!
     /// - Does not set the `outgoing` fields of the vertices.
-    fn add_edge_partially(&mut self, from: VertexHandle, to: VertexHandle) -> HalfEdgeHandle {
+    fn add_edge_partially(
+        &mut self,
+        from: Checked<VertexHandle>,
+        to: Checked<VertexHandle>,
+    ) -> Checked<HalfEdgeHandle> {
+        // Of course, wrapping a dummy handle into `Checked` is a bad idea.
+        // Unfortunately, this is necessary. All code using this method has to
+        // pay special attention anyway.
         let face = Opt::none();
-        let next = HalfEdgeHandle::new(0);
+        let next = Checked(HalfEdgeHandle::new(0));
 
         self.half_edges.push(HalfEdge { target: from, face, next });
-        self.half_edges.push(HalfEdge { target: to, face, next })
+        let out = self.half_edges.push(HalfEdge { target: to, face, next });
+
+        Checked(out)
     }
 
     /// Adds a face defined by the given `vertices`.
@@ -328,11 +434,31 @@ impl<C: Config> HalfEdgeMesh<C> {
     /// completely overwritten before it is read, so it can (should) be
     /// initialized with dummy values. It has to be the same length as
     /// `vertices`!
-    fn add_face_impl(
+    fn add_face_impl<'a>(
         &mut self,
-        vertices: &[VertexHandle],
-        inner_half_edges: &mut [HalfEdgeHandle],
+        vertices: &'a [VertexHandle],
+        inner_half_edges: &mut [Checked<HalfEdgeHandle>],
     ) -> FaceHandle {
+        // Check that all vertices are valid (the handles are referring to
+        // existing vertices).
+        for &vh in vertices {
+            self.check_vertex(vh);
+        }
+
+        // We want to reflect our checks in the type system. Therefore we
+        // change the type of `vertices` to `&[Checked<VertexHandle>]`. We
+        // could copy everything into a `Vec`, but that allocates memory and is
+        // a bit wasteful. Instead, we just reinterpret cast. This is actually
+        // safe because `VertexHandle` and `Checked<VertexHandle>` have the
+        // same memory layout, alignment requirements and everything (due to
+        // `repr(transparent)`).
+        let vertices = unsafe {
+            slice::from_raw_parts::<'a>(
+                vertices.as_ptr() as *const Checked<VertexHandle>,
+                vertices.len(),
+            )
+        };
+
         // ===================================================================
         // ===== Find edges between vertices
         // ===================================================================
@@ -356,7 +482,7 @@ impl<C: Config> HalfEdgeMesh<C> {
 
         // If in the last iteration of the loop, an edge between the vertices
         // was found, it's stored here.
-        let mut last_edge = None;
+        let mut last_edge: Option<Checked<HalfEdgeHandle>> = None;
 
         for vi in 0..vertices.len() {
             let from = vertices[vi];
@@ -373,11 +499,11 @@ impl<C: Config> HalfEdgeMesh<C> {
                 // know that the edge does not exist.
 
                 // Edge starting at `from`.
-                let mut outgoing = self.half_edges[last_edge].next;
+                let mut outgoing = self[last_edge].next;
 
                 loop {
                     // Check if we have found the edge we are looking for.
-                    if self.half_edges[outgoing].target == to {
+                    if self[outgoing].target == to {
                         break Some(outgoing);
                     }
 
@@ -388,7 +514,7 @@ impl<C: Config> HalfEdgeMesh<C> {
                         break None;
                     }
 
-                    outgoing = self.half_edges[ingoing].next;
+                    outgoing = self[ingoing].next;
                 }
             } else {
                 // We have no previous edge, so we have to start at the vertex.
@@ -402,7 +528,7 @@ impl<C: Config> HalfEdgeMesh<C> {
             // already. This would mean that we would create a non-manifold
             // edge.
             if let Some(he) = he {
-                assert!(self.half_edges[he].face.is_none(), NON_MANIFOLD_EDGE_ERR);
+                assert!(self[he].face.is_none(), NON_MANIFOLD_EDGE_ERR);
             }
 
             let he = he.unwrap_or_else(|| self.add_edge_partially(from, to));
@@ -413,14 +539,15 @@ impl<C: Config> HalfEdgeMesh<C> {
         // ===================================================================
         // ===== Add face and fix `face` handle of inner edges
         // ===================================================================
-        // Insert new face
+        // Insert new face (it is `Checked` because we just added it).
         let new_face = self.faces.push(Face {
             edge: inner_half_edges[0], // just an arbitrary edge
         });
+        let new_face = Checked(new_face);
 
         // Set the `face` handle of the inner edges.
         for he in &*inner_half_edges {
-            self.half_edges[*he].face = Opt::some(new_face);
+            self[*he].face = Opt::some(new_face);
         }
 
 
@@ -477,9 +604,9 @@ impl<C: Config> HalfEdgeMesh<C> {
             let incoming = inner_half_edges[vi].twin();
             let outgoing = inner_half_edges[prev_idx].twin();
 
-            let v = &self.vertices[vh];
-            let incoming_face = self.half_edges[incoming].face;
-            let outgoing_face = self.half_edges[outgoing].face;
+            let v = &self[vh];
+            let incoming_face = self[incoming].face;
+            let outgoing_face = self[outgoing].face;
 
             // We have four different cases: it just depends whether incoming
             // and/or outgoing are already adjacent to a face.
@@ -519,15 +646,15 @@ impl<C: Config> HalfEdgeMesh<C> {
                         // Find the end edge of some blade.
                         let end = self.find_incoming_he(
                             outgoing_from_v.twin(),
-                            |incoming| self.half_edges[incoming].face.is_none(),
+                            |incoming| self[incoming].face.is_none(),
                         ).expect(NON_MANIFOLD_VERTEX_ERR);
 
                         // The start of another blade.
-                        let start = self.half_edges[end].next;
+                        let start = self[end].next;
 
                         // Insert new blade in between.
-                        self.half_edges[incoming].next = start;
-                        self.half_edges[end].next = outgoing;
+                        self[incoming].next = start;
+                        self[end].next = outgoing;
 
                         // Regarding the `outgoing` field of `v`: before adding
                         // this face, it was a boundary half edge. Since we
@@ -538,8 +665,8 @@ impl<C: Config> HalfEdgeMesh<C> {
                         // the only edges adjacent to `v`. This also means that
                         // `v` was isolated before and we now need to set its
                         // `outgoing` handle.
-                        self.half_edges[incoming].next = outgoing;
-                        self.vertices[vh].outgoing = Opt::some(outgoing);
+                        self[incoming].next = outgoing;
+                        self[vh].outgoing = Opt::some(outgoing);
                     }
                 }
 
@@ -567,14 +694,14 @@ impl<C: Config> HalfEdgeMesh<C> {
                 //
                 (true, false) => {
                     let before_new = self.prev(incoming.twin());
-                    self.half_edges[before_new].next = outgoing;
+                    self[before_new].next = outgoing;
 
                     // The half edge `incoming.twin()` might have been
                     // `v.outgoing`. But this is bad because it's not a
                     // boundary half edge anymore (which we require). Therefore
                     // we update it to `outgoing` which is certainly a boundary
                     // half edge.
-                    self.vertices[vh].outgoing = Opt::some(outgoing);
+                    self[vh].outgoing = Opt::some(outgoing);
                 }
 
                 // The outgoing edge is adjacent to another face (OF), but the
@@ -600,7 +727,7 @@ impl<C: Config> HalfEdgeMesh<C> {
                 //           ^-- this edge are new in the cycle
                 //
                 (false, true) => {
-                    self.half_edges[incoming].next = self.half_edges[outgoing.twin()].next;
+                    self[incoming].next = self[outgoing.twin()].next;
 
                     // We don't need to update `v.outgoing` here because the
                     // only old half edge that won't be boundary anymore is
@@ -640,10 +767,10 @@ impl<C: Config> HalfEdgeMesh<C> {
                     // explanation of the important fan blades.
                     let ib_end_opt = self.find_incoming_he(
                         incoming,
-                        |incoming| self.half_edges[incoming].face.is_none(),
+                        |incoming| self[incoming].face.is_none(),
                     );
 
-                    if self.half_edges[outgoing.twin()].next != incoming.twin() {
+                    if self[outgoing.twin()].next != incoming.twin() {
                         // Here we need to conceptually delete one fan blade
                         // from the `next` circle around `v` and re-insert it
                         // into the right position. We choose to "move" the fan
@@ -688,7 +815,7 @@ impl<C: Config> HalfEdgeMesh<C> {
                         //  |    └────┘    └─────┘         └─────┘        |
                         //  +---------------------------------------------+
                         //
-                        self.half_edges[bib_end].next = self.half_edges[ib_end].next;
+                        self[bib_end].next = self[ib_end].next;
 
                         // Now we reinsert it again, right after the "outgoing
                         // blade". Situation after assignment:
@@ -703,8 +830,8 @@ impl<C: Config> HalfEdgeMesh<C> {
                         //  |    └────┘    └─────┘         └─────┘        |
                         //  +---------------------------------------------+
                         //
-                        let aob_start = self.half_edges[outgoing.twin()].next;
-                        self.half_edges[ib_end].next = aob_start;
+                        let aob_start = self[outgoing.twin()].next;
+                        self[ib_end].next = aob_start;
 
                         // Right now, the cycle is still a bit broken, but that
                         // doesn't matter, because (a) the cycle will be
@@ -715,7 +842,7 @@ impl<C: Config> HalfEdgeMesh<C> {
                         // To update `v.outgoing`, we luckily already know a
                         // boundary outgoing half edge of `v`: it's the start
                         // of AOB.
-                        self.vertices[vh].outgoing = Opt::some(aob_start);
+                        self[vh].outgoing = Opt::some(aob_start);
                     } else {
                         // The order of fan blades around the vertex is fine,
                         // but we might need to update `v.outgoing`. To do
@@ -728,8 +855,8 @@ impl<C: Config> HalfEdgeMesh<C> {
                         // case (the vertex won't be boundary anymore after
                         // this method call).
                         if let Some(ib_end) = ib_end_opt {
-                            let new_outgoing = self.half_edges[ib_end].next;
-                            self.vertices[vh].outgoing = Opt::some(new_outgoing);
+                            let new_outgoing = self[ib_end].next;
+                            self[vh].outgoing = Opt::some(new_outgoing);
                         }
                     }
                 }
@@ -741,12 +868,36 @@ impl<C: Config> HalfEdgeMesh<C> {
         for he_i in 0..inner_half_edges.len() {
             let curr = inner_half_edges[he_i];
             let next = inner_half_edges[(he_i + 1) % inner_half_edges.len()];
-            self.half_edges[curr].next = next;
+            self[curr].next = next;
         }
 
-        new_face
+        *new_face
     }
 }
+
+macro_rules! impl_index {
+    ($handle:ident, $field:ident, $out:ident) => {
+        impl<C: Config> ops::Index<Checked<$handle>> for HalfEdgeMesh<C> {
+            type Output = $out;
+
+            #[inline(always)]
+            fn index(&self, idx: Checked<$handle>) -> &Self::Output {
+                &self.$field[*idx]
+            }
+        }
+
+        impl<C: Config> ops::IndexMut<Checked<$handle>> for HalfEdgeMesh<C> {
+            #[inline(always)]
+            fn index_mut(&mut self, idx: Checked<$handle>) -> &mut Self::Output {
+                &mut self.$field[*idx]
+            }
+        }
+    }
+}
+
+impl_index!(VertexHandle, vertices, Vertex);
+impl_index!(FaceHandle, faces, Face);
+impl_index!(HalfEdgeHandle, half_edges, HalfEdge);
 
 
 // ===============================================================================================
@@ -805,7 +956,7 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         assert_ne!(a, b, "vertices of new face are not unique");
         assert_ne!(a, c, "vertices of new face are not unique");
 
-        self.add_face_impl(&[a, b, c], &mut [HalfEdgeHandle::new(0); 3])
+        self.add_face_impl(&[a, b, c], &mut [Checked::<HalfEdgeHandle>::new(0); 3])
     }
 
     fn reserve_for_vertices(&mut self, count: hsize) {
@@ -837,6 +988,8 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
     }
 
     fn split_face(&mut self, f: FaceHandle) -> VertexHandle {
+        let f = self.check_face(f);
+
         // Assuming the face `f` has N adjacent edges, then we need to add:
         // - N - 1 new faces
         // - N new edges (2N new half edges)
@@ -880,18 +1033,18 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         // function are called `_nhe` (new half edge).
 
         // Add new vertex "in the middle".
-        let midpoint = self.add_vertex();
+        let midpoint = Checked(self.add_vertex());
 
         // Pick arbitrary start edge and vertex. In the example above that are
         // `(A) -> (B)` and (A), respectively.
-        let start_ohe = self.faces[f].edge;
-        let start_vertex = self.half_edges[start_ohe.twin()].target;
+        let start_ohe = self[f].edge;
+        let start_vertex = self[start_ohe.twin()].target;
 
         // Add first edge and set midpoint's `outgoing` to that edge. The
         // midpoint is not a boundary vertex, we don't have to pay attention to
         // the `outgoing` edge.
         let start_nhe = self.add_edge_partially(midpoint, start_vertex);
-        self.vertices[midpoint].outgoing = Opt::some(start_nhe);
+        self[midpoint].outgoing = Opt::some(start_nhe);
 
         // `border_ohe` is one if the inner half edges of the original face.
         // Each loop iteration changes this value to its `next` half edge. That
@@ -906,28 +1059,28 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         let mut last_nhe = start_nhe;
 
         // We iterate N - 1 times. We handle the last face manually.
-        while self.half_edges[border_ohe].target != start_vertex {
+        while self[border_ohe].target != start_vertex {
             // We store the next iteration edge now already, because we will
             // overwrite the `next` value below.
-            let next_border_ohe = self.half_edges[border_ohe].next;
+            let next_border_ohe = self[border_ohe].next;
 
             // Add the a edge
-            let next_vertex = self.half_edges[border_ohe].target;
+            let next_vertex = self[border_ohe].target;
             let next_nhe = self.add_edge_partially(midpoint, next_vertex);
 
             // Add the new face. This includes setting the `next` and `face`
             // fields of the edges of the new triangle. These are:
             // `border_ohe`, `last_nhe` and `next_nhe.twin()`.
             let inner_new = next_nhe.twin();
-            let new_face = self.faces.push(Face { edge: inner_new });
+            let new_face = Checked(self.faces.push(Face { edge: inner_new }));
 
-            self.half_edges[inner_new].next = last_nhe;
-            self.half_edges[last_nhe].next = border_ohe;
-            self.half_edges[border_ohe].next = inner_new;
+            self[inner_new].next = last_nhe;
+            self[last_nhe].next = border_ohe;
+            self[border_ohe].next = inner_new;
 
-            self.half_edges[inner_new].face = Opt::some(new_face);
-            self.half_edges[last_nhe].face = Opt::some(new_face);
-            self.half_edges[border_ohe].face = Opt::some(new_face);
+            self[inner_new].face = Opt::some(new_face);
+            self[last_nhe].face = Opt::some(new_face);
+            self[border_ohe].face = Opt::some(new_face);
 
 
             // Advance the iteration edges
@@ -937,18 +1090,18 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
 
         // "Add" the last face. We are reusing the existing one.
         let start_inner_nhe = start_nhe.twin();
-        self.faces[f].edge = start_inner_nhe;
+        self[f].edge = start_inner_nhe;
 
-        self.half_edges[start_inner_nhe].next = last_nhe;
-        self.half_edges[last_nhe].next = border_ohe;
-        self.half_edges[border_ohe].next = start_inner_nhe;
+        self[start_inner_nhe].next = last_nhe;
+        self[last_nhe].next = border_ohe;
+        self[border_ohe].next = start_inner_nhe;
 
-        self.half_edges[start_inner_nhe].face = Opt::some(f);
-        self.half_edges[last_nhe].face = Opt::some(f);
+        self[start_inner_nhe].face = Opt::some(f);
+        self[last_nhe].face = Opt::some(f);
         // `border_ohe.face` is already `f`
 
 
-        midpoint
+        *midpoint
     }
 }
 
@@ -996,7 +1149,7 @@ where
         );
         // TODO: check uniqueness of vertices?
 
-        let mut inner_half_edges = vec![HalfEdgeHandle::new(0); vertices.len()];
+        let mut inner_half_edges = vec![Checked(HalfEdgeHandle::new(0)); vertices.len()];
         self.add_face_impl(vertices, &mut inner_half_edges)
     }
 }
@@ -1060,20 +1213,20 @@ where
         );
 
         // First, let's just obtain all handles
-        let he_center_above = HalfEdgeHandle::lower_half_of(edge);
+        let he_center_above = self.checked_half_of(edge);
         let he_center_below = he_center_above.twin();
-        let he_above_right = self.half_edges[he_center_above].next;
-        let he_above_left = self.half_edges[he_above_right].next;
-        let he_below_left = self.half_edges[he_center_below].next;
-        let he_below_right = self.half_edges[he_below_left].next;
+        let he_above_right = self[he_center_above].next;
+        let he_above_left = self[he_above_right].next;
+        let he_below_left = self[he_center_below].next;
+        let he_below_right = self[he_below_left].next;
 
-        let f_above = self.half_edges[he_center_above].face.unwrap();
-        let f_below = self.half_edges[he_center_below].face.unwrap();
+        let f_above = self[he_center_above].face.unwrap();
+        let f_below = self[he_center_below].face.unwrap();
 
-        let v_right = self.half_edges[he_center_above].target;
-        let v_left = self.half_edges[he_center_below].target;
-        let v_above = self.half_edges[he_above_right].target;
-        let v_below = self.half_edges[he_below_left].target;
+        let v_right = self[he_center_above].target;
+        let v_left = self[he_center_below].target;
+        let v_above = self[he_above_right].target;
+        let v_below = self[he_below_left].target;
 
 
         // Update all fields.
@@ -1084,28 +1237,28 @@ where
         // their old `outgoing` edge was a center one, which is not boundary,
         // which means that the vertex is also not a boundary vertex. So we can
         // simply set the new one.
-        if self.vertices[v_left].outgoing == Opt::some(he_center_above) {
-            self.vertices[v_left].outgoing = Opt::some(he_below_left);
+        if self[v_left].outgoing == Opt::some(he_center_above) {
+            self[v_left].outgoing = Opt::some(he_below_left);
         }
-        if self.vertices[v_right].outgoing == Opt::some(he_center_below) {
-            self.vertices[v_right].outgoing = Opt::some(he_above_right);
+        if self[v_right].outgoing == Opt::some(he_center_below) {
+            self[v_right].outgoing = Opt::some(he_above_right);
         }
 
-        self.faces[f_above].edge = he_center_above;
-        self.faces[f_below].edge = he_center_below;
+        self[f_above].edge = he_center_above;
+        self[f_below].edge = he_center_below;
 
-        self.half_edges[he_center_above].target = v_below;
-        self.half_edges[he_center_above].next = he_below_right;
-        self.half_edges[he_center_below].target = v_above;
-        self.half_edges[he_center_below].next = he_above_left;
+        self[he_center_above].target = v_below;
+        self[he_center_above].next = he_below_right;
+        self[he_center_below].target = v_above;
+        self[he_center_below].next = he_above_left;
 
-        self.half_edges[he_below_right].face = Opt::some(f_above);
-        self.half_edges[he_below_right].next = he_above_right;
-        self.half_edges[he_above_right].next = he_center_above;
+        self[he_below_right].face = Opt::some(f_above);
+        self[he_below_right].next = he_above_right;
+        self[he_above_right].next = he_center_above;
 
-        self.half_edges[he_above_left].face = Opt::some(f_below);
-        self.half_edges[he_above_left].next = he_below_left;
-        self.half_edges[he_below_left].next = he_center_below;
+        self[he_above_left].face = Opt::some(f_below);
+        self[he_above_left].next = he_below_left;
+        self[he_below_left].next = he_center_below;
     }
 
     fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> SplitEdgeWithFacesResult {
@@ -1122,9 +1275,9 @@ where
         //
         // Of course, these names don't fit to any real property of the mesh
         // elements. We just call them like that to fit to the ASCII art.
-        let he_above = HalfEdgeHandle::lower_half_of(edge);
+        let he_above = self.checked_half_of(edge);
         let he_below = he_above.twin();
-        let v_right = self.half_edges[he_above].target;
+        let v_right = self[he_above].target;
 
         let he_below_prev = self.prev(he_below);
 
@@ -1135,27 +1288,27 @@ where
         //          <---------- (mid) <-----------
         //             below           new_below
         //
-        let v_mid = self.add_vertex();
+        let v_mid = Checked(self.add_vertex());
         let he_new_above = self.add_edge_partially(v_mid, v_right);
         let he_new_below = he_new_above.twin();
 
         // Fix next handles
-        self.half_edges[he_new_above].next = self.half_edges[he_above].next;
-        self.half_edges[he_above].next = he_new_above;
-        self.half_edges[he_above].target = v_mid;
-        self.half_edges[he_new_below].next = he_below;
-        self.half_edges[he_below_prev].next = he_new_below;
+        self[he_new_above].next = self[he_above].next;
+        self[he_above].next = he_new_above;
+        self[he_above].target = v_mid;
+        self[he_new_below].next = he_below;
+        self[he_below_prev].next = he_new_below;
 
         // If the `outgoing` handle of `right` was `he_below`, we have to
         // update it to `he_new_below`. Otherwise it should stay as it is
         // (because of the boundary-condition).
-        if self.vertices[v_right].outgoing == Opt::some(he_below) {
-            self.vertices[v_right].outgoing = Opt::some(he_new_below)
+        if self[v_right].outgoing == Opt::some(he_below) {
+            self[v_right].outgoing = Opt::some(he_new_below)
         }
 
         // Set a fitting `outgoing` edge for mid-vertex
-        let face_above = self.half_edges[he_above].face.to_option();
-        let face_below = self.half_edges[he_below].face.to_option();
+        let face_above = self[he_above].face.to_option();
+        let face_below = self[he_below].face.to_option();
         let outgoing = match (face_above.is_some(), face_below.is_some()) {
             // No face above but below, `he_new_above` is boundary edge, we
             // need to use that edge.
@@ -1169,7 +1322,7 @@ where
             // vertex. In either case, it doesn't matter.
             (false, false) | (true, true) => he_new_above,
         };
-        self.vertices[v_mid].outgoing = Opt::some(outgoing);
+        self[v_mid].outgoing = Opt::some(outgoing);
 
 
         // ===================================================================
@@ -1177,9 +1330,9 @@ where
         // ===================================================================
         let split_face = |
             mesh: &mut Self,
-            old_face: FaceHandle,
-            he_bottom_left: HalfEdgeHandle,
-            he_bottom_right: HalfEdgeHandle,
+            old_face: Checked<FaceHandle>,
+            he_bottom_left: Checked<HalfEdgeHandle>,
+            he_bottom_right: Checked<HalfEdgeHandle>,
         | {
             // Current situation:
             //
@@ -1207,27 +1360,27 @@ where
             //
             // The old face will be the left one.
 
-            let he_top_right = mesh.half_edges[he_bottom_right].next;
-            let v_top = mesh.half_edges[he_top_right].target;
-            let he_top_left = mesh.half_edges[he_top_right].next;
+            let he_top_right = mesh[he_bottom_right].next;
+            let v_top = mesh[he_top_right].target;
+            let he_top_left = mesh[he_top_right].next;
 
             let he_mid_left = mesh.add_edge_partially(v_mid, v_top);
             let he_mid_right = he_mid_left.twin();
 
             // Fix left face
-            mesh.half_edges[he_bottom_left].next = he_mid_left;
-            mesh.half_edges[he_bottom_left].face = Opt::some(old_face);
-            mesh.half_edges[he_mid_left].next = he_top_left;
-            mesh.half_edges[he_mid_left].face = Opt::some(old_face);
-            mesh.faces[old_face].edge = he_bottom_left;
+            mesh[he_bottom_left].next = he_mid_left;
+            mesh[he_bottom_left].face = Opt::some(old_face);
+            mesh[he_mid_left].next = he_top_left;
+            mesh[he_mid_left].face = Opt::some(old_face);
+            mesh[old_face].edge = he_bottom_left;
 
             // Create and fix right face
-            let right_face = mesh.faces.push(Face { edge: he_bottom_right });
-            mesh.half_edges[he_mid_right].face = Opt::some(right_face);
-            mesh.half_edges[he_bottom_right].face = Opt::some(right_face);
-            mesh.half_edges[he_top_right].face = Opt::some(right_face);
-            mesh.half_edges[he_top_right].next = he_mid_right;
-            mesh.half_edges[he_mid_right].next = he_bottom_right;
+            let right_face = Checked(mesh.faces.push(Face { edge: he_bottom_right }));
+            mesh[he_mid_right].face = Opt::some(right_face);
+            mesh[he_bottom_right].face = Opt::some(right_face);
+            mesh[he_top_right].face = Opt::some(right_face);
+            mesh[he_top_right].next = he_mid_right;
+            mesh[he_mid_right].next = he_bottom_right;
         };
 
         if let Some(face) = face_above {
@@ -1239,7 +1392,7 @@ where
 
 
         SplitEdgeWithFacesResult {
-            vertex: v_mid,
+            vertex: *v_mid,
             replacement_edges: [he_above.full_edge(), he_new_above.full_edge()],
         }
     }
@@ -1258,13 +1411,13 @@ enum CwVertexCirculator<'a, C: Config> {
     Empty,
     NonEmpty {
         mesh: &'a HalfEdgeMesh<C>,
-        current_he: HalfEdgeHandle,
-        start_he: HalfEdgeHandle,
+        current_he: Checked<HalfEdgeHandle>,
+        start_he: Checked<HalfEdgeHandle>,
     },
 }
 
 impl<C: Config> Iterator for CwVertexCirculator<'_, C> {
-    type Item = HalfEdgeHandle;
+    type Item = Checked<HalfEdgeHandle>;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
@@ -1274,7 +1427,7 @@ impl<C: Config> Iterator for CwVertexCirculator<'_, C> {
                 let out = *current_he;
 
                 // Advance iterator
-                let next = mesh.half_edges[out.twin()].next;
+                let next = mesh[out.twin()].next;
                 if next == start_he {
                     // If we reached the start edge again, we are done and set
                     // the iterator to `Empty`.
@@ -1298,13 +1451,13 @@ enum FaceCirculator<'a, C: Config> {
     Empty,
     NonEmpty {
         mesh: &'a HalfEdgeMesh<C>,
-        current_he: HalfEdgeHandle,
-        start_he: HalfEdgeHandle,
+        current_he: Checked<HalfEdgeHandle>,
+        start_he: Checked<HalfEdgeHandle>,
     },
 }
 
 impl<C: Config> Iterator for FaceCirculator<'_, C> {
-    type Item = HalfEdgeHandle;
+    type Item = Checked<HalfEdgeHandle>;
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
@@ -1314,7 +1467,7 @@ impl<C: Config> Iterator for FaceCirculator<'_, C> {
                 let out = *current_he;
 
                 // Advance iterator
-                let next = mesh.half_edges[out].next;
+                let next = mesh[out].next;
                 if next == start_he {
                     // If we reached the start edge again, we are done and set
                     // the iterator to `Empty`.
@@ -1341,16 +1494,17 @@ impl<C: Config> BasicAdj for HalfEdgeMesh<C> {
     where
         Self: TriMesh,
     {
-        let he0 = self.faces[face].edge;
-        let he1 = self.half_edges[he0].next;
-        let he2 = self.half_edges[he1].next;
+        let face = self.check_face(face);
+        let he0 = self[face].edge;
+        let he1 = self[he0].next;
+        let he2 = self[he1].next;
 
-        [he0, he1, he2].map(|he| self.half_edges[he].target)
+        [he0, he1, he2].map(|he| *self[he].target)
     }
 
     fn vertices_around_face(&self, face: FaceHandle) -> DynList<'_, VertexHandle> {
         Box::new(FaceToVertexIter {
-            it: self.circulate_around_face(face),
+            it: self.circulate_around_face(self.check_face(face)),
             mesh: self,
         })
     }
@@ -1361,18 +1515,19 @@ impl<C: Config> FullAdj for HalfEdgeMesh<C> {
     where
         Self: TriMesh,
     {
-        let he0 = self.faces[face].edge;
-        let he1 = self.half_edges[he0].next;
-        let he2 = self.half_edges[he1].next;
+        let face = self.check_face(face);
+        let he0 = self[face].edge;
+        let he1 = self[he0].next;
+        let he2 = self[he1].next;
 
         TriList::new(
-            [he0, he1, he2].map(|he| self.half_edges[he.twin()].face.to_option())
+            [he0, he1, he2].map(|he| self[he.twin()].face.to_option().map(|f| *f))
         )
     }
 
     fn faces_around_face(&self, face: FaceHandle) -> DynList<'_, FaceHandle> {
         Box::new(FaceToFaceIter {
-            it: self.circulate_around_face(face),
+            it: self.circulate_around_face(self.check_face(face)),
             mesh: self,
         })
     }
@@ -1382,7 +1537,7 @@ impl<C: Config> FullAdj for HalfEdgeMesh<C> {
         vh: VertexHandle,
     ) -> DynList<'_, FaceHandle> {
         Box::new(VertexToFaceIter {
-            it: self.circulate_around_vertex(vh),
+            it: self.circulate_around_vertex(self.check_vertex(vh)),
             mesh: self,
         })
     }
@@ -1392,14 +1547,14 @@ impl<C: Config> FullAdj for HalfEdgeMesh<C> {
         vh: VertexHandle,
     ) -> DynList<'_, VertexHandle> {
         Box::new(VertexToVertexIter {
-            it: self.circulate_around_vertex(vh),
+            it: self.circulate_around_vertex(self.check_vertex(vh)),
             mesh: self,
         })
     }
 
     fn is_boundary_face(&self, face: FaceHandle) -> bool {
-        self.circulate_around_face(face)
-            .any(|inner| self.half_edges[inner.twin()].face.is_none())
+        self.circulate_around_face(self.check_face(face))
+            .any(|inner| self[inner.twin()].face.is_none())
     }
 
     fn is_boundary_vertex(&self, vertex: VertexHandle) -> bool {
@@ -1407,53 +1562,61 @@ impl<C: Config> FullAdj for HalfEdgeMesh<C> {
         // function: if a vertex is a boundary vertex, its `outgoing` half edge
         // is a boundary half edge. So we can very easily check if a vertex is
         // a boundary vertex.
-        match self.vertices[vertex].outgoing.to_option() {
+        let vertex = self.check_vertex(vertex);
+        match self[vertex].outgoing.to_option() {
             None => true,
-            Some(outgoing) => self.half_edges[outgoing].face.is_none(),
+            Some(outgoing) => self[outgoing].face.is_none(),
         }
     }
 
     fn is_isolated_vertex(&self, vertex: VertexHandle) -> bool {
-        self.vertices[vertex].outgoing.is_none()
+        let vertex = self.check_vertex(vertex);
+        self[vertex].outgoing.is_none()
     }
 
     fn are_faces_adjacent(&self, a: FaceHandle, b: FaceHandle) -> bool {
+        let a = self.check_face(a);
+        let b = self.check_face(b);
+
         self.circulate_around_face(a)
-            .any(|inner| self.half_edges[inner.twin()].face == Opt::some(b))
+            .any(|inner| self[inner.twin()].face == Opt::some(b))
     }
 
     fn are_vertices_adjacent(&self, a: VertexHandle, b: VertexHandle) -> bool {
+        let a = self.check_vertex(a);
+        let b = self.check_vertex(b);
+
         self.circulate_around_vertex(a)
-            .any(|outgoing| self.half_edges[outgoing].target == b)
+            .any(|outgoing| self[outgoing].target == b)
     }
 }
 
 
 impl<C: Config> EdgeAdj for HalfEdgeMesh<C> {
     fn endpoints_of_edge(&self, edge: EdgeHandle) -> [VertexHandle; 2] {
-        let a = HalfEdgeHandle::lower_half_of(edge);
+        let a = self.checked_half_of(edge);
         let b = a.twin();
-        [self.half_edges[a].target, self.half_edges[b].target]
+        [*self[a].target, *self[b].target]
     }
 
     fn faces_of_edge(&self, edge: EdgeHandle) -> DiList<FaceHandle> {
-        let a = HalfEdgeHandle::lower_half_of(edge);
+        let a = self.checked_half_of(edge);
         let b = a.twin();
         DiList::from_options(
-            self.half_edges[a].face.to_option(),
-            self.half_edges[b].face.to_option(),
+            self[a].face.to_option().map(|f| *f),
+            self[b].face.to_option().map(|f| *f),
         )
     }
 
     fn edges_around_vertex(&self, vertex: VertexHandle) -> DynList<'_, EdgeHandle> {
         Box::new(VertexToEdgeIter {
-            it: self.circulate_around_vertex(vertex),
+            it: self.circulate_around_vertex(self.check_vertex(vertex)),
         })
     }
 
     fn edges_around_face(&self, face: FaceHandle) -> DynList<'_, EdgeHandle> {
         Box::new(FaceToEdgeIter {
-            it: self.circulate_around_face(face),
+            it: self.circulate_around_face(self.check_face(face)),
         })
     }
 
@@ -1461,21 +1624,25 @@ impl<C: Config> EdgeAdj for HalfEdgeMesh<C> {
     where
         Self: TriMesh
     {
-        let he0 = self.faces[face].edge;
-        let he1 = self.half_edges[he0].next;
-        let he2 = self.half_edges[he1].next;
+        let face = self.check_face(face);
+        let he0 = self[face].edge;
+        let he1 = self[he0].next;
+        let he2 = self[he1].next;
 
         [he0, he1, he2].map(|he| he.full_edge())
     }
 
     fn is_boundary_edge(&self, edge: EdgeHandle) -> bool {
-        let he = HalfEdgeHandle::lower_half_of(edge);
-        self.half_edges[he].face.is_none() || self.half_edges[he.twin()].face.is_none()
+        let he = self.checked_half_of(edge);
+        self[he].face.is_none() || self[he.twin()].face.is_none()
     }
 
     fn edge_between_vertices(&self, a: VertexHandle, b: VertexHandle) -> Option<EdgeHandle> {
+        let a = self.check_vertex(a);
+        let b = self.check_vertex(b);
+
         self.circulate_around_vertex(a)
-            .find(|&outgoing| self.half_edges[outgoing].target == b)
+            .find(|&outgoing| self[outgoing].target == b)
             .map(|he| he.full_edge())
     }
 }
@@ -1493,7 +1660,8 @@ impl<C: Config> Iterator for FaceToFaceIter<'_, C> {
         // We simply skip the edge that don't have a face adjacent to them.
         let mesh = self.mesh;
         self.it.by_ref()
-            .filter_map(|inner| mesh.half_edges[inner.twin()].face.to_option())
+            .filter_map(|inner| mesh[inner.twin()].face.to_option())
+            .map(|f| *f)
             .next()
     }
 }
@@ -1522,7 +1690,7 @@ impl<C: Config> Iterator for FaceToVertexIter<'_, C> {
     type Item = VertexHandle;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.it.next().map(|inner| self.mesh.half_edges[inner].target)
+        self.it.next().map(|inner| *self.mesh[inner].target)
     }
 }
 
@@ -1541,7 +1709,8 @@ impl<C: Config> Iterator for VertexToFaceIter<'_, C> {
         // We simply skip the edge that don't have a face adjacent to them.
         let mesh = self.mesh;
         self.it.by_ref()
-            .filter_map(|outgoing| mesh.half_edges[outgoing].face.to_option())
+            .filter_map(|outgoing| mesh[outgoing].face.to_option())
+            .map(|f| *f)
             .next()
     }
 }
@@ -1557,7 +1726,7 @@ impl<C: Config> Iterator for VertexToVertexIter<'_, C> {
     type Item = VertexHandle;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.it.next().map(|outgoing| self.mesh.half_edges[outgoing].target)
+        self.it.next().map(|outgoing| *self.mesh[outgoing].target)
     }
 }
 
