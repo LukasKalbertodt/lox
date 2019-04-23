@@ -10,9 +10,9 @@ use stable_vec::StableVec;
 use crate::{
     cast::{try_cast, is_cast_possible, CastRigor},
     handle::{hsize, Handle, VertexHandle, FaceHandle},
-    io::{Error, ErrorKind, MemSource, PrimitiveType, Primitive, PropKind},
+    io::{ColorType, Error, ErrorKind, MemSource, PrimitiveType, Primitive, PropKind},
     map::{PropMap, PropStoreMut, VecMap},
-    prop::{Pos3Like, Vec3Like},
+    prop::{ColorLike, Pos3Like, Vec3Like},
 };
 
 
@@ -94,6 +94,26 @@ pub trait MemSourceExt {
         }
     }
 
+    /// Provides new vertex colors to the source. The returned source uses the
+    /// given vertex colors instead of the original.
+    ///
+    /// This also works if the original source does not offer vertex colors.
+    /// TODO: make possible to specifiy cast rigor
+    fn with_vertex_colors<'a, M>(
+        &'a self,
+        vertex_colors: &'a M,
+    ) -> SourceWithVertexColors<'a, Self, M>
+    where
+        M: PropMap<VertexHandle>,
+        M::Target: ColorLike,
+        <M::Target as ColorLike>::Channel: Primitive,
+    {
+        SourceWithVertexColors {
+            original: self,
+            vertex_colors,
+        }
+    }
+
     /// Provides new face normals to the source. The returned source uses the
     /// given face normals instead of the original.
     ///
@@ -115,10 +135,32 @@ pub trait MemSourceExt {
             _dummy: PhantomData,
         }
     }
+
+    /// Provides new face colors to the source. The returned source uses the
+    /// given face colors instead of the original.
+    ///
+    /// This also works if the original source does not offer face colors.
+    /// TODO: make possible to specifiy cast rigor
+    fn with_face_colors<'a, M>(
+        &'a self,
+        face_colors: &'a M,
+    ) -> SourceWithFaceColors<'a, Self, M>
+    where
+        M: PropMap<FaceHandle>,
+        M::Target: ColorLike,
+        <M::Target as ColorLike>::Channel: Primitive,
+    {
+        SourceWithFaceColors {
+            original: self,
+            face_colors,
+        }
+    }
 }
 
 impl<T: MemSource> MemSourceExt for T {}
 
+// Macro to generate code for delegating certain functionality to the original.
+// This is what inheritance or some "delegate" functionality would be handy.
 macro_rules! old_impl_items {
     (core_mesh) => {
         type CoreMesh = S::CoreMesh;
@@ -148,12 +190,36 @@ macro_rules! old_impl_items {
             self.original.vertex_normal(v)
         }
     };
+    (vertex_color) => {
+        fn vertex_color_type(&self) -> Option<ColorType> {
+            self.original.vertex_color_type()
+        }
+        fn vertex_color<C>(&self, v: VertexHandle) -> Result<Option<C>, Error>
+        where
+            C: ColorLike,
+            C::Channel: Primitive,
+        {
+            self.original.vertex_color::<C>(v)
+        }
+    };
     (face_normal) => {
         fn face_normal_type(&self) -> Option<PrimitiveType> {
             self.original.face_normal_type()
         }
         fn face_normal<T: Primitive>(&self, v: FaceHandle) -> Result<Option<Vector3<T>>, Error> {
             self.original.face_normal(v)
+        }
+    };
+    (face_color) => {
+        fn face_color_type(&self) -> Option<ColorType> {
+            self.original.face_color_type()
+        }
+        fn face_color<C>(&self, f: FaceHandle) -> Result<Option<C>, Error>
+        where
+            C: ColorLike,
+            C::Channel: Primitive,
+        {
+            self.original.face_color::<C>(f)
         }
     };
 }
@@ -176,7 +242,9 @@ where
 {
     old_impl_items!(core_mesh);
     old_impl_items!(vertex_normal);
+    old_impl_items!(vertex_color);
     old_impl_items!(face_normal);
+    old_impl_items!(face_color);
 
     fn vertex_position_type(&self) -> Option<PrimitiveType> {
         Some(<M::Target as Pos3Like>::Scalar::TY)
@@ -215,7 +283,9 @@ where
 {
     old_impl_items!(core_mesh);
     old_impl_items!(vertex_position);
+    old_impl_items!(vertex_color);
     old_impl_items!(face_normal);
+    old_impl_items!(face_color);
 
     fn vertex_normal_type(&self) -> Option<PrimitiveType> {
         Some(<M::Target as Vec3Like>::Scalar::TY)
@@ -237,6 +307,41 @@ where
     }
 }
 
+/// `MemSource` adaptor. See [`MemSourceExt::with_vertex_colors`].
+#[derive(Copy, Clone, Debug)]
+pub struct SourceWithVertexColors<'a, S: ?Sized, M> {
+    original: &'a S,
+    vertex_colors: &'a M,
+}
+
+impl<S: ?Sized, M> MemSource for SourceWithVertexColors<'_, S, M>
+where
+    S: MemSource,
+    M: PropMap<VertexHandle>,
+    M::Target: ColorLike,
+    <M::Target as ColorLike>::Channel: Primitive,
+{
+    old_impl_items!(core_mesh);
+    old_impl_items!(vertex_position);
+    old_impl_items!(vertex_normal);
+    old_impl_items!(face_normal);
+    old_impl_items!(face_color);
+
+    fn vertex_color_type(&self) -> Option<ColorType> {
+        Some(ColorType::from_color_like::<M::Target>())
+    }
+
+    fn vertex_color<C>(&self, v: VertexHandle) -> Result<Option<C>, Error>
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
+        // TODO: check cast
+
+        Ok(self.vertex_colors.get(v).map(|c| c.cast()))
+    }
+}
+
 /// `MemSource` adaptor. See [`MemSourceExt::with_face_normals`].
 #[derive(Copy, Clone, Debug)]
 pub struct SourceWithFaceNormals<'a, S: ?Sized, M, R: CastRigor> {
@@ -255,6 +360,8 @@ where
     old_impl_items!(core_mesh);
     old_impl_items!(vertex_position);
     old_impl_items!(vertex_normal);
+    old_impl_items!(vertex_color);
+    old_impl_items!(face_color);
 
     fn face_normal_type(&self) -> Option<PrimitiveType> {
         Some(<M::Target as Vec3Like>::Scalar::TY)
@@ -273,6 +380,41 @@ where
         });
 
         Ok(out)
+    }
+}
+
+/// `MemSource` adaptor. See [`MemSourceExt::with_face_colors`].
+#[derive(Copy, Clone, Debug)]
+pub struct SourceWithFaceColors<'a, S: ?Sized, M> {
+    original: &'a S,
+    face_colors: &'a M,
+}
+
+impl<S: ?Sized, M> MemSource for SourceWithFaceColors<'_, S, M>
+where
+    S: MemSource,
+    M: PropMap<FaceHandle>,
+    M::Target: ColorLike,
+    <M::Target as ColorLike>::Channel: Primitive,
+{
+    old_impl_items!(core_mesh);
+    old_impl_items!(vertex_position);
+    old_impl_items!(vertex_normal);
+    old_impl_items!(vertex_color);
+    old_impl_items!(face_normal);
+
+    fn face_color_type(&self) -> Option<ColorType> {
+        Some(ColorType::from_color_like::<M::Target>())
+    }
+
+    fn face_color<C>(&self, f: FaceHandle) -> Result<Option<C>, Error>
+    where
+        C: ColorLike,
+        C::Channel: Primitive,
+    {
+        // TODO: check cast
+
+        Ok(self.face_colors.get(f).map(|c| c.cast()))
     }
 }
 
