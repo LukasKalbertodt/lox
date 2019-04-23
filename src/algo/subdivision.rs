@@ -173,11 +173,10 @@ where
     // this copy and only write them back into `vertex_positions` at the very
     // end, since the calculation of new vertex points also relies on the old
     // positions.
-    let mut new_positions = vertex_positions.clone();
 
     let mut alphas = AlphaCache::new();
 
-    for v in mesh.vertices() {
+    let new_positions = mesh.vertices().map(|v| {
         let vh = v.handle();
         let old_pos = vertex_positions[vh];
 
@@ -234,9 +233,8 @@ where
             )
         };
 
-        // Set the new vertex position
-        new_positions[vh] = new_pos;
-    }
+        (vh, new_pos)
+    }).collect::<VecMap<_, _>>();
 
 
     // ----- (3) Split faces and calc new vertex positions ---------------------------------------
@@ -252,63 +250,66 @@ where
     while let Some(fh) = it.next() {
         let f = it.mesh().get_ref(fh);
 
-        // Check if the face has a boundary edge. We know that if it has, there
-        // is only one such edge (function contract).
-        let boundary_edge = f.adjacent_edges().find(|e| e.is_boundary());
+        if split_boundary {
+            // Check if the face has a boundary edge. We know that if it has,
+            // there is only one such edge (function contract).
+            let boundary_edge = f.adjacent_edges().find(|e| e.is_boundary());
+            if let Some(boundary_edge) = boundary_edge {
+                //
+                //      ll         x         rr       ll         x         rr
+                //       \       /   \       /         \       /| |\       /
+                //        \     /     \     /           \     / | | \     /
+                //         \   /   F   \   /             \   / /   \ \   /
+                //          \ /         \ /               \ /  |   |  \ /
+                //           l --------- r                 l - a - b - r
+                //
+                //           boundary_edge
+                //
+                let [_, r] = boundary_edge.endpoints();
+                let rh = r.handle();
+                let eh = boundary_edge.handle();
 
-        if split_boundary && boundary_edge.is_some() {
-            //
-            //      ll         x         rr       ll         x         rr
-            //       \       /   \       /         \       /| |\       /
-            //        \     /     \     /           \     / | | \     /
-            //         \   /   F   \   /             \   / /   \ \   /
-            //          \ /         \ /               \ /  |   |  \ /
-            //           l --------- r                 l - a - b - r
-            //
-            //           boundary_edge
-            //
-            let boundary_edge = boundary_edge.unwrap();
-            let [_, r] = boundary_edge.endpoints();
-            let rh = r.handle();
-            let eh = boundary_edge.handle();
+                // Retrieve the new points we calculated before
+                let [pos_a, pos_b] = new_boundary_points[eh];
 
-            // Retrieve the new points we calculated before
-            let [pos_a, pos_b] = new_boundary_points[eh];
+                // Split the boundary edge/face once
+                let res = it.mesh().split_edge_with_faces(eh);
+                let va = res.vertex;
 
-            // Split the boundary edge/face once
-            let res = it.mesh().split_edge_with_faces(eh);
-            let va = res.vertex;
+                // Decide what edge we need to split next.
+                let other_edge = res.replacement_edges
+                    .iter()
+                    .cloned()
+                    .find(|&new_edge| it.mesh().endpoints_of_edge(new_edge).contains(&rh))
+                    .unwrap();
 
-            // Decide what edge we need to split next.
-            let other_edge = res.replacement_edges
-                .iter()
-                .cloned()
-                .find(|&new_edge| it.mesh().endpoints_of_edge(new_edge).contains(&rh))
-                .unwrap();
+                // Split another edge
+                let res = it.mesh().split_edge_with_faces(other_edge);
+                let vb = res.vertex;
 
-            // Split another edge
-            let res = it.mesh().split_edge_with_faces(other_edge);
-            let vb = res.vertex;
+                vertex_positions.insert(va, pos_a.convert());
+                vertex_positions.insert(vb, pos_b.convert());
 
-            vertex_positions.insert(va, pos_a.convert());
-            vertex_positions.insert(vb, pos_b.convert());
-        } else {
-            // The position of the new vertex is just the centroid of the
-            // face's vertices. We can unwrap because the face always has three
-            // vertices.
-            let point_pos = f
-                .adjacent_vertices()
-                .map(|v| vertex_positions[v.handle()])
-                .centroid()
-                .unwrap();
-
-            // Split face and set position of the midpoint.
-            let vh = it.mesh().split_face(fh);
-            vertex_positions.insert(vh, point_pos);
+                continue;
+            }
         }
+
+
+        // The position of the new vertex is just the centroid of the
+        // face's vertices. We can unwrap because the face always has three
+        // vertices.
+        let point_pos = f
+            .adjacent_vertices()
+            .map(|v| vertex_positions[v.handle()])
+            .centroid()
+            .unwrap();
+
+        // Split face and set position of the midpoint.
+        let vh = it.mesh().split_face(fh);
+        vertex_positions.insert(vh, point_pos);
     }
 
-    // ----- Flip all old edges and set relaxed vertex positions ---------------------------------
+    // ----- (4) Flip all old edges and set relaxed vertex positions -----------------------------
     for eh in old_edges.handles() {
         mesh.flip_edge(eh);
     }
