@@ -23,7 +23,7 @@ pub fn sqrt3<MeshT, MapT, ScalarT>(
 )
 where
     MeshT: TriEdgeMeshMut + EdgeAdj, // TODO: doesn't need to be tri in the beginning
-    MapT: PropStoreMut<VertexHandle> + Clone,
+    MapT: PropStoreMut<VertexHandle>,
     MapT::Target: Pos3Like<Scalar = ScalarT>,
     ScalarT: PrimitiveFloat,
 {
@@ -48,7 +48,7 @@ fn sqrt3_impl<MeshT, MapT, ScalarT>(
 )
 where
     MeshT: TriEdgeMeshMut + EdgeAdj, // TODO: doesn't need to be tri in the beginning
-    MapT: PropStoreMut<VertexHandle> + Clone,
+    MapT: PropStoreMut<VertexHandle>,
     MapT::Target: Pos3Like<Scalar = ScalarT>,
     ScalarT: PrimitiveFloat,
 {
@@ -114,7 +114,6 @@ where
 
     // ----- (1) Calculate positions for new boundary vertices -----------------------------------
 
-    let before_1 = Instant::now();
     // Remember the original edges of the mesh and calculate boundary vertex
     // positions if we will split the boundaries. We have to do this now
     // because later we will already change the topology and can't properly
