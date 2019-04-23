@@ -1034,6 +1034,11 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         // `_ohe` (old half edge). Half edges that are inserted by this
         // function are called `_nhe` (new half edge).
 
+        // TODO: reserve memory/pre alloc all new elements. Currently this
+        // function generates suboptimal assembly, because each `push` of a new
+        // element goes through the whole `push()` code with check for capacity
+        // overflow and realloc call. This should be improved.
+
         // Add new vertex "in the middle".
         let midpoint = Checked(self.add_vertex());
 
@@ -1208,12 +1213,6 @@ where
         // We just imagine that the "random" half-edge we get from
         // `lower_half_of()` is the edge `a` in the drawing.
 
-        assert!(
-            !self.is_boundary_edge(edge),
-            "`flip_edge` called on boundary edge {:?}",
-            edge,
-        );
-
         // First, let's just obtain all handles
         let he_center_above = self.checked_half_of(edge);
         let he_center_below = he_center_above.twin();
@@ -1222,8 +1221,16 @@ where
         let he_below_left = self[he_center_below].next;
         let he_below_right = self[he_below_left].next;
 
-        let f_above = self[he_center_above].face.unwrap();
-        let f_below = self[he_center_below].face.unwrap();
+        let faces = [
+            self[he_center_above].face.to_option(),
+            self[he_center_below].face.to_option(),
+        ];
+        let (f_above, f_below) = match faces {
+            [Some(above), Some(below)] => (above, below),
+            _ => {
+                panic!("`flip_edge` called on boundary edge {:?}", edge);
+            }
+        };
 
         let v_right = self[he_center_above].target;
         let v_left = self[he_center_below].target;
