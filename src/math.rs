@@ -5,6 +5,7 @@ use std::{
     fmt::Debug,
 };
 
+use cgmath::BaseFloat;
 use num_traits::{Float, FloatConst, Num, NumAssign, NumCast};
 
 use crate::{
@@ -43,6 +44,7 @@ pub trait PrimitiveFloat:
     PrimitiveNum
     + Float
     + FloatConst
+    + BaseFloat
     + LosslessCastFrom<f32>
     + CastFromIntegers<cast::AllowRounding>
 {}
@@ -52,6 +54,7 @@ where
     T: PrimitiveNum
         + Float
         + FloatConst
+        + BaseFloat
         + LosslessCastFrom<f32>
         + CastFromIntegers<cast::AllowRounding>,
 {}

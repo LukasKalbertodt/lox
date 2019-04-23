@@ -16,7 +16,7 @@ debug = true
 [dependencies]
 boolinator = "2.4"
 byteorder = "1.2"
-cgmath = "0.16"
+cgmath = "0.17"
 derive_more = "0.13"
 failure = "0.1.2"
 lox-macros = { path = "lox-macros" }
