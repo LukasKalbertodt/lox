@@ -14,6 +14,8 @@ use lox::{
 type MyMesh = MiniMesh<HalfEdgeMesh<TriConfig>>;
 
 fn main() -> Result<(), Error> {
+    color_backtrace::install();
+
     // Quick and dirty CLI argument parsing (not lox related)
     let num_iterations = env::args().nth(1)
         .expect("no iteration count given (first argument)")

@@ -26,6 +26,7 @@ smallvec = { version = "0.6", features = ["union"] }
 stable-vec = { git = "https://github.com/LukasKalbertodt/stable-vec", branch = "v0.4-pre" }
 
 [dev-dependencies]
+color-backtrace = "0.1"
 criterion = { version = "0.2", features = ["real_blackbox"] }
 
 
