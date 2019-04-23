@@ -1,3 +1,7 @@
+use std::{
+    collections::HashMap as StdHashMap,
+};
+
 use cgmath::{
     Point3,
     prelude::*
@@ -6,6 +10,7 @@ use cgmath::{
 use crate::{
     prelude::*,
     cast,
+    handle::hsize,
     map::{VecMap, HashMap},
     math::PrimitiveFloat,
     prop::Pos3Like,
@@ -53,8 +58,63 @@ where
     }
 
 
+    /// A simple memoization helper to avoid calculating `alpha` all the time
+    /// as it's only dependent on the valence of a vertex. The number of
+    /// different valences is usually pretty low.
+    struct AlphaCache<ScalarT: PrimitiveFloat> {
+        low: [ScalarT; 10],
+        rest: StdHashMap<hsize, ScalarT>,
+    }
+
+    impl<ScalarT: PrimitiveFloat> AlphaCache<ScalarT> {
+        fn alpha_for(valence: hsize) -> ScalarT {
+            (
+                lit!(4.0) - lit!(2.0) * (
+                    lit!(2.0) * ScalarT::PI() / cast::rounding::<_, ScalarT>(valence)
+                ).cos()
+            ) / lit!(9.0)
+        }
+
+        fn new() -> Self {
+            Self {
+                low: [
+                    lit!(0.0),
+                    Self::alpha_for(1),
+                    Self::alpha_for(2),
+                    Self::alpha_for(3),
+                    Self::alpha_for(4),
+                    Self::alpha_for(5),
+                    Self::alpha_for(6),
+                    Self::alpha_for(7),
+                    Self::alpha_for(8),
+                    Self::alpha_for(9),
+                ],
+                rest: StdHashMap::new(),
+            }
+        }
+
+        fn get(&mut self, valence: hsize) -> ScalarT {
+            if valence < 10 {
+                self.low[valence as usize]
+            } else {
+                self.get_from_hashmap(valence)
+            }
+        }
+
+        #[cold]
+        #[inline(never)]
+        fn get_from_hashmap(&mut self, valence: hsize) -> ScalarT {
+            *self.rest.entry(valence).or_insert_with(|| Self::alpha_for(valence))
+        }
+    }
+
+
+
+
+
     // ----- (1) Calculate positions for new boundary vertices -----------------------------------
 
+    let before_1 = Instant::now();
     // Remember the original edges of the mesh and calculate boundary vertex
     // positions if we will split the boundaries. We have to do this now
     // because later we will already change the topology and can't properly
@@ -115,6 +175,8 @@ where
     // positions.
     let mut new_positions = vertex_positions.clone();
 
+    let mut alphas = AlphaCache::new();
+
     for v in mesh.vertices() {
         let vh = v.handle();
         let old_pos = vertex_positions[vh];
@@ -162,14 +224,7 @@ where
                 .centroid()
                 .unwrap(); // we checked the vertex is not a boundary vertex
 
-
-            // We know that there is at least one neighbor vertex, so `valence`
-            // is not 0. We simply use the formula from the paper.
-            let alpha = (
-                lit!(4.0) - lit!(2.0) * (
-                    lit!(2.0) * ScalarT::PI() / cast::rounding::<_, ScalarT>(valence)
-                ).cos()
-            ) / lit!(9.0);
+            let alpha = alphas.get(valence);
 
             // Lerp between `old_pos` and `centroid` by the amount `alpha`
             MapT::Target::from_coords(
@@ -184,7 +239,7 @@ where
     }
 
 
-    // ----- (2) Split faces and calc new vertex positions ---------------------------------------
+    // ----- (3) Split faces and calc new vertex positions ---------------------------------------
 
     // We create a new vertex per face by splitting each face into three new
     // ones. First we can reserve a bunch of memory, because we know exactly
@@ -241,7 +296,7 @@ where
             // The position of the new vertex is just the centroid of the
             // face's vertices. We can unwrap because the face always has three
             // vertices.
-            let point_pos = it.mesh().get_ref(fh)
+            let point_pos = f
                 .adjacent_vertices()
                 .map(|v| vertex_positions[v.handle()])
                 .centroid()
