@@ -88,6 +88,7 @@ pub struct DijsktraVertexData<F> {
 ///
 /// - think about having a parameter `target vertex` that allows the algo to
 ///   break early when it's found
+/// - Provide distance as edge map -> but then we need EdgeAdj
 pub fn dijkstra<MeshT, MapT, ScalarT>(
     mesh: &MeshT,
     vertex_positions: &MapT,
@@ -105,12 +106,15 @@ where
     };
 
     /// Stuff we store in the heap
-    #[derive(Debug, Clone)]
     struct HeapElem<ScalarT> {
+        /// The currently best distance to this vertex.
         distance: ScalarT,
+
+        /// Handle of the vertex
         handle: VertexHandle,
     }
 
+    // Implementing ordering traits
     impl<ScalarT: PrimitiveFloat> Ord for HeapElem<ScalarT> {
         fn cmp(&self, other: &Self) -> Ordering {
             self.partial_cmp(other).expect("NaN distance in Dijkstra")
@@ -134,11 +138,17 @@ where
     // Create the main data structures and preallocate. For the heap, since we
     // don't use `decrease_key` but instead insert elements multiple times, we
     // expect that more than `num_vertices()` elements are stored in the heap.
-    // This needs to be measured! TODO
+    // A few experiments showed that for most "normal" meshes, the peak element
+    // count in the heap is somewhere around 1.3 times the number of vertices.
+    // Allocating 1.5 times as much shouldn't be wasting a lot of space and we
+    // are still on the save side.
     let mut vertex_data = VecMap::with_capacity(mesh.num_vertices());
-    let mut heap = BinaryHeap::with_capacity(mesh.num_vertices() as usize);
-    let mut visited = VecMap::with_capacity(mesh.num_vertices());
+    let mut visited = VecMap::with_capacity(mesh.num_vertices()); // TODO: real set
+    let mut heap = BinaryHeap::with_capacity((mesh.num_vertices() as f64 * 1.5) as usize);
 
+    // Initialization: set all distances to infinity and the `prev` field to
+    // the vertex itself. For the start vertex, set the distance to 0. Add all
+    // vertices into the heap.
     for vh in mesh.vertex_handles() {
         let distance = if vh == start_vertex {
             ScalarT::zero()
@@ -146,13 +156,12 @@ where
             ScalarT::infinity()
         };
 
-        // Having the own handle as  `prev` handle means that the
-        let prev = vh;
-
-        vertex_data.insert(vh, DijsktraVertexData { distance, prev });
+        vertex_data.insert(vh, DijsktraVertexData { distance, prev: vh });
         heap.push(HeapElem { distance, handle: vh });
     }
 
+    // The actual search: pop the element with the smallest distance from the
+    // heap, visit all its neighbors and update their distances.
     while let Some(current) = heap.pop() {
         // Since we insert elements into the heap multiple times, we have to
         // check if we already popped it from the heap and skip it in that
@@ -161,9 +170,13 @@ where
             continue;
         }
 
+        // Mark vertex as visited (its distance is now finalized)
         visited.insert(current.handle, ());
 
+        // Visit all neighbors
         for nh in mesh.vertices_around_vertex(current.handle) {
+            // We can skip neighbors we already visited: their distance is
+            // already finalized and won't be improved.
             if visited.contains_handle(nh) {
                 continue;
             }
@@ -181,12 +194,32 @@ where
                 vertex_data[nh].distance = new_distance;
                 vertex_data[nh].prev = current.handle;
 
-                // Add vertex to heap again, but with a smaller distance
+                // Add vertex to heap again, but with a smaller distance. In
+                // the classical algorithm, there would be a
+                // `heap.decrease_key` call here. However, supporting this
+                // method makes the heap more complex. It has been found that
+                // for many graphs, in particular all sparse graphs, adding
+                // nodes multiple times instead of using `decrease_key` is
+                // actually faster. Meshes are sparse graphs almost all of the
+                // time, since they are a number of planar graphs.
+                //
+                // See this paper for more information:
+                // Chen, Mo, et al. Priority queues and dijkstra's algorithm.
+                // Computer Science Department, University of Texas at Austin,
+                // 2007.
                 heap.push(HeapElem {
                     distance: new_distance,
                     handle: nh,
                 });
             }
+        }
+
+        // This allows us to quit early. Since we add every vertex potentially
+        // multiple times to the heap, the heap still contains a bunch of
+        // garbage values after we visited all vertices. With this check we can
+        // avoid popping all elements individually.
+        if visited.num_elements() == mesh.num_vertices() {
+            break;
         }
     }
 
