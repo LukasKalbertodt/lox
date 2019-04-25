@@ -43,7 +43,7 @@ use super::{Encoding, RawTriangle, RawStorage};
 /// ```no_run
 /// use lox::{
 ///     prelude::*,
-///     ds::FaceDelegateMesh,
+///     ds::SharedVertexMesh,
 ///     fat::MiniMesh,
 ///     io::stl::Reader,
 /// };
@@ -51,7 +51,7 @@ use super::{Encoding, RawTriangle, RawStorage};
 /// // We configure the reader to not unify the vertices. This means that the
 /// // resulting mesh only contains unconnected triangles.
 /// let reader = Reader::open("foo.stl")?.without_vertex_unification();
-/// let m = MiniMesh::<FaceDelegateMesh>::create_from(reader)?;
+/// let m = MiniMesh::<SharedVertexMesh>::create_from(reader)?;
 /// # Ok::<_, lox::io::Error>(())
 /// ```
 pub struct Reader<R: io::Read, U: UnifyingMarker = UnifyVertices> {

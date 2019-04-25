@@ -7,12 +7,13 @@ use lox::{
     MemSink, MemSource,
     prelude::*,
     algo,
-    ds::{FaceDelegateMesh, SharedVertexMesh},
+    ds::{self, HalfEdgeMesh, SharedVertexMesh},
     io::{self, stl, ply},
     map::VecMap,
-    shape::Disc,
+    shape::{Disc, Tetrahedron, Square},
 };
 
+type MyMesh = HalfEdgeMesh<ds::half_edge::TriConfig>;
 
 fn main() {
     // We just catch potential errors here and pretty print them.
@@ -54,7 +55,7 @@ fn run() -> Result<(), Error> {
 #[lox(cast = "lossy")]
 struct SimpleMesh {
     #[lox(core_mesh)]
-    mesh: FaceDelegateMesh,
+    mesh: MyMesh,
 
     #[lox(vertex_position)]
     vertex_positions: VecMap<VertexHandle, Point3<f32>>,

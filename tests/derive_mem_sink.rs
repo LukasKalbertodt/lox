@@ -9,7 +9,7 @@ fn disc4() {
     #[derive(lox::Empty, lox::MemSink)]
     struct MyMesh {
         #[lox(core_mesh)]
-        mesh: lox::ds::FaceDelegateMesh,
+        mesh: lox::ds::SharedVertexMesh,
 
         #[lox(vertex_position)]
         vertex_positions: lox::map::VecMap<lox::VertexHandle, lox::cgmath::Point3<f64>>,

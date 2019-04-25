@@ -26,7 +26,7 @@
 //!
 //! ```no_run
 //! use lox::{
-//!     ds::FaceDelegateMesh,
+//!     ds::SharedVertexMesh,
 //!     fat::MiniMesh,
 //!     io,
 //! };
@@ -34,7 +34,7 @@
 //!
 //! // Using a predefined mesh type here. Alternatively, you can very easily
 //! // create your own type!
-//! type MyMesh = MiniMesh<FaceDelegateMesh>;
+//! type MyMesh = MiniMesh<SharedVertexMesh>;
 //!
 //! // Read a mesh file (a PLY file in this case)
 //! let mut m: MyMesh = io::read_file("input.ply")?;
@@ -244,12 +244,12 @@ where
 ///
 /// ```no_run
 /// use lox::{
-///     ds::FaceDelegateMesh,
+///     ds::SharedVertexMesh,
 ///     fat::MiniMesh,
 ///     io,
 /// };
 ///
-/// let mesh: MiniMesh<FaceDelegateMesh> = io::read_file("foo.ply")?;
+/// let mesh: MiniMesh<SharedVertexMesh> = io::read_file("foo.ply")?;
 /// # Ok::<_, io::Error>(())
 /// ```
 pub fn read_file<SinkT, P>(path: P) -> Result<SinkT, Error>
@@ -348,12 +348,12 @@ where
 /// ```no_run
 /// use lox::{
 ///     prelude::*,
-///     ds::FaceDelegateMesh,
+///     ds::SharedVertexMesh,
 ///     fat::MiniMesh,
 ///     io,
 /// };
 ///
-/// let dummy = MiniMesh::<FaceDelegateMesh>::empty();
+/// let dummy = MiniMesh::<SharedVertexMesh>::empty();
 /// io::write_file(&dummy, "foo.ply")?;
 /// # Ok::<_, io::Error>(())
 /// ```

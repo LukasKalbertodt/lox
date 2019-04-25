@@ -11,12 +11,12 @@
 #[macro_use]
 mod tests;
 
-mod face_delegate;
+// mod face_delegate;
 pub mod half_edge;
 mod shared_vertex;
 
 pub use self::{
-    face_delegate::FaceDelegateMesh,
+    // face_delegate::FaceDelegateMesh,
     half_edge::HalfEdgeMesh,
     shared_vertex::SharedVertexMesh,
 };
