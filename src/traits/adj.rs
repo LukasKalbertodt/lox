@@ -9,8 +9,8 @@
 // - define some collection traits (`FullConnectivity`) or so
 
 use crate::{
-    handle::{EdgeHandle, FaceHandle, VertexHandle},
-    util::{DiList, DynList, TriList},
+    handle::{Handle, EdgeHandle, FaceHandle, VertexHandle},
+    util::{DiList, TriList},
 };
 use super::{TriMesh, Mesh, EdgeMesh};
 
@@ -27,12 +27,15 @@ pub trait BasicAdj: Mesh {
     where
         Self: TriMesh;
 
+    type VerticesAroundFaceIterFamily: for<'a> HandleIterFamily<'a, VertexHandle>;
+
     /// Returns the vertices around the given face in front-face CCW order.
     ///
     /// If you are dealing with a triangular mesh, rather use
     /// [`vertices_around_triangle`][BasicAdj::vertices_around_triangle]
     /// instead as it's usually faster.
-    fn vertices_around_face(&self, face: FaceHandle) -> DynList<'_, VertexHandle>;
+    fn vertices_around_face(&self, face: FaceHandle)
+        -> <Self::VerticesAroundFaceIterFamily as HandleIterFamily<'_, VertexHandle>>::Iter;
 
     /// Checks whether the given vertex is adjacent to the given face.
     fn is_vertex_around_face(&self, vertex: VertexHandle, face: FaceHandle) -> bool {
@@ -55,22 +58,31 @@ pub trait FullAdj: BasicAdj {
     where
         Self: TriMesh;
 
+    type FacesAroundFaceIterFamily: for<'a> HandleIterFamily<'a, FaceHandle>;
+
     /// Returns the faces around the given face in front-face CCW order.
     ///
     /// If you are dealing with a triangular mesh, rather use
     /// [`faces_around_triangle`][FullAdj::faces_around_triangle] instead as
     /// it's usually faster.
-    fn faces_around_face(&self, face: FaceHandle) -> DynList<'_, FaceHandle>;
+    fn faces_around_face(&self, face: FaceHandle)
+        -> <Self::FacesAroundFaceIterFamily as HandleIterFamily<'_, FaceHandle>>::Iter;
+
+    type FacesAroundVertexIterFamily: for<'a> HandleIterFamily<'a, FaceHandle>;
 
     /// Returns a list of all faces adjacent to the given vertex.
     ///
     /// The faces are listed in front-face CW (clockwise) order.
-    fn faces_around_vertex(&self, vertex: VertexHandle) -> DynList<'_, FaceHandle>;
+    fn faces_around_vertex(&self, vertex: VertexHandle)
+        -> <Self::FacesAroundVertexIterFamily as HandleIterFamily<'_, FaceHandle>>::Iter;
+
+    type VerticesAroundVertexIterFamily: for<'a> HandleIterFamily<'a, VertexHandle>;
 
     /// Returns a list of all faces adjacent to the given vertex.
     ///
     /// The faces are listed in front-face CW (clockwise) order.
-    fn vertices_around_vertex(&self, vertex: VertexHandle) -> DynList<'_, VertexHandle>;
+    fn vertices_around_vertex(&self, vertex: VertexHandle)
+        -> <Self::VerticesAroundVertexIterFamily as HandleIterFamily<'_, VertexHandle>>::Iter;
 
 
     /// Checks if the given face lies on a boundary. A face is a boundary face
@@ -128,8 +140,13 @@ pub trait EdgeAdj: FullAdj + EdgeMesh {
     fn faces_of_edge(&self, edge: EdgeHandle) -> DiList<FaceHandle>;
     // TODO
 
-    fn edges_around_vertex(&self, vertex: VertexHandle) -> DynList<'_, EdgeHandle>;
-    fn edges_around_face(&self, face: FaceHandle) -> DynList<'_, EdgeHandle>;
+    type EdgesAroundVertexIterFamily: for<'a> HandleIterFamily<'a, EdgeHandle>;
+    fn edges_around_vertex(&self, vertex: VertexHandle)
+        -> <Self::EdgesAroundVertexIterFamily as HandleIterFamily<'_, EdgeHandle>>::Iter;
+
+    type EdgesAroundFaceIterFamily: for<'a> HandleIterFamily<'a, EdgeHandle>;
+    fn edges_around_face(&self, face: FaceHandle)
+        -> <Self::EdgesAroundFaceIterFamily as HandleIterFamily<'_, EdgeHandle>>::Iter;
     fn edges_around_triangle(&self, face: FaceHandle) -> [EdgeHandle; 3]
     where
         Self: TriMesh;
@@ -142,4 +159,27 @@ pub trait EdgeAdj: FullAdj + EdgeMesh {
         self.edges_around_vertex(a)
             .find(|&e| self.endpoints_of_edge(e).contains(&b))
     }
+}
+
+/// Abstracts over families of iterators over handles.
+///
+/// This is just part of a workaround. The problem: in these adjacency traits,
+/// we need to return iterators. But obviously, every mesh should be able to
+/// return its own iterator implementation. But, the iterator type is dependent
+/// on the `self` lifetime. Since `impl Trait` doesn't work in traits yet and
+/// since GATs haven't landed yet, we only have two possibilities:
+/// - Use `Box<dyn Iterator + '_>`: one allocation and each `next()´ call is
+///   virtual
+/// - This ugly hack
+///
+/// The `Box` version was implemented before for its simplicity. However, by
+/// using the ugly hack instead, we improve performance notably (around 20% in
+/// the sqrt3 algorithm). Once `impl Trait` in traits and/or GATs land, we can
+/// have the same speed but without all this noisy nonsense.
+///
+/// To understand how this workaround works, please see my [blog
+/// post](http://tiny.cc/streaming-iterator-gats) on that topic. It's the
+/// workaround 2 from that post.
+pub trait HandleIterFamily<'a, H: Handle> {
+    type Iter: Iterator<Item = H>;
 }

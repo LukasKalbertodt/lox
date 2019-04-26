@@ -8,6 +8,8 @@ use crate::{
     handle::hsize,
     map::VecMap,
     traits::marker::TriFaces,
+    traits::adj::HandleIterFamily,
+    util::TriArrayIntoIter,
 };
 
 
@@ -95,9 +97,19 @@ impl BasicAdj for SharedVertexMesh {
         self.faces[face]
     }
 
-    fn vertices_around_face(&self, face: FaceHandle) -> DynList<'_, VertexHandle> {
-        Box::new(self.vertices_around_triangle(face).owned_iter())
+    type VerticesAroundFaceIterFamily = FaceToVertexIterFam;
+
+    fn vertices_around_face(&self, face: FaceHandle)
+        -> <Self::VerticesAroundFaceIterFamily as HandleIterFamily<'_, VertexHandle>>::Iter
+    {
+        self.vertices_around_triangle(face).owned_iter()
     }
+}
+
+#[allow(missing_debug_implementations)]
+pub struct FaceToVertexIterFam(!);
+impl<'a> HandleIterFamily<'a, VertexHandle> for FaceToVertexIterFam {
+    type Iter = TriArrayIntoIter<VertexHandle>;
 }
 
 impl SupportsMultiBlade for SharedVertexMesh {}

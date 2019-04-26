@@ -25,6 +25,7 @@ use crate::{
     map::VecMap,
     mesh::SplitEdgeWithFacesResult,
     traits::marker::{TriFaces, FaceKind, PolyFaces},
+    traits::adj::{HandleIterFamily},
     util::{DiList, TriList},
 };
 
@@ -46,7 +47,7 @@ const NON_MANIFOLD_EDGE_ERR: &str =
 /// To configure a half edge mesh, either use one of the existing types
 /// implementing this trait, or create your own (preferably inhabitable) type
 /// and implement this trait.
-pub trait Config {
+pub trait Config: 'static {
     /// What kind of faces are allowed in this half edge mesh.
     ///
     /// The data structure supports poly meshes, but if you only need triangle
@@ -1418,6 +1419,7 @@ impl SupportsMultiBlade for HalfEdgeMesh {}
 
 /// An iterator that circulates around a vertex in clockwise order, yielding
 /// the outgoing halfedge.
+#[derive(Debug)]
 enum CwVertexCirculator<'a, C: Config> {
     Empty,
     NonEmpty {
@@ -1458,6 +1460,7 @@ impl<C: Config> Iterator for CwVertexCirculator<'_, C> {
 
 /// An iterator that circulates around a face in counter-clockwise order,
 /// yielding the inner halfedge.
+#[derive(Debug)]
 enum FaceCirculator<'a, C: Config> {
     Empty,
     NonEmpty {
@@ -1513,11 +1516,15 @@ impl<C: Config> BasicAdj for HalfEdgeMesh<C> {
         [he0, he1, he2].map(|he| *self[he].target)
     }
 
-    fn vertices_around_face(&self, face: FaceHandle) -> DynList<'_, VertexHandle> {
-        Box::new(FaceToVertexIter {
+    type VerticesAroundFaceIterFamily = FaceToVertexIterFam<C>;
+
+    fn vertices_around_face(&self, face: FaceHandle)
+        -> <Self::VerticesAroundFaceIterFamily as HandleIterFamily<'_, VertexHandle>>::Iter
+    {
+        FaceToVertexIter {
             it: self.circulate_around_face(self.check_face(face)),
             mesh: self,
-        })
+        }
     }
 }
 
@@ -1536,31 +1543,40 @@ impl<C: Config> FullAdj for HalfEdgeMesh<C> {
         )
     }
 
-    fn faces_around_face(&self, face: FaceHandle) -> DynList<'_, FaceHandle> {
-        Box::new(FaceToFaceIter {
+
+    type FacesAroundFaceIterFamily = FaceToFaceIterFam<C>;
+
+    fn faces_around_face(&self, face: FaceHandle)
+        -> <Self::FacesAroundFaceIterFamily as HandleIterFamily<'_, FaceHandle>>::Iter
+    {
+        FaceToFaceIter {
             it: self.circulate_around_face(self.check_face(face)),
             mesh: self,
-        })
+        }
     }
 
-    fn faces_around_vertex(
-        &self,
-        vh: VertexHandle,
-    ) -> DynList<'_, FaceHandle> {
-        Box::new(VertexToFaceIter {
+
+    type FacesAroundVertexIterFamily = VertexToFaceIterFam<C>;
+
+    fn faces_around_vertex(&self, vh: VertexHandle)
+        -> <Self::FacesAroundVertexIterFamily as HandleIterFamily<'_, FaceHandle>>::Iter
+    {
+        VertexToFaceIter {
             it: self.circulate_around_vertex(self.check_vertex(vh)),
             mesh: self,
-        })
+        }
     }
 
-    fn vertices_around_vertex(
-        &self,
-        vh: VertexHandle,
-    ) -> DynList<'_, VertexHandle> {
-        Box::new(VertexToVertexIter {
+
+    type VerticesAroundVertexIterFamily = VertexToVertexIterFam<C>;
+
+    fn vertices_around_vertex(&self, vh: VertexHandle)
+        -> <Self::VerticesAroundVertexIterFamily as HandleIterFamily<'_, VertexHandle>>::Iter
+    {
+        VertexToVertexIter {
             it: self.circulate_around_vertex(self.check_vertex(vh)),
             mesh: self,
-        })
+        }
     }
 
     fn is_boundary_face(&self, face: FaceHandle) -> bool {
@@ -1619,16 +1635,22 @@ impl<C: Config> EdgeAdj for HalfEdgeMesh<C> {
         )
     }
 
-    fn edges_around_vertex(&self, vertex: VertexHandle) -> DynList<'_, EdgeHandle> {
-        Box::new(VertexToEdgeIter {
+    type EdgesAroundVertexIterFamily = VertexToEdgeIterFam<C>;
+    fn edges_around_vertex(&self, vertex: VertexHandle)
+        -> <Self::EdgesAroundVertexIterFamily as HandleIterFamily<'_, EdgeHandle>>::Iter
+    {
+        VertexToEdgeIter {
             it: self.circulate_around_vertex(self.check_vertex(vertex)),
-        })
+        }
     }
 
-    fn edges_around_face(&self, face: FaceHandle) -> DynList<'_, EdgeHandle> {
-        Box::new(FaceToEdgeIter {
+    type EdgesAroundFaceIterFamily = FaceToEdgeIterFam<C>;
+    fn edges_around_face(&self, face: FaceHandle)
+        -> <Self::EdgesAroundFaceIterFamily as HandleIterFamily<'_, EdgeHandle>>::Iter
+    {
+        FaceToEdgeIter {
             it: self.circulate_around_face(self.check_face(face)),
-        })
+        }
     }
 
     fn edges_around_triangle(&self, face: FaceHandle) -> [EdgeHandle; 3]
@@ -1658,8 +1680,15 @@ impl<C: Config> EdgeAdj for HalfEdgeMesh<C> {
     }
 }
 
+#[allow(missing_debug_implementations)]
+pub struct FaceToFaceIterFam<C: Config>(!, PhantomData<C>);
+impl<'a, C: Config> HandleIterFamily<'a, FaceHandle> for FaceToFaceIterFam<C> {
+    type Iter = FaceToFaceIter<'a, C>;
+}
+
 /// Iterator over all faces of a face. Is returned by `faces_around_face`.
-struct FaceToFaceIter<'a, C: Config> {
+#[derive(Debug)]
+pub struct FaceToFaceIter<'a, C: Config> {
     it: FaceCirculator<'a, C>,
     mesh: &'a HalfEdgeMesh<C>,
 }
@@ -1677,8 +1706,15 @@ impl<C: Config> Iterator for FaceToFaceIter<'_, C> {
     }
 }
 
+#[allow(missing_debug_implementations)]
+pub struct FaceToEdgeIterFam<C: Config>(!, PhantomData<C>);
+impl<'a, C: Config> HandleIterFamily<'a, EdgeHandle> for FaceToEdgeIterFam<C> {
+    type Iter = FaceToEdgeIter<'a, C>;
+}
+
 /// Iterator over all edges of a face. Is returned by `edges_around_face`.
-struct FaceToEdgeIter<'a, C: Config> {
+#[derive(Debug)]
+pub struct FaceToEdgeIter<'a, C: Config> {
     it: FaceCirculator<'a, C>,
 }
 
@@ -1690,9 +1726,16 @@ impl<C: Config> Iterator for FaceToEdgeIter<'_, C> {
     }
 }
 
+#[allow(missing_debug_implementations)]
+pub struct FaceToVertexIterFam<C: Config>(!, PhantomData<C>);
+impl<'a, C: Config> HandleIterFamily<'a, VertexHandle> for FaceToVertexIterFam<C> {
+    type Iter = FaceToVertexIter<'a, C>;
+}
+
 /// Iterator over all neighbor vertices of a vertex. Is returned by
 /// `vertices_around_vertex`.
-struct FaceToVertexIter<'a, C: Config> {
+#[derive(Debug)]
+pub struct FaceToVertexIter<'a, C: Config> {
     it: FaceCirculator<'a, C>,
     mesh: &'a HalfEdgeMesh<C>,
 }
@@ -1705,10 +1748,15 @@ impl<C: Config> Iterator for FaceToVertexIter<'_, C> {
     }
 }
 
-
+#[allow(missing_debug_implementations)]
+pub struct VertexToFaceIterFam<C: Config>(!, PhantomData<C>);
+impl<'a, C: Config> HandleIterFamily<'a, FaceHandle> for VertexToFaceIterFam<C> {
+    type Iter = VertexToFaceIter<'a, C>;
+}
 
 /// Iterator over all faces of a vertex. Is returned by `faces_around_vertex`.
-struct VertexToFaceIter<'a, C: Config> {
+#[derive(Debug)]
+pub struct VertexToFaceIter<'a, C: Config> {
     it: CwVertexCirculator<'a, C>,
     mesh: &'a HalfEdgeMesh<C>,
 }
@@ -1726,9 +1774,16 @@ impl<C: Config> Iterator for VertexToFaceIter<'_, C> {
     }
 }
 
+#[allow(missing_debug_implementations)]
+pub struct VertexToVertexIterFam<C: Config>(!, PhantomData<C>);
+impl<'a, C: Config> HandleIterFamily<'a, VertexHandle> for VertexToVertexIterFam<C> {
+    type Iter = VertexToVertexIter<'a, C>;
+}
+
 /// Iterator over all neighbor vertices of a vertex. Is returned by
 /// `vertices_around_vertex`.
-struct VertexToVertexIter<'a, C: Config> {
+#[derive(Debug)]
+pub struct VertexToVertexIter<'a, C: Config> {
     it: CwVertexCirculator<'a, C>,
     mesh: &'a HalfEdgeMesh<C>,
 }
@@ -1741,8 +1796,16 @@ impl<C: Config> Iterator for VertexToVertexIter<'_, C> {
     }
 }
 
+
+#[allow(missing_debug_implementations)]
+pub struct VertexToEdgeIterFam<C: Config>(!, PhantomData<C>);
+impl<'a, C: Config> HandleIterFamily<'a, EdgeHandle> for VertexToEdgeIterFam<C> {
+    type Iter = VertexToEdgeIter<'a, C>;
+}
+
 /// Iterator over all edges of a vertex. Is returned by `edges_around_vertex`.
-struct VertexToEdgeIter<'a, C: Config> {
+#[derive(Debug)]
+pub struct VertexToEdgeIter<'a, C: Config> {
     it: CwVertexCirculator<'a, C>,
 }
 
