@@ -268,7 +268,7 @@ impl<H: Handle, T> FromIterator<(H, T)> for VecMap<H, T> {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Handles<'map, H: Handle, T> {
     iter: Indices<'map, T, DefaultCore<T>>,
     _dummy: PhantomData<H>,
@@ -281,7 +281,7 @@ impl<'map, H: Handle, T> Iterator for Handles<'map, H, T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Values<'map, T> {
     iter: stable_vec::Iter<'map, T, DefaultCore<T>>,
 }
