@@ -8,6 +8,7 @@ use crate::{
     refs::VertexRef,
 };
 
+pub mod bounding;
 pub mod subdivision;
 
 

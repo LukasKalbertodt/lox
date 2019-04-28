@@ -1,5 +1,3 @@
-use std::fmt;
-
 use cgmath::{
     Point3,
     prelude::*,
@@ -8,7 +6,6 @@ use cgmath::{
 use crate::{
     cast,
     handle::hsize,
-    math::PrimitiveFloat,
     prop::Pos3Like,
 };
 
@@ -230,98 +227,6 @@ pub fn downcast_as<I: 'static, O: 'static>(input: I) -> Option<O> {
     DowncastAs::<O>::downcast_as(input)
 }
 
-/// An axis aligned bounding box.
-pub struct BoundingBox<F: PrimitiveFloat> {
-    x_range: [F; 2],
-    y_range: [F; 2],
-    z_range: [F; 2],
-}
-
-impl<F: PrimitiveFloat> BoundingBox<F> {
-    /// Creates an invalid bounding box: all lower bounds are ∞, all upper
-    /// bounds are -∞. Once you added a single point, the bounding box will be
-    /// valid.
-    pub fn new() -> Self {
-        Self {
-            x_range: [F::infinity(), F::neg_infinity()],
-            y_range: [F::infinity(), F::neg_infinity()],
-            z_range: [F::infinity(), F::neg_infinity()],
-        }
-    }
-
-    /// Creates a bounding box around all points of the given iterator. If the
-    /// iterator is empty, an invalid bounding box is returned (see
-    /// [`BoundingBox::new`]).
-    pub fn around<I>(iter: I) -> Self
-    where
-        I: IntoIterator,
-        I::Item: Pos3Like<Scalar = F>,
-    {
-        let mut out = Self::new();
-        for pos in iter {
-            out.add_point(pos);
-        }
-        out
-    }
-
-    /// Returns the `[lower, upper]` limits for the x coordinate.
-    pub fn x(&self) -> [F; 2] {
-        self.x_range
-    }
-
-    /// Returns the `[lower, upper]` limits for the y coordinate.
-    pub fn y(&self) -> [F; 2] {
-        self.y_range
-    }
-
-    /// Returns the `[lower, upper]` limits for the z coordinate.
-    pub fn z(&self) -> [F; 2] {
-        self.z_range
-    }
-
-    /// Adds a point to the bounding box, enlarging it if the point lies
-    /// outside of the box.
-    pub fn add_point<P: Pos3Like<Scalar = F>>(&mut self, p: P) {
-        fn min<F: PartialOrd>(state: &mut F, new: F) {
-            if new < *state {
-                *state = new;
-            }
-        }
-        fn max<F: PartialOrd>(state: &mut F, new: F) {
-            if new > *state {
-                *state = new;
-            }
-        }
-
-
-        min(&mut self.x_range[0], p.x());
-        max(&mut self.x_range[1], p.x());
-        min(&mut self.y_range[0], p.y());
-        max(&mut self.y_range[1], p.y());
-        min(&mut self.z_range[0], p.z());
-        max(&mut self.z_range[1], p.z());
-    }
-
-    /// Returns `true` if all bounds are finite.
-    pub fn is_valid(&self) -> bool {
-        self.x_range[0].is_finite()
-            && self.x_range[1].is_finite()
-            && self.y_range[0].is_finite()
-            && self.y_range[1].is_finite()
-            && self.z_range[0].is_finite()
-            && self.z_range[1].is_finite()
-    }
-}
-
-impl<F: PrimitiveFloat> fmt::Debug for BoundingBox<F> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("BoundingBox")
-            .field("x", &(self.x_range[0]..self.x_range[1]))
-            .field("y", &(self.y_range[0]..self.y_range[1]))
-            .field("z", &(self.z_range[0]..self.z_range[1]))
-            .finish()
-    }
-}
 
 
 #[cfg(test)]
