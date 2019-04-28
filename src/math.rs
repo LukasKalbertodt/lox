@@ -47,7 +47,12 @@ pub trait PrimitiveFloat:
     + BaseFloat
     + LosslessCastFrom<f32>
     + CastFromIntegers<cast::AllowRounding>
-{}
+{
+    /// Creates `Self` from the given `f32`. Uses `cast::lossless` internally.
+    fn from_f32(v: f32) -> Self {
+        cast::lossless(v)
+    }
+}
 
 impl<T> PrimitiveFloat for T
 where
