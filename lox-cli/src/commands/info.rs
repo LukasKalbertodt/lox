@@ -8,6 +8,7 @@ use failure::{Error, ResultExt};
 use term_painter::{Color, ToStyle, Style, Painted};
 use lox::{
     prelude::*,
+    algo::bounding::BoundingBox,
     fat::AnyMesh,
     io::{
         stl, ply,
@@ -35,9 +36,11 @@ pub fn run(global_args: &GlobalArgs, args: &InfoArgs) -> Result<(), Error> {
         _ => unimplemented!(),
     };
 
+    let read_only_header = args.header_only
+        || (header_is_sufficient && !args.read_body && !args.analyze);
 
     // ===== Obtaining the information =======================================
-    let info = if args.header_only || (header_is_sufficient && !args.read_body) {
+    let (info, mesh) = if read_only_header {
         if !args.header_only && header_is_sufficient {
             info!(
                 "Note: since (for {} files) all information is already contained in the \
@@ -48,9 +51,11 @@ pub fn run(global_args: &GlobalArgs, args: &InfoArgs) -> Result<(), Error> {
             );
         }
 
-        Info::from_header(format, file, global_args, args)?
+        let info = Info::from_header(format, file, global_args, args)?;
+        (info, None)
     } else {
-        Info::from_body(format, file, global_args, args)?
+        let (info, mesh) = Info::from_body(format, file, global_args, args)?;
+        (info, Some(mesh))
     };
 
 
@@ -69,6 +74,31 @@ pub fn run(global_args: &GlobalArgs, args: &InfoArgs) -> Result<(), Error> {
     println!();
     info.mesh.print(global_args);
     println!();
+
+
+    // Printing additional information which require analyzing the mesh
+    if args.analyze {
+        // We can unwrap because we always read the body in the `analyze` case.
+        let mesh = mesh.as_ref().unwrap();
+
+        println!("Additional information:");
+
+        if let Some(vertex_positions) = &mesh.vertex_positions {
+            let vertex_positions = mesh.mesh.vertex_handles()
+                .map(|vh| vertex_positions.get_casted_lossy::<f64>(vh).unwrap());
+
+            print!(" - Bounding box");
+            let bb = BoundingBox::around(vertex_positions.clone());
+            let center: [_; 3] = bb.center().into();
+            println!(" (center: {:.3?})", center);
+            println!("    - x: {:.3}..{:.3}", bb.x()[0], bb.x()[1]);
+            println!("    - y: {:.3}..{:.3}", bb.y()[0], bb.y()[1]);
+            println!("    - z: {:.3}..{:.3}", bb.z()[0], bb.z()[1]);
+        }
+
+
+        println!();
+    }
 
     Ok(())
 }
@@ -207,7 +237,7 @@ impl Info {
         file: File,
         _global_args: &GlobalArgs,
         args: &InfoArgs,
-    ) -> Result<Self, Error> {
+    ) -> Result<(Self, AnyMesh), Error> {
         let (reader, encoding) = reader_and_encoding(format, file)?;
 
         let mut mesh = AnyMesh::empty();
@@ -216,11 +246,13 @@ impl Info {
             mesh.finish()?;
         });
 
-        Ok(Self {
+        let info = Self {
             format,
             encoding,
             mesh: MeshInfo::about_mesh(&mesh),
-        })
+        };
+
+        Ok((info, mesh))
     }
 }
 

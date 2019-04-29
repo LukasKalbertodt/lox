@@ -7,6 +7,17 @@ use std::{
 
 use term_painter::{Color, Style, ToStyle};
 
+// Printing should flush by default...
+macro_rules! print {
+    ($($t:tt)*) => {{
+        use std::io::{self, Write};
+
+        std::print!($($t)*);
+        // If an error occurs here... oh well.
+        let _ = io::stdout().flush();
+    }}
+}
+
 macro_rules! print_msg {
     ($kind:ident: $icon:literal => $fmt:literal $($args:tt)*) => {{
         use crate::ui::MsgKind;

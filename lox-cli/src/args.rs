@@ -148,6 +148,16 @@ pub struct InfoArgs {
     )]
     pub read_body: bool,
 
+    /// If specified, the mesh is analyzed for additional properties (Is the
+    /// mesh closed?, Bounding box of all vertice, ...). This requires reading
+    /// the file body, so this implies `--read-body`.
+    #[structopt(
+        short = "-a",
+        long = "--analyze",
+        conflicts_with = "--header-only"
+    )]
+    pub analyze: bool,
+
     /// Path to the mesh file.
     pub file: String,
 
