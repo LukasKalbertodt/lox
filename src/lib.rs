@@ -82,14 +82,20 @@ pub use lox_macros::MemSource;
 // Sadly, rustdoc is a bit buggy when it comes to reexporting proc macros. So
 // when rustdoc runs, we use a dummy macro. When the crate is compiled as
 // usual, we will reexport the proc macro. TODO: check if fixed
-#[cfg(not(rustdoc))]
 pub use lox_macros::mesh as mesh;
 
 /// Convenience macro to quickly create a small mesh.
 ///
+/// (This is just a dummy macro to add documentation to the actual proc-macro
+/// reexported from `lox-macros`. See [#58700][i58700] and [#58696][i58696] for
+/// more information.)
+///
 /// **Note about unstable features**: this proc macro needs to be invoked in
 /// expression context, which is still unstable. So your crate needs to enable
 /// the `proc_macro_hygiene` feature for this to work.
+///
+/// [i58700]: https://github.com/rust-lang/rust/issues/58700
+/// [i58696]: https://github.com/rust-lang/rust/issues/58696
 ///
 /// # Examples
 ///
@@ -130,7 +136,7 @@ pub use lox_macros::mesh as mesh;
 /// For each property you add in those parenthesis, the macro returns an
 /// additional property map. The full return value is:
 ///
-/// ```ignore
+/// ```text
 /// (mesh, /* vertex property maps */, /* face property maps*/)
 /// ```
 ///
@@ -188,7 +194,7 @@ pub use lox_macros::mesh as mesh;
 /// ```
 #[cfg(rustdoc)]
 #[macro_export]
-macro_rules! mesh {
+macro_rules! mesh_macro {
     // The real implementation is in `lox_macros` and it's reexported above.
     (/* proc macro */) => ( /* proc macro */ )
 }

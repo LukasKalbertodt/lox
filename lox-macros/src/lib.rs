@@ -16,6 +16,9 @@ mod derives;
 mod mesh;
 
 
+/// See [`lox::mesh_macro`][dummy] for documentation.
+///
+/// [dummy]: ../lox/macro.mesh_macro.html
 #[proc_macro]
 pub fn mesh(input: TokenStream) -> TokenStream {
     use crate::mesh::MeshInput;
