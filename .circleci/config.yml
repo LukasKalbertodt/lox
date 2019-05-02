@@ -3,7 +3,7 @@ version: 2.1
 executors:
   lox-ci:
     docker:
-      - image: lukaskalbertodt/lox-ci:0.2
+      - image: lukaskalbertodt/lox-ci:2019-05-01
         environment:
           RUSTFLAGS: --deny warnings
     working_directory: /repo
