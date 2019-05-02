@@ -656,12 +656,25 @@ macro_rules! gen_binary_block {
             fn add_slice<P: PlyScalar>(&mut self, s: &mut [P]) -> Result<(), Error> {
                 P::to_endianness::<$endianness>(s);
 
-                // This unsafe transmute is fine, because
-                let bytes = unsafe {
-                    let len = s.len() * mem::size_of::<P>();
-                    let ptr = s.as_ptr() as *const u8;
-                    slice::from_raw_parts(ptr, len)
-                };
+                // TODO: revisit this unsafe part when unsafe code guidelines
+                // have been published. I'm fairly sure all of this is safe. At
+                // least the function `as_byte_slice` in isolation looks safe,
+                // since all types that implement `PlyScalar` can be transmuted
+                // safely. However, it still worries me that at the bottom
+                // `bytes` and `s` both refer to the same data, once mutably,
+                // once immutably. Hopefully, the fact that `s` is marked as
+                // borrowed, is sufficient to make this OK.
+
+                #[inline(always)]
+                fn as_byte_slice<P: PlyScalar>(input: &[P]) -> &[u8] {
+                    unsafe {
+                        let len = input.len() * mem::size_of::<P>();
+                        let ptr = input.as_ptr() as *const u8;
+                        slice::from_raw_parts(ptr, len)
+                    }
+                }
+
+                let bytes = as_byte_slice(&*s);
                 self.writer.write_all(bytes).map_err(|e| e.into())
             }
 

@@ -65,7 +65,9 @@ pub trait Serializer {
     fn add<P: PlyScalar>(&mut self, v: P) -> Result<(), Error>;
 
     /// Encode a slice of values into the serializer. If you have multiple
-    /// values of the same type, use this function to improve performance.
+    /// values of the same type, use this function to improve performance. The
+    /// slice is a mutable slice because the method implementation might want
+    /// to mutate it without creating a copy (e.g. changing endianess).
     fn add_slice<P: PlyScalar>(&mut self, s: &mut [P]) -> Result<(), Error> {
         for x in s {
             self.add(*x)?;
