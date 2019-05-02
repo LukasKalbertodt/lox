@@ -76,7 +76,7 @@ impl<H: Handle + Hash, T> PropStore<H> for HashMap<H, T> {
     }
 
     fn handles<'a>(&'a self) -> Box<dyn Iterator<Item = H> + 'a> {
-        Box::new(self.0.keys().cloned())
+        Box::new(self.0.keys().copied())
     }
 }
 

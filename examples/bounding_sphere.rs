@@ -28,11 +28,11 @@ fn main() -> Result<(), Error> {
         panic!("The mesh is empty!");
     }
 
-    let bounding_sphere = algo::bounding::ritter_sphere(vertex_positions.values().cloned());
+    let bounding_sphere = algo::bounding::ritter_sphere(vertex_positions.values().copied());
     println!("Ritter: {:#?}", bounding_sphere);
     write_sphere(&bounding_sphere, &input_file, "ritter")?;
 
-    let bounding_sphere = algo::bounding::fast_sphere(vertex_positions.values().cloned());
+    let bounding_sphere = algo::bounding::fast_sphere(vertex_positions.values().copied());
     println!("Fast: {:#?}", bounding_sphere);
     write_sphere(&bounding_sphere, &input_file, "fast")?;
 

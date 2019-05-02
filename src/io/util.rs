@@ -487,7 +487,7 @@ impl<H: Handle> IndexHandleMap<H> {
                 }
             }
             IndexHandleMap::Arbitrary { map } => {
-                map.get(index).cloned()
+                map.get(index).copied()
             }
         }
     }

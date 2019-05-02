@@ -55,12 +55,12 @@ impl RawSphereSource {
 
 impl RawSource for &RawSphereSource {
     fn serialize_into<S: Serializer>(self, mut ser: S) -> Result<(), Error> {
-        for mut slice in self.vertex_data.iter().cloned() {
+        for mut slice in self.vertex_data.iter().copied() {
             ser.add_slice(&mut slice)?;
             ser.end_element()?;
         }
 
-        for mut slice in self.face_data.iter().cloned() {
+        for mut slice in self.face_data.iter().copied() {
             ser.add::<u8>(3)?;
             ser.add_slice(&mut slice)?;
             ser.end_element()?;
@@ -104,12 +104,12 @@ impl RawSphereVNormalsSource {
 
 impl RawSource for &RawSphereVNormalsSource {
     fn serialize_into<S: Serializer>(self, mut ser: S) -> Result<(), Error> {
-        for mut slice in self.vertex_data.iter().cloned() {
+        for mut slice in self.vertex_data.iter().copied() {
             ser.add_slice(&mut slice)?;
             ser.end_element()?;
         }
 
-        for mut slice in self.face_data.iter().cloned() {
+        for mut slice in self.face_data.iter().copied() {
             ser.add::<u8>(3)?;
             ser.add_slice(&mut slice)?;
             ser.end_element()?;

@@ -278,7 +278,7 @@ where
                 // Decide what edge we need to split next.
                 let other_edge = res.replacement_edges
                     .iter()
-                    .cloned()
+                    .copied()
                     .find(|&new_edge| it.mesh().endpoints_of_edge(new_edge).contains(&rh))
                     .unwrap();
 
