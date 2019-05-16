@@ -160,72 +160,10 @@ impl<C: Config> FullAdj for DirectedEdgeMesh<C> {
 }
 
 
-// impl<C: Config> EdgeAdj for DirectedEdgeMesh<C> {
-//     fn endpoints_of_edge(&self, edge: EdgeHandle) -> [VertexHandle; 2] {
-//         let a = self.checked_half_of(edge);
-//         let b = a.twin();
-//         [*self[a].target, *self[b].target]
-//     }
 
-//     fn faces_of_edge(&self, edge: EdgeHandle) -> DiList<FaceHandle> {
-//         let a = self.checked_half_of(edge);
-//         let b = a.twin();
-//         DiList::from_options(
-//             self[a].face.to_option().map(|f| *f),
-//             self[b].face.to_option().map(|f| *f),
-//         )
-//     }
-
-//     type EdgesAroundVertexIterFamily = VertexToEdgeIterFam<C>;
-//     fn edges_around_vertex(&self, vertex: VertexHandle)
-//         -> <Self::EdgesAroundVertexIterFamily as HandleIterFamily<'_, EdgeHandle>>::Iter
-//     {
-//         VertexToEdgeIter {
-//             it: self.circulate_around_vertex(self.check_vertex(vertex)),
-//         }
-//     }
-
-//     type EdgesAroundFaceIterFamily = FaceToEdgeIterFam<C>;
-//     fn edges_around_face(&self, face: FaceHandle)
-//         -> <Self::EdgesAroundFaceIterFamily as HandleIterFamily<'_, EdgeHandle>>::Iter
-//     {
-//         FaceToEdgeIter {
-//             it: self.circulate_around_face(self.check_face(face)),
-//         }
-//     }
-
-//     fn edges_around_triangle(&self, face: FaceHandle) -> [EdgeHandle; 3]
-//     where
-//         Self: TriMesh
-//     {
-//         let face = self.check_face(face);
-//         let he0 = self[face].edge;
-//         let he1 = self[he0].next;
-//         let he2 = self[he1].next;
-
-//         [he0, he1, he2].map(|he| he.full_edge())
-//     }
-
-//     fn is_boundary_edge(&self, edge: EdgeHandle) -> bool {
-//         let he = self.checked_half_of(edge);
-//         self[he].face.is_none() || self[he.twin()].face.is_none()
-//     }
-
-//     fn edge_between_vertices(&self, a: VertexHandle, b: VertexHandle) -> Option<EdgeHandle> {
-//         let a = self.check_vertex(a);
-//         let b = self.check_vertex(b);
-
-//         self.circulate_around_vertex(a)
-//             .find(|&outgoing| self[outgoing].target == b)
-//             .map(|he| he.full_edge())
-//     }
-// }
-
-
-// // ===============================================================================================
-// // ===== Iterators used by public interfaces
-// // ===============================================================================================
-
+// ===============================================================================================
+// ===== Iterators used by public interfaces
+// ===============================================================================================
 
 #[allow(missing_debug_implementations)]
 pub struct FaceToVertexIterFam(!);
@@ -238,26 +176,6 @@ pub struct FaceToFaceIterFam(!);
 impl<'a> HandleIterFamily<'a, FaceHandle> for FaceToFaceIterFam {
     type Iter = TriListIntoIter<FaceHandle>;
 }
-
-// #[allow(missing_debug_implementations)]
-// pub struct FaceToEdgeIterFam<C: Config>(!, PhantomData<C>);
-// impl<'a, C: Config> HandleIterFamily<'a, EdgeHandle> for FaceToEdgeIterFam<C> {
-//     type Iter = FaceToEdgeIter<'a, C>;
-// }
-
-// /// Iterator over all edges of a face. Is returned by `edges_around_face`.
-// #[derive(Debug)]
-// pub struct FaceToEdgeIter<'a, C: Config> {
-//     it: FaceCirculator<'a, C>,
-// }
-
-// impl<C: Config> Iterator for FaceToEdgeIter<'_, C> {
-//     type Item = EdgeHandle;
-
-//     fn next(&mut self) -> Option<Self::Item> {
-//         self.it.next().map(|inner| inner.full_edge())
-//     }
-// }
 
 #[allow(missing_debug_implementations)]
 pub struct VertexToFaceIterFam<C: Config>(!, PhantomData<C>);
@@ -370,24 +288,3 @@ impl<C: Config> Iterator for VertexToVertexIter<'_, C> {
         }
     }
 }
-
-
-// #[allow(missing_debug_implementations)]
-// pub struct VertexToEdgeIterFam<C: Config>(!, PhantomData<C>);
-// impl<'a, C: Config> HandleIterFamily<'a, EdgeHandle> for VertexToEdgeIterFam<C> {
-//     type Iter = VertexToEdgeIter<'a, C>;
-// }
-
-// /// Iterator over all edges of a vertex. Is returned by `edges_around_vertex`.
-// #[derive(Debug)]
-// pub struct VertexToEdgeIter<'a, C: Config> {
-//     it: CwVertexCirculator<'a, C>,
-// }
-
-// impl<C: Config> Iterator for VertexToEdgeIter<'_, C> {
-//     type Item = EdgeHandle;
-
-//     fn next(&mut self) -> Option<Self::Item> {
-//         self.it.next().map(|outgoing| outgoing.full_edge())
-//     }
-// }

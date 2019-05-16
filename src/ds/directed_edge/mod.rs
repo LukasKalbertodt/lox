@@ -864,3 +864,34 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         unimplemented!()
     }
 }
+
+impl<C: Config> SupportsMultiBlade for DirectedEdgeMesh<C> {}
+
+// TODO: Think about `EdgeMesh`.
+//
+// Exposing edges is pretty trecky for this data structure. First idea: use the
+// lower half edge handle as edge handle. This works fine for the most part,
+// but can go boom when the mesh is mutated:
+// - `delete_face`: the lower half edge might get deleted, while the upper
+//   remains (the full edge also logically remains in the mesh).
+// - `flip_edge`, ...: if edge pairs are changed, that's gonna be problematic.
+//
+// Several ideas to work around the problems:
+// - Be fairly restrictive about the validity of edge handles (i.e. if a face
+//   around an edge changes, the edge handle might be invalidated). Not sure if
+//   that's a viable solution. Maybe people need those handles to remain valid?
+// - Assuming a `stable-vec` implementation that retains removed elements, one
+//   could store some data inside deleted elements. For half edges, we could
+//   store the twin, even if that half edge is deleted. That way, an edge
+//   handle pointing to a removed half edge could still access the other half.
+//
+// Also, a notable disadvantage is that edge handles are not really consecutive
+// this way. One can assume that the two halves of an edge are approximately
+// created at the same time. Meaning that highest edge handle has an index
+// approximately twice the number of edges. This makes storing edge attributes
+// in arrays rather inefficient and wasteful.
+//
+// One completely different approach is to store additional data. For example,
+// a simple edge array which points to its two half edges. This would be fairly
+// memory inefficient though. Maybe there is some smart way to encode this?
+// This could of course be configured via `Config`.
