@@ -77,3 +77,30 @@ impl<H: Handle> ops::Deref for Checked<H> {
         &self.0
     }
 }
+
+pub(crate) trait TypeOrVoid<T: Copy + fmt::Debug>: Bool {
+    type Output: Copy + fmt::Debug;
+    fn new(t: T) -> Self::Output;
+}
+
+impl<B: Bool, T: Copy + fmt::Debug> TypeOrVoid<T> for B {
+    // Unreachable
+    default type Output = !;
+    default fn new(_: T) -> Self::Output {
+        unreachable!()
+    }
+}
+
+impl<T: Copy + fmt::Debug> TypeOrVoid<T> for True {
+    type Output = T;
+    fn new(t: T) -> Self::Output {
+        t
+    }
+}
+
+impl<T: Copy + fmt::Debug> TypeOrVoid<T> for False {
+    type Output = ();
+    fn new(_: T) -> Self::Output {
+        ()
+    }
+}
