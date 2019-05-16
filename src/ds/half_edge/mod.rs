@@ -1371,4 +1371,4 @@ where
     }
 }
 
-impl SupportsMultiBlade for HalfEdgeMesh {}
+impl<C: Config> SupportsMultiBlade for HalfEdgeMesh<C> {}
