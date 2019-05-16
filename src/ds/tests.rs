@@ -14,7 +14,20 @@ use crate::{
 };
 
 
-
+macro_rules! assert_panic {
+    ($($body:tt)*) => {{
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            $($body)*
+        }));
+        if let Ok(x) = res {
+            panic!(
+                "expected panic for '{}', but got '{:?}' ",
+                stringify!($($body)*),
+                x,
+            );
+        }
+    }}
+}
 /// Takes an iterator and a list of elements. Collects both into sets and
 /// compares those sets for equality via `assert_eq`.
 macro_rules! assert_eq_set {
@@ -1441,7 +1454,6 @@ macro_rules! gen_tri_mesh_tests {
 
         test_helper!(@if_item [Manifold] in [$($extra),*] => {
             #[test]
-            #[should_panic]
             fn non_manifold_triple_edge() {
                 // This creates a non-manifold mesh by connecting three faces to a
                 // single edge. This is never allowed by mesh data structures. So
@@ -1468,12 +1480,10 @@ macro_rules! gen_tri_mesh_tests {
                 m.add_triangle([va, vc, vb]);
                 m.add_triangle([va, vb, vd]);
 
-                // This should panic
-                m.add_triangle([va, vb, ve]);
+                assert_panic!(m.add_triangle([va, vb, ve]));
             }
 
             #[test]
-            #[should_panic]
             fn non_manifold_add_to_closed_fan() {
                 // This creates a non-manifold mesh by first creating a vertex
                 // (A) that has a closed fan around itself. Then we try to add
@@ -1498,8 +1508,7 @@ macro_rules! gen_tri_mesh_tests {
                 m.add_triangle([va, vc, vd]);
                 m.add_triangle([va, vd, vb]);
 
-                // This should panic
-                m.add_triangle([va, vf, ve]);
+                assert_panic!(m.add_triangle([va, vf, ve]));
             }
         });
 
