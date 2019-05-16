@@ -11,6 +11,7 @@ use std::{fmt, ops};
 
 use crate::{
     handle::{Handle, hsize},
+    traits::marker::{Bool, True, False},
 };
 
 
@@ -18,11 +19,13 @@ use crate::{
 #[macro_use]
 mod tests;
 
+pub mod directed_edge;
 // mod face_delegate;
 pub mod half_edge;
 mod shared_vertex;
 
 pub use self::{
+    directed_edge::DirectedEdgeMesh,
     // face_delegate::FaceDelegateMesh,
     half_edge::HalfEdgeMesh,
     shared_vertex::SharedVertexMesh,

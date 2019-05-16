@@ -1,3 +1,5 @@
+//! Contains internal circulators, all kinds of iterators and implementations
+//! for the adjacency traits.
 
 use std::{
     marker::PhantomData,
