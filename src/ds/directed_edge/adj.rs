@@ -127,43 +127,36 @@ impl<C: Config> FullAdj for DirectedEdgeMesh<C> {
         VertexToVertexIter::from_center(self, vh)
     }
 
-    // fn is_boundary_face(&self, face: FaceHandle) -> bool {
-    //     self.circulate_around_face(self.check_face(face))
-    //         .any(|inner| self[inner.twin()].face.is_none())
-    // }
+    fn is_boundary_face(&self, face: FaceHandle) -> bool {
+        let [a, b, c] = self.checked_half_edges_around(face);
+        self[a].is_boundary() || self[b].is_boundary() || self[c].is_boundary()
+    }
 
-    // fn is_boundary_vertex(&self, vertex: VertexHandle) -> bool {
-    //     // This half edge mesh keeps an important invariant for exactly this
-    //     // function: if a vertex is a boundary vertex, its `outgoing` half edge
-    //     // is a boundary half edge. So we can very easily check if a vertex is
-    //     // a boundary vertex.
-    //     let vertex = self.check_vertex(vertex);
-    //     match self[vertex].outgoing.to_option() {
-    //         None => true,
-    //         Some(outgoing) => self[outgoing].face.is_none(),
-    //     }
-    // }
+    fn is_boundary_vertex(&self, vertex: VertexHandle) -> bool {
+        // This directed edge mesh keeps an important invariant for exactly
+        // this function: if a vertex is a boundary vertex, its `outgoing` half
+        // edge is a boundary half edge. So we can very easily check if a
+        // vertex is a boundary vertex.
+        let vertex = self.check_vertex(vertex);
+        match self[vertex].outgoing.to_option() {
+            None => true,
+            Some(outgoing) => self[outgoing].is_boundary(),
+        }
+    }
 
-    // fn is_isolated_vertex(&self, vertex: VertexHandle) -> bool {
-    //     let vertex = self.check_vertex(vertex);
-    //     self[vertex].outgoing.is_none()
-    // }
+    fn is_isolated_vertex(&self, vertex: VertexHandle) -> bool {
+        let vertex = self.check_vertex(vertex);
+        self[vertex].outgoing.is_none()
+    }
 
-    // fn are_faces_adjacent(&self, a: FaceHandle, b: FaceHandle) -> bool {
-    //     let a = self.check_face(a);
-    //     let b = self.check_face(b);
+    fn are_faces_adjacent(&self, f: FaceHandle, g: FaceHandle) -> bool {
+        self.check_face(g);
 
-    //     self.circulate_around_face(a)
-    //         .any(|inner| self[inner.twin()].face == Opt::some(b))
-    // }
-
-    // fn are_vertices_adjacent(&self, a: VertexHandle, b: VertexHandle) -> bool {
-    //     let a = self.check_vertex(a);
-    //     let b = self.check_vertex(b);
-
-    //     self.circulate_around_vertex(a)
-    //         .any(|outgoing| self[outgoing].target == b)
-    // }
+        self.checked_half_edges_around(f)
+            .iter()
+            .filter_map(|&he| self[he].twin.as_real_twin())
+            .any(|twin| twin.face() == g)
+    }
 }
 
 

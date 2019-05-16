@@ -367,6 +367,17 @@ impl<C: Config> DirectedEdgeMesh<C> {
         }
     }
 
+    fn check_face(&self, fh: FaceHandle) {
+        let heh = HalfEdgeHandle::first_around(fh);
+        if !self.half_edges.contains_handle(heh) {
+            panic!(
+                "{:?} was passed to a directed edge mesh, but this face does not \
+                    exist in this mesh",
+                fh,
+            );
+        }
+    }
+
     /// Makes sure the given handle points to an existing element. If that's
     /// not the case, this method panics.
     fn checked_half_edges_around(&self, fh: FaceHandle) -> [Checked<HalfEdgeHandle>; 3] {
@@ -829,7 +840,7 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
 
     #[inline(never)]
     fn reserve_for_faces(&mut self, count: hsize) {
-        // We have at least three half edges per face
+        // We have three half edges per face
         self.half_edges.reserve(count * 3);
     }
 
