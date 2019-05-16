@@ -688,7 +688,123 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
                     self[vh].outgoing = Opt::some(outgoing_inner);
                 }
 
-                (Some(_incoming_outer), Some(_outgoing_outer)) => unimplemented!(),
+                // This can be easy or the ugliest case. The outer incoming and
+                // outgoing half edge both exist, meaning there are faces on
+                // either side. That means we are connecting two fan blades. If
+                // the fan blade of `incoming` is already directly after the
+                // fan blade of `outgoing` (speaking about the "circulate
+                // around vertex" order), then everything is fine.
+                //
+                //                 ?
+                //           ?           ?
+                //
+                //      <-------- (v) <--------
+                //               ^/ ^\
+                //         IF   //   \\   OF
+                //             //     \\
+                //            //   F   \\
+                //           /v         \v
+                //          ( )         ( )
+                //
+                //
+                // BUT, if that is not the case, we need to change the order of
+                // fan blades to match the "good" situation described above.
+                //
+                // Additionally, we might need to update `v.outgoing` because
+                // it might have been `incoming.twin()` which is not a boundary
+                // half edge anymore (after this method).
+                (Some(incoming_outer), Some(outgoing_outer)) => {
+                    // Find the end of the blade containing IF. If there is
+                    // only one blade, the end is `outgoing_outer`.
+                    let ib_end = {
+                        let start = self.next_he(incoming_outer);
+                        let mut e = start;
+                        while let Some(twin) = self[e].twin.as_real_twin() {
+                            e = self.next_he(twin);
+                            if e == start {
+                                panic!("{}", NON_MANIFOLD_EDGE_ERR);
+                            }
+                        }
+
+                        e
+                    };
+
+                    if self[outgoing_outer].twin.as_next_boundary_he() != Some(incoming_outer) {
+                        // Here we need to conceptually delete one fan blade
+                        // from the `next` circle around `v` and re-insert it
+                        // into the right position. We choose to "move" the fan
+                        // blade starting with `incoming_outer` (IB).
+                        //
+                        // We have to deal with four fan blades:
+                        // - IB: the blade containing `incoming_outer` (being
+                        //   its start).
+                        // - OB: the blade containing `outgoing_outer` (being
+                        //   its end)
+                        // - BIB (before incoming blade): the blade before IB
+                        // - AOB (after outgoing blade): the blade after OB
+                        //   (`outgoing_outer.twin<as next>` is its start).
+                        //
+                        // Current situation:
+                        //
+                        //       ┌────┐    ┌─────┐         ┌─────┐    ┌────┐
+                        //  +--> │ OB │ -> │ AOB │ -> ? -> │ BIB │ -> │ IB │ -> ?
+                        //  |    └────┘    └─────┘         └─────┘    └────┘    |
+                        //  +---------------------------------------------------+
+                        //
+
+                        // Find the end half edges of the blades BIB.
+                        let bib_end = self.circulate_around_vertex(vh).find(|&outgoing| {
+                            self[outgoing].twin.as_next_boundary_he() == Some(incoming_outer)
+                        }).expect("internal DEM bug: couldn't find `bib_end`");
+
+                        // Here we remove the "incoming blade" from the cycle.
+                        // Situation after this assignment:
+                        //
+                        //                                  ┌────┐
+                        //                                  │ IB │ -------+
+                        //                                  └────┘        |
+                        //                                                v
+                        //       ┌────┐    ┌─────┐         ┌─────┐
+                        //  +--> │ OB │ -> │ AOB │ -> ? -> │ BIB │ -----> ?
+                        //  |    └────┘    └─────┘         └─────┘        |
+                        //  +---------------------------------------------+
+                        //
+                        self[bib_end].twin = self[ib_end].twin;
+
+                        // Now we reinsert it again, right after the "outgoing
+                        // blade". Situation after assignment:
+                        //
+                        //
+                        //       ┌────┐
+                        //       │ IB │ ------+
+                        //       └────┘       |
+                        //                    v
+                        //       ┌────┐    ┌─────┐         ┌─────┐
+                        //  +--> │ OB │ -> │ AOB │ -> ? -> │ BIB │ -----> ?
+                        //  |    └────┘    └─────┘         └─────┘        |
+                        //  +---------------------------------------------+
+                        //
+                        self[ib_end].twin = self[outgoing_outer].twin;
+
+                        // Right now, the cycle is still a bit broken, but that
+                        // doesn't matter, because (a) the cycle will be
+                        // repaired by combining IB and OB into one blade
+                        // below, and (b) the broken cycle won't be accessed
+                        // (in this direction) before it is repaired.
+
+                        // To update `v.outgoing`, we luckily already know a
+                        // boundary outgoing half edge of `v`: it's the end of
+                        // BIB.
+                        self[vh].outgoing = Opt::some(bib_end);
+                    } else {
+                        // We actually don't need to do a lot here if the fan
+                        // blades are in the right order. The twin handles are
+                        // set below this large loop, so we only need to update
+                        // the `outgoing` handle of v, as it might have been
+                        // invalidated.
+                        self[vh].outgoing = Opt::some(ib_end);
+                    }
+                }
             }
         }
 

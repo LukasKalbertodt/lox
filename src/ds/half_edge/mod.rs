@@ -724,6 +724,9 @@ impl<C: Config> HalfEdgeMesh<C> {
                 (true, true) => {
                     // Find the end of the fan blade "IB". See below for
                     // explanation of the important fan blades.
+                    //
+                    // TODO: this should always find an edge or else the new
+                    // face would introduce a non-manifold edge. Right?
                     let ib_end_opt = self.find_incoming_he(
                         incoming,
                         |incoming| self[incoming].face.is_none(),
