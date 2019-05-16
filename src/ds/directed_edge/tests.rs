@@ -6,6 +6,6 @@ gen_tri_mesh_tests!(DirectedEdgeMesh::<DefaultConfig>: [
     BasicAdj,
     FullAdj,
     // EdgeAdj,
-    // Manifold,
+    Manifold,
     SupportsMultiBlade
 ]);

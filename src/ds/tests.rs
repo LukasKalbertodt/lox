@@ -833,6 +833,7 @@ macro_rules! gen_tri_mesh_tests {
             // ----- Add third face
             let ve = m.add_vertex();
             let fz = m.add_triangle([vd, vc, ve]);
+
             assert_faces!(m; [$($extra),*];
                 fx => [fy],     [va, vb, vc], boundary;
                 fy => [fx, fz], [va, vc, vd], boundary;

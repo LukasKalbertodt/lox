@@ -650,6 +650,8 @@ impl<C: Config> HalfEdgeMesh<C> {
                 //                       ^-- this edge are new in the cycle
                 //
                 (true, false) => {
+                    // TODO: should we rather iterate around the vertex if the
+                    // `prev` point is not stored?
                     let before_new = self.prev(incoming.twin());
                     self[before_new].next = outgoing;
 

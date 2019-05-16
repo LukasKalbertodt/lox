@@ -41,8 +41,8 @@ mod tests;
 
 // const NON_MANIFOLD_VERTEX_ERR: &str =
 //     "new face would add a non-manifold vertex (no hole found in cycle)";
-// const NON_MANIFOLD_EDGE_ERR: &str =
-//     "new face would add a non-manifold edge";
+const NON_MANIFOLD_EDGE_ERR: &str =
+    "new face would add a non-manifold edge";
 
 
 
@@ -187,6 +187,10 @@ impl EncodedTwin {
         Self(he.idx() | TWIN_MASK)
     }
 
+    fn twin(he: Checked<HalfEdgeHandle>) -> Self {
+        Self(he.idx())
+    }
+
     /// Decode it into the easier to use form.
     fn decode(&self) -> Twin {
         if self.is_real_twin() {
@@ -306,8 +310,8 @@ impl fmt::Debug for EncodedTwin {
 impl fmt::Debug for Twin {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Twin::Twin(h) => write!(f, "{:?}", h),
-            Twin::NextBoundaryHe(h) => write!(f, "NextBoundaryHe({:?})", h),
+            Twin::Twin(h) => write!(f, "Twin({:?})", h),
+            Twin::NextBoundaryHe(h) => write!(f, "NextB({:?})", h),
         }
     }
 }
@@ -337,7 +341,7 @@ impl<C: Config> fmt::Debug for HalfEdge<C> {
 
         write!(
             f,
-            "HalfEdge {{ target: {:5} twin: {:6}{}{} }}",
+            "HalfEdge {{ target: {:5} twin: {:13}{}{} }}",
             format!("{:?},", self.target),
             format!("{:?},", self.twin),
             next,
@@ -524,14 +528,6 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         let inner2 = self.half_edges.push(HalfEdge::dummy_to(vertices[0]));
         let inner_hes = [Checked(inner0), Checked(inner1), Checked(inner2)];
 
-        // // Set next and prev handles
-        // self[inner0].next = new_next_handle::<C>(inner1);
-        // self[inner0].prev = new_prev_handle::<C>(inner2);
-        // self[inner1].next = new_next_handle::<C>(inner2);
-        // self[inner1].prev = new_prev_handle::<C>(inner0);
-        // self[inner2].next = new_next_handle::<C>(inner0);
-        // self[inner2].prev = new_prev_handle::<C>(inner1);
-
 
         // Iterate over all corners of the new triangle
         for idx in 0..vertices.len() {
@@ -620,7 +616,88 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
                         self[vh].outgoing = Opt::some(outgoing_inner);
                     }
                 }
-                _ => unimplemented!(),
+
+                // The incoming half edge exists (adjacent to the face IF), but
+                // the outgoing does not. We have to find the half edge
+                // `before_new` whose `twin` handle points to `incoming_outer`.
+                // Because that `twin` handle now needs to point to
+                // `incoming_inner`. We also need to set the twin handles of
+                // `incoming_outer` and `outgoing_inner`.
+                //
+                //                      ^
+                //      ?         ?    /
+                //           ?        /  before_new
+                //                   /
+                //                  /
+                //      <-------- (v)
+                //               ^/ ^
+                //         IF   //   \
+                //             //     \
+                //            //   F   \
+                //           /v         \
+                //          ( )         ( )
+                //
+                //                 ^-- this face and
+                //             ^--     ^-- these edges are new
+                //
+                (Some(incoming_outer), None) => {
+                    // Find `before_new`
+                    let before_new = self.circulate_around_vertex(vh).find(|&outgoing| {
+                        self[outgoing].twin.as_next_boundary_he() == Some(incoming_outer)
+                    }).expect(NON_MANIFOLD_EDGE_ERR);
+
+                    // Update next boundary edge
+                    self[before_new].twin = EncodedTwin::next_boundary_he(incoming_inner);
+
+                    // Regarding the `outgoing` handle of the vertex: the only
+                    // old boundary edge that is not boundary anymore is
+                    // `incoming_outer`. But since this is an incoming edge, it
+                    // could not have been the `outgoing` one of the vertex. So
+                    // we don't need to change anything.
+                }
+
+                // The outgoing half edge exists (adjacent to the face OF), but
+                // the incoming does not. The twin handle of `outgoing_outer`
+                // points to some half edge `after_new`. `outgoing_inner.twin`
+                // needs to point to that half edge now. Additional, the two
+                // new real twin handles need to be set.
+                //
+                //            \
+                //             \   ?
+                //  after_new   \           ?
+                //               \   ?
+                //                v
+                //                (v)<---------
+                //                / ^\
+                //               /   \\  OF
+                //              /     \\
+                //             /   F   \\
+                //            v         \v
+                //          ( )         ( )
+                //
+                //                 ^-- this face and
+                //            ^--      ^-- these half edges are new
+                //
+                (None, Some(outgoing_outer)) => {
+                    // Move the boundary-next to the new half edge.
+                    self[outgoing_inner].twin = self[outgoing_outer].twin;
+
+                    // We need to update the `outgoing` handle of the vertex
+                    // here. It might have been `outgoing_outer` which is now
+                    // not a boundary edge anymore.
+                    self[vh].outgoing = Opt::some(outgoing_inner);
+                }
+
+                (Some(_incoming_outer), Some(_outgoing_outer)) => unimplemented!(),
+            }
+        }
+
+        // Now we set the twins of the outer half edges. We couldn't before,
+        // because code needed to read the old values.
+        for (&outer, &inner) in outer_hes.iter().zip(&inner_hes) {
+            if let Some(outer) = outer {
+                self[outer].twin = EncodedTwin::twin(inner);
+                self[inner].twin = EncodedTwin::twin(outer);
             }
         }
 
