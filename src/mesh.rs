@@ -11,7 +11,7 @@ use crate::{
 /// Instances of this type are returned by:
 /// - [`Mesh::vertex_handles`]
 /// - [`Mesh::face_handles`]
-/// - [`EdgeMesh::edge_handles`]
+/// - [`Mesh::edge_handles`]
 #[derive(Debug, Clone)]
 pub struct HandleIter<'a, M: Mesh + ?Sized, H: Handle> {
     current: H,
@@ -134,7 +134,7 @@ impl_handle_iter_mut!(EdgeMesh, EdgeHandle, next_edge_handle_from, last_edge_han
 /// Instances of this type are returned by:
 /// - [`Mesh::vertices`]
 /// - [`Mesh::faces`]
-/// - [`EdgeMesh::edges`]
+/// - [`Mesh::edges`]
 #[derive(Debug, Clone)]
 pub struct ElementRefIter<'a, M: Mesh + ?Sized, H: Handle> {
     handles: HandleIter<'a, M, H>,

@@ -907,6 +907,48 @@ impl<C: Config> Mesh for HalfEdgeMesh<C> {
     fn contains_face(&self, face: FaceHandle) -> bool {
         self.faces.contains_handle(face)
     }
+
+    fn num_edges(&self) -> hsize
+    where
+        Self: EdgeMesh,
+    {
+        // There are always exactly twice as many half edge as there are edges
+        self.half_edges.num_elements() / 2
+    }
+
+    fn next_edge_handle_from(&self, start: EdgeHandle) -> Option<EdgeHandle>
+    where
+        Self: EdgeMesh,
+    {
+        // TODO: optimize
+        let mut idx = HalfEdgeHandle::lower_half_of(start).idx();
+        let end = self.half_edges.next_push_handle().idx();
+        while idx < end {
+            let he = HalfEdgeHandle::new(idx);
+            if self.half_edges.contains_handle(he) {
+                return Some(he.full_edge());
+            }
+
+            idx += 2;
+        }
+
+        None
+    }
+
+    fn last_edge_handle(&self) -> Option<EdgeHandle>
+    where
+        Self: EdgeMesh,
+    {
+        self.half_edges.last_handle().map(|he| he.full_edge())
+    }
+
+    fn contains_edge(&self, edge: EdgeHandle) -> bool
+    where
+        Self: EdgeMesh,
+    {
+        let he = HalfEdgeHandle::lower_half_of(edge);
+        self.half_edges.contains_handle(he)
+    }
 }
 
 impl<C: Config> MeshMut for HalfEdgeMesh<C> {
@@ -921,6 +963,21 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         assert_ne!(a, c, "vertices of new face are not unique");
 
         self.add_face_impl(&[a, b, c], &mut [Checked::<HalfEdgeHandle>::new(0); 3])
+    }
+
+    fn add_face(&mut self, vertices: &[VertexHandle]) -> FaceHandle
+    where
+        Self: PolyMesh,
+    {
+        assert!(
+            vertices.len() >= 3,
+            "attempt to add a face with only {} vertices",
+            vertices.len(),
+        );
+        // TODO: check uniqueness of vertices?
+
+        let mut inner_half_edges = vec![Checked(HalfEdgeHandle::new(0)); vertices.len()];
+        self.add_face_impl(vertices, &mut inner_half_edges)
     }
 
     #[inline(never)]
@@ -1074,62 +1131,12 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
 
         *midpoint
     }
-}
 
-impl<C: Config> EdgeMesh for HalfEdgeMesh<C> {
-    fn num_edges(&self) -> hsize {
-        // There are always exactly twice as many half edge as there are edges
-        self.half_edges.num_elements() / 2
-    }
 
-    fn next_edge_handle_from(&self, start: EdgeHandle) -> Option<EdgeHandle> {
-        // TODO: optimize
-        let mut idx = HalfEdgeHandle::lower_half_of(start).idx();
-        let end = self.half_edges.next_push_handle().idx();
-        while idx < end {
-            let he = HalfEdgeHandle::new(idx);
-            if self.half_edges.contains_handle(he) {
-                return Some(he.full_edge());
-            }
-
-            idx += 2;
-        }
-
-        None
-    }
-
-    fn last_edge_handle(&self) -> Option<EdgeHandle> {
-        self.half_edges.last_handle().map(|he| he.full_edge())
-    }
-
-    fn contains_edge(&self, edge: EdgeHandle) -> bool {
-        let he = HalfEdgeHandle::lower_half_of(edge);
-        self.half_edges.contains_handle(he)
-    }
-}
-
-impl<C> PolyMeshMut for HalfEdgeMesh<C>
-where
-    C: Config<FaceKind = PolyFaces>,
-{
-    fn add_face(&mut self, vertices: &[VertexHandle]) -> FaceHandle {
-        assert!(
-            vertices.len() >= 3,
-            "attempt to add a face with only {} vertices",
-            vertices.len(),
-        );
-        // TODO: check uniqueness of vertices?
-
-        let mut inner_half_edges = vec![Checked(HalfEdgeHandle::new(0)); vertices.len()];
-        self.add_face_impl(vertices, &mut inner_half_edges)
-    }
-}
-
-impl<C> TriEdgeMeshMut for HalfEdgeMesh<C>
-where
-    C: Config<FaceKind = TriFaces>,
-{
-    fn flip_edge(&mut self, edge: EdgeHandle) {
+    fn flip_edge(&mut self, edge: EdgeHandle)
+    where
+        Self: TriMesh + EdgeMesh,
+    {
         //                                  |
         //            Before                |                After
         //            ------                |                -----
@@ -1234,7 +1241,10 @@ where
         self[he_below_left].next = he_center_below;
     }
 
-    fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> SplitEdgeWithFacesResult {
+    fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> SplitEdgeWithFacesResult
+    where
+        Self: TriMesh + EdgeMesh,
+    {
         // ===================================================================
         // ===== Split just the edge
         // ===================================================================
@@ -1371,4 +1381,5 @@ where
     }
 }
 
+impl<C: Config> EdgeMesh for HalfEdgeMesh<C> {}
 impl<C: Config> SupportsMultiBlade for HalfEdgeMesh<C> {}

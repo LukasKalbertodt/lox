@@ -7,6 +7,7 @@ use crate::{
     prelude::*,
     handle::hsize,
     map::VecMap,
+    mesh::SplitEdgeWithFacesResult,
     traits::marker::TriFaces,
     traits::adj::HandleIterFamily,
     util::TriArrayIntoIter,
@@ -59,6 +60,27 @@ impl Mesh for SharedVertexMesh {
     fn contains_face(&self, face: FaceHandle) -> bool {
         self.faces.contains_handle(face)
     }
+
+    fn num_edges(&self) -> hsize
+    where
+        Self: EdgeMesh
+    {
+        unreachable!()
+    }
+
+    fn next_edge_handle_from(&self, _: EdgeHandle) -> Option<EdgeHandle>
+    where
+        Self: EdgeMesh
+    {
+        unreachable!()
+    }
+
+    fn last_edge_handle(&self) -> Option<EdgeHandle>
+    where
+        Self: EdgeMesh
+    {
+        unreachable!()
+    }
 }
 
 impl MeshMut for SharedVertexMesh {
@@ -88,6 +110,27 @@ impl MeshMut for SharedVertexMesh {
 
     fn split_face(&mut self, _f: FaceHandle) -> VertexHandle {
         unimplemented!()
+    }
+
+    fn add_face(&mut self, _: &[VertexHandle]) -> FaceHandle
+    where
+        Self: PolyMesh
+    {
+        unreachable!()
+    }
+
+    fn flip_edge(&mut self, _: EdgeHandle)
+    where
+        Self: EdgeMesh + TriMesh
+    {
+        unreachable!()
+    }
+
+    fn split_edge_with_faces(&mut self, _: EdgeHandle) -> SplitEdgeWithFacesResult
+    where
+        Self: EdgeMesh + TriMesh
+    {
+        unreachable!()
     }
 }
 

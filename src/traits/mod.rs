@@ -104,9 +104,6 @@ pub trait Mesh: Empty + fmt::Debug {
     /// probably don't want to use this method directly.
     fn last_vertex_handle(&self) -> Option<VertexHandle>;
 
-    // TODO: visit_mut
-    // TODO: mutable iterator?
-
 
     // ===== Faces ===========================================================
     /// Returns the number of faces in this mesh.
@@ -130,10 +127,38 @@ pub trait Mesh: Empty + fmt::Debug {
     fn last_face_handle(&self) -> Option<FaceHandle>;
 
 
-    // TODO: visit_mut
-    // TODO: mutable iterator?
+    // ===== Edges ===========================================================
+    /// Returns the number of edges in this mesh.
+    fn num_edges(&self) -> hsize
+    where
+        Self: EdgeMesh;
 
-    // ===== Provided methods ================================================
+    /// Returns the next handle of an existing edge with an index ≥ `start`'s
+    /// index, or `None` if there is no such handle.
+    ///
+    /// This is a low level building block for iteration. As a user of this
+    /// library, you usually don't want to use this method directly.
+    ///
+    /// See the documentation of [`Mesh::next_vertex_handle_from`] for more
+    /// information. This method works exactly like that, but for edges.
+    fn next_edge_handle_from(&self, start: EdgeHandle) -> Option<EdgeHandle>
+    where
+        Self: EdgeMesh;
+
+    /// Returns the edge handle for an existing edge with the highest index, or
+    /// `None` if there are no vertices in the mesh.
+    ///
+    /// This is a low level building block. As a user of this library, you
+    /// probably don't want to use this method directly.
+    fn last_edge_handle(&self) -> Option<EdgeHandle>
+    where
+        Self: EdgeMesh;
+
+
+
+    // ===========================================================================================
+    // ===== Provided methods
+    // ===========================================================================================
     /// Returns an `ElementRef` with the given handle referencing this mesh.
     fn get_ref<H: Handle>(&self, handle: H) -> ElementRef<'_, H, Self> {
         ElementRef::new(self, handle)
@@ -210,6 +235,53 @@ pub trait Mesh: Empty + fmt::Debug {
     fn faces(&self) -> ElementRefIter<'_, Self, FaceHandle> {
         ElementRefIter::<Self, FaceHandle>::new(self)
     }
+
+    /// Checks if the given edge handle refers to a valid edge of this mesh.
+    fn contains_edge(&self, edge: EdgeHandle) -> bool
+    where
+        Self: EdgeMesh,
+    {
+        self.next_edge_handle_from(edge) == Some(edge)
+    }
+
+    /// Returns an iterator over the handles of all edges in this mesh.
+    ///
+    /// Note that this iterator only yields the handles. To get an iterator
+    /// over `EdgeRef`s, use [`edges()`][Mesh::edges], which is often more
+    /// useful.
+    ///
+    /// The order of the edges is unspecified, but each edge is yielded by the
+    /// iterator exactly once.
+    fn edge_handles(&self) -> HandleIter<'_, Self, EdgeHandle>
+    where
+        Self: EdgeMesh,
+    {
+        HandleIter::<Self, EdgeHandle>::new(self)
+    }
+
+    /// Returns an iterator over the handles of all edges which can return a
+    /// mutable reference to the mesh. This is useful when it is necessary to
+    /// mutate the mesh while iterating.
+    ///
+    /// Using this iterator is tricky, so please see the documentation of
+    /// [`HandleIterMut`] for more information.
+    fn edge_handles_mut(&mut self) -> HandleIterMut<'_, Self, EdgeHandle>
+    where
+        Self: EdgeMesh,
+    {
+        HandleIterMut::<'_, Self, EdgeHandle>::new(self)
+    }
+
+    /// Returns an iterator over all edges in this mesh.
+    ///
+    /// This iterator yields `EdgeRef`s. If you are only interested in the
+    /// handle, use [`edge_handles()`][Mesh::edge_handles].
+    fn edges(&self) -> ElementRefIter<'_, Self, EdgeHandle>
+    where
+        Self: EdgeMesh,
+    {
+        ElementRefIter::<Self, EdgeHandle>::new(self)
+    }
 }
 
 /// Some kind of polygon mesh that allows modifications.
@@ -250,6 +322,18 @@ pub trait MeshMut: Mesh {
     /// TODO: what if face already there?
     fn add_triangle(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
 
+
+    /// Adds a new face to this mesh and returns the handle representing that
+    /// face.
+    ///
+    /// The `vertices` have to be given in front-face CCW (counterclockwise)
+    /// order. This means: if you look at front of the face you want to create
+    /// (the face's normal is pointing to you), the vertices should appear in
+    /// CCW order.
+    fn add_face(&mut self, vertices: &[VertexHandle]) -> FaceHandle
+    where
+        Self: PolyMesh;
+
     /// Removes all vertices of this mesh. This can be more efficient than
     /// calling `remove_vertex` (TODO: link) for each vertex individually.
     ///
@@ -277,9 +361,9 @@ pub trait MeshMut: Mesh {
     ///
     /// ```
     /// # //TODO: make it run
-    /// use lox::traits::TriMeshMut;
+    /// use lox::traits::{TriMesh, MeshMut};
     ///
-    /// fn add_two_vertices(mesh: &mut impl TriMeshMut) {
+    /// fn add_two_vertices(mesh: &mut (impl TriMesh + MeshMut)) {
     ///     let a = mesh.add_vertex();
     ///     let b = mesh.add_vertex();
     ///     let c = mesh.add_vertex();
@@ -311,66 +395,28 @@ pub trait MeshMut: Mesh {
 
     // TODO: default impl this with `remove_face`
     fn split_face(&mut self, f: FaceHandle) -> VertexHandle;
+
+    // TODO: think about adding these method with a version where you specify
+    // two faces? Or once face? (e.g. `flip_edge_between`,
+    // `split_face_2_to_4(a, b)` and `split_boundary_face_1to2`)
+    fn flip_edge(&mut self, edge: EdgeHandle)
+    where
+        Self: EdgeMesh + TriMesh;
+
+    /// TODO
+    ///
+    /// - edge handle stays valid and is one of the resulting center edges
+    fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> SplitEdgeWithFacesResult
+    where
+        Self: EdgeMesh + TriMesh;
+
 }
 
 /// A mesh that has explicit edges. This allows to store per-edge attributes.
-pub trait EdgeMesh: Mesh {
-    /// Returns the number of edges in this mesh.
-    fn num_edges(&self) -> hsize;
-
-    /// Returns the next handle of an existing edge with an index ≥ `start`'s
-    /// index, or `None` if there is no such handle.
-    ///
-    /// This is a low level building block for iteration. As a user of this
-    /// library, you usually don't want to use this method directly.
-    ///
-    /// See the documentation of [`Mesh::next_vertex_handle_from`] for more
-    /// information. This method works exactly like that, but for edges.
-    fn next_edge_handle_from(&self, start: EdgeHandle) -> Option<EdgeHandle>;
-
-    /// Returns the edge handle for an existing edge with the highest index, or
-    /// `None` if there are no vertices in the mesh.
-    ///
-    /// This is a low level building block. As a user of this library, you
-    /// probably don't want to use this method directly.
-    fn last_edge_handle(&self) -> Option<EdgeHandle>;
-
-
-    /// Returns an iterator over the handles of all edges in this mesh.
-    ///
-    /// Note that this iterator only yields the handles. To get an iterator
-    /// over `EdgeRef`s, use [`edges()`][EdgeMesh::edges], which is often more
-    /// useful.
-    ///
-    /// The order of the edges is unspecified, but each edge is yielded by the
-    /// iterator exactly once.
-    fn edge_handles(&self) -> HandleIter<'_, Self, EdgeHandle> {
-        HandleIter::<Self, EdgeHandle>::new(self)
-    }
-
-    /// Returns an iterator over the handles of all edges which can return a
-    /// mutable reference to the mesh. This is useful when it is necessary to
-    /// mutate the mesh while iterating.
-    ///
-    /// Using this iterator is tricky, so please see the documentation of
-    /// [`HandleIterMut`] for more information.
-    fn edge_handles_mut(&mut self) -> HandleIterMut<'_, Self, EdgeHandle> {
-        HandleIterMut::<'_, Self, EdgeHandle>::new(self)
-    }
-
-    /// Checks if the given edge handle refers to a valid edge of this mesh.
-    fn contains_edge(&self, edge: EdgeHandle) -> bool {
-        self.next_edge_handle_from(edge) == Some(edge)
-    }
-
-    /// Returns an iterator over all edges in this mesh.
-    ///
-    /// This iterator yields `EdgeRef`s. If you are only interested in the
-    /// handle, use [`edge_handles()`][EdgeMesh::edge_handles].
-    fn edges(&self) -> ElementRefIter<'_, Self, EdgeHandle> {
-        ElementRefIter::<Self, EdgeHandle>::new(self)
-    }
-}
+///
+/// This is just a marker trait. All methods related to edges can be found in
+/// [`Mesh`] or [`MeshMut`].
+pub trait EdgeMesh: Mesh {}
 
 /// A triangular mesh: all faces are triangles.
 ///
@@ -398,35 +444,6 @@ impl<T> TriMesh for T where T: Mesh<FaceKind = TriFaces> {}
 pub trait PolyMesh: Mesh<FaceKind = PolyFaces> {}
 impl<T> PolyMesh for T where T: Mesh<FaceKind = PolyFaces> {}
 
-/// A triangular mesh that allows modifications. Alias for `MeshMut<FaceKind =
-/// TriFaces>`.
-pub trait TriMeshMut: MeshMut<FaceKind = TriFaces> {}
-impl<T> TriMeshMut for T where T: MeshMut<FaceKind = TriFaces> {}
-
-/// A poly mesh that allows modifications. Alias for `MeshMut<FaceKind =
-/// PolyFaces>`.
-pub trait PolyMeshMut: MeshMut<FaceKind = PolyFaces> {
-    /// Adds a new face to this mesh and returns the handle representing that
-    /// face.
-    ///
-    /// The `vertices` have to be given in front-face CCW (counterclockwise)
-    /// order. This means: if you look at front of the face you want to create
-    /// (the face's normal is pointing to you), the vertices should appear in
-    /// CCW order.
-    fn add_face(&mut self, vertices: &[VertexHandle]) -> FaceHandle;
-}
-
-pub trait TriEdgeMeshMut: EdgeMesh + MeshMut<FaceKind = TriFaces> {
-    // TODO: think about adding these method with a version where you specify
-    // two faces? Or once face? (e.g. `flip_edge_between`,
-    // `split_face_2_to_4(a, b)` and `split_boundary_face_1to2`)
-    fn flip_edge(&mut self, edge: EdgeHandle);
-
-    /// TODO
-    ///
-    /// - edge handle stays valid and is one of the resulting center edges
-    fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> SplitEdgeWithFacesResult;
-}
 
 
 

@@ -22,7 +22,7 @@ pub fn sqrt3<MeshT, MapT, ScalarT>(
     num_iterations: u32,
 )
 where
-    MeshT: TriEdgeMeshMut + EdgeAdj, // TODO: doesn't need to be tri in the beginning
+    MeshT: TriMesh + EdgeMesh + MeshMut + EdgeAdj, // TODO: doesn't need to be tri in the beginning
     MapT: PropStoreMut<VertexHandle>,
     MapT::Target: Pos3Like<Scalar = ScalarT>,
     ScalarT: PrimitiveFloat,
@@ -47,7 +47,7 @@ fn sqrt3_impl<MeshT, MapT, ScalarT>(
     split_boundary: bool,
 )
 where
-    MeshT: TriEdgeMeshMut + EdgeAdj, // TODO: doesn't need to be tri in the beginning
+    MeshT: TriMesh + EdgeMesh + MeshMut + EdgeAdj, // TODO: doesn't need to be tri in the beginning
     MapT: PropStoreMut<VertexHandle>,
     MapT::Target: Pos3Like<Scalar = ScalarT>,
     ScalarT: PrimitiveFloat,
