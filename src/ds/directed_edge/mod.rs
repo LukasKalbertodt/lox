@@ -1,4 +1,4 @@
-//! Everything related to the `HalfEdgeMesh`.
+//! Everything related to the `DirectedEdgeMesh`.
 
 #![allow(unused_imports)] // TODO
 
@@ -50,7 +50,7 @@ const NON_MANIFOLD_EDGE_ERR: &str =
 // ===== Compile time configuration of HalfEdgeMesh
 // ===============================================================================================
 
-/// Compile-time configuration for [`HalfEdgeMesh`].
+/// Compile-time configuration for [`DirectedEdgeMesh`].
 ///
 /// To configure a half edge mesh, either use one of the existing types
 /// implementing this trait, or create your own (preferably inhabitable) type
