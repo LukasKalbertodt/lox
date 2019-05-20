@@ -32,8 +32,10 @@ mod test_utils;
 pub mod algo;
 pub mod cast;
 pub mod ds;
+#[cfg(feature = "io")]
 pub mod fat;
 pub mod handle;
+#[cfg(feature = "io")]
 pub mod io;
 pub mod map;
 pub mod math;
@@ -42,6 +44,7 @@ pub mod prop;
 pub mod traits;
 pub mod prelude;
 pub mod refs;
+#[cfg(feature = "io")]
 pub mod shape;
 pub mod util;
 

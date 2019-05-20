@@ -14,14 +14,18 @@ pub use crate::{
     handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
     map::{PropMap, PropStore, PropStoreMut},
     prop::{ColorLike, Pos3Like, Vec3Like},
-    io::{
-        StreamSource, StreamSink, MemSource, MemSink, DynStreamSource, DynStreamSink,
-        util::{MemSourceExt},
-    },
     traits::{
         Empty, Mesh, MeshMut, TriMesh, PolyMesh, EdgeMesh,
         adj::{BasicAdj, FullAdj, EdgeAdj},
         marker::{SupportsMultiBlade},
     },
     util::{IteratorExt, TriArrayExt, DynList},
+};
+
+#[cfg(feature = "io")]
+pub use crate::{
+    io::{
+        StreamSource, StreamSink, MemSource, MemSink, DynStreamSource, DynStreamSink,
+        util::{MemSourceExt},
+    },
 };

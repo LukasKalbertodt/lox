@@ -12,8 +12,10 @@ use std::{
 use failure::Fail;
 
 use crate::{
-    io::Error,
-    util::debug_fmt_bytes,
+    io::{
+        Error,
+        util::debug_fmt_bytes,
+    },
 };
 
 mod buf;

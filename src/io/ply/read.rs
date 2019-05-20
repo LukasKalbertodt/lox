@@ -27,10 +27,10 @@ use crate::{
     io::{
         StreamSource, MemSink, Primitive, Error, ErrorKind,
         parse::{self, ParseError, Span, Buffer, ParseBuf, MAX_BUFFER_SIZE},
-        util::IndexHandleMap,
+        util::{IndexHandleMap, debug_fmt_bytes},
     },
     prop::ColorLike,
-    util::{debug_fmt_bytes, MeshSizeHint},
+    util::MeshSizeHint,
 };
 use super::{
     Encoding,

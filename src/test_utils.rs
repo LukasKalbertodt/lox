@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 
+#[cfg(feature = "io")]
 pub(crate) fn file_failure(actual: &[u8], expected: &[u8], filename: &str) {
     use std::fmt::Write;
 
@@ -31,6 +32,7 @@ pub(crate) fn file_failure(actual: &[u8], expected: &[u8], filename: &str) {
     }
 }
 
+#[cfg(feature = "io")]
 macro_rules! assert_eq_file {
     ($actual:expr, $filename:expr) => {
         let actual = $actual as &[u8];
@@ -41,6 +43,7 @@ macro_rules! assert_eq_file {
     }
 }
 
+#[cfg(feature = "io")]
 macro_rules! include_test_file {
     ($filename:expr) => {{
         let bytes = include_bytes!(concat!("test_files/", $filename)) as &[u8];

@@ -14,7 +14,9 @@ members = [
 debug = true
 
 [features]
+default = ["io"]
 large-handle = []
+io = []
 
 [dependencies]
 boolinator = "2.4"

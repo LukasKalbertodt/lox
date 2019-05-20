@@ -571,6 +571,21 @@ impl<H: Handle> HandleIndexMap<H> {
 }
 
 
+// ===========================================================================
+// ===== Other random stuff
+// ===========================================================================
+
+/// Format bytes either as slice of hexadecimal numbers or, if all data is
+/// valid ASCII, as a string.
+pub(crate) fn debug_fmt_bytes(data: &[u8]) -> String {
+    if data.is_ascii() {
+        format!("{:?}", std::str::from_utf8(data).unwrap())
+    } else {
+        format!("{:02x?}", data)
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
