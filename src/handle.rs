@@ -16,15 +16,17 @@
 //! A handle type is just a wrapper around a simple integer, or more precisely:
 //! around the [`hsize`][handle::hsize] integer type. This integer is usually
 //! used as an index to an array-like thing (like a `Vec`) -- that way, we can
-//! refer to data.
+//! refer to data. It is called `hsize` because it is very similar to `usize`
+//! in many regards. The *h* is for *handle*.
 //!
 //! Note that handles share some properties with pointers (they refer to a
 //! thing and are actually just an integer), but have some important
 //! differences:
 //!
-//! - `hsize` (and thus handles) are always 32 bit wide, unlike pointers which
-//!   might vary with target platform.
-//! - While all pointers exist in "universe" (they all refer to the global
+//! - `hsize` (and thus handles) are always 32 bit (or 64 bit with the
+//!   `large-handle` feature enabled) wide, unlike pointers which might vary
+//!   with target platform.
+//! - While all pointers exist in one "universe" (they all refer to the global
 //!   memory of your PC), handles often refer to many different universes. For
 //!   example, it's perfectly fine to have two `FaceHandle`s with the value 0
 //!   that refer to different faces: one handle belongs to the "universe" of
@@ -61,49 +63,64 @@
 //! after free". The crate `slotmap` has really great ideas regarding this.
 //! This crate will try out some ideas to avoid some common mistakes in the
 //! future.
+//!
+//! # The size of `hsize`
+//!
+//! Since we can't be generic over the integer type right now (due to the lack
+//! of GATs and a huge increase in API complexity), we have to choose a good
+//! default. `u32` is fitting for most use cases.
+//!
+//! Since the ID is always used to refer to some data, exhausting `u32` means
+//! that we have more than 2<sup>32</sup> instances of that data. If one
+//! instance is only 1 byte big, this results in 4GB memory usage. However, in
+//! practice 1 byte is not enough to store anything useful for meshes. Usually,
+//! you at least store some kind of position (e.g. `[f32; 3]` = 12 bytes) per
+//! vertex plus the connectivity information, which is at something like 3
+//! handles per face. So the useful minimum of stored information is:
+//!
+//! - 12 bytes per vertex
+//! - 12 bytes per face
+//!
+//! From [here][1] we can see that in a typical triangular mesh, there are
+//! around twice as many faces as vertices. The effective size per face is thus
+//! around 18 bytes. To have more than 2<sup>32</sup> faces, the mesh would
+//! occupy around 2<sup>32</sup> · 18 bytes = 72 GB of memory. In other data
+//! structures which store more connectivity information, this would be even
+//! more. There do exist rare situations (mostly in research) where one has to
+//! deal with huge meshes of that size. But again, it's rather rare.
+//!
+//! On the other side are use cases where a smaller ID type, like `u16` would
+//! be sufficient. Here, one could save memory by using a smaller ID type.
+//! Making `u16` the default ID type is not OK though: 2<sup>16</sup> = 65536
+//! is not a huge number and there are many situations in which meshes have way
+//! more than 65536 elements.
+//!
+//! This crate offers the Cargo feature `large-handle` which makes `hsize` 64
+//! bit large. This can be easily enabled if you actually need to deal with
+//! such huge meshes.
+//!
+//! [1]: https://math.stackexchange.com/q/425968/340615
 
 use std::fmt;
 
 
-/// The integer used in all handle types. See [the module documentation][self]
-/// for more information on the general system behind handles.
+/// The integer used in all handle types: `u32`.
 ///
-/// This is called `hsize` because it is very similar to `usize` in many
-/// regards. The *h* is for *handle*.
-///
-/// Since we can't be generic over the integer type right now (due to the lack
-/// of GATs and a huge increase in API complexity), we have to choose a good
-/// default. `u32` is fitting for most use cases.
-///
-/// Since the ID is always used to refer to some data, exhausting `u32` means
-/// that we have more than 2<sup>32</sup> instances of that data. If one
-/// instance is only 1 byte big, this results in 4GB memory usage. However, in
-/// practice 1 byte is not enough to store anything useful for meshes. Usually,
-/// you at least store some kind of position (e.g. `[f32; 3]` = 12 bytes) per
-/// vertex plus the connectivity information, which is at something like 3
-/// handles per face. So the useful minimum of stored information is:
-///
-/// - 12 bytes per vertex
-/// - 12 bytes per face
-///
-/// From [here][1] we can see that in a typical triangular mesh, there are
-/// around twice as many faces as vertices. The effective size per face is thus
-/// around 18 bytes. To have more than 2<sup>32</sup> faces, the mesh would
-/// occupy around 2<sup>32</sup> · 18 bytes = 72 GB of memory. In other data
-/// structures which store more connectivity information, this would be even
-/// more. There do exist rare situations (mostly in research) where one has to
-/// deal with huge meshes of that size. But again, it's rather rare.
-///
-/// On the other side are use cases where a smaller ID type, like `u16` would
-/// be sufficient. Here, one could save memory by using a smaller ID type.
-/// Making `u16` the default ID type is not OK though: 2<sup>16</sup> = 65536
-/// is not a huge number and there are many situations in which meshes have way
-/// more than 65536 elements.
-///
-///
-/// [1]: https://math.stackexchange.com/q/425968/340615
+/// See [the module documentation][self] for more information on the general
+/// system behind handles and `hsize`. The type can be changed to `u64` with
+/// the Cargo feature `large-handle`.
 #[allow(non_camel_case_types)]
+#[cfg(not(feature = "large-handle"))]
 pub type hsize = u32;
+
+/// The integer used in all handle types: `u64` (Cargo feature `large-handle`
+/// activated).
+///
+/// See [the module documentation][self] for more information on the general
+/// system behind handles and `hsize`.
+#[allow(non_camel_case_types)]
+#[cfg(feature = "large-handle")]
+pub type hsize = u64;
 
 /// Extension trait to add a few useful methods to `hsize`.
 pub trait HSizeExt {
@@ -140,8 +157,8 @@ pub trait Handle: 'static + Copy + fmt::Debug + Eq + Ord {
     /// to panic in this case.
     #[inline(always)]
     fn from_usize(raw: usize) -> Self {
-        // If `usize` is bigger than `u32`, we assert that the value is fine.
-        #[cfg(target_pointer_width = "64")]
+        // If `usize` is bigger than `hsize`, we assert that the value is fine.
+        #[cfg(all(target_pointer_width = "64", not(feature = "large-handle")))]
         debug_assert!(raw <= hsize::max_value() as usize);
 
         Self::new(raw as hsize)
@@ -156,8 +173,12 @@ pub trait Handle: 'static + Copy + fmt::Debug + Eq + Ord {
     /// `usize`.
     #[inline(always)]
     fn to_usize(&self) -> usize {
-        // If `usize` is smaller than `u32`, we assert that the value is fine.
-        #[cfg(any(target_pointer_width = "16", target_pointer_width = "8"))]
+        // If `usize` is smaller than `hsize`, we assert that the value is fine.
+        #[cfg(any(
+            all(target_pointer_width = "32", feature = "large-handle"),
+            target_pointer_width = "16",
+            target_pointer_width = "8",
+        ))]
         debug_assert!(self.idx() <= usize::max_value() as hsize);
 
         self.idx() as usize

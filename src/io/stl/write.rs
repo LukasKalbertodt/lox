@@ -1,5 +1,6 @@
 use std::{
     cmp,
+    convert::TryInto,
     io::{self, Write},
 };
 
@@ -258,7 +259,12 @@ impl<W: io::Write> StreamSink for Writer<W> {
             })
         });
 
-        self.write_raw(mesh.num_faces(), triangles)
+        let face_count = mesh.num_faces().try_into().map_err(|_| {
+            Error::new(|| ErrorKind::SinkIncompatible(
+                "STL only supports 2^32 triangles, but mesh contains more faces".into()
+            ))
+        })?;
+        self.write_raw(face_count, triangles)
     }
 }
 

@@ -16,6 +16,7 @@
 
 
 use std::{
+    convert::TryFrom,
     mem,
     io::{self, Write},
     slice,
@@ -544,14 +545,34 @@ impl<W: io::Write> StreamSink for Writer<W> {
                 }
 
                 for fh in mesh.face_handles() {
-                    // Vertex indices
-                    let mut indices = mesh.vertices_around_triangle(fh)
-                        .map(|vh| indices_map.get(vh).unwrap());
+                    // Vertex indices: get handles from mesh and get the
+                    // corresponding index.
+                    let [a, b, c] = mesh.vertices_around_triangle(fh).map(|vh| {
+                        // A panic here means that the mesh returned a handle
+                        // from `vertices_around_triangle` that was not
+                        // returned by `vertex_handles()`. That's not allowed.
+                        indices_map
+                            .get(vh)
+                            .expect("corrupt mesh: triangle adjacent to non-existing vertex")
+                    });
+
+                    // This is just relevant if the feature `large-handle` is
+                    // activated: if the handle is larger than 2^32, we cannot
+                    // store it in PLY, so we return an error.
+                    let err = || ErrorKind::SinkIncompatible(
+                        "PLY does not support indices larger than 2^32, but mesh returned \
+                            such a large handle (either this is a huge mesh or the mesh type \
+                            is doing something strange)".into()
+                    );
+                    let mut indices = [
+                        u32::try_from(a).map_err(|_| Error::new(err))?,
+                        u32::try_from(b).map_err(|_| Error::new(err))?,
+                        u32::try_from(c).map_err(|_| Error::new(err))?,
+                    ];
+
+                    // Actually store vertces indices
                     ser.add::<u8>(3)?;
                     ser.add_slice(&mut indices)?;
-                    // ser.add_u32(a)?;
-                    // ser.add_u32(b)?;
-                    // ser.add_u32(c)?;
 
                     // Other face properties
                     write_f_normal(&mut ser, src, fh)?;

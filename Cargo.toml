@@ -13,6 +13,9 @@ members = [
 [profile.release]
 debug = true
 
+[features]
+large-handle = []
+
 [dependencies]
 boolinator = "2.4"
 byteorder = "1.2"

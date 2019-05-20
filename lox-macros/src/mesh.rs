@@ -47,7 +47,7 @@ impl MeshInput {
             .map(|map| {
                 quote! {
                     let mut #map = VecMap::new();
-                    PropStoreMut::reserve(&mut #map, #vertex_count);
+                    PropStoreMut::reserve(&mut #map, Into::into(#vertex_count));
                 }
             })
             .collect::<TokenStream>();
@@ -70,7 +70,7 @@ impl MeshInput {
             .map(|map| {
                 quote! {
                     let mut #map = VecMap::new();
-                    PropStoreMut::reserve(&mut #map, #face_count);
+                    PropStoreMut::reserve(&mut #map, Into::into(#face_count));
                 }
             })
             .collect::<TokenStream>();
@@ -93,14 +93,15 @@ impl MeshInput {
             // user crate doesn't rename the `lox` crate. Additionally, we hope
             // that the user does not have a local submodule called `lox` since
             // with uniform paths, that would lead to a ambiguity error.
+            use std::convert::Into;
             use lox::{
                 traits::{MeshMut, Empty},
                 map::{PropStoreMut, VecMap},
             };
 
             let mut mesh = <#mesh_type as Empty>::empty();
-            MeshMut::reserve_for_vertices(&mut mesh, #vertex_count);
-            MeshMut::reserve_for_faces(&mut mesh, #face_count);
+            MeshMut::reserve_for_vertices(&mut mesh, Into::into(#vertex_count));
+            MeshMut::reserve_for_faces(&mut mesh, Into::into(#face_count));
 
             #add_vertices
             #add_faces

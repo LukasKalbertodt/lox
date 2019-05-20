@@ -251,7 +251,7 @@ impl<H: Handle, T> Extend<(H, T)> for VecMap<H, T> {
             // reallocate at most twice.
             (iter.size_hint().0 + 1) / 2
         };
-        self.reserve(cap as u32);
+        self.reserve(cap as hsize);
 
         for (handle, value) in iter {
             self.insert(handle, value);

@@ -792,6 +792,14 @@ pub enum ErrorKind {
     /// reporting this as a parser bug.
     InvalidInput(String),
 
+    /// The sink is somehow unable to store the incoming data.
+    ///
+    /// This might have a variety of differet causes. For example, some file
+    /// formats only support 32 bit indices for elements, meaning that
+    /// attempting to store a mesh with more than 2<sup>32</sup> elements with
+    /// that format would fail with this error.
+    SinkIncompatible(String),
+
     /// This error can be returned by a `MemSink` to signal that it is not able
     /// to handle incoming property data.
     ///
@@ -863,7 +871,7 @@ pub enum ErrorKind {
     EncodingNotSupported {
         file_format: FileFormat,
         encoding: FileEncoding,
-    }
+    },
 }
 
 impl fmt::Display for ErrorKind {
@@ -872,6 +880,9 @@ impl fmt::Display for ErrorKind {
             ErrorKind::Io(e) => write!(f, "IO error: {}", e),
             ErrorKind::Parse(e) => write!(f, "Parsing error: {}", e),
             ErrorKind::InvalidInput(msg) => write!(f, "invalid input: {}", msg),
+            ErrorKind::SinkIncompatible(msg) => {
+                write!(f, "sink cannot handle incoming data: {}", msg)
+            }
             ErrorKind::SinkIncompatibleProp { prop, source_type } => {
                 write!(
                     f,

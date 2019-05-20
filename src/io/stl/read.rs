@@ -12,6 +12,7 @@ use hashbrown::{HashMap, hash_map::Entry};
 
 use crate::{
     prelude::*,
+    handle::hsize,
     io::{
         Error,
         parse::{self, ParseBuf, ParseError, Buffer, Span},
@@ -530,7 +531,7 @@ impl UnifyingMarker for VerbatimVertices {
 // ===========================================================================
 pub trait VertexAdder {
     fn new() -> Self;
-    fn size_hint(&mut self, _vertex_count: u32) {}
+    fn size_hint(&mut self, _vertex_count: hsize) {}
     fn add_vertex<S: MemSink>(
         &mut self,
         sink: &mut S,
@@ -581,7 +582,7 @@ impl VertexAdder for UnifyingAdder {
         UnifyingAdder(HashMap::default())
     }
 
-    fn size_hint(&mut self, vertex_count: u32) {
+    fn size_hint(&mut self, vertex_count: hsize) {
         self.0.reserve(vertex_count as usize);
     }
 
@@ -619,7 +620,7 @@ impl<R: io::Read, U: UnifyingMarker> StreamSource for Reader<R, U> {
 
         // Prepare the size hint. If we do not unify, we know the number of
         // vertices exactly.
-        let face_count = self.triangle_count();
+        let face_count = self.triangle_count().map(|c| hsize::from(c));
         let vertex_count = face_count
             .map(|tris| tris / 2)
             .filter(|_| !U::UNIFY);
