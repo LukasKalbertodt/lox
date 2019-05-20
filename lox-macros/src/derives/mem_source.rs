@@ -117,7 +117,7 @@ fn gen_prop_code(
             >();
 
             if !cast_possible {
-                return Err(lox::io::Error::new(|| lox::io::ErrorKind::SourceIncompatible {
+                return Err(lox::io::Error::new(|| lox::io::ErrorKind::SourceIncompatibleProp {
                     prop: lox::io::PropKind::#elem_prop,
                     requested_type: T::TY,
                 }));
@@ -139,7 +139,7 @@ fn gen_prop_code(
         // "None" cast mode
         quote! {
             if !lox::util::are_same_type::<T, <M::Target as lox::prop::#trait_name>::Scalar>() {
-                return Err(lox::io::Error::new(|| lox::io::ErrorKind::SourceIncompatible {
+                return Err(lox::io::Error::new(|| lox::io::ErrorKind::SourceIncompatibleProp {
                     prop: lox::io::PropKind::#elem_prop,
                     requested_type: T::TY,
                 }));
@@ -238,7 +238,7 @@ fn gen_color_prop_code(
             >();
 
             if !is_same_type {
-                return Err(lox::io::Error::new(|| lox::io::ErrorKind::SourceIncompatible {
+                return Err(lox::io::Error::new(|| lox::io::ErrorKind::SourceIncompatibleProp {
                     prop: lox::io::PropKind::#elem_prop,
                     requested_type: <
                         <C as lox::prop::ColorLike>::Channel

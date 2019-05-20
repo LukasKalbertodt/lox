@@ -252,7 +252,7 @@ where
 
     fn vertex_position<T: Primitive>(&self, f: VertexHandle) -> Result<Option<Point3<T>>, Error> {
         if !is_cast_possible::<R, <M::Target as Pos3Like>::Scalar, T>() {
-            return Err(Error::new(|| ErrorKind::SourceIncompatible {
+            return Err(Error::new(|| ErrorKind::SourceIncompatibleProp {
                 prop: PropKind::VertexNormal,
                 requested_type: T::TY,
             }));
@@ -293,7 +293,7 @@ where
 
     fn vertex_normal<T: Primitive>(&self, f: VertexHandle) -> Result<Option<Vector3<T>>, Error> {
         if !is_cast_possible::<R, <M::Target as Vec3Like>::Scalar, T>() {
-            return Err(Error::new(|| ErrorKind::SourceIncompatible {
+            return Err(Error::new(|| ErrorKind::SourceIncompatibleProp {
                 prop: PropKind::VertexNormal,
                 requested_type: T::TY,
             }));
@@ -369,7 +369,7 @@ where
 
     fn face_normal<T: Primitive>(&self, f: FaceHandle) -> Result<Option<Vector3<T>>, Error> {
         if !is_cast_possible::<R, <M::Target as Vec3Like>::Scalar, T>() {
-            return Err(Error::new(|| ErrorKind::SourceIncompatible {
+            return Err(Error::new(|| ErrorKind::SourceIncompatibleProp {
                 prop: PropKind::FaceNormal,
                 requested_type: T::TY,
             }));

@@ -793,7 +793,7 @@ pub enum ErrorKind {
     InvalidInput(String),
 
     /// This error can be returned by a `MemSink` to signal that it is not able
-    /// to handle incoming data.
+    /// to handle incoming property data.
     ///
     /// This error usually means that you try to transfer mesh data from a
     /// source into a `MemSink` that has strict casting rules. E.g. if the sink
@@ -809,7 +809,7 @@ pub enum ErrorKind {
     /// - Otherwise: choose a different sink that supports your source's data
     ///   or choose a different source that only provides data compatible with
     ///   your sink.
-    SinkIncompatible {
+    SinkIncompatibleProp {
         prop: PropKind,
         source_type: PrimitiveType,
     },
@@ -831,7 +831,7 @@ pub enum ErrorKind {
     /// - Otherwise: choose a different source that supports your sinks's data
     ///   types or choose a different sink that stores data in types compatible
     ///   with your source.
-    SourceIncompatible {
+    SourceIncompatibleProp {
         prop: PropKind,
         requested_type: PrimitiveType,
     },
@@ -872,7 +872,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::Io(e) => write!(f, "IO error: {}", e),
             ErrorKind::Parse(e) => write!(f, "Parsing error: {}", e),
             ErrorKind::InvalidInput(msg) => write!(f, "invalid input: {}", msg),
-            ErrorKind::SinkIncompatible { prop, source_type } => {
+            ErrorKind::SinkIncompatibleProp { prop, source_type } => {
                 write!(
                     f,
                     "sink is not compatible with source: sink cannot handle {} with type `{:?}` \
@@ -881,7 +881,7 @@ impl fmt::Display for ErrorKind {
                     source_type,
                 )
             }
-            ErrorKind::SourceIncompatible { prop, requested_type } => {
+            ErrorKind::SourceIncompatibleProp { prop, requested_type } => {
                 write!(
                     f,
                     "source is not compatible with sink: source cannot provide {} with type \
@@ -1583,7 +1583,8 @@ where
 /// `vertex_position` must always be called with the same type (the same is
 /// true for other property methods). However, the source must be able to
 /// handle all primitive types that a property function might be called with.
-/// This is usually done via casting or returning `Err::SourceIncompatible`.
+/// This is usually done via casting or returning
+/// `Err::SourceIncompatibleProp`.
 ///
 /// The handles passed to all main property methods must be valid handles
 /// obtained from the mesh returned by `core_mesh()`.

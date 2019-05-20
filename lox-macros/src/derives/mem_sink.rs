@@ -197,7 +197,7 @@ fn gen_prop_code(
             >();
 
             if !cast_possible {
-                return Err(lox::io::Error::new(|| lox::io::ErrorKind::SinkIncompatible {
+                return Err(lox::io::Error::new(|| lox::io::ErrorKind::SinkIncompatibleProp {
                     prop: lox::io::PropKind::#elem_prop,
                     source_type: N::TY,
                 }));
@@ -227,7 +227,7 @@ fn gen_prop_code(
         // "None" cast mode
         let check = quote! {
             if !lox::util::are_same_type::<N, <T::Output as lox::prop::#trait_name>::Scalar>() {
-                return Err(lox::io::Error::new(|| lox::io::ErrorKind::SinkIncompatible {
+                return Err(lox::io::Error::new(|| lox::io::ErrorKind::SinkIncompatibleProp {
                     prop: lox::io::PropKind::#elem_prop,
                     source_type: <N as lox::io::Primitive>::TY,
                 }));
@@ -342,7 +342,7 @@ fn gen_color_prop_code(
             >();
 
             if !is_same_type {
-                return Err(lox::io::Error::new(|| lox::io::ErrorKind::SinkIncompatible {
+                return Err(lox::io::Error::new(|| lox::io::ErrorKind::SinkIncompatibleProp {
                     prop: lox::io::PropKind::#elem_color,
                     source_type: <C::Channel as lox::io::Primitive>::TY,
                 }));
