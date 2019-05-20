@@ -54,6 +54,8 @@ jobs:
       - attach_workspace:
           at: /
       - run: cargo test --all
+      - run: cargo test --all --features="large-handle"
+      - run: cargo test --lib --no-default-features && cargo test --doc --no-default-features
       - run: cargo doc --no-deps
 
   fuzz:
