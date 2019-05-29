@@ -28,15 +28,19 @@ where
     };
 
     mesh.vertices().map(|v| {
-        // We use the centroid of all neighbors' position as new positon. If
-        // the vertex does not have any neighbor vertices, its position stays
-        // the same.
-        let new_pos = v.adjacent_vertices()
-            .map(|n| pos_of(n))
-            .centroid()
-            .unwrap_or(pos_of(v));
+        // If the vertex is a boundary vertex, its position doesn't change. If
+        // not, we use the centroid of all neighbors' position as new positon.
+        let new_pos = if v.is_boundary() {
+            pos_of(v)
+        } else {
+            v.adjacent_vertices()
+                .map(|n| pos_of(n))
+                .centroid()
+                .unwrap()  // is not boundary
+                .convert()
+        };
 
-        (v.handle(), new_pos.convert())
+        (v.handle(), new_pos)
     }).collect()
 }
 pub fn is_closed<MeshT>(mesh: &MeshT) -> bool
