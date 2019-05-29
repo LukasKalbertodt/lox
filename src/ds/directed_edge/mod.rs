@@ -25,7 +25,7 @@ use crate::{
     handle::{hsize, Opt, Handle},
     map::VecMap,
     mesh::SplitEdgeWithFacesResult,
-    traits::marker::{Bool, True, TriFaces},
+    traits::marker::{Bool, False, TriFaces},
     traits::adj::{HandleIterFamily},
     util::{DiList, TriList},
 };
@@ -69,8 +69,8 @@ pub trait Config: 'static {
 #[allow(missing_debug_implementations)]
 pub enum DefaultConfig {}
 impl Config for DefaultConfig {
-    type StoreNext = True;
-    type StorePrev = True;
+    type StoreNext = False;
+    type StorePrev = False;
 }
 
 
