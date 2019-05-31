@@ -28,6 +28,7 @@ impl Mesh for SharedVertexMesh {
         self.vertices.num_elements()
     }
 
+    #[inline(always)]
     fn next_vertex_handle_from(&self, start: VertexHandle) -> Option<VertexHandle> {
         // TODO: optimize
         (start.idx()..self.vertices.next_push_handle().idx())
@@ -35,6 +36,7 @@ impl Mesh for SharedVertexMesh {
             .find(|&vh| self.vertices.contains_handle(vh))
     }
 
+    #[inline(always)]
     fn next_face_handle_from(&self, start: FaceHandle) -> Option<FaceHandle> {
         // TODO: optimize
         (start.idx()..self.faces.next_push_handle().idx())
