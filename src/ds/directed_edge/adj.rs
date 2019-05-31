@@ -44,7 +44,6 @@ pub(super) enum CwVertexCirculatorState {
 impl<C: Config> Iterator for CwVertexCirculator<'_, C> {
     type Item = Checked<HalfEdgeHandle>;
 
-    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         match self.state {
             CwVertexCirculatorState::Empty => None,

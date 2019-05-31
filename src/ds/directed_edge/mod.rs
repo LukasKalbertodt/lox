@@ -101,6 +101,7 @@ impl HalfEdgeHandle {
         Self::new(fh.idx() * 3)
     }
 
+    #[inline(always)]
     fn face(&self) -> FaceHandle {
         FaceHandle::new(self.idx() / 3)
     }
@@ -179,14 +180,17 @@ const TWIN_MASK: hsize = 1 << (std::mem::size_of::<hsize>() * 8 - 1);
 
 impl EncodedTwin {
     /// Returns a dummy value that has to be overwritten!
+    #[inline(always)]
     fn dummy() -> Self {
         Self(0)
     }
 
+    #[inline(always)]
     fn next_boundary_he(he: Checked<HalfEdgeHandle>) -> Self {
         Self(he.idx() | TWIN_MASK)
     }
 
+    #[inline(always)]
     fn twin(he: Checked<HalfEdgeHandle>) -> Self {
         Self(he.idx())
     }
@@ -204,6 +208,7 @@ impl EncodedTwin {
         Checked::new(self.0 & !TWIN_MASK)
     }
 
+    #[inline(always)]
     fn is_real_twin(&self) -> bool {
         self.0 & TWIN_MASK == 0
     }
