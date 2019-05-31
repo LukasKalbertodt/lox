@@ -43,3 +43,7 @@ harness = false
 [[bench]]
 name = "io_stl"
 harness = false
+
+[[bench]]
+name = "mesh"
+harness = false
