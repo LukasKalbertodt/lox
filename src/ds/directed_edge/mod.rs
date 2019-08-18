@@ -430,20 +430,12 @@ impl<C: Config> DirectedEdgeMesh<C> {
     fn next_he(&self, he: Checked<HalfEdgeHandle>) -> Checked<HalfEdgeHandle> {
         // TODO: use `next` value if available
 
-        // In principle, doing this is simple. To do it as fast as possible, we
-        // can use some tricks, though.
-        //
-        // The first HE of the face is `he.idx() / 3`. If the given HE is the
-        // first or second half edge of the face, we just need to add one. If
-        // it's the third HE of the face, we need to subtract 2. But how to
+        // The first HE of the face is `(he.idx() / 3) * 3`. If the given HE is
+        // the first or second half edge of the face, we just need to add one.
+        // If it's the third HE of the face, we need to subtract 2. But how to
         // check if it's the third HE? `(id + 1) % 3 == 0` does that.
-        // Unfortunately, LLVM is not smart enough to perfectly optimize that
-        // code. That's why this is hand-micro-optimized.
-        //
-        // The divisibility-check is well-known and described for example here:
-        // http://clomont.com/efficient-divisibility-testing/
         let idx = he.idx() + 1;
-        let next = if idx.wrapping_mul(0xaaaaaaab) <= 0x55555555 {
+        let next = if is_divisible_by_3(idx) {
             idx - 3
         } else {
             idx
@@ -456,7 +448,7 @@ impl<C: Config> DirectedEdgeMesh<C> {
         // TODO: use `prev` value if available
 
         // See `next_he` for explanation on this code.
-        if he.idx().wrapping_mul(0xaaaaaaab) <= 0x55555555 {
+        if is_divisible_by_3(he.idx()) {
             Checked::new(he.idx() + 2)
         } else {
             Checked::new(he.idx() - 1)
@@ -464,6 +456,33 @@ impl<C: Config> DirectedEdgeMesh<C> {
     }
 }
 
+/// Returns `true` if and only if `idx` is divisible by 3. Basically `(id + 1)
+/// % 3 == 0` but hand-optimized.
+///
+/// Unfortunately, LLVM is not smart enough to correctly optimize that code.
+/// That's why this is hand-micro-optimized. The divisibility-check is
+/// well-known and described for example here:
+/// http://clomont.com/efficient-divisibility-testing/
+#[inline(always)]
+fn is_divisible_by_3(idx: hsize) -> bool {
+    // We have to do different things depending on the handle size. The
+    // argument types of the inner functions are `u32` and `u64` to assure this
+    // function is correct.
+
+    #[cfg(not(feature = "large-handle"))]
+    #[inline(always)]
+    fn check(idx: u32) -> bool {
+        idx.wrapping_mul(0xaaaaaaab) <= 0x55555555
+    }
+
+    #[cfg(feature = "large-handle")]
+    #[inline(always)]
+    fn check(idx: u64) -> bool {
+        idx.wrapping_mul(0xaaaaaaaaaaaaaaab) <= 0x5555555555555555
+    }
+
+    check(idx)
+}
 
 macro_rules! impl_index {
     ($handle:ident, $field:ident, $c:ident, $out:ty) => {
