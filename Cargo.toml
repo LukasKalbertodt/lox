@@ -28,7 +28,7 @@ lox-macros = { path = "lox-macros" }
 hashbrown = "0.3.0"
 num-traits = "0.2"
 smallvec = { version = "0.6", features = ["union"] }
-stable-vec = { git = "https://github.com/LukasKalbertodt/stable-vec", branch = "v0.4-pre" }
+stable-vec = { git = "https://github.com/LukasKalbertodt/stable-vec", rev = "628fba0" }
 
 [dev-dependencies]
 color-backtrace = "0.1"

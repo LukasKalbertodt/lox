@@ -5,7 +5,11 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use stable_vec::{Indices, StableVec, DefaultCore};
+use stable_vec::{
+    StableVec,
+    core::DefaultCore,
+    iter::Indices,
+};
 
 use crate::{
     handle::{hsize, Handle},
@@ -95,7 +99,7 @@ impl<H: Handle, T> VecMap<H, T> {
     }
 
     pub(crate) fn next_push_handle(&self) -> H {
-        H::from_usize(self.vec.next_index())
+        H::from_usize(self.vec.next_push_index())
     }
 
     pub(crate) fn last_handle(&self) -> Option<H> {
@@ -115,13 +119,13 @@ impl<H: Handle, T> VecMap<H, T> {
 
     pub fn values(&self) -> Values<'_, T> {
         Values {
-            iter: self.vec.iter(),
+            iter: self.vec.values(),
         }
     }
 
     pub fn values_mut(&mut self) -> ValuesMut<'_, T> {
         ValuesMut {
-            iter: self.vec.iter_mut(),
+            iter: self.vec.values_mut(),
         }
     }
 
@@ -283,7 +287,7 @@ impl<'map, H: Handle, T> Iterator for Handles<'map, H, T> {
 
 #[derive(Debug, Clone)]
 pub struct Values<'map, T> {
-    iter: stable_vec::Iter<'map, T, DefaultCore<T>>,
+    iter: stable_vec::iter::Values<'map, T, DefaultCore<T>>,
 }
 
 impl<'map, T> Iterator for Values<'map, T> {
@@ -295,7 +299,7 @@ impl<'map, T> Iterator for Values<'map, T> {
 
 #[derive(Debug)]
 pub struct ValuesMut<'map, T> {
-    iter: stable_vec::IterMut<'map, T, DefaultCore<T>>,
+    iter: stable_vec::iter::ValuesMut<'map, T, DefaultCore<T>>,
 }
 
 impl<'map, T> Iterator for ValuesMut<'map, T> {
