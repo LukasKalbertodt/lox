@@ -139,7 +139,9 @@ impl Checked<HalfEdgeHandle> {
     /// of the handle id to get the twin handle.
     #[inline(always)]
     fn twin(self) -> Checked<HalfEdgeHandle> {
-        Self::new(self.idx() ^ 1)
+        // See function documentation on why this is safe. A pair of twins is
+        // always stored together.
+        unsafe { Self::new(HalfEdgeHandle::new(self.idx() ^ 1)) }
     }
 }
 
@@ -254,7 +256,8 @@ impl<C: Config> HalfEdgeMesh<C> {
     /// not the case, this method panics.
     fn check_face(&self, fh: FaceHandle) -> Checked<FaceHandle> {
         if self.faces.contains_handle(fh) {
-            Checked(fh)
+            // We just checked `fh` is valid, so `unsafe` is fine.
+            unsafe { Checked::new(fh) }
         } else {
             panic!(
                 "{:?} was passed to a half edge mesh, but this face does not exist in this mesh",
@@ -267,7 +270,8 @@ impl<C: Config> HalfEdgeMesh<C> {
     /// not the case, this method panics.
     fn check_vertex(&self, vh: VertexHandle) -> Checked<VertexHandle> {
         if self.vertices.contains_handle(vh) {
-            Checked(vh)
+            // We just checked `vh` is valid, so `unsafe` is fine.
+            unsafe { Checked::new(vh) }
         } else {
             panic!(
                 "{:?} was passed to a half edge mesh, but this vertex does not exist in this mesh",
@@ -282,7 +286,8 @@ impl<C: Config> HalfEdgeMesh<C> {
     fn checked_half_of(&self, eh: EdgeHandle) -> Checked<HalfEdgeHandle> {
         let heh = HalfEdgeHandle::lower_half_of(eh);
         if self.half_edges.contains_handle(heh) {
-            Checked(heh)
+            // We just checked `heh` is valid, so `unsafe` is fine.
+            unsafe { Checked::new(heh) }
         } else {
             panic!(
                 "{:?} was passed to a half edge mesh, but this edge does not exist in this mesh",
@@ -369,7 +374,7 @@ impl<C: Config> HalfEdgeMesh<C> {
     /// - Sets the `next` field of the half edges to a dummy value. You
     ///   have to overwrite this value!
     /// - Does not set the `outgoing` fields of the vertices.
-    fn add_edge_partially(
+    unsafe fn add_edge_partially(
         &mut self,
         from: Checked<VertexHandle>,
         to: Checked<VertexHandle>,
@@ -378,12 +383,12 @@ impl<C: Config> HalfEdgeMesh<C> {
         // Unfortunately, this is necessary. All code using this method has to
         // pay special attention anyway.
         let face = Opt::none();
-        let next = Checked(HalfEdgeHandle::new(0));
+        let next = Checked::new(HalfEdgeHandle::new(0));
 
         self.half_edges.push(HalfEdge { target: from, face, next });
         let out = self.half_edges.push(HalfEdge { target: to, face, next });
 
-        Checked(out)
+        Checked::new(out)
     }
 
     /// Adds a face defined by the given `vertices`.
@@ -490,7 +495,10 @@ impl<C: Config> HalfEdgeMesh<C> {
                 assert!(self[he].face.is_none(), NON_MANIFOLD_EDGE_ERR);
             }
 
-            let he = he.unwrap_or_else(|| self.add_edge_partially(from, to));
+            // This `unsafe` is here because the `next` field is set to a dummy
+            // value. We have to make sure to overwrite it before we read it.
+            // Well, this function's whole completeness is based on that fact.
+            let he = he.unwrap_or_else(|| unsafe { self.add_edge_partially(from, to) });
             inner_half_edges[vi] = he;
         }
 
@@ -502,7 +510,7 @@ impl<C: Config> HalfEdgeMesh<C> {
         let new_face = self.faces.push(Face {
             edge: inner_half_edges[0], // just an arbitrary edge
         });
-        let new_face = Checked(new_face);
+        let new_face = unsafe { Checked::new(new_face) };
 
         // Set the `face` handle of the inner edges.
         for he in &*inner_half_edges {
@@ -964,7 +972,12 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         assert_ne!(a, b, "vertices of new face are not unique");
         assert_ne!(a, c, "vertices of new face are not unique");
 
-        self.add_face_impl(&[a, b, c], &mut [Checked::<HalfEdgeHandle>::new(0); 3])
+        // The `unsafe Checked::new` is fine as `add_face_impl` overrides all
+        // values in its third argument before reading those values.
+        self.add_face_impl(
+            &[a, b, c],
+            &mut [unsafe { Checked::new(HalfEdgeHandle::new(0)) }; 3],
+        )
     }
 
     fn add_face(&mut self, vertices: &[VertexHandle]) -> FaceHandle
@@ -978,7 +991,10 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         );
         // TODO: check uniqueness of vertices?
 
-        let mut inner_half_edges = vec![Checked(HalfEdgeHandle::new(0)); vertices.len()];
+        // The `unsafe Checked::new` is fine as `add_face_impl` overrides all
+        // values in its third argument before reading those values.
+        let mut inner_half_edges
+            = vec![unsafe { Checked::new(HalfEdgeHandle::new(0))}; vertices.len()];
         self.add_face_impl(vertices, &mut inner_half_edges)
     }
 
@@ -1062,8 +1078,9 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         // element goes through the whole `push()` code with check for capacity
         // overflow and realloc call. This should be improved.
 
-        // Add new vertex "in the middle".
-        let midpoint = Checked(self.add_vertex());
+        // Add new vertex "in the middle". The `Checked::new` is correct as the
+        // handle returned by `add_vertex` is obviously valid.
+        let midpoint = unsafe { Checked::new(self.add_vertex()) };
 
         // Pick arbitrary start edge and vertex. In the example above that are
         // `(A) -> (B)` and (A), respectively.
@@ -1072,8 +1089,10 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
 
         // Add first edge and set midpoint's `outgoing` to that edge. The
         // midpoint is not a boundary vertex, we don't have to pay attention to
-        // the `outgoing` edge.
-        let start_nhe = self.add_edge_partially(midpoint, start_vertex);
+        // the `outgoing` edge. The `unsafe` is required here as the `next`
+        // fields of the half edges are set to a dummy value. So we have to
+        // overwrite them before reading them.
+        let start_nhe = unsafe { self.add_edge_partially(midpoint, start_vertex) };
         self[midpoint].outgoing = Opt::some(start_nhe);
 
         // `border_ohe` is one if the inner half edges of the original face.
@@ -1094,15 +1113,18 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
             // overwrite the `next` value below.
             let next_border_ohe = self[border_ohe].next;
 
-            // Add the a edge
+            // Add the edge. As before: the half edges are not fully
+            // initialized so we need to take care to overwrite the `next`
+            // fields before reading them.
             let next_vertex = self[border_ohe].target;
-            let next_nhe = self.add_edge_partially(midpoint, next_vertex);
+            let next_nhe = unsafe { self.add_edge_partially(midpoint, next_vertex) };
 
             // Add the new face. This includes setting the `next` and `face`
             // fields of the edges of the new triangle. These are:
-            // `border_ohe`, `last_nhe` and `next_nhe.twin()`.
+            // `border_ohe`, `last_nhe` and `next_nhe.twin()`. The
+            // `Checked::new` is fine here as the handle is returned by `push`.
             let inner_new = next_nhe.twin();
-            let new_face = Checked(self.faces.push(Face { edge: inner_new }));
+            let new_face = unsafe { Checked::new(self.faces.push(Face { edge: inner_new })) };
 
             self[inner_new].next = last_nhe;
             self[last_nhe].next = border_ohe;
@@ -1273,8 +1295,11 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         //          <---------- (mid) <-----------
         //             below           new_below
         //
-        let v_mid = Checked(self.add_vertex());
-        let he_new_above = self.add_edge_partially(v_mid, v_right);
+        // The `Checked::new` is fine as `add_vertex` only returns valid
+        // handles. The `add_edge_partially` is fine as we immediately
+        // overwrite the dummy `next` values in the code a few lines below.
+        let v_mid = unsafe { Checked::new(self.add_vertex()) };
+        let he_new_above = unsafe { self.add_edge_partially(v_mid, v_right) };
         let he_new_below = he_new_above.twin();
 
         // Fix next handles
@@ -1349,7 +1374,9 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
             let v_top = mesh[he_top_right].target;
             let he_top_left = mesh[he_top_right].next;
 
-            let he_mid_left = mesh.add_edge_partially(v_mid, v_top);
+            // The `add_edge_partially` is fine here as we immediately
+            // overwrite the `next` dummy values in the code below.
+            let he_mid_left = unsafe { mesh.add_edge_partially(v_mid, v_top) };
             let he_mid_right = he_mid_left.twin();
 
             // Fix left face
@@ -1359,8 +1386,11 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
             mesh[he_mid_left].face = Opt::some(old_face);
             mesh[old_face].edge = he_bottom_left;
 
-            // Create and fix right face
-            let right_face = Checked(mesh.faces.push(Face { edge: he_bottom_right }));
+            // Create and fix right face. The face handle returned by `push` is
+            // obviously valid, thus `Checked::new` is fine.
+            let right_face = unsafe {
+                Checked::new(mesh.faces.push(Face { edge: he_bottom_right }))
+            };
             mesh[he_mid_right].face = Opt::some(right_face);
             mesh[he_bottom_right].face = Opt::some(right_face);
             mesh[he_top_right].face = Opt::some(right_face);

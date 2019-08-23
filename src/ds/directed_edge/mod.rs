@@ -172,6 +172,11 @@ pub(crate) struct Vertex {
 /// In this case, `a.twin` has its sign bit set and points to `b`. `b` to
 /// `c` and so on.
 ///
+/// As this type deals with a lot of `Checked<HalfEdgeHandle>`s, many functions
+/// contain `unsafe`. This is always fine as long as the user creates instances
+/// of this type only from valid handles. But as the constructors already take
+/// `Checked` handles, we know those are valid.
+///
 /// TODO: Think about maybe not using the first bit, but instead comparing this
 /// number to the length of the half edge vector. That way we can utilize the
 /// whole handle space.
@@ -183,7 +188,7 @@ const TWIN_MASK: hsize = 1 << (std::mem::size_of::<hsize>() * 8 - 1);
 impl EncodedTwin {
     /// Returns a dummy value that has to be overwritten!
     #[inline(always)]
-    fn dummy() -> Self {
+    unsafe fn dummy() -> Self {
         Self(0)
     }
 
@@ -200,14 +205,17 @@ impl EncodedTwin {
     /// Decode it into the easier to use form.
     fn decode(&self) -> Twin {
         if self.is_real_twin() {
-            Twin::Twin(Checked::new(self.0))
+            // See type documentation on `unsafe`
+            unsafe { Twin::Twin(Checked::new(HalfEdgeHandle::new(self.0))) }
         } else {
-            Twin::NextBoundaryHe(Checked::new(self.0 & !TWIN_MASK))
+            // See type documentation on `unsafe`
+            unsafe { Twin::NextBoundaryHe(Checked::new(HalfEdgeHandle::new(self.0 & !TWIN_MASK))) }
         }
     }
 
     fn or_next_boundary_he(&self) -> Checked<HalfEdgeHandle> {
-        Checked::new(self.0 & !TWIN_MASK)
+        // See type documentation on `unsafe`
+        unsafe { Checked::new(HalfEdgeHandle::new(self.0 & !TWIN_MASK)) }
     }
 
     #[inline(always)]
@@ -217,7 +225,8 @@ impl EncodedTwin {
 
     fn as_real_twin(&self) -> Option<Checked<HalfEdgeHandle>> {
         if self.is_real_twin() {
-            Some(Checked::new(self.0))
+            // See type documentation on `unsafe`
+            unsafe { Some(Checked::new(HalfEdgeHandle::new(self.0))) }
         } else {
             None
         }
@@ -227,7 +236,8 @@ impl EncodedTwin {
         if self.is_real_twin() {
             None
         } else {
-            Some(Checked::new(self.0 & !TWIN_MASK))
+            // See type documentation on `unsafe`
+            unsafe { Some(Checked::new(HalfEdgeHandle::new(self.0 & !TWIN_MASK))) }
         }
     }
 }
@@ -268,12 +278,12 @@ impl<C: Config> HalfEdge<C> {
     /// Returns an instance with only `target` initialized to the given value
     /// while all other fields contain dummy values. These fields need to be
     /// overwritten since they contain bogus information.
-    fn dummy_to(target: Checked<VertexHandle>) -> Self {
+    unsafe fn dummy_to(target: Checked<VertexHandle>) -> Self {
         Self {
             twin: EncodedTwin::dummy(),
             target,
-            next: new_next_handle::<C>(Checked::new(0)),
-            prev: new_prev_handle::<C>(Checked::new(0)),
+            next: new_next_handle::<C>(Checked::new(HalfEdgeHandle::new(0))),
+            prev: new_prev_handle::<C>(Checked::new(HalfEdgeHandle::new(0))),
         }
     }
 
@@ -365,7 +375,8 @@ impl<C: Config> DirectedEdgeMesh<C> {
     /// not the case, this method panics.
     fn check_vertex(&self, vh: VertexHandle) -> Checked<VertexHandle> {
         if self.vertices.contains_handle(vh) {
-            Checked(vh)
+            // We just checked `vh` is valid, so `Checked::new` is correct
+            unsafe { Checked::new(vh) }
         } else {
             panic!(
                 "{:?} was passed to a half edge mesh, but this vertex does not exist in this mesh",
@@ -390,11 +401,13 @@ impl<C: Config> DirectedEdgeMesh<C> {
     fn checked_half_edges_around(&self, fh: FaceHandle) -> [Checked<HalfEdgeHandle>; 3] {
         let heh = HalfEdgeHandle::first_around(fh);
         if self.half_edges.contains_handle(heh) {
-            [
-                Checked(heh),
-                Checked::new(heh.idx() + 1),
-                Checked::new(heh.idx() + 2),
-            ]
+            // These handles actually exist due to the basic way this data
+            // structure works. For each face three half edges are stored.
+            unsafe { [
+                Checked::new(heh),
+                Checked::new(HalfEdgeHandle::new(heh.idx() + 1)),
+                Checked::new(HalfEdgeHandle::new(heh.idx() + 2)),
+            ] }
         } else {
             panic!(
                 "{:?} was passed to a directed edge mesh, but this face does not \
@@ -443,18 +456,24 @@ impl<C: Config> DirectedEdgeMesh<C> {
             idx
         };
 
-        Checked::new(next)
+        // This handle actually exists by the logic above. Three half edges
+        // always exist together.
+        unsafe { Checked::new(HalfEdgeHandle::new(next)) }
     }
 
     fn prev_he(&self, he: Checked<HalfEdgeHandle>) -> Checked<HalfEdgeHandle> {
         // TODO: use `prev` value if available
 
         // See `next_he` for explanation on this code.
-        if is_divisible_by_3(he.idx()) {
-            Checked::new(he.idx() + 2)
+        let prev = if is_divisible_by_3(he.idx()) {
+            he.idx() + 2
         } else {
-            Checked::new(he.idx() - 1)
-        }
+            he.idx() - 1
+        };
+
+        // This handle actually exists by the logic above. Three half edges
+        // always exist together.
+        unsafe { Checked::new(HalfEdgeHandle::new(prev)) }
     }
 }
 
@@ -598,11 +617,22 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         ];
         // dbg!(outer_hes);
 
-        // Add three new half edges
-        let inner0 = self.half_edges.push(HalfEdge::dummy_to(vertices[1]));
-        let inner1 = self.half_edges.push(HalfEdge::dummy_to(vertices[2]));
-        let inner2 = self.half_edges.push(HalfEdge::dummy_to(vertices[0]));
-        let inner_hes = [Checked(inner0), Checked(inner1), Checked(inner2)];
+        // Add three new half edges. The `unsafe` here is used for
+        // `Checked::new` and `HalfEdge::dummy_to`. The `Checked::new` uses are
+        // fine as the handles just got returned from `push`.
+        //
+        // The `dummy_to` is only safe if we override the `twin`, `next` and
+        // `prev` handles and never use them to index the storage. Sadly, this
+        // is not easy to see. All fields are certainly overwritten, but it's
+        // more difficult to show that they are not accessed before. Well, the
+        // correctness of this whole function is based on that.
+        let inner_hes = unsafe {
+            let inner0 = self.half_edges.push(HalfEdge::dummy_to(vertices[1]));
+            let inner1 = self.half_edges.push(HalfEdge::dummy_to(vertices[2]));
+            let inner2 = self.half_edges.push(HalfEdge::dummy_to(vertices[0]));
+
+            [Checked::new(inner0), Checked::new(inner1), Checked::new(inner2)]
+        };
 
 
         // Iterate over all corners of the new triangle
@@ -894,8 +924,7 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         }
 
 
-
-        inner0.face()
+        inner_hes[0].face()
     }
 
     #[inline(never)]
