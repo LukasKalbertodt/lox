@@ -20,9 +20,11 @@ use std::{
     slice,
 };
 
+use optional::Optioned as Opt;
+
 use crate::{
     prelude::*,
-    handle::{hsize, Opt, Handle},
+    handle::{hsize, Handle},
     map::VecMap,
     mesh::SplitEdgeWithFacesResult,
     traits::marker::{Bool, False, TriFaces},
@@ -416,7 +418,7 @@ impl<C: Config> DirectedEdgeMesh<C> {
     /// Returns an iterator the circulates around the vertex `center`. The
     /// iterator yields outgoing half edges.
     fn circulate_around_vertex(&self, center: Checked<VertexHandle>) -> CwVertexCirculator<'_, C> {
-        let state = match self[center].outgoing.to_option() {
+        let state = match self[center].outgoing.into_option() {
             None => CwVertexCirculatorState::Empty,
             Some(start_he) => CwVertexCirculatorState::NonEmpty {
                 current_he: start_he,
@@ -622,7 +624,7 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
             match (incoming_outer, outgoing_outer) {
                 // None of the half edges exists: both are boundary edges.
                 (None, None) => {
-                    if let Some(outgoing_from_v) = v.outgoing.to_option() {
+                    if let Some(outgoing_from_v) = v.outgoing.into_option() {
                         // More difficult case: we are creating a multi
                         // fan-blade vertex here. In order to correctly set the
                         // encoded twin handles, we need to find the start of

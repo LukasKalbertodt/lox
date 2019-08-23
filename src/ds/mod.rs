@@ -56,15 +56,24 @@ pub use self::{
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct Checked<H: Handle>(H);
 
-impl<H: Handle> Handle for Checked<H> {
+impl<H: Handle> Checked<H> {
     #[inline(always)]
     fn new(idx: hsize) -> Self {
         Self(H::new(idx))
     }
+}
 
-    #[inline(always)]
-    fn idx(&self) -> hsize {
-        self.0.idx()
+impl<H: Handle> optional::Noned for Checked<H> {
+    fn is_none(&self) -> bool {
+        self.0.idx() == hsize::max_value()
+    }
+    fn get_none() -> Self {
+        Self(H::new(hsize::max_value()))
+    }
+}
+impl<H: Handle> optional::OptEq for Checked<H> {
+    fn opt_eq(&self, other: &Self) -> bool {
+        self == other
     }
 }
 

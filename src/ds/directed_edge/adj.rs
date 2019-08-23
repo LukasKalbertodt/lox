@@ -5,9 +5,10 @@ use std::{
     marker::PhantomData,
 };
 
+use optional::Optioned as Opt;
+
 use crate::{
     prelude::*,
-    handle::{Opt},
     traits::adj::{HandleIterFamily},
     util::{
         DiList, TriList, TriArrayIntoIter, TriArrayExt,
@@ -137,7 +138,7 @@ impl<C: Config> FullAdj for DirectedEdgeMesh<C> {
         // edge is a boundary half edge. So we can very easily check if a
         // vertex is a boundary vertex.
         let vertex = self.check_vertex(vertex);
-        match self[vertex].outgoing.to_option() {
+        match self[vertex].outgoing.into_option() {
             None => true,
             Some(outgoing) => self[outgoing].is_boundary(),
         }
@@ -224,7 +225,7 @@ enum VertexToVertexIterState {
 impl<'a, C: Config> VertexToVertexIter<'a, C> {
     fn from_center(mesh: &'a DirectedEdgeMesh<C>, center: VertexHandle) -> Self {
         let center = mesh.check_vertex(center);
-        let state = match mesh[center].outgoing.to_option() {
+        let state = match mesh[center].outgoing.into_option() {
             None => VertexToVertexIterState::Empty,
             Some(start_he) => VertexToVertexIterState::AtOutgoing {
                 outgoing: start_he,

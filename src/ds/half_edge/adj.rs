@@ -5,9 +5,10 @@ use std::{
     marker::PhantomData,
 };
 
+use optional::Optioned as Opt;
+
 use crate::{
     prelude::*,
-    handle::{Opt},
     traits::adj::{HandleIterFamily},
     util::{DiList, TriList},
 };
@@ -141,7 +142,7 @@ impl<C: Config> FullAdj for HalfEdgeMesh<C> {
         let he2 = self[he1].next;
 
         TriList::new(
-            [he0, he1, he2].map(|he| self[he.twin()].face.to_option().map(|f| *f))
+            [he0, he1, he2].map(|he| self[he.twin()].face.into_option().map(|f| *f))
         )
     }
 
@@ -192,7 +193,7 @@ impl<C: Config> FullAdj for HalfEdgeMesh<C> {
         // is a boundary half edge. So we can very easily check if a vertex is
         // a boundary vertex.
         let vertex = self.check_vertex(vertex);
-        match self[vertex].outgoing.to_option() {
+        match self[vertex].outgoing.into_option() {
             None => true,
             Some(outgoing) => self[outgoing].face.is_none(),
         }
@@ -232,8 +233,8 @@ impl<C: Config> EdgeAdj for HalfEdgeMesh<C> {
         let a = self.checked_half_of(edge);
         let b = a.twin();
         DiList::from_options(
-            self[a].face.to_option().map(|f| *f),
-            self[b].face.to_option().map(|f| *f),
+            self[a].face.into_option().map(|f| *f),
+            self[b].face.into_option().map(|f| *f),
         )
     }
 
@@ -307,7 +308,7 @@ impl<C: Config> Iterator for FaceToFaceIter<'_, C> {
         // We simply skip the edge that don't have a face adjacent to them.
         let mesh = self.mesh;
         self.it.by_ref()
-            .filter_map(|inner| mesh[inner.twin()].face.to_option())
+            .filter_map(|inner| mesh[inner.twin()].face.into_option())
             .map(|f| *f)
             .next()
     }
@@ -375,7 +376,7 @@ impl<C: Config> Iterator for VertexToFaceIter<'_, C> {
         // We simply skip the edge that don't have a face adjacent to them.
         let mesh = self.mesh;
         self.it.by_ref()
-            .filter_map(|outgoing| mesh[outgoing].face.to_option())
+            .filter_map(|outgoing| mesh[outgoing].face.into_option())
             .map(|f| *f)
             .next()
     }

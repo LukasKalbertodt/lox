@@ -18,9 +18,11 @@ use std::{
     slice,
 };
 
+use optional::Optioned as Opt;
+
 use crate::{
     prelude::*,
-    handle::{hsize, Opt, Handle},
+    handle::{hsize, Handle},
     map::VecMap,
     mesh::SplitEdgeWithFacesResult,
     traits::marker::{TriFaces, FaceKind, PolyFaces},
@@ -304,7 +306,7 @@ impl<C: Config> HalfEdgeMesh<C> {
     /// Returns an iterator the circulates around the vertex `center`. The
     /// iterator yields outgoing half edges.
     fn circulate_around_vertex(&self, center: Checked<VertexHandle>) -> CwVertexCirculator<'_, C> {
-        match self[center].outgoing.to_option() {
+        match self[center].outgoing.into_option() {
             None => CwVertexCirculator::Empty,
             Some(start_he) => CwVertexCirculator::NonEmpty {
                 mesh: self,
@@ -572,7 +574,7 @@ impl<C: Config> HalfEdgeMesh<C> {
                 // but it can be a bit tricky when there are other edges (and
                 // thus a face) connected to that vertex.
                 (false, false) => {
-                    if let Some(outgoing_from_v) = v.outgoing.to_option() {
+                    if let Some(outgoing_from_v) = v.outgoing.into_option() {
                         // More difficult case: we are creating a multi
                         // fan-blade vertex here. In order to correctly set the
                         // `next` handles, we need to find the start of some
@@ -1193,8 +1195,8 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         let he_below_right = self[he_below_left].next;
 
         let faces = [
-            self[he_center_above].face.to_option(),
-            self[he_center_below].face.to_option(),
+            self[he_center_above].face.into_option(),
+            self[he_center_below].face.into_option(),
         ];
         let (f_above, f_below) = match faces {
             [Some(above), Some(below)] => (above, below),
@@ -1290,8 +1292,8 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         }
 
         // Set a fitting `outgoing` edge for mid-vertex
-        let face_above = self[he_above].face.to_option();
-        let face_below = self[he_below].face.to_option();
+        let face_above = self[he_above].face.into_option();
+        let face_below = self[he_below].face.into_option();
         let outgoing = match (face_above.is_some(), face_below.is_some()) {
             // No face above but below, `he_new_above` is boundary edge, we
             // need to use that edge.

@@ -27,6 +27,7 @@ failure = "0.1.2"
 lox-macros = { path = "lox-macros" }
 hashbrown = "0.3.0"
 num-traits = "0.2"
+optional = "0.5"
 smallvec = { version = "0.6", features = ["union"] }
 stable-vec = "0.4.0-beta"
 
