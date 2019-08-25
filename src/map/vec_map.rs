@@ -187,8 +187,8 @@ impl<H: Handle, T> PropStore<H> for VecMap<H, T> {
         self.vec.num_elements() as hsize
     }
 
-    fn handles<'a>(&'a self) -> Box<dyn Iterator<Item = H> + 'a> {
-        Box::new(self.handles())
+    fn iter(&self) -> Box<dyn Iterator<Item = (H, &Self::Output)> + '_> {
+        Box::new(self.iter())
     }
 }
 

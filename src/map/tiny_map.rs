@@ -79,8 +79,8 @@ impl<H: Handle, T> PropStore<H> for TinyMap<H, T> {
         self.vec.len() as hsize
     }
 
-    fn handles<'a>(&'a self) -> Box<dyn Iterator<Item = H> + 'a> {
-        Box::new(self.vec.iter().map(|(handle, _)| *handle))
+    fn iter(&self) -> Box<dyn Iterator<Item = (H, &Self::Output)> + '_> {
+        Box::new(self.vec.iter().map(|(handle, v)| (*handle, v)))
     }
 }
 

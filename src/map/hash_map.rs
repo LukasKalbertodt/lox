@@ -75,8 +75,8 @@ impl<H: Handle + Hash, T> PropStore<H> for HashMap<H, T> {
         self.0.len() as hsize
     }
 
-    fn handles<'a>(&'a self) -> Box<dyn Iterator<Item = H> + 'a> {
-        Box::new(self.0.keys().copied())
+    fn iter(&self) -> Box<dyn Iterator<Item = (H, &Self::Output)> + '_> {
+        Box::new(self.0.iter().map(|(k, v)| (*k, v)))
     }
 }
 

@@ -217,11 +217,11 @@ pub trait PropMap<H: Handle> {
 
 /// A type that stores data associated with handles.
 ///
-/// This type is similar to `PropMap`, but has more restrictions.
+/// This type is similar to `PropMap`, but has more restrictions/features.
 /// `PropMap::get` can return owned or borrowed values, whereas
 /// `PropStore::get_ref` has to return a borrowed value. It also has
 /// `ops::Index` as super trait, which requires the same. Furthermore, a
-/// `PropStore` needs to be able to iterate through all of its data.
+/// `PropStore` needs to be able to iterate over all of its data.
 ///
 ///
 /// # Type level relationship between `PropStore` and `PropMap`
@@ -249,18 +249,23 @@ pub trait PropStore<H: Handle>:
     /// Returns the number of properties stored in this map.
     fn num_props(&self) -> hsize;
 
-    /// Returns an iterator over all handles that have a value associated with
-    /// them.
-    ///
-    /// The order of the handles is not specified.
+    /// Returns an iterator over all values and their associated handles. The
+    /// order of this iterator is not specified.
     ///
     /// TODO: improve with GATs
-    fn handles<'a>(&'a self) -> Box<dyn Iterator<Item = H> + 'a>;
+    fn iter(&self) -> Box<dyn Iterator<Item = (H, &Self::Output)> + '_>;
 
-    // Additional maybe useful methods:
-    // - Iterator over
-    //      - values
-    //      - both
+    /// Returns an iterator over all handles that have a value associated with
+    /// them. The order of the handles is not specified.
+    fn handles(&self) -> Handles<'_, H, Self::Output> {
+        Handles(self.iter())
+    }
+
+    /// Returns an iterator over all values. The order of the handles is not
+    /// specified.
+    fn values(&self) -> Values<'_, H, Self::Output> {
+        Values(self.iter())
+    }
 
     fn is_empty(&self) -> bool {
         self.num_props() == 0
@@ -301,5 +306,26 @@ pub trait PropStoreMut<H: Handle>: Empty + PropStore<H> + ops::IndexMut<H> {
         let mut out = Self::empty();
         out.reserve(cap);
         out
+    }
+}
+
+
+#[allow(missing_debug_implementations)] // TODO
+pub struct Handles<'map, H, T>(Box<dyn Iterator<Item = (H, &'map T)> + 'map>);
+
+impl<'map, H, T> Iterator for Handles<'map, H, T> {
+    type Item = H;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(|(h, _)| h)
+    }
+}
+
+#[allow(missing_debug_implementations)] // TODO
+pub struct Values<'map, H, T>(Box<dyn Iterator<Item = (H, &'map T)> + 'map>);
+
+impl<'map, H, T> Iterator for Values<'map, H, T> {
+    type Item = &'map T;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(|(_, v)| v)
     }
 }
