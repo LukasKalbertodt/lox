@@ -1,6 +1,6 @@
 use std::{
     fmt,
-    iter::FromIterator,
+    iter::{FromIterator, FusedIterator},
     marker::PhantomData,
     ops::{Index, IndexMut},
 };
@@ -8,7 +8,10 @@ use std::{
 use stable_vec::{
     StableVec,
     core::DefaultCore,
-    iter::Indices,
+    iter::{
+        Indices, Iter as SvIter, IterMut as SvIterMut, Values as SvValues,
+        ValuesMut as SvValuesMut,
+    },
 };
 
 use crate::{
@@ -110,23 +113,23 @@ impl<H: Handle, T> VecMap<H, T> {
         self.vec.num_elements() as hsize
     }
 
-    pub fn handles(&self) -> Handles<H, T> {
-        Handles {
-            iter: self.vec.indices(),
-            _dummy: PhantomData,
-        }
-    }
+    // TODO: the following iterator methods are not necessary anymore once
+    // `PropStore` can use statically dispatched iterators.
 
-    pub fn values(&self) -> Values<'_, T> {
-        Values {
-            iter: self.vec.values(),
-        }
+    pub fn iter(&self) -> Iter<'_, H, T> {
+        Iter::new(self)
     }
-
-    pub fn values_mut(&mut self) -> ValuesMut<'_, T> {
-        ValuesMut {
-            iter: self.vec.values_mut(),
-        }
+    pub fn handles(&self) -> Handles<'_, H, T> {
+        Handles::new(self)
+    }
+    pub fn values(&self) -> Values<'_, H, T> {
+        Values::new(self)
+    }
+    pub fn iter_mut(&mut self) -> IterMut<'_, H, T> {
+        IterMut::new(self)
+    }
+    pub fn values_mut(&mut self) -> ValuesMut<'_, H, T> {
+        ValuesMut::new(self)
     }
 
     pub unsafe fn get_unchecked(&self, handle: H) -> &T {
@@ -272,43 +275,82 @@ impl<H: Handle, T> FromIterator<(H, T)> for VecMap<H, T> {
 }
 
 
-#[derive(Debug, Clone)]
-pub struct Handles<'map, H: Handle, T> {
-    iter: Indices<'map, T, DefaultCore<T>>,
-    _dummy: PhantomData<H>,
+// ===== Iterator wrappers =======================================================================
+
+/// This macro generates an iterator wrapper. The usage is kinda awkward, but
+/// this way we can avoid duplicate code.
+macro_rules! gen_iter_wrapper {
+    (
+        $name:ident, $sv_name:ident, $iter_method:ident, [$($mutable:ident)?], [$($clone:ident)?],
+        |$lt:tt, $h:ident, $t:ident| $item:ty,
+        [$($mapping:tt)*] $(,)?
+    ) => {
+        #[derive(Debug, $($clone)?)]
+        pub struct $name<$lt, $h: Handle, $t> {
+            iter: $sv_name<$lt, $t, DefaultCore<$t>>,
+            _dummy: PhantomData<&$lt $h>,
+        }
+
+        impl<$lt, $h: Handle, $t> $name<$lt, $h, $t> {
+            fn new(map: &$lt $($mutable)? VecMap<$h, $t>) -> Self {
+                Self {
+                    iter: map.vec.$iter_method(),
+                    _dummy: PhantomData,
+                }
+            }
+        }
+
+        impl<$lt, $h: Handle, $t> Iterator for $name<$lt, $h, $t> {
+            type Item = $item;
+            fn next(&mut self) -> Option<Self::Item> {
+                self.iter.next() $($mapping)*
+            }
+
+            fn size_hint(&self) -> (usize, Option<usize>) {
+                self.iter.size_hint()
+            }
+
+            fn count(self) -> usize {
+                self.iter.count()
+            }
+
+            fn last(mut self) -> Option<Self::Item> {
+                self.next_back()
+            }
+        }
+
+        impl<$lt, $h: Handle, $t> DoubleEndedIterator for $name<$lt, $h, $t> {
+            fn next_back(&mut self) -> Option<Self::Item> {
+                self.iter.next_back() $($mapping)*
+            }
+        }
+
+        impl<$lt, $h: Handle, $t> ExactSizeIterator for $name<$lt, $h, $t> {
+            fn len(&self) -> usize {
+                self.iter.len()
+            }
+        }
+
+        impl<$lt, $h: Handle, $t> FusedIterator for $name<$lt, $h, $t> {}
+    };
 }
 
-impl<'map, H: Handle, T> Iterator for Handles<'map, H, T> {
-    type Item = H;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(H::from_usize)
-    }
-}
+gen_iter_wrapper!(
+    Iter, SvIter, iter, [], [Clone],
+    |'map, H, T| (H, &'map T),
+    [.map(|(i, e)| (H::from_usize(i), e))],
+);
+gen_iter_wrapper!(
+    IterMut, SvIterMut, iter_mut, [mut], [],
+    |'map, H, T| (H, &'map mut T),
+    [.map(|(i, e)| (H::from_usize(i), e))],
+);
+gen_iter_wrapper!(Handles, Indices, indices, [], [Clone], |'map, H, T| H, [.map(H::from_usize)]);
+gen_iter_wrapper!(Values, SvValues, values, [], [Clone], |'map, H, T| &'map T, []);
+gen_iter_wrapper!(ValuesMut, SvValuesMut, values_mut, [mut], [], |'map, H, T| &'map mut T, []);
 
-#[derive(Debug, Clone)]
-pub struct Values<'map, T> {
-    iter: stable_vec::iter::Values<'map, T, DefaultCore<T>>,
-}
 
-impl<'map, T> Iterator for Values<'map, T> {
-    type Item = &'map T;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next()
-    }
-}
-
-#[derive(Debug)]
-pub struct ValuesMut<'map, T> {
-    iter: stable_vec::iter::ValuesMut<'map, T, DefaultCore<T>>,
-}
-
-impl<'map, T> Iterator for ValuesMut<'map, T> {
-    type Item = &'map mut T;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next()
-    }
-}
-
+// ===== Tests ===================================================================================
 
 #[cfg(test)]
 mod tests {
