@@ -115,6 +115,10 @@ impl<H: Handle + Hash, T> PropStoreMut<H> for HashMap<H, T> {
     fn reserve(&mut self, additional: hsize) {
         self.0.reserve(additional as usize);
     }
+
+    fn iter_mut(&mut self) -> Box<dyn Iterator<Item = (H, &mut Self::Output)> + '_> {
+        Box::new(self.0.iter_mut().map(|(k, v)| (*k, v)))
+    }
 }
 
 impl<H: Handle + Hash, T> From<StdHashMap<H, T>> for HashMap<H, T> {

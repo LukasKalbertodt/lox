@@ -131,6 +131,10 @@ impl<H: Handle, T> PropStoreMut<H> for TinyMap<H, T> {
     fn reserve(&mut self, additional: hsize) {
         self.vec.reserve(additional as usize);
     }
+
+    fn iter_mut(&mut self) -> Box<dyn Iterator<Item = (H, &mut Self::Output)> + '_> {
+        Box::new(self.vec.iter_mut().map(|(handle, v)| (*handle, v)))
+    }
 }
 
 impl<H: Handle, T: fmt::Debug> fmt::Debug for TinyMap<H, T> {
