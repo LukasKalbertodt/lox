@@ -19,13 +19,14 @@ large-handle = []
 io = []
 
 [dependencies]
+ahash = "0.2"
 boolinator = "2.4"
 byteorder = "1.2"
 cgmath = "0.17"
 derive_more = "0.14"
 failure = "0.1.2"
+fxhash = "0.2"
 lox-macros = { path = "lox-macros" }
-hashbrown = "0.3.0"
 num-traits = "0.2"
 optional = "0.5"
 smallvec = { version = "0.6", features = ["union"] }

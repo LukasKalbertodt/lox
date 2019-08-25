@@ -18,8 +18,18 @@ use super::{boo, PropMap, PropStore, PropStoreMut};
 /// doesn't implement `Index<K>`. Instead of implements `Index<&Q>` where `Q`
 /// is something that allows to borrow `K` from it. But our `PropStore`
 /// requires `Index<H>`, so we have to use this wrapper type.
+///
+/// This implementation currently uses `ahash` as the hash function. This is
+/// the default hash function of `hashbrown` as it's fairly fast and resistant
+/// to collision attacks. However, `FxHash` is usually faster on integer keys
+/// as it involves only one multiplication. This can lead to some problems,
+/// though, as lower bits of the hash are never influenced by higher bits of
+/// the key. When the lower bit pattern of all/many keys is the same, this can
+/// lead to many collisions and several problems in the hashmap. We might want
+/// to switch to `FxHash` in the future if we are sure that it's very unlikely
+/// to cause any trouble in ou situation.
 #[derive(Clone, Debug)]
-pub struct HashMap<H: Handle + Hash, T>(StdHashMap<H, T>);
+pub struct HashMap<H: Handle + Hash, T>(StdHashMap<H, T, ahash::ABuildHasher>);
 
 impl<H: Handle + Hash, T> HashMap<H, T> {
     /// Creates an empty `HashMap`.
@@ -27,18 +37,7 @@ impl<H: Handle + Hash, T> HashMap<H, T> {
     /// To create a `HashMap` from a `std::collections::HashMap` you can use
     /// `HashMap::from()`.
     pub fn new() -> Self {
-        HashMap(StdHashMap::new())
-    }
-
-    /// Returns an immutable reference to the inner
-    /// `std::collections::HashMap`.
-    pub fn inner(&self) -> &StdHashMap<H, T> {
-        &self.0
-    }
-
-    /// Returns a mutable reference to the inner `std::collections::HashMap`.
-    pub fn inner_mut(&mut self) -> &mut StdHashMap<H, T> {
-        &mut self.0
+        HashMap(StdHashMap::default())
     }
 }
 
@@ -118,12 +117,6 @@ impl<H: Handle + Hash, T> PropStoreMut<H> for HashMap<H, T> {
 
     fn iter_mut(&mut self) -> Box<dyn Iterator<Item = (H, &mut Self::Output)> + '_> {
         Box::new(self.0.iter_mut().map(|(k, v)| (*k, v)))
-    }
-}
-
-impl<H: Handle + Hash, T> From<StdHashMap<H, T>> for HashMap<H, T> {
-    fn from(src: StdHashMap<H, T>) -> Self {
-        HashMap(src)
     }
 }
 

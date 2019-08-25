@@ -1,4 +1,5 @@
 use std::{
+    collections::{HashMap, hash_map::Entry},
     fmt,
     fs::File,
     hash::{Hash, Hasher},
@@ -8,7 +9,6 @@ use std::{
 };
 
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt};
-use hashbrown::{HashMap, hash_map::Entry};
 
 use crate::{
     prelude::*,
@@ -575,8 +575,26 @@ impl Hash for PosKey {
 }
 
 /// Unifies incoming vertices with the exact same position into a single one.
+///
+/// We use the `FxHash` here to be as fast as possible. This hash function is
+/// very fast but has some problems. When hashing an `u32` it leads to only one
+/// multiplication, meaning that upper bits can never influence lower bits.
+/// This is problematic in many situations, but is fine here. As we are
+/// transmuting `f32` into `u32` and as it's very unlikely that many `f32`
+/// values share the same low bit pattern, using that hash here is fine.
+///
+/// That said, it would be fairly easy for an attacker to create an input that
+/// would make this algorithm use vastly more memory and/or time. But this
+/// problem is accepted for the increase in performance.
+///
+/// Testing different hash functions with a large STL mesh, results in roughly
+/// these relative runtimes:
+///
+/// - Fx: 100%
+/// - ahash: ≈120%
+/// - Sip: ≈160%
 #[derive(Debug)]
-pub struct UnifyingAdder(HashMap<PosKey, VertexHandle>);
+pub struct UnifyingAdder(HashMap<PosKey, VertexHandle, fxhash::FxBuildHasher>);
 impl VertexAdder for UnifyingAdder {
     fn new() -> Self {
         UnifyingAdder(HashMap::default())
