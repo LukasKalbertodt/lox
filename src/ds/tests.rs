@@ -549,6 +549,10 @@ pub struct FaceInfo {
 }
 
 pub fn assert_faces_basic<M: Mesh>(mesh: &M, faces: &[FaceInfo]) {
+    // We do that here because this function is always called when other
+    // asserts are checked.
+    mesh.check_integrity();
+
     if mesh.num_faces() != faces.len() as hsize {
         panic!(
             "num_faces() returned {}, but is supposed to return {}",

@@ -83,6 +83,18 @@ impl Mesh for SharedVertexMesh {
     {
         unreachable!()
     }
+
+    fn check_integrity(&self) {
+        for (f, &[va, vb, vc]) in self.faces.iter() {
+            assert!(self.vertices.contains_handle(va), "va = {:?} of faces {:?}", va, f);
+            assert!(self.vertices.contains_handle(vb), "vb = {:?} of faces {:?}", vb, f);
+            assert!(self.vertices.contains_handle(vc), "vc = {:?} of faces {:?}", vc, f);
+
+            if va == vb || va == vc || vb == vc {
+                panic!("vertices of face {:?} are not unique: {:?}", f, [va, vb, vc]);
+            }
+        }
+    }
 }
 
 impl MeshMut for SharedVertexMesh {

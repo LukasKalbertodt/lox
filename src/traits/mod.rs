@@ -282,6 +282,20 @@ pub trait Mesh: Empty + fmt::Debug {
     {
         ElementRefIter::<Self, EdgeHandle>::new(self)
     }
+
+    /// Performs a number of integrity checks on internal data and panics if
+    /// something is broken.
+    ///
+    /// This method is mainly intended for unit tests and similar situations.
+    /// This method *should* never panic. If internal data of a mesh data
+    /// structure is broken (and this method consequently panics), then that's
+    /// an internal bug in `lox` and not the user's fault.
+    ///
+    /// The default implementation does not perform any checks. It is
+    /// recommended for all data structures to override this and perform as
+    /// many checks as possible. This method is allowed to have a runtime of
+    /// `O(|V| + |E| + |F|)`.
+    fn check_integrity(&self) {}
 }
 
 /// Some kind of polygon mesh that allows modifications.
