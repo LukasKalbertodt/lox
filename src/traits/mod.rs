@@ -393,6 +393,11 @@ pub trait MeshMut: Mesh {
     /// (that's exactly what the provided default implementation does).
     fn reserve_for_faces(&mut self, _count: hsize) {}
 
+    /// Splits the face `f` into k new faces (where k is the valence of `f`) by
+    /// inserting a center vertex. The new vertex is returned.
+    ///
+    /// After calling this function, the face `f` might be invalid and you
+    /// cannot assume it now refers to one of the new faces.
     // TODO: default impl this with `remove_face`
     fn split_face(&mut self, f: FaceHandle) -> VertexHandle;
 
@@ -409,7 +414,6 @@ pub trait MeshMut: Mesh {
     fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> SplitEdgeWithFacesResult
     where
         Self: EdgeMesh + TriMesh;
-
 }
 
 /// A mesh that has explicit edges. This allows to store per-edge attributes.
