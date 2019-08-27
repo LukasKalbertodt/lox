@@ -25,9 +25,9 @@ use crate::{
     handle::{hsize, Handle},
     map::VecMap,
     mesh::SplitEdgeWithFacesResult,
-    traits::marker::{TriFaces, FaceKind, PolyFaces},
+    traits::marker::{Bool, TriFaces, FaceKind, PolyFaces, True},
 };
-use super::Checked;
+use super::{Checked, TypeOpt};
 use self::adj::{CwVertexCirculator, FaceCirculator};
 
 
@@ -64,8 +64,11 @@ pub trait Config: 'static {
     /// `Mesh` implementation.
     type FaceKind: FaceKind;
 
+    /// Whether a `prev` reference is stored. This makes some operations
+    /// faster, but increases memory consumption.
+    type StorePrev: Bool;
+
     // TODO:
-    // - prev handles
     // - allow multi fan blades?
 }
 
@@ -75,12 +78,14 @@ pub trait Config: 'static {
 pub enum PolyConfig {}
 impl Config for PolyConfig {
     type FaceKind = PolyFaces;
+    type StorePrev = True;
 }
 
 #[allow(missing_debug_implementations)]
 pub enum TriConfig {}
 impl Config for TriConfig {
     type FaceKind = TriFaces;
+    type StorePrev = True;
 }
 
 
@@ -162,7 +167,7 @@ impl fmt::Debug for HalfEdgeHandle {
 pub struct HalfEdgeMesh<C: Config = PolyConfig> {
     vertices: VecMap<VertexHandle, Vertex>,
     faces: VecMap<FaceHandle, Face>,
-    half_edges: VecMap<HalfEdgeHandle, HalfEdge>,
+    half_edges: VecMap<HalfEdgeHandle, HalfEdge<C>>,
     _config: PhantomData<C>,
 }
 
@@ -188,8 +193,8 @@ pub(crate) struct Vertex {
 }
 
 /// Data stored per half edge.
-#[derive(Clone, Copy)]
-struct HalfEdge {
+#[derive(Copy)]
+struct HalfEdge<C: Config> {
     /// The adjacent face, if one exists.
     face: Opt<Checked<FaceHandle>>,
 
@@ -199,6 +204,23 @@ struct HalfEdge {
     /// The next half edge around the face or hole this half edge is adjacent
     /// to (going counter clock wise).
     next: Checked<HalfEdgeHandle>,
+
+    /// The previous half edge around the face or hole this half edge is
+    /// adjacent to (counter clock wise). This is only stored when the
+    /// configuration `C` says so.
+    prev: TypeOpt<Checked<HalfEdgeHandle>, C::StorePrev>,
+}
+
+impl<C: Config> Copy for HalfEdge<C> {}
+impl<C: Config> Clone for HalfEdge<C> {
+    fn clone(&self) -> Self {
+        Self {
+            face: self.face.clone(),
+            target: self.target.clone(),
+            next: self.next.clone(),
+            prev: self.prev.clone(),
+        }
+    }
 }
 
 impl<C: Config> fmt::Debug for HalfEdgeMesh<C> {
@@ -234,16 +256,30 @@ impl fmt::Debug for Face {
     }
 }
 
-impl fmt::Debug for HalfEdge {
+impl<C: Config> fmt::Debug for HalfEdge<C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let prev = self.prev.into_option()
+            .map(|prev| format!(" prev: {:6}", format!("{:?},", prev)))
+            .unwrap_or("".into());
         write!(
             f,
-            "HalfEdge {{ target: {:5} next: {:6} face: {:?} }}",
+            "HalfEdge {{ target: {:5} next: {:6}{} face: {:?} }}",
             format!("{:?},", self.target),
             format!("{:?},", self.next),
+            prev,
             self.face,
         )
     }
+}
+
+/// Helper macro to set the `next` and `prev` handles in one line. These two
+/// handles always have to be set at the same time, so with this macro it's you
+/// cannot forget.
+macro_rules! set_next_prev {
+    ($mesh:ident, $prev:tt -> $next:tt) => {{
+        $mesh[$prev].next = $next;
+        $mesh[$next].prev = $prev.into();
+    }};
 }
 
 
@@ -334,11 +370,19 @@ impl<C: Config> HalfEdgeMesh<C> {
 
     /// Returns the half edge whose `next` points to `he`.
     ///
-    /// If `prev` handles would be stored, this would be easy. But since we
-    /// don't store them, we have to circulate around the whole vertex.
+    /// If `prev` handles are stored, this is easy. Otherwise, we have to
+    /// circulate around the whole vertex.
     fn prev(&self, he: Checked<HalfEdgeHandle>) -> Checked<HalfEdgeHandle> {
-        self.find_incoming_he(he.twin(), |incoming| self[incoming].next == he)
-            .expect("internal HEM error: could not find `prev` half edge")
+        // Looks like runtime dispatch, but this will be optimized as the
+        // compiler already knows whether `into_option` returns `Some` or
+        // `None`.
+        match self[he].prev.into_option() {
+            Some(prev) => prev,
+            None => {
+                self.find_incoming_he(he.twin(), |incoming| self[incoming].next == he)
+                    .expect("internal HEM error: could not find `prev` half edge")
+            }
+        }
     }
 
     /// Tries to find a half edge pointing towards `start_edge.target` that
@@ -384,9 +428,10 @@ impl<C: Config> HalfEdgeMesh<C> {
         // pay special attention anyway.
         let face = Opt::none();
         let next = Checked::new(HalfEdgeHandle::new(0));
+        let prev = Checked::new(HalfEdgeHandle::new(0)).into();
 
-        self.half_edges.push(HalfEdge { target: from, face, next });
-        let out = self.half_edges.push(HalfEdge { target: to, face, next });
+        self.half_edges.push(HalfEdge { target: from, face, next, prev });
+        let out = self.half_edges.push(HalfEdge { target: to, face, next, prev });
 
         Checked::new(out)
     }
@@ -495,9 +540,10 @@ impl<C: Config> HalfEdgeMesh<C> {
                 assert!(self[he].face.is_none(), NON_MANIFOLD_EDGE_ERR);
             }
 
-            // This `unsafe` is here because the `next` field is set to a dummy
-            // value. We have to make sure to overwrite it before we read it.
-            // Well, this function's whole completeness is based on that fact.
+            // This `unsafe` is here because the `next` (and `prev`) field is
+            // set to a dummy value. We have to make sure to overwrite it
+            // before we read it. Well, this function's whole completeness is
+            // based on that fact.
             let he = he.unwrap_or_else(|| unsafe { self.add_edge_partially(from, to) });
             inner_half_edges[vi] = he;
         }
@@ -526,7 +572,7 @@ impl<C: Config> HalfEdgeMesh<C> {
         // seperately.
         //
         // So for each corner, we have this situation (the corner vertex `v`,
-        // the new face `F`, the two outer edges `incoming and `outgoing` and
+        // the new face `F`, the two outer edges `incoming` and `outgoing` and
         // we don't yet know what `v` is also connected too):
         //
         //                 ?
@@ -620,8 +666,8 @@ impl<C: Config> HalfEdgeMesh<C> {
                         let start = self[end].next;
 
                         // Insert new blade in between.
-                        self[incoming].next = start;
-                        self[end].next = outgoing;
+                        set_next_prev!(self, incoming -> start);
+                        set_next_prev!(self, end -> outgoing);
 
                         // Regarding the `outgoing` field of `v`: before adding
                         // this face, it was a boundary half edge. Since we
@@ -632,7 +678,7 @@ impl<C: Config> HalfEdgeMesh<C> {
                         // the only edges adjacent to `v`. This also means that
                         // `v` was isolated before and we now need to set its
                         // `outgoing` handle.
-                        self[incoming].next = outgoing;
+                        set_next_prev!(self, incoming -> outgoing);
                         self[vh].outgoing = Opt::some(outgoing);
                     }
                 }
@@ -663,7 +709,7 @@ impl<C: Config> HalfEdgeMesh<C> {
                     // TODO: should we rather iterate around the vertex if the
                     // `prev` point is not stored?
                     let before_new = self.prev(incoming.twin());
-                    self[before_new].next = outgoing;
+                    set_next_prev!(self, before_new -> outgoing);
 
                     // The half edge `incoming.twin()` might have been
                     // `v.outgoing`. But this is bad because it's not a
@@ -696,7 +742,8 @@ impl<C: Config> HalfEdgeMesh<C> {
                 //           ^-- this edge are new in the cycle
                 //
                 (false, true) => {
-                    self[incoming].next = self[outgoing.twin()].next;
+                    let blade_start = self[outgoing.twin()].next;
+                    set_next_prev!(self, incoming -> blade_start);
 
                     // We don't need to update `v.outgoing` here because the
                     // only old half edge that won't be boundary anymore is
@@ -787,7 +834,8 @@ impl<C: Config> HalfEdgeMesh<C> {
                         //  |    └────┘    └─────┘         └─────┘        |
                         //  +---------------------------------------------+
                         //
-                        self[bib_end].next = self[ib_end].next;
+                        let after_ib = self[ib_end].next;
+                        set_next_prev!(self, bib_end -> after_ib);
 
                         // Now we reinsert it again, right after the "outgoing
                         // blade". Situation after assignment:
@@ -803,7 +851,7 @@ impl<C: Config> HalfEdgeMesh<C> {
                         //  +---------------------------------------------+
                         //
                         let aob_start = self[outgoing.twin()].next;
-                        self[ib_end].next = aob_start;
+                        set_next_prev!(self, ib_end -> aob_start);
 
                         // Right now, the cycle is still a bit broken, but that
                         // doesn't matter, because (a) the cycle will be
@@ -840,7 +888,7 @@ impl<C: Config> HalfEdgeMesh<C> {
         for he_i in 0..inner_half_edges.len() {
             let curr = inner_half_edges[he_i];
             let next = inner_half_edges[(he_i + 1) % inner_half_edges.len()];
-            self[curr].next = next;
+            set_next_prev!(self, curr -> next);
         }
 
         *new_face
@@ -848,8 +896,8 @@ impl<C: Config> HalfEdgeMesh<C> {
 }
 
 macro_rules! impl_index {
-    ($handle:ident, $field:ident, $out:ident) => {
-        impl<C: Config> ops::Index<Checked<$handle>> for HalfEdgeMesh<C> {
+    ($handle:ident, $field:ident, |$c:ident| $out:ty) => {
+        impl<$c: Config> ops::Index<Checked<$handle>> for HalfEdgeMesh<$c> {
             type Output = $out;
 
             #[inline(always)]
@@ -859,7 +907,7 @@ macro_rules! impl_index {
             }
         }
 
-        impl<C: Config> ops::IndexMut<Checked<$handle>> for HalfEdgeMesh<C> {
+        impl<$c: Config> ops::IndexMut<Checked<$handle>> for HalfEdgeMesh<$c> {
             #[inline(always)]
             fn index_mut(&mut self, idx: Checked<$handle>) -> &mut Self::Output {
                 // &mut self.$field[*idx]
@@ -869,9 +917,9 @@ macro_rules! impl_index {
     }
 }
 
-impl_index!(VertexHandle, vertices, Vertex);
-impl_index!(FaceHandle, faces, Face);
-impl_index!(HalfEdgeHandle, half_edges, HalfEdge);
+impl_index!(VertexHandle, vertices, |C| Vertex);
+impl_index!(FaceHandle, faces, |C| Face);
+impl_index!(HalfEdgeHandle, half_edges, |C| HalfEdge<C>);
 
 
 // ===============================================================================================
@@ -1126,9 +1174,9 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
             let inner_new = next_nhe.twin();
             let new_face = unsafe { Checked::new(self.faces.push(Face { edge: inner_new })) };
 
-            self[inner_new].next = last_nhe;
-            self[last_nhe].next = border_ohe;
-            self[border_ohe].next = inner_new;
+            set_next_prev!(self, inner_new -> last_nhe);
+            set_next_prev!(self, last_nhe -> border_ohe);
+            set_next_prev!(self, border_ohe -> inner_new);
 
             self[inner_new].face = Opt::some(new_face);
             self[last_nhe].face = Opt::some(new_face);
@@ -1144,9 +1192,9 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         let start_inner_nhe = start_nhe.twin();
         self[f].edge = start_inner_nhe;
 
-        self[start_inner_nhe].next = last_nhe;
-        self[last_nhe].next = border_ohe;
-        self[border_ohe].next = start_inner_nhe;
+        set_next_prev!(self, start_inner_nhe -> last_nhe);
+        set_next_prev!(self, last_nhe -> border_ohe);
+        set_next_prev!(self, border_ohe -> start_inner_nhe);
 
         self[start_inner_nhe].face = Opt::some(f);
         self[last_nhe].face = Opt::some(f);
@@ -1252,17 +1300,17 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         self[f_below].edge = he_center_below;
 
         self[he_center_above].target = v_below;
-        self[he_center_above].next = he_below_right;
+        set_next_prev!(self, he_center_above -> he_below_right);
         self[he_center_below].target = v_above;
-        self[he_center_below].next = he_above_left;
+        set_next_prev!(self, he_center_below -> he_above_left);
 
         self[he_below_right].face = Opt::some(f_above);
-        self[he_below_right].next = he_above_right;
-        self[he_above_right].next = he_center_above;
+        set_next_prev!(self, he_below_right -> he_above_right);
+        set_next_prev!(self, he_above_right -> he_center_above);
 
         self[he_above_left].face = Opt::some(f_below);
-        self[he_above_left].next = he_below_left;
-        self[he_below_left].next = he_center_below;
+        set_next_prev!(self, he_above_left -> he_below_left);
+        set_next_prev!(self, he_below_left -> he_center_below);
     }
 
     fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> SplitEdgeWithFacesResult
@@ -1303,11 +1351,12 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         let he_new_below = he_new_above.twin();
 
         // Fix next handles
-        self[he_new_above].next = self[he_above].next;
-        self[he_above].next = he_new_above;
+        let he_above_next = self[he_above].next;
+        set_next_prev!(self, he_new_above -> he_above_next);
+        set_next_prev!(self, he_above -> he_new_above);
         self[he_above].target = v_mid;
-        self[he_new_below].next = he_below;
-        self[he_below_prev].next = he_new_below;
+        set_next_prev!(self, he_new_below -> he_below);
+        set_next_prev!(self, he_below_prev -> he_new_below);
 
         // If the `outgoing` handle of `right` was `he_below`, we have to
         // update it to `he_new_below`. Otherwise it should stay as it is
@@ -1380,9 +1429,9 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
             let he_mid_right = he_mid_left.twin();
 
             // Fix left face
-            mesh[he_bottom_left].next = he_mid_left;
+            set_next_prev!(mesh, he_bottom_left -> he_mid_left);
             mesh[he_bottom_left].face = Opt::some(old_face);
-            mesh[he_mid_left].next = he_top_left;
+            set_next_prev!(mesh, he_mid_left -> he_top_left);
             mesh[he_mid_left].face = Opt::some(old_face);
             mesh[old_face].edge = he_bottom_left;
 
@@ -1394,8 +1443,8 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
             mesh[he_mid_right].face = Opt::some(right_face);
             mesh[he_bottom_right].face = Opt::some(right_face);
             mesh[he_top_right].face = Opt::some(right_face);
-            mesh[he_top_right].next = he_mid_right;
-            mesh[he_mid_right].next = he_bottom_right;
+            set_next_prev!(mesh, he_top_right -> he_mid_right);
+            set_next_prev!(mesh, he_mid_right -> he_bottom_right);
         };
 
         if let Some(face) = face_above {
