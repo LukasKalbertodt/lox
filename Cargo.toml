@@ -30,7 +30,7 @@ lox-macros = { path = "lox-macros" }
 num-traits = "0.2"
 optional = "0.5"
 smallvec = { version = "0.6", features = ["union"] }
-stable-vec = "0.4.0-beta"
+stable-vec = "0.4"
 
 [dev-dependencies]
 color-backtrace = "0.1"
