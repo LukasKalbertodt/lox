@@ -236,6 +236,12 @@ macro_rules! test_helper {
     (@as_neighbors [$($n:ident),*]) => {
         crate::ds::tests::Neighbors::OrderDefined(vec![$($n),*])
     };
+    (@as_neighbors {... $($n:ident),* ; $len:expr }) => {
+        crate::ds::tests::Neighbors::Partial(vec![$($n),*], Some($len))
+    };
+    (@as_neighbors {... $($n:ident),*}) => {
+        crate::ds::tests::Neighbors::Partial(vec![$($n),*], None)
+    };
     (@as_neighbors {$($n:ident),*}) => {
         crate::ds::tests::Neighbors::OrderUndefined(vec![$($n),*])
     };
@@ -305,10 +311,20 @@ macro_rules! test_helper {
     };
 }
 
-#[allow(dead_code)]
 pub enum Neighbors<H: Handle> {
+    /// Neighbors are given in a fixed order. The vector can still be rotated
+    /// (as the first element is not fixed).
     OrderDefined(Vec<H>),
+
+    /// The neighbors are given as a set, i.e. order will not be checked.
     OrderUndefined(Vec<H>),
+
+    /// Not all neighbors were specified, but these given ones have to be a
+    /// neighbor. Additionally, the number of neighbors might be specified and
+    /// will be checked.
+    Partial(Vec<H>, Option<usize>),
+
+    /// The neighbors should not be checked.
     NoCheck,
 }
 
@@ -327,12 +343,38 @@ impl<H: Handle> Neighbors<H> {
                     &format!("{:?}", neighbors),
                 );
             }
+            Neighbors::Partial(neighbors, len) => {
+                for expected in neighbors {
+                    if !actual.contains(&expected) {
+                        panic!(
+                            "{:?} was expected to be in `{}`, but it isn't (actual value: {:?})",
+                            expected,
+                            actual_str,
+                            actual,
+                        );
+                    }
+                }
+
+                if let Some(len) = len {
+                    if actual.len() != *len {
+                        panic!(
+                            "`{}` was expected to has the length {}, but it actually \
+                                has the length {} ({:?})",
+                            actual_str,
+                            len,
+                            actual.len(),
+                            actual,
+                        );
+                    }
+                }
+            }
         }
     }
 
     fn raw_neighbors(&self) -> Option<&[H]> {
         match self {
             Neighbors::NoCheck => None,
+            Neighbors::Partial(_, _) => None,
             Neighbors::OrderDefined(neighbors) => Some(neighbors),
             Neighbors::OrderUndefined(neighbors) => Some(neighbors),
         }
@@ -1122,6 +1164,50 @@ macro_rules! gen_tri_mesh_tests {
             }
         });
 
+        #[test]
+        fn split_face_isolated() {
+            //          (C)                       (C)
+            //         /   \                     / | \
+            //        /     \        =>         /  |  \
+            //       /       \                 /  (X)  \
+            //      /         \               / ⟋    ⟍ \
+            //    (A) ------- (B)           (A) ------- (B)
+
+            let mut m = <$name>::empty();
+            let va = m.add_vertex();
+            let vb = m.add_vertex();
+            let vc = m.add_vertex();
+            let f = m.add_triangle([va, vb, vc]);
+            let vx = m.split_face(f);
+
+            assert_eq!(m.faces().count(), 3);
+            let faces = m.face_handles().collect::<Vec<_>>();
+            let [f0, f1, f2] = [faces[0], faces[1], faces[2]];
+
+            assert_faces!(m; [$($extra),*];
+                f0 => {f1, f2}, {... vx; 3}, boundary;
+                f1 => {f0, f2}, {... vx; 3}, boundary;
+                f2 => {f0, f1}, {... vx; 3}, boundary;
+            );
+
+            assert_vertices!(m; [$($extra),*];
+                va => {...; 2},     [vc, vx, vb], boundary;
+                vb => {...; 2},     [va, vx, vc], boundary;
+                vc => {...; 2},     [vb, vx, va], boundary;
+                vx => {f0, f1, f2}, [va, vc, vb], interior;
+            );
+
+            test_helper!(@if EdgeMesh in [$($extra),*] => {
+                assert_eq!(m.num_edges(), 6);
+                // TODO: more edge tests
+            });
+        }
+
+        // TODO: more `split_face` tests:
+        // - one adjacent face
+        // - interior face
+        // - non-tri face
+
         test_helper!(@if_item [SupportsMultiBlade] in [$($extra),*] => {
             #[test]
             fn vertex_with_two_blades() {
@@ -1383,7 +1469,6 @@ macro_rules! gen_tri_mesh_tests {
                 m.clone().add_triangle([va, vd, vg]);
                 m.clone().add_triangle([ve, va, vf]);
             }
-
 
             #[test]
             fn triforce() {
