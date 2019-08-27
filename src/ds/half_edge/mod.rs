@@ -1007,6 +1007,192 @@ impl<C: Config> Mesh for HalfEdgeMesh<C> {
         let he = HalfEdgeHandle::lower_half_of(edge);
         self.half_edges.contains_handle(he)
     }
+
+    fn check_integrity(&self) {
+        // Check vertices
+        for (vh, v) in self.vertices.iter() {
+            if let Some(outgoing) = v.outgoing.into_option() {
+                // Make sure outgoing handles are valid
+                if !self.half_edges.contains_handle(*outgoing) {
+                    panic!(
+                        "bug (broken reference): [{:?}].outgoing = Some({:?}), but that \
+                            half edge does not exist!",
+                        vh,
+                        outgoing,
+                    );
+                }
+
+                // Check `outgoing <-> target` connection
+                if *self[outgoing.twin()].target != vh {
+                    panic!(
+                        "bug: [{:?}].outgoing = Some({:?}), but [{:?}.twin()].target = {:?} \
+                            (should be {:?})",
+                        vh,
+                        *outgoing,
+                        *outgoing,
+                        *self[outgoing.twin()].target,
+                        vh,
+                    );
+                }
+            }
+        }
+
+        // Check faces
+        for (fh, f) in self.faces.iter() {
+            // Make sure all edge handles are valid
+            if !self.half_edges.contains_handle(*f.edge) {
+                panic!(
+                    "bug (broken reference): [{:?}].edge = {:?}, but that \
+                        half edge does not exist!",
+                    fh,
+                    *f.edge,
+                );
+            }
+
+            // Check `edge <-> face` connection
+            if self[f.edge].face.into_option().map(|h| *h) != Some(fh) {
+                panic!(
+                    "bug: [{:?}].edge = {:?}, but [{:?}].face = {:?} (should be {:?})",
+                    fh,
+                    *f.edge,
+                    *f.edge,
+                    self[f.edge].face,
+                    fh,
+                );
+            }
+        }
+
+        // Check half edges
+        for (heh, he) in self.half_edges.iter() {
+            // Make sure all face, target, next and prev handles are valid
+            if let Some(face) = he.face.into_option() {
+                if !self.faces.contains_handle(*face) {
+                    panic!(
+                        "bug (broken reference): [{:?}].face = {:?}, but that face does not exist!",
+                        heh,
+                        *face,
+                    );
+                }
+            }
+            if !self.vertices.contains_handle(*he.target) {
+                panic!(
+                    "bug (broken reference): [{:?}].target = {:?}, but that vertex \
+                        does not exist!",
+                    heh,
+                    *he.target,
+                );
+            }
+            if !self.half_edges.contains_handle(*he.next) {
+                panic!(
+                    "bug (broken reference): [{:?}].next = {:?}, but that \
+                        half edge does not exist!",
+                    heh,
+                    *he.next,
+                );
+            }
+
+            if let Some(prev) = he.prev.into_option() {
+                if !self.half_edges.contains_handle(*prev) {
+                    panic!(
+                        "bug (broken reference): [{:?}].prev = {:?}, but that \
+                            half edge does not exist!",
+                        heh,
+                        *prev,
+                    );
+                }
+
+                // Check `prev <-> next` connection.
+                if *self[prev].next != heh {
+                    panic!(
+                        "bug: [{:?}].prev = {:?}, but [{:?}].next = {:?} (should be {:?})",
+                        heh,
+                        *prev,
+                        *prev,
+                        self[prev].next,
+                        heh,
+                    );
+                }
+            }
+        }
+
+        // Iterate around all faces to make sure all cycles are fine.
+        let mut visited = VecMap::with_capacity(self.half_edges.num_elements());
+        for start in self.half_edges.handles() {
+            if visited.contains_handle(start) {
+                continue;
+            }
+
+            let face = self.half_edges[start].face;
+            let mut heh = start;
+            loop {
+                if self.half_edges[heh].face != face {
+                    panic!(
+                        "bug: while iterating around {:?} starting from {:?}, {:?} was \
+                            encountered and its face is {:?}",
+                        face,
+                        start,
+                        heh,
+                        self.half_edges[heh].face,
+                    );
+                }
+
+                // All half edges in this cycles should be not visited yet!
+                if visited.insert(heh, ()).is_some() {
+                    panic!(
+                        "bug: encountered {:?} while iterating around {:?}, but we \
+                            already visited it!",
+                        heh,
+                        face,
+                    );
+                }
+
+                heh = *self.half_edges[heh].next;
+
+                if heh == start {
+                    break;
+                }
+            }
+        }
+
+        // Iterate around all vertices to make sure all cycles are fine.
+        let mut visited = VecMap::with_capacity(self.half_edges.num_elements());
+        for start in self.half_edges.handles() {
+            if visited.contains_handle(start) {
+                continue;
+            }
+
+            let vertex = self.half_edges[start].target;
+            let mut heh = start;
+            loop {
+                if self.half_edges[heh].target != vertex {
+                    panic!(
+                        "bug: while iterating around {:?} starting from {:?}, {:?} was \
+                            encountered and its target is {:?}",
+                        vertex,
+                        start,
+                        heh,
+                        self.half_edges[heh].target,
+                    );
+                }
+
+                // All half edges in this cycles should be not visited yet!
+                if visited.insert(heh, ()).is_some() {
+                    panic!(
+                        "bug: encountered {:?} while iterating around {:?}, but we \
+                            already visited it!",
+                        heh,
+                        vertex,
+                    );
+                }
+
+                heh = *self.half_edges[heh].next.twin();
+
+                if heh == start {
+                    break;
+                }
+            }
+        }
+    }
 }
 
 impl<C: Config> MeshMut for HalfEdgeMesh<C> {
