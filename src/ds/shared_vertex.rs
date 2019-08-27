@@ -110,8 +110,14 @@ impl MeshMut for SharedVertexMesh {
         self.faces.clear();
     }
 
-    fn split_face(&mut self, _f: FaceHandle) -> VertexHandle {
-        unimplemented!()
+    fn split_face(&mut self, f: FaceHandle) -> VertexHandle {
+        let [va, vb, vc] = self.faces[f];
+        let center = self.add_vertex();
+        self.faces[f] = [va, vb, center];
+        self.faces.push([vb, vc, center]);
+        self.faces.push([vc, va, center]);
+
+        center
     }
 
     fn add_face(&mut self, _: &[VertexHandle]) -> FaceHandle
