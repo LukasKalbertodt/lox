@@ -64,7 +64,7 @@ macro_rules! assert_eq {
 }
 
 #[inline(never)]
-pub fn assert_eq_fn<T, U>(left: &T, right: &U, file: &str, line: u32, col: u32)
+pub(crate) fn assert_eq_fn<T, U>(left: &T, right: &U, file: &str, line: u32, col: u32)
 where
     T: Debug + PartialEq<U>,
     U: Debug,
@@ -79,4 +79,22 @@ where
             col,
         )
     }
+}
+
+/// Checks if the given code will trigger a panic. If it does, nothing happens
+/// (except side effects of the given code). If no panic is caused by the given
+/// code, this macro panics with a message.
+macro_rules! assert_panic {
+    ($($body:tt)*) => {{
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            $($body)*
+        }));
+        if let Ok(x) = res {
+            panic!(
+                "expected panic for '{}', but got '{:?}' ",
+                stringify!($($body)*),
+                x,
+            );
+        }
+    }}
 }
