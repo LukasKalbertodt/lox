@@ -91,7 +91,7 @@ impl Mesh for SharedVertexMesh {
             assert!(self.vertices.contains_handle(vc), "vc = {:?} of faces {:?}", vc, f);
 
             if va == vb || va == vc || vb == vc {
-                panic!("vertices of face {:?} are not unique: {:?}", f, [va, vb, vc]);
+                panic!("bug: vertices of face {:?} are not unique: {:?}", f, [va, vb, vc]);
             }
         }
     }

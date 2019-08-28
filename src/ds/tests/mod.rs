@@ -1,7 +1,5 @@
-
 #[macro_use]
 pub(crate) mod util;
-
 
 
 // ===============================================================================================
@@ -18,13 +16,15 @@ pub(crate) mod util;
 /// - `TriMeshMut`
 macro_rules! gen_tri_mesh_tests {
     ($name:ty : [$($extra:ident),*]) => {
+        // TODO: make sure exactly one of `TriMesh` and `PolyMesh` is
+        // specified as extra trait.
         $(
             test_helper!(@is_valid_extra_trait $extra);
         )*
 
-        // TODO: make sure exactly once of `TriMesh` and `PolyMesh` is
-        // specified as extra trait.
-
+        gen_tri_mesh_tests!(@inner $name, [ $($extra),* ]);
+    };
+    (@inner $name:ty, $extras:tt) => {
         #[allow(unused_imports)]
         use crate::{
             prelude::*,
@@ -35,22 +35,10 @@ macro_rules! gen_tri_mesh_tests {
         fn empty() {
             let m = <$name>::empty();
 
-            assert_eq!(m.num_faces(), 0);
-            assert_eq!(m.num_vertices(), 0);
-
-            assert!(m.faces().next().is_none());
-            assert!(m.vertices().next().is_none());
-
-            assert!(!m.contains_vertex(VertexHandle::new(0)));
-            assert!(!m.contains_vertex(VertexHandle::new(27)));
-            assert!(!m.contains_face(FaceHandle::new(0)));
-            assert!(!m.contains_face(FaceHandle::new(27)));
-
-            test_helper!(@if EdgeMesh in [$($extra),*] => {
-                assert_eq!(m.num_edges(), 0);
-                assert!(m.edges().next().is_none());
-                assert!(!m.contains_edge(EdgeHandle::new(0)));
-                assert!(!m.contains_edge(EdgeHandle::new(27)));
+            check_mesh!(m; $extras; {
+                vertices: {},
+                faces: {},
+                edges: {},
             });
         }
 
@@ -59,17 +47,12 @@ macro_rules! gen_tri_mesh_tests {
             let mut m = <$name>::empty();
             let v = m.add_vertex();
 
-            assert!(!m.contains_vertex(VertexHandle::new(v.idx().next())));
-
-            assert_faces!(m; [$($extra),*];);
-
-            assert_vertices!(m; [$($extra),*];
-                v    => [], [], boundary;
-            );
-
-            test_helper!(@if EdgeMesh in [$($extra),*] => {
-                assert_eq!(m.num_edges(), 0);
-                assert!(m.edges().next().is_none());
+            check_mesh!(m; $extras; {
+                vertices: {
+                    v => [], [], boundary;
+                },
+                faces: {},
+                edges: {},
             });
         }
 
@@ -88,19 +71,19 @@ macro_rules! gen_tri_mesh_tests {
             let vc = m.add_vertex();
             let f = m.add_triangle([va, vb, vc]);
 
-            assert_faces!(m; [$($extra),*];
-                f => [], [va, vb, vc], boundary;
-            );
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va => [f], [vc, vb], boundary;
+                    vb => [f], [va, vc], boundary;
+                    vc => [f], [vb, va], boundary;
+                },
+                faces: {
+                    f => [], [va, vb, vc], boundary;
+                },
+                edges: no_check,
+            });
 
-            assert_vertices!(m; [$($extra),*];
-                va => [f], [vc, vb], boundary;
-                vb => [f], [va, vc], boundary;
-                vc => [f], [vb, va], boundary;
-            );
-
-            assert!(!m.contains_face(FaceHandle::new(f.idx().next())));
-
-            test_helper!(@if EdgeMesh in [$($extra),*] => {
+            test_helper!(@if EdgeMesh in $extras => {
                 let e0 = EdgeHandle::new(0);
                 let e1 = EdgeHandle::new(1);
                 let e2 = EdgeHandle::new(2);
@@ -111,7 +94,7 @@ macro_rules! gen_tri_mesh_tests {
                 assert!(m.contains_edge(e1));
                 assert!(m.contains_edge(e2));
 
-                test_helper!(@if EdgeAdj in [$($extra),*] => {
+                test_helper!(@if EdgeAdj in $extras => {
                     assert_face_edges!(m, [e0, e1, e2], f, []);
                 });
             });
@@ -139,21 +122,24 @@ macro_rules! gen_tri_mesh_tests {
             let f_bc = m.add_triangle([vb, vc, v_top]);
             let f_ca = m.add_triangle([vc, va, v_top]);
 
-            assert_faces!(m; [$($extra),*];
-                f_bottom => [f_ca, f_bc, f_ab],     [va, vc, vb],    interior;
-                f_ab     => [f_bc, f_ca, f_bottom], [va, vb, v_top], interior;
-                f_bc     => [f_ca, f_ab, f_bottom], [vb, vc, v_top], interior;
-                f_ca     => [f_ab, f_bc, f_bottom], [vc, va, v_top], interior;
-            );
 
-            assert_vertices!(m; [$($extra),*];
-                va    => [f_bottom, f_ca, f_ab], [v_top, vb, vc], interior;
-                vb    => [f_bottom, f_ab, f_bc], [v_top, vc, va], interior;
-                vc    => [f_bottom, f_bc, f_ca], [v_top, va, vb], interior;
-                v_top => [f_ca, f_bc, f_ab],     [va, vc, vb],    interior;
-            );
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va    => [f_bottom, f_ca, f_ab], [v_top, vb, vc], interior;
+                    vb    => [f_bottom, f_ab, f_bc], [v_top, vc, va], interior;
+                    vc    => [f_bottom, f_bc, f_ca], [v_top, va, vb], interior;
+                    v_top => [f_ca, f_bc, f_ab],     [va, vc, vb],    interior;
+                },
+                faces: {
+                    f_bottom => [f_ca, f_bc, f_ab],     [va, vc, vb],    interior;
+                    f_ab     => [f_bc, f_ca, f_bottom], [va, vb, v_top], interior;
+                    f_bc     => [f_ca, f_ab, f_bottom], [vb, vc, v_top], interior;
+                    f_ca     => [f_ab, f_bc, f_bottom], [vc, va, v_top], interior;
+                },
+                edges: no_check,
+            });
 
-            test_helper!(@if EdgeMesh in [$($extra),*] => {
+            test_helper!(@if EdgeMesh in $extras => {
                 let e0 = EdgeHandle::new(0);
                 let e1 = EdgeHandle::new(1);
                 let e2 = EdgeHandle::new(2);
@@ -170,7 +156,7 @@ macro_rules! gen_tri_mesh_tests {
                 assert!(m.contains_edge(e4));
                 assert!(m.contains_edge(e5));
 
-                test_helper!(@if EdgeAdj in [$($extra),*] => {
+                test_helper!(@if EdgeAdj in $extras => {
                     let e = assert_face_edges!(m, [e0, e1, e2], f_bottom, [f_ab, f_bc, f_ca]);
                     let e_ab = e[0];
                     let e_bc = e[1];
@@ -208,24 +194,26 @@ macro_rules! gen_tri_mesh_tests {
             let vd = m.add_vertex();
             let fy = m.add_triangle([va, vc, vd]);
 
-            assert_faces!(m; [$($extra),*];
-                fx => [fy], [va, vb, vc], boundary;
-                fy => [fx], [va, vc, vd], boundary;
-            );
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va => [fy, fx], [vd, vc, vb], boundary;
+                    vb => [fx],     [va, vc],     boundary;
+                    vc => [fx, fy], [vb, va, vd], boundary;
+                    vd => [fy],     [vc, va],     boundary;
+                },
+                faces: {
+                    fx => [fy], [va, vb, vc], boundary;
+                    fy => [fx], [va, vc, vd], boundary;
+                },
+                edges: no_check,
+            });
 
-            assert_vertices!(m; [$($extra),*];
-                va => [fy, fx], [vd, vc, vb], boundary;
-                vb => [fx],     [va, vc],     boundary;
-                vc => [fx, fy], [vb, va, vd], boundary;
-                vd => [fy],     [vc, va],     boundary;
-            );
-
-            test_helper!(@if EdgeMesh in [$($extra),*] => {
+            test_helper!(@if EdgeMesh in $extras => {
                 let eh = EdgeHandle::new;
                 assert_eq!(m.num_edges(), 5);
                 assert_eq_set!(m.edge_handles(), [eh(0), eh(1), eh(2), eh(3), eh(4)]);
 
-                test_helper!(@if EdgeAdj in [$($extra),*] => {
+                test_helper!(@if EdgeAdj in $extras => {
                     let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, [fy]);
                     let e_ac = e[0];
                     assert_face_edges!(m, [e_ac, eh(3), eh(4)], fy, [fx]);
@@ -236,21 +224,24 @@ macro_rules! gen_tri_mesh_tests {
             let ve = m.add_vertex();
             let fz = m.add_triangle([vd, vc, ve]);
 
-            assert_faces!(m; [$($extra),*];
-                fx => [fy],     [va, vb, vc], boundary;
-                fy => [fx, fz], [va, vc, vd], boundary;
-                fz => [fy],     [vd, vc, ve], boundary;
-            );
 
-            assert_vertices!(m; [$($extra),*];
-                va => [fy, fx],     [vd, vc, vb],     boundary;
-                vb => [fx],         [va, vc],         boundary;
-                vc => [fx, fy, fz], [vb, va, vd, ve], boundary;
-                vd => [fz, fy],     [ve, vc, va],     boundary;
-                ve => [fz],         [vc, vd],         boundary;
-            );
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va => [fy, fx],     [vd, vc, vb],     boundary;
+                    vb => [fx],         [va, vc],         boundary;
+                    vc => [fx, fy, fz], [vb, va, vd, ve], boundary;
+                    vd => [fz, fy],     [ve, vc, va],     boundary;
+                    ve => [fz],         [vc, vd],         boundary;
+                },
+                faces: {
+                    fx => [fy],     [va, vb, vc], boundary;
+                    fy => [fx, fz], [va, vc, vd], boundary;
+                    fz => [fy],     [vd, vc, ve], boundary;
+                },
+                edges: no_check,
+            });
 
-            test_helper!(@if EdgeMesh in [$($extra),*] => {
+            test_helper!(@if EdgeMesh in $extras => {
                 let eh = EdgeHandle::new;
                 assert_eq!(m.num_edges(), 7);
                 assert_eq_set!(
@@ -258,7 +249,7 @@ macro_rules! gen_tri_mesh_tests {
                     [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5), eh(6)],
                 );
 
-                test_helper!(@if EdgeAdj in [$($extra),*] => {
+                test_helper!(@if EdgeAdj in $extras => {
                     let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, [fy]);
                     let e_ac = e[0];
                     let e = assert_face_edges!(m, [e_ac, eh(3), eh(4)], fy, [fx, fz]);
@@ -307,25 +298,27 @@ macro_rules! gen_tri_mesh_tests {
 
 
             // ----- Check stuff
-            assert_faces!(m; [$($extra),*];
-                fu => [fv, fw], [va, vc, vb], boundary;
-                fv => [fu, fy], [vb, vc, vd], boundary;
-                fw => [fu, fx], [va, vb, ve], boundary;
-                fx => [fz, fw], [vb, vf, ve], boundary;
-                fy => [fv, fz], [vc, vf, vd], boundary;
-                fz => [fx, fy], [vc, ve, vf], boundary;
-            );
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va => [fu, fw],         [ve, vb, vc],         boundary;
+                    vb => [fw, fx, fv, fu], [va, ve, vf, vd, vc], boundary;
+                    vc => [fu, fv, fy, fz], [va, vb, vd, vf, ve], boundary;
+                    vd => [fv, fy],         [vb, vf, vc],         boundary;
+                    ve => [fz, fx, fw],     [vc, vf, vb, va],     boundary;
+                    vf => [fx, fz, fy],     [vb, ve, vc, vd],     boundary;
+                },
+                faces: {
+                    fu => [fv, fw], [va, vc, vb], boundary;
+                    fv => [fu, fy], [vb, vc, vd], boundary;
+                    fw => [fu, fx], [va, vb, ve], boundary;
+                    fx => [fz, fw], [vb, vf, ve], boundary;
+                    fy => [fv, fz], [vc, vf, vd], boundary;
+                    fz => [fx, fy], [vc, ve, vf], boundary;
+                },
+                edges: no_check,
+            });
 
-            assert_vertices!(m; [$($extra),*];
-                va => [fu, fw],         [ve, vb, vc],         boundary;
-                vb => [fw, fx, fv, fu], [va, ve, vf, vd, vc], boundary;
-                vc => [fu, fv, fy, fz], [va, vb, vd, vf, ve], boundary;
-                vd => [fv, fy],         [vb, vf, vc],         boundary;
-                ve => [fz, fx, fw],     [vc, vf, vb, va],     boundary;
-                vf => [fx, fz, fy],     [vb, ve, vc, vd],     boundary;
-            );
-
-            test_helper!(@if EdgeMesh in [$($extra),*] => {
+            test_helper!(@if EdgeMesh in $extras => {
                 let eh = EdgeHandle::new;
                 assert_eq!(m.num_edges(), 12);
                 assert_eq_set!(m.edge_handles(), [
@@ -333,7 +326,7 @@ macro_rules! gen_tri_mesh_tests {
                     eh(6), eh(7), eh(8), eh(9), eh(10), eh(11),
                 ]);
 
-                test_helper!(@if EdgeAdj in [$($extra),*] => {
+                test_helper!(@if EdgeAdj in $extras => {
                     let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fu, [fv, fw]);
                     let e_bc = e[0];
                     let e_ab = e[1];
@@ -393,30 +386,29 @@ macro_rules! gen_tri_mesh_tests {
             let fy = m.add_triangle([va, ve, vb]);
             let fz = m.add_triangle([vf, ve, vd]);
 
-            // -- check stuff with hole in the middle (real triforce)
-            assert_faces!(m; [$($extra),*];
-                ft => [fu, fv, fw], [va, vc, vd], interior;
-                fu => [fx, ft, fy], [vb, vc, va], interior;
-                fv => [fz, ft, fx], [vc, vf, vd], interior;
-                fw => [fy, ft, fz], [va, vd, ve], interior;
-                fx => [fv, fu],     [vb, vf, vc], boundary;
-                fy => [fu, fw],     [va, ve, vb], boundary;
-                fz => [fw, fv],     [vf, ve, vd], boundary;
-            );
-
-            assert_vertices!(m; [$($extra),*];
-                va => [fu, fy, fw, ft], [vb, ve, vd, vc], interior;
-                vb => [fy, fu, fx],     [ve, va, vc, vf], boundary;
-                vc => [fu, ft, fv, fx], [va, vd, vf, vb], interior;
-                vd => [ft, fw, fz, fv], [va, ve, vf, vc], interior;
-                ve => [fz, fw, fy],     [vf, vd, va, vb], boundary;
-                vf => [fx, fv, fz],     [vb, vc, vd, ve], boundary;
-            );
-
-            // TODO: check edges
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va => [fu, fy, fw, ft], [vb, ve, vd, vc], interior;
+                    vb => [fy, fu, fx],     [ve, va, vc, vf], boundary;
+                    vc => [fu, ft, fv, fx], [va, vd, vf, vb], interior;
+                    vd => [ft, fw, fz, fv], [va, ve, vf, vc], interior;
+                    ve => [fz, fw, fy],     [vf, vd, va, vb], boundary;
+                    vf => [fx, fv, fz],     [vb, vc, vd, ve], boundary;
+                },
+                faces: {
+                    ft => [fu, fv, fw], [va, vc, vd], interior;
+                    fu => [fx, ft, fy], [vb, vc, va], interior;
+                    fv => [fz, ft, fx], [vc, vf, vd], interior;
+                    fw => [fy, ft, fz], [va, vd, ve], interior;
+                    fx => [fv, fu],     [vb, vf, vc], boundary;
+                    fy => [fu, fw],     [va, ve, vb], boundary;
+                    fz => [fw, fv],     [vf, ve, vd], boundary;
+                },
+                edges: no_check, // TODO: check edges
+            });
         }
 
-        test_helper!(@if_item [TriMesh, EdgeMesh, FullAdj] in [$($extra),*] => {
+        test_helper!(@if_item [TriMesh, EdgeMesh, FullAdj] in $extras => {
             #[test]
             fn split_edge_with_two_faces() {
                 //
@@ -445,7 +437,6 @@ macro_rules! gen_tri_mesh_tests {
                 let vn = res.vertex;
 
                 // -- check stuff
-                assert_eq!(m.num_faces(), 5);
                 assert_eq!(m.num_edges(), 9);
 
                 let split_faces = m.faces_around_vertex(vn).collect::<Vec<_>>();
@@ -459,13 +450,17 @@ macro_rules! gen_tri_mesh_tests {
 
                 // TODO: we should check more stuff here
 
-                assert_vertices!(m; [$($extra),*];
-                    va    => no_check, [vc, vn, vb],     boundary;
-                    vb    => no_check, [va, vn, vm, vc], boundary;
-                    vc    => no_check, [vb, vm, vn, va], boundary;
-                    vm    => no_check, [vb, vn, vc],     interior;
-                    vn    => no_check, [va, vc, vm, vb], interior;
-                );
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va    => no_check, [vc, vn, vb],     boundary;
+                        vb    => no_check, [va, vn, vm, vc], boundary;
+                        vc    => no_check, [vb, vm, vn, va], boundary;
+                        vm    => no_check, [vb, vn, vc],     interior;
+                        vn    => no_check, [va, vc, vm, vb], interior;
+                    },
+                    faces: {...; 5},
+                    edges: no_check, // TODO: check edges
+                });
             }
 
             #[test]
@@ -500,7 +495,6 @@ macro_rules! gen_tri_mesh_tests {
                 let vm = res.vertex;
 
                 // -- check stuff
-                assert_eq!(m.num_faces(), 3);
                 assert_eq!(m.num_edges(), 7);
 
                 let split_faces = m.faces_around_vertex(vm).collect::<Vec<_>>();
@@ -514,13 +508,17 @@ macro_rules! gen_tri_mesh_tests {
 
                 // TODO: we should check more stuff here
 
-                assert_vertices!(m; [$($extra),*];
-                    va => no_check, [vb, vm],         boundary;
-                    vb => no_check, [vc, vd, vm, va], boundary;
-                    vc => [f_bdc],  [vd, vb],         boundary;
-                    vd => no_check, [vm, vb, vc],     boundary;
-                    vm => no_check, [va, vb, vd],     boundary;
-                );
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => no_check, [vb, vm],         boundary;
+                        vb => no_check, [vc, vd, vm, va], boundary;
+                        vc => [f_bdc],  [vd, vb],         boundary;
+                        vd => no_check, [vm, vb, vc],     boundary;
+                        vm => no_check, [va, vb, vd],     boundary;
+                    },
+                    faces: {...; 3},
+                    edges: no_check, // TODO: check edges
+                });
             }
         });
 
@@ -544,20 +542,22 @@ macro_rules! gen_tri_mesh_tests {
             let faces = m.face_handles().collect::<Vec<_>>();
             let [f0, f1, f2] = [faces[0], faces[1], faces[2]];
 
-            assert_faces!(m; [$($extra),*];
-                f0 => {f1, f2}, {... vx; 3}, boundary;
-                f1 => {f0, f2}, {... vx; 3}, boundary;
-                f2 => {f0, f1}, {... vx; 3}, boundary;
-            );
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va => {...; 2},     [vc, vx, vb], boundary;
+                    vb => {...; 2},     [va, vx, vc], boundary;
+                    vc => {...; 2},     [vb, vx, va], boundary;
+                    vx => {f0, f1, f2}, [va, vc, vb], interior;
+                },
+                faces: {
+                    f0 => {f1, f2}, {vx ...; 3}, boundary;
+                    f1 => {f0, f2}, {vx ...; 3}, boundary;
+                    f2 => {f0, f1}, {vx ...; 3}, boundary;
+                },
+                edges: no_check, // TODO: check edges
+            });
 
-            assert_vertices!(m; [$($extra),*];
-                va => {...; 2},     [vc, vx, vb], boundary;
-                vb => {...; 2},     [va, vx, vc], boundary;
-                vc => {...; 2},     [vb, vx, va], boundary;
-                vx => {f0, f1, f2}, [va, vc, vb], interior;
-            );
-
-            test_helper!(@if EdgeMesh in [$($extra),*] => {
+            test_helper!(@if EdgeMesh in $extras => {
                 assert_eq!(m.num_edges(), 6);
                 // TODO: more edge tests
             });
@@ -568,7 +568,7 @@ macro_rules! gen_tri_mesh_tests {
         // - interior face
         // - non-tri face
 
-        test_helper!(@if_item [SupportsMultiBlade] in [$($extra),*] => {
+        test_helper!(@if_item [SupportsMultiBlade] in $extras => {
             #[test]
             fn vertex_with_two_blades() {
                 //
@@ -597,20 +597,22 @@ macro_rules! gen_tri_mesh_tests {
 
 
                 // ----- Check stuff
-                assert_faces!(m; [$($extra),*];
-                    fx => [], [va, vc, vb], boundary;
-                    fy => [], [va, vd, ve], boundary;
-                );
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => [fx, fy], [vb, vc, ve, vd], boundary;
+                        vb => [fx],     [vc, va],         boundary;
+                        vc => [fx],     [va, vb],         boundary;
+                        vd => [fy],     [va, ve],         boundary;
+                        ve => [fy],     [vd, va],         boundary;
+                    },
+                    faces: {
+                        fx => [], [va, vc, vb], boundary;
+                        fy => [], [va, vd, ve], boundary;
+                    },
+                    edges: no_check, // TODO: check edges
+                });
 
-                assert_vertices!(m; [$($extra),*];
-                    va => [fx, fy], [vb, vc, ve, vd], boundary;
-                    vb => [fx],     [vc, va],         boundary;
-                    vc => [fx],     [va, vb],         boundary;
-                    vd => [fy],     [va, ve],         boundary;
-                    ve => [fy],     [vd, va],         boundary;
-                );
-
-                test_helper!(@if EdgeMesh in [$($extra),*] => {
+                test_helper!(@if EdgeMesh in $extras => {
                     let eh = EdgeHandle::new;
                     assert_eq!(m.num_edges(), 6);
                     assert_eq_set!(
@@ -618,7 +620,7 @@ macro_rules! gen_tri_mesh_tests {
                         [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5)],
                     );
 
-                    test_helper!(@if EdgeAdj in [$($extra),*] => {
+                    test_helper!(@if EdgeAdj in $extras => {
                         assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, []);
                         assert_face_edges!(m, [eh(3), eh(4), eh(5)], fy, []);
                     });
@@ -656,23 +658,25 @@ macro_rules! gen_tri_mesh_tests {
 
 
                 // ----- Check stuff
-                assert_faces!(m; [$($extra),*];
-                    fx => [], [va, vc, vb], boundary;
-                    fy => [], [va, ve, vd], boundary;
-                    fz => [], [va, vg, vf], boundary;
-                );
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => {fx, fy, fz}, {vb, vc, vd, ve, vf, vg}, boundary;
+                        vb => [fx],         [vc, va],                 boundary;
+                        vc => [fx],         [va, vb],                 boundary;
+                        vd => [fy],         [va, ve],                 boundary;
+                        ve => [fy],         [vd, va],                 boundary;
+                        vf => [fz],         [va, vg],                 boundary;
+                        vg => [fz],         [vf, va],                 boundary;
+                    },
+                    faces: {
+                        fx => [], [va, vc, vb], boundary;
+                        fy => [], [va, ve, vd], boundary;
+                        fz => [], [va, vg, vf], boundary;
+                    },
+                    edges: no_check, // TODO: check edges
+                });
 
-                assert_vertices!(m; [$($extra),*];
-                    va => {fx, fy, fz}, {vb, vc, vd, ve, vf, vg}, boundary;
-                    vb => [fx],         [vc, va],                 boundary;
-                    vc => [fx],         [va, vb],                 boundary;
-                    vd => [fy],         [va, ve],                 boundary;
-                    ve => [fy],         [vd, va],                 boundary;
-                    vf => [fz],         [va, vg],                 boundary;
-                    vg => [fz],         [vf, va],                 boundary;
-                );
-
-                test_helper!(@if EdgeMesh in [$($extra),*] => {
+                test_helper!(@if EdgeMesh in $extras => {
                     let eh = EdgeHandle::new;
                     assert_eq!(m.num_edges(), 9);
                     assert_eq_set!(
@@ -680,7 +684,7 @@ macro_rules! gen_tri_mesh_tests {
                         [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5), eh(6), eh(7), eh(8)],
                     );
 
-                    test_helper!(@if EdgeAdj in [$($extra),*] => {
+                    test_helper!(@if EdgeAdj in $extras => {
                         assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, []);
                         assert_face_edges!(m, [eh(3), eh(4), eh(5)], fy, []);
                         assert_face_edges!(m, [eh(6), eh(7), eh(8)], fz, []);
@@ -739,24 +743,26 @@ macro_rules! gen_tri_mesh_tests {
                     let f = m.add_triangle([vd, vc, va]);
 
                     // ----- Check stuff
-                    assert_faces!(m; [$($extra),*];
-                        fx => [f],      [va, vc, vb], boundary;
-                        fy => [f],      [va, ve, vd], boundary;
-                        fz => [],       [va, vg, vf], boundary;
-                        f  => [fx, fy], [vd, vc, va], boundary;
-                    );
+                    check_mesh!(m; $extras; {
+                        vertices: {
+                            va => [fx, f, fy, fz], [vb, vc, vd, ve, vf, vg], boundary;
+                            vb => [fx],            [vc, va],                 boundary;
+                            vc => [fx, f],         [vd, va, vb],             boundary;
+                            vd => [fy, f],         [ve, va, vc],             boundary;
+                            ve => [fy],            [vd, va],                 boundary;
+                            vf => [fz],            [va, vg],                 boundary;
+                            vg => [fz],            [vf, va],                 boundary;
+                        },
+                        faces: {
+                            fx => [f],      [va, vc, vb], boundary;
+                            fy => [f],      [va, ve, vd], boundary;
+                            fz => [],       [va, vg, vf], boundary;
+                            f  => [fx, fy], [vd, vc, va], boundary;
+                        },
+                        edges: no_check, // TODO: check edges
+                    });
 
-                    assert_vertices!(m; [$($extra),*];
-                        va => [fx, f, fy, fz], [vb, vc, vd, ve, vf, vg], boundary;
-                        vb => [fx],            [vc, va],                 boundary;
-                        vc => [fx, f],         [vd, va, vb],             boundary;
-                        vd => [fy, f],         [ve, va, vc],             boundary;
-                        ve => [fy],            [vd, va],                 boundary;
-                        vf => [fz],            [va, vg],                 boundary;
-                        vg => [fz],            [vf, va],                 boundary;
-                    );
-
-                    test_helper!(@if EdgeMesh in [$($extra),*] => {
+                    test_helper!(@if EdgeMesh in $extras => {
                         let eh = EdgeHandle::new;
                         assert_eq!(m.num_edges(), 10);
                         assert_eq_set!(
@@ -764,7 +770,7 @@ macro_rules! gen_tri_mesh_tests {
                             [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5), eh(6), eh(7), eh(8), eh(9)],
                         );
 
-                        test_helper!(@if EdgeAdj in [$($extra),*] => {
+                        test_helper!(@if EdgeAdj in $extras => {
                             let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, [f]);
                             let e_ac = e[0];
 
@@ -783,24 +789,26 @@ macro_rules! gen_tri_mesh_tests {
                     let f = m.add_triangle([vf, vc, va]);
 
                     // ----- Check stuff
-                    assert_faces!(m; [$($extra),*];
-                        fx => [f],      [va, vc, vb], boundary;
-                        fy => [],       [va, ve, vd], boundary;
-                        fz => [f],      [va, vg, vf], boundary;
-                        f  => [fx, fz], [vf, vc, va], boundary;
-                    );
+                    check_mesh!(m; $extras; {
+                        vertices: {
+                            va => [fx, f, fz, fy], [vb, vc, vf, vg, vd, ve], boundary;
+                            vb => [fx],            [vc, va],                 boundary;
+                            vc => [fx, f],         [vf, va, vb],             boundary;
+                            vd => [fy],            [ve, va],                 boundary;
+                            ve => [fy],            [vd, va],                 boundary;
+                            vf => [fz, f],         [vg, va, vc],             boundary;
+                            vg => [fz],            [vf, va],                 boundary;
+                        },
+                        faces: {
+                            fx => [f],      [va, vc, vb], boundary;
+                            fy => [],       [va, ve, vd], boundary;
+                            fz => [f],      [va, vg, vf], boundary;
+                            f  => [fx, fz], [vf, vc, va], boundary;
+                        },
+                        edges: no_check, // TODO: check edges
+                    });
 
-                    assert_vertices!(m; [$($extra),*];
-                        va => [fx, f, fz, fy], [vb, vc, vf, vg, vd, ve], boundary;
-                        vb => [fx],            [vc, va],                 boundary;
-                        vc => [fx, f],         [vf, va, vb],             boundary;
-                        vd => [fy],            [ve, va],                 boundary;
-                        ve => [fy],            [vd, va],                 boundary;
-                        vf => [fz, f],         [vg, va, vc],             boundary;
-                        vg => [fz],            [vf, va],                 boundary;
-                    );
-
-                    test_helper!(@if EdgeMesh in [$($extra),*] => {
+                    test_helper!(@if EdgeMesh in $extras => {
                         let eh = EdgeHandle::new;
                         assert_eq!(m.num_edges(), 10);
                         assert_eq_set!(
@@ -808,7 +816,7 @@ macro_rules! gen_tri_mesh_tests {
                             [eh(0), eh(1), eh(2), eh(3), eh(4), eh(5), eh(6), eh(7), eh(8), eh(9)],
                         );
 
-                        test_helper!(@if EdgeAdj in [$($extra),*] => {
+                        test_helper!(@if EdgeAdj in $extras => {
                             let e = assert_face_edges!(m, [eh(0), eh(1), eh(2)], fx, [f]);
                             let e_ac = e[0];
 
@@ -858,47 +866,47 @@ macro_rules! gen_tri_mesh_tests {
                 let fz = m.add_triangle([vc, ve, vf]);
 
                 // -- check stuff with hole in the middle (real triforce)
-                assert_faces!(m; [$($extra),*];
-                    fx => [], [va, vb, vc], boundary;
-                    fy => [], [vb, vd, ve], boundary;
-                    fz => [], [vc, ve, vf], boundary;
-                );
-
-                assert_vertices!(m; [$($extra),*];
-                    va => [fx],     [vb, vc],         boundary;
-                    vb => [fx, fy], [va, vc, ve, vd], boundary;
-                    vc => [fx, fz], [vf, ve, vb, va], boundary;
-                    vd => [fy],     [vb, ve],         boundary;
-                    ve => [fy, fz], [vd, vb, vc, vf], boundary;
-                    vf => [fz],     [ve, vc],         boundary;
-                );
-
-                // TODO: check edges
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => [fx],     [vb, vc],         boundary;
+                        vb => [fx, fy], [va, vc, ve, vd], boundary;
+                        vc => [fx, fz], [vf, ve, vb, va], boundary;
+                        vd => [fy],     [vb, ve],         boundary;
+                        ve => [fy, fz], [vd, vb, vc, vf], boundary;
+                        vf => [fz],     [ve, vc],         boundary;
+                    },
+                    faces: {
+                        fx => [], [va, vb, vc], boundary;
+                        fy => [], [vb, vd, ve], boundary;
+                        fz => [], [vc, ve, vf], boundary;
+                    },
+                    edges: no_check, // TODO: check edges
+                });
 
                 // -- fill hole in middle
                 let fw = m.add_triangle([vb, ve, vc]);
 
-                assert_faces!(m; [$($extra),*];
-                    fx => [fw],         [va, vb, vc], boundary;
-                    fy => [fw],         [vb, vd, ve], boundary;
-                    fz => [fw],         [vc, ve, vf], boundary;
-                    fw => [fx, fy, fz], [vb, ve, vc], interior;
-                );
-
-                assert_vertices!(m; [$($extra),*];
-                    va => [fx],         [vb, vc],         boundary;
-                    vb => [fx, fw, fy], [va, vc, ve, vd], boundary;
-                    vc => [fz, fw, fx], [vf, ve, vb, va], boundary;
-                    vd => [fy],         [vb, ve],         boundary;
-                    ve => [fy, fw, fz], [vd, vb, vc, vf], boundary;
-                    vf => [fz],         [ve, vc],         boundary;
-                );
-
-                // TODO: check edges
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => [fx],         [vb, vc],         boundary;
+                        vb => [fx, fw, fy], [va, vc, ve, vd], boundary;
+                        vc => [fz, fw, fx], [vf, ve, vb, va], boundary;
+                        vd => [fy],         [vb, ve],         boundary;
+                        ve => [fy, fw, fz], [vd, vb, vc, vf], boundary;
+                        vf => [fz],         [ve, vc],         boundary;
+                    },
+                    faces: {
+                        fx => [fw],         [va, vb, vc], boundary;
+                        fy => [fw],         [vb, vd, ve], boundary;
+                        fz => [fw],         [vc, ve, vf], boundary;
+                        fw => [fx, fy, fz], [vb, ve, vc], interior;
+                    },
+                    edges: no_check, // TODO: check edges
+                });
             }
         });
 
-        test_helper!(@if_item [Manifold] in [$($extra),*] => {
+        test_helper!(@if_item [Manifold] in $extras => {
             #[test]
             fn non_manifold_triple_edge() {
                 // This creates a non-manifold mesh by connecting three faces to a
