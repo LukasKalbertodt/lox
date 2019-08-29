@@ -476,9 +476,23 @@ impl<C: Config> DirectedEdgeMesh<C> {
         unsafe { Checked::new(HalfEdgeHandle::new(prev)) }
     }
 
+    /// Sets the `twin` handle of both half edges to each other.
     fn set_twins(&mut self, a: Checked<HalfEdgeHandle>, b: Checked<HalfEdgeHandle>) {
         self[a].twin = EncodedTwin::twin(b);
         self[b].twin = EncodedTwin::twin(a);
+    }
+
+    /// Pushes the three given half edges (in order) and returns their handles.
+    fn push_half_edge_triple(
+        &mut self,
+        [a, b, c]: [HalfEdge<C>; 3],
+    ) -> [Checked<HalfEdgeHandle>; 3] {
+        let ah = self.half_edges.push(a);
+        let bh = self.half_edges.push(b);
+        let ch = self.half_edges.push(c);
+
+        // The handles are clearly valid as we just pushed them.
+        unsafe { [Checked::new(ah), Checked::new(bh), Checked::new(ch)] }
     }
 }
 
@@ -622,22 +636,18 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         ];
         // dbg!(outer_hes);
 
-        // Add three new half edges. The `unsafe` here is used for
-        // `Checked::new` and `HalfEdge::dummy_to`. The `Checked::new` uses are
-        // fine as the handles just got returned from `push`.
+        // Add three new half edges.
         //
         // The `dummy_to` is only safe if we override the `twin`, `next` and
         // `prev` handles and never use them to index the storage. Sadly, this
         // is not easy to see. All fields are certainly overwritten, but it's
         // more difficult to show that they are not accessed before. Well, the
         // correctness of this whole function is based on that.
-        let inner_hes = unsafe {
-            let inner0 = self.half_edges.push(HalfEdge::dummy_to(vertices[1]));
-            let inner1 = self.half_edges.push(HalfEdge::dummy_to(vertices[2]));
-            let inner2 = self.half_edges.push(HalfEdge::dummy_to(vertices[0]));
-
-            [Checked::new(inner0), Checked::new(inner1), Checked::new(inner2)]
-        };
+        let inner_hes = self.push_half_edge_triple([
+            unsafe { HalfEdge::dummy_to(vertices[1]) },
+            unsafe { HalfEdge::dummy_to(vertices[2]) },
+            unsafe { HalfEdge::dummy_to(vertices[0]) },
+        ]);
 
 
         // Iterate over all corners of the new triangle
@@ -997,15 +1007,19 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
 
         // Add new half edges for face Y. `unsafe` is fine as we will override
         // the twins and the handle returned by `push` is obviously valid`
-        let he_am = unsafe { Checked::new(self.half_edges.push(HalfEdge::dummy_to(vm))) };
-        let he_mc = unsafe { Checked::new(self.half_edges.push(HalfEdge::dummy_to(vc))) };
-        let he_ca = unsafe { Checked::new(self.half_edges.push(self[he_ca_orig])) };
+        let [he_am, he_mc, he_ca] = self.push_half_edge_triple([
+            unsafe { HalfEdge::dummy_to(vm) },
+            unsafe { HalfEdge::dummy_to(vc) },
+            self[he_ca_orig],
+        ]);
 
         // Add new half edges for face Z. `unsafe` is fine as we will override
         // the twins and the handle returned by `push` is obviously valid`
-        let he_bm = unsafe { Checked::new(self.half_edges.push(HalfEdge::dummy_to(vm))) };
-        let he_ma = unsafe { Checked::new(self.half_edges.push(HalfEdge::dummy_to(va))) };
-        let he_ab = unsafe { Checked::new(self.half_edges.push(self[he_ab_orig])) };
+        let [he_bm, he_ma, he_ab] = self.push_half_edge_triple([
+            unsafe { HalfEdge::dummy_to(vm) },
+            unsafe { HalfEdge::dummy_to(va) },
+            self[he_ab_orig],
+        ]);
 
         // Overwrite half edges of face X. `unsafe` is fine as we will override
         // the twins.
