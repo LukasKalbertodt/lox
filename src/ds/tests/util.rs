@@ -949,27 +949,37 @@ macro_rules! check_mesh {
         };
 
         // Run Checks!
-        checker.check_basic(&$mesh);
-        test_helper!(@if BasicAdj in $extras => {
-            checker.check_basic_adj(&$mesh);
+        let res = std::panic::catch_unwind(|| {
+            checker.check_basic(&$mesh);
+            test_helper!(@if BasicAdj in $extras => {
+                checker.check_basic_adj(&$mesh);
 
-            test_helper!(@if TriMesh in $extras => {
-                checker.check_basic_adj_tri(&$mesh);
+                test_helper!(@if TriMesh in $extras => {
+                    checker.check_basic_adj_tri(&$mesh);
+                });
+            });
+            test_helper!(@if FullAdj in $extras => {
+                checker.check_full_adj(&$mesh);
+
+                test_helper!(@if TriMesh in $extras => {
+                    checker.check_full_adj_tri(&$mesh);
+                });
+            });
+            test_helper!(@if EdgeMesh in $extras => {
+                checker.check_basic_edge(&$mesh);
+                test_helper!(@if EdgeAdj in $extras => {
+                    checker.check_edge_adj(&$mesh);
+                });
             });
         });
-        test_helper!(@if FullAdj in $extras => {
-            checker.check_full_adj(&$mesh);
 
-            test_helper!(@if TriMesh in $extras => {
-                checker.check_full_adj_tri(&$mesh);
-            });
-        });
-        test_helper!(@if EdgeMesh in $extras => {
-            checker.check_basic_edge(&$mesh);
-            test_helper!(@if EdgeAdj in $extras => {
-                checker.check_edge_adj(&$mesh);
-            });
-        })
+        if let Err(e) = res {
+            eprintln!();
+            eprintln!("+++++ Additional failure information +++++");
+            eprintln!("mesh: {:#?}", $mesh);
+
+            std::panic::resume_unwind(e);
+        }
     }};
 
     // Match on the different syntax for element checks
