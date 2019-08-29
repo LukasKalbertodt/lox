@@ -6,6 +6,7 @@ use std::{
 
 use crate::{
     prelude::*,
+    handle::hsize,
 };
 
 
@@ -14,7 +15,7 @@ where
     S: PropMap<FaceHandle, Target = T> + PropStoreMut<FaceHandle, Output = T>,
     T: Eq + fmt::Debug + Hash,
 {
-    assert_eq!(left.num_props(), right.len() as u32);
+    assert_eq!(left.num_props(), right.len() as hsize);
     assert_eq!(left.is_empty(), right.is_empty());
 
     macro_rules! assert_iter_eq {
