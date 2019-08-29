@@ -11,35 +11,40 @@ use crate::{
 };
 
 
+// ===============================================================================================
+// ===== Small helper functions and macros
+// ===============================================================================================
 
-/// Takes an iterator and a list of elements. Collects both into sets and
-/// compares those sets for equality via `assert_eq`.
+/// Takes two iterators, collects both into sets and compares those sets for
+/// equality.
 macro_rules! assert_eq_set {
-    ($iter:expr, [$($item:expr),* $(,)*] $(,)?) => {
+    ($left:expr, $right:expr $(,)?) => {
         crate::ds::tests::util::assert_eq_set_fn(
-            $iter,
-            &[$($item),*],
-            stringify!($iter),
-            stringify!([$($item),*]),
+            $left,
+            $right,
+            stringify!($left),
+            stringify!($right),
         );
     }
 }
 
 /// Internal helper function for `assert_eq_set`.
-pub fn assert_eq_set_fn<I, T>(actual: I, expected: &[T], left_str: &str, right_str: &str)
-where
-    I: Iterator<Item = T>,
-    T: Debug + Clone + Eq + Ord,
+pub fn assert_eq_set_fn<T: Debug + Clone + Eq + Ord>(
+    left: impl IntoIterator<Item = T>,
+    right: impl IntoIterator<Item = T>,
+    left_str: &str,
+    right_str: &str,
+)
 {
-    let actual = set(actual);
-    let expected = set(expected.iter().cloned());
-    if actual != expected {
+    let left = set(left);
+    let right = set(right);
+    if left != right {
         panic!(
-            "assert_eq_set({}, {}) failed:\n  left: {:?}\n right: {:?} ",
+            "assert_eq_set!({}, {}) failed:\n|  left: {:?}\n| right: {:?} ",
             left_str,
             right_str,
-            actual,
-            expected,
+            left,
+            right,
         );
     }
 }

@@ -441,11 +441,9 @@ macro_rules! gen_tri_mesh_tests {
 
                 let split_faces = m.faces_around_vertex(vn).collect::<Vec<_>>();
                 assert_eq!(split_faces.len(), 4);
-                crate::ds::tests::util::assert_eq_set_fn(
+                assert_eq_set!(
                     split_faces.into_iter().chain(vec![f_bc]),
-                    &m.face_handles().collect::<Vec<_>>(),
-                    "split_faces.into_iter().chain(vec![f_bc])",
-                    "m.face_handles()",
+                    m.face_handles(),
                 );
 
                 // TODO: we should check more stuff here
@@ -499,11 +497,9 @@ macro_rules! gen_tri_mesh_tests {
 
                 let split_faces = m.faces_around_vertex(vm).collect::<Vec<_>>();
                 assert_eq!(split_faces.len(), 2);
-                crate::ds::tests::util::assert_eq_set_fn(
+                assert_eq_set!(
                     split_faces.into_iter().chain(vec![f_bdc]),
-                    &m.face_handles().collect::<Vec<_>>(),
-                    "split_faces.into_iter().chain(vec![f_bdc])",
-                    "m.face_handles()",
+                    m.face_handles(),
                 );
 
                 // TODO: we should check more stuff here
