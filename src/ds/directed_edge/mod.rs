@@ -180,7 +180,7 @@ pub(crate) struct Vertex {
 /// TODO: Think about maybe not using the first bit, but instead comparing this
 /// number to the length of the half edge vector. That way we can utilize the
 /// whole handle space.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 struct EncodedTwin(hsize);
 
 const TWIN_MASK: hsize = 1 << (std::mem::size_of::<hsize>() * 8 - 1);
@@ -474,6 +474,11 @@ impl<C: Config> DirectedEdgeMesh<C> {
         // This handle actually exists by the logic above. Three half edges
         // always exist together.
         unsafe { Checked::new(HalfEdgeHandle::new(prev)) }
+    }
+
+    fn set_twins(&mut self, a: Checked<HalfEdgeHandle>, b: Checked<HalfEdgeHandle>) {
+        self[a].twin = EncodedTwin::twin(b);
+        self[b].twin = EncodedTwin::twin(a);
     }
 }
 
@@ -954,8 +959,92 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         }
     }
 
-    fn split_face(&mut self, _: FaceHandle) -> VertexHandle {
-        unimplemented!()
+    fn split_face(&mut self, f: FaceHandle) -> VertexHandle {
+        // We need to add:
+        // - 2 new faces (so 6 new half edges)
+        // - 1 new vertex (the "midpoint")
+        //
+        // Let's visualize what are are about to do. On the left is the current
+        // situation, on the right what it looks like after this method is
+        // done.
+        //
+        //               (A)                |               (A)
+        //              /   ^               |             / ^ | ^
+        //             /     \              |            /  | |  \
+        //            /       \             |           /   | |   \
+        //           /         \            |          / Z  | v  Y \
+        //          /           \           |         /     (M)     \
+        //         /             \          |        /    ↗⟋   ↖⟍   \
+        //        /       X       \         |       /   ⟋⟋      ⟍⟍  \
+        //       /                 \        |      /  ⟋⟋    X     ⟍⟍ \
+        //      v                   \       |     v ⟋↙              ⟍↘ \
+        //    (B) ----------------> (C)     |    (B) ----------------> (C)
+        //
+        //
+
+        // Obtain handles of outer half edges and vertices. Two of these half
+        // edges will be repurposed: `a -> b` and `c -> a`. They are changed to
+        // be `m -> b` and `c -> m` instead.
+        let [he_ab_orig, he_bc, he_ca_orig] = self.checked_half_edges_around(f);
+        let vb = self[he_ab_orig].target;
+        let vc = self[he_bc].target;
+        let va = self[he_ca_orig].target;
+
+
+        // Add new vertex "in the middle". The `Checked::new` is correct as the
+        // handle returned by `add_vertex` is obviously valid.
+        let vm = unsafe { Checked::new(self.add_vertex()) };
+
+        // Add new half edges for face Y. `unsafe` is fine as we will override
+        // the twins and the handle returned by `push` is obviously valid`
+        let he_am = unsafe { Checked::new(self.half_edges.push(HalfEdge::dummy_to(vm))) };
+        let he_mc = unsafe { Checked::new(self.half_edges.push(HalfEdge::dummy_to(vc))) };
+        let he_ca = unsafe { Checked::new(self.half_edges.push(self[he_ca_orig])) };
+
+        // Add new half edges for face Z. `unsafe` is fine as we will override
+        // the twins and the handle returned by `push` is obviously valid`
+        let he_bm = unsafe { Checked::new(self.half_edges.push(HalfEdge::dummy_to(vm))) };
+        let he_ma = unsafe { Checked::new(self.half_edges.push(HalfEdge::dummy_to(va))) };
+        let he_ab = unsafe { Checked::new(self.half_edges.push(self[he_ab_orig])) };
+
+        // Overwrite half edges of face X. `unsafe` is fine as we will override
+        // the twins.
+        self[he_ca_orig] = unsafe { HalfEdge::dummy_to(vm) };
+        self[he_ab_orig] = unsafe { HalfEdge::dummy_to(vb) };
+        let he_cm = he_ca_orig;
+        let he_mb = he_ab_orig;
+
+        // Set midpoint's `outgoing` to that edge. The midpoint is not a
+        // boundary vertex, we don't have to pay attention to the `outgoing`
+        // edge.
+        self[vm].outgoing = Opt::some(he_ma);
+
+        // Set twins of all inner half edges.
+        self.set_twins(he_am, he_ma);
+        self.set_twins(he_bm, he_mb);
+        self.set_twins(he_cm, he_mc);
+
+        // We might also need to update the twins of two old outer half edges
+        // if they were boundary half edges and referred to other old outer
+        // half edges of the old face.
+        if self[he_bc].twin == EncodedTwin::next_boundary_he(he_ab_orig) {
+            self[he_bc].twin = EncodedTwin::next_boundary_he(he_ab);
+        }
+        if self[he_ab].twin == EncodedTwin::next_boundary_he(he_ca_orig) {
+            self[he_ab].twin = EncodedTwin::next_boundary_he(he_ca);
+        }
+
+        // For two of the outer vertices we have to check if they were
+        // referring to one of the repurposed edges before. If so, we need to
+        // update the `outgoing` handle.
+        if self[va].outgoing == Opt::some(he_ab_orig) {
+            self[va].outgoing = Opt::some(he_ab);
+        }
+        if self[vc].outgoing == Opt::some(he_ca_orig) {
+            self[vc].outgoing = Opt::some(he_ca);
+        }
+
+        *vm
     }
 
     fn add_face(&mut self, _: &[VertexHandle]) -> FaceHandle
