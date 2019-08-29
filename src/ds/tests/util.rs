@@ -1,13 +1,12 @@
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::BTreeSet,
     cmp::PartialEq,
-    fmt::{Debug, Write},
+    fmt::Debug,
 };
 
 use crate::{
     prelude::*,
     handle::hsize,
-    util::DiList,
 };
 
 
@@ -57,125 +56,6 @@ where
     src.into_iter().collect()
 }
 
-
-/// Takes three edges `$e0`, `$e1` and `$e2` that all belong to one face `$f`
-/// and makes sure:
-/// - Each edge is adjacent to the face `$f`
-/// - The set of the other adjacent faces equals the set of neighbor faces
-///   `$neighbor`, where neighborfaces are an `Option`.
-macro_rules! assert_face_edges {
-    ($mesh:ident, [$e0:expr, $e1:expr, $e2:expr], $f:expr, [$($neighbor:expr),* $(,)*]) => {{
-        let edge_faces = [
-            $mesh.faces_of_edge($e0),
-            $mesh.faces_of_edge($e1),
-            $mesh.faces_of_edge($e2),
-        ];
-        crate::ds::tests::util::assert_face_edges_fn($f, [$e0, $e1, $e2], edge_faces, &[$($neighbor),*])
-    }}
-}
-
-/// Internal helper function for `assert_face_edges`.
-pub fn assert_face_edges_fn(
-    face: FaceHandle,
-    edges: [EdgeHandle; 3],
-    edge_faces: [DiList<FaceHandle>; 3],
-    neighbors: &[FaceHandle],
-) -> Vec<EdgeHandle> {
-    let mut actual = HashSet::new();
-    let mut corresponding_edges = [None; 3];
-    for (&edge, adjacent_faces) in edges.iter().zip(&edge_faces) {
-        let adjacent_faces = adjacent_faces.into_vec();
-
-        match adjacent_faces.len() {
-            0 => {
-                panic!(
-                    "assert_face_edges failed: {:?} is supposed to be an edge of face {:?}, \
-                        but the list returned by faces_of_edge({:?}) is empty",
-                    edge,
-                    face,
-                    edge,
-                );
-            }
-            1 => {
-                assert!(
-                    adjacent_faces[0] == face,
-                    "assert_face_edges failed: {:?} is supposed to be an edge of face {:?}, \
-                        but the list returned by faces_of_edge({:?}) does not contain {:1?} \
-                        (it just contains {:?})",
-                    edge,
-                    face,
-                    edge,
-                    face,
-                    adjacent_faces[0],
-                );
-            }
-            2 => {
-                match adjacent_faces.iter().position(|&f| f == face) {
-                    None => {
-                        panic!(
-                            "assert_face_edges failed: {:?} is supposed to be an edge of \
-                                face {:?}, but the list returned by faces_of_edge({:?}) \
-                                does not contain {:?} (actual list: {:?})",
-                            edge,
-                            face,
-                            edge,
-                            face,
-                            adjacent_faces,
-                        );
-                    }
-                    Some(pos) => {
-                        let other_pos = if pos == 0 { 1 } else { 0 };
-                        actual.insert(adjacent_faces[other_pos]);
-
-                        // Here we try to find the face this edge corresponds
-                        // to. If `position` returns `None`, we already know
-                        // that this assert will fail. But we will just ignore
-                        // it, because it will be detected below -- with a nice
-                        // error message.
-                        let pos = neighbors.iter().position(|n| *n == adjacent_faces[other_pos]);
-                        if let Some(pos) = pos {
-                            corresponding_edges[pos] = Some(edge);
-                        }
-                    }
-                }
-            }
-            _ => unreachable!(), // guaranteed by `DiList`
-        }
-    }
-
-    let expected = neighbors.iter().cloned().collect::<HashSet<_>>();
-    if actual != expected {
-        let mut data = String::new();
-        for (&edge, adjacent_faces) in edges.iter().zip(&edge_faces) {
-            writeln!(
-                data,
-                "faces_of_edge({:?}) => {:?}",
-                edge,
-                adjacent_faces.into_vec(),
-            ).unwrap();
-        }
-
-        panic!(
-            "assert_face_edges failed: the expected neighborfaces ({:?}) of face {:?} with \
-                edges {:?} do not equal the actual neighborfaces reported by faces_of_edge \
-                ({:?}). Exact data: \n{}",
-            expected,
-            face,
-            edges,
-            actual,
-            data,
-        );
-    }
-
-    // We can now just take all the `Some` values from that array and put it
-    // into a vector. In fact, if we reach this point, the number of `Some`
-    // elements is exactly `neighbors.len()` *and* they are in the beginning
-    // of the array.
-    corresponding_edges.iter()
-        .filter_map(|opt| *opt)
-        .collect()
-}
-
 /// Compares `actual` and `expected`. This function checks if both slices are
 /// equal when treating them like a "ring". This means that if we can rotate
 /// one slice so that it equals the other slice, we consider them equal.
@@ -221,22 +101,22 @@ pub(crate) fn cmp_rotated<T: Debug + PartialEq + Clone>(
 /// Holds everything that should be checked about the mesh.
 #[derive(Debug)]
 pub(crate) struct MeshCheck {
-    pub(crate) vertices: ElementCheck<VertexHandle>,
-    pub(crate) faces: ElementCheck<FaceHandle>,
-    pub(crate) edges: ElementCheck<EdgeHandle>,
+    pub(crate) vertices: ElementCheck<ElementInfo<VertexHandle>>,
+    pub(crate) faces: ElementCheck<ElementInfo<FaceHandle>>,
+    pub(crate) edges: ElementCheck<EdgeInfo>,
 }
 
 /// Specifies how elements of a mesh (face, vertex, edge) should be checked.
 #[derive(Debug)]
-pub(crate) enum ElementCheck<H: Handle> {
+pub(crate) enum ElementCheck<E> {
     /// The elements are given as a set, i.e. order will not be checked.
-    Full(Vec<ElementInfo<H>>),
+    Full(Vec<E>),
 
     /// Not all elements were specified, but these given ones have to be part
     /// of the mesh. Additionally, the number of elements might be specified
     /// and will be checked.
     Partial {
-        elements: Vec<ElementInfo<H>>,
+        elements: Vec<E>,
         len: Option<usize>,
     },
 
@@ -244,13 +124,22 @@ pub(crate) enum ElementCheck<H: Handle> {
     NoCheck,
 }
 
-/// Contains information about a specific element (face, vertex, edge).
+/// Contains information about a specific element (face, vertex).
 #[derive(Debug)]
 pub(crate) struct ElementInfo<H: Handle> {
     pub(crate) handle: H,
     pub(crate) boundary: bool,
     pub(crate) adjacent_faces: NeighborCheck<FaceHandle>,
     pub(crate) adjacent_vertices: NeighborCheck<VertexHandle>,
+}
+
+/// Contains information about a specific edge.
+#[derive(Debug)]
+pub(crate) struct EdgeInfo {
+    pub(crate) vertices: [VertexHandle; 2],
+    pub(crate) handle: Option<EdgeHandle>,
+    pub(crate) boundary: bool,
+    pub(crate) adjacent_faces: NeighborCheck<FaceHandle>,
 }
 
 /// Specifies how neighbors of a specific element should be checked.
@@ -275,7 +164,7 @@ pub(crate) enum NeighborCheck<H: Handle> {
     NoCheck,
 }
 
-impl<H: Handle> ElementCheck<H> {
+impl<E> ElementCheck<E> {
     /// If the number of elements is specified, return it, `None` otherwise.
     fn len(&self) -> Option<usize> {
         match self {
@@ -288,7 +177,7 @@ impl<H: Handle> ElementCheck<H> {
     /// Returns all elements stored in this check. The returned value might not
     /// be complete. This is only useful for "checking something for each
     /// element" and not comparing the returned slice as a whole to something.
-    fn elements(&self) -> &[ElementInfo<H>] {
+    fn elements(&self) -> &[E] {
         match self {
             ElementCheck::Full(v) => v,
             ElementCheck::Partial { elements, .. } => elements,
@@ -601,6 +490,115 @@ impl MeshCheck {
         );
     }
 
+    /// Checks basic properties of edges, without adjacency info.
+    pub(crate) fn check_basic_edge<M: EdgeMesh>(&self, mesh: &M) {
+        // Check length
+        if let Some(len) = self.edges.len() {
+            if mesh.num_edges() != len as hsize {
+                panic!(
+                    "`num_edges()` returned {}, but is supposed to return {}",
+                    mesh.num_edges(),
+                    len,
+                );
+            }
+        }
+
+        enum SetCheck {
+            Equality(BTreeSet<EdgeHandle>),
+            Subset(BTreeSet<EdgeHandle>),
+            None,
+        }
+
+        // Check if expected edge handles equal the actual ones. We can only
+        // check for set equality if all edge handles were actually specified.
+        let actual_handles = set(mesh.edge_handles());
+        let expected_handles = match &self.edges {
+            ElementCheck::Full(expected) => {
+                let expected_handles = set(expected.iter().filter_map(|e| e.handle));
+                if expected_handles.len() == expected.len() {
+                    SetCheck::Equality(expected_handles)
+                } else {
+                    SetCheck::Subset(expected_handles)
+                }
+            }
+            ElementCheck::Partial { elements, .. } => {
+                SetCheck::Subset(set(elements.iter().filter_map(|e| e.handle)))
+            }
+            ElementCheck::NoCheck => SetCheck::None,
+        };
+
+        match expected_handles {
+            SetCheck::Equality(expected) => {
+                if actual_handles != expected {
+                    panic!(
+                        "unexpected edges in mesh (check for set equality).\n\
+                            | expected: {:?}\n\
+                            |   actual: {:?} (via `mesh.edge_handles()`)\n",
+                        expected,
+                        actual_handles,
+                    );
+                }
+
+                let max_idx = expected.iter().map(|h| h.idx()).max().unwrap_or(0);
+                for idx in max_idx + 1..max_idx + 5 {
+                    let handle = Handle::new(idx);
+                    if mesh.contains_edge(handle) {
+                        panic!(
+                            "mesh.contains_edge({:?}) returned true, but should return false",
+                            handle,
+                        );
+                    }
+                }
+            }
+            SetCheck::Subset(expected) => {
+                for eh in &expected {
+                    if !actual_handles.contains(eh) {
+                        panic!(
+                            "{:?} not part of mesh, but should be.\n\
+                                | expected: {:?} (partial!)\n\
+                                |   actual: {:?} (via `mesh.edge_handles()`)\n",
+                            eh,
+                            expected,
+                            actual_handles,
+                        );
+                    }
+                }
+            },
+            SetCheck::None => {},
+        }
+
+        // Check `contains_*`, `next_*_handle_from` and `last_*_handle`.
+        for eh in self.edges.elements().iter().filter_map(|e| e.handle) {
+            if !mesh.contains_edge(eh) {
+                panic!(
+                    "mesh.contains_edge({:?}) returned false, should return true",
+                    eh,
+                );
+            }
+
+            let next = mesh.next_edge_handle_from(eh);
+            if next != Some(eh) {
+                panic!(
+                    "mesh.next_edge_handle_from({:?}) returned {:?}, should return {:?}",
+                    eh,
+                    next,
+                    eh,
+                );
+            }
+
+            let last_handle = mesh.last_edge_handle()
+                .expect(concat!("`last_edge_handle` returned `None`"));
+            if eh.idx() > last_handle.idx() {
+                panic!(
+                    "mesh.last_edge_handle() returned {:?} which has a smaller index than {:?} \
+                        (which is part of the mesh)",
+                    last_handle,
+                    eh,
+                );
+            }
+        }
+    }
+
     /// Checks properties of `BasicAdj` trait.
     pub(crate) fn check_basic_adj<M: BasicAdj>(&self, mesh: &M) {
         for f in self.faces.elements() {
@@ -669,6 +667,185 @@ impl MeshCheck {
                 &mesh.faces_around_triangle(f.handle).into_vec(),
                 &format!("mesh.faces_around_triangle({:?})", f.handle),
             );
+        }
+    }
+
+    /// Checks several properties about `EdgeAdj` methods.
+    pub(crate) fn check_edge_adj<M: EdgeAdj>(&self, mesh: &M) {
+        for e in self.edges.elements() {
+            let handle = match mesh.edge_between_vertices(e.vertices[0], e.vertices[1]) {
+                Some(h) => h,
+                None => {
+                    panic!(
+                        "`mesh.edge_between_vertices({:?}, {:?})` returned `None` but {} \
+                            between those vertices was expected",
+                        e.vertices[0],
+                        e.vertices[1],
+                        e.handle.map(|h| format!("{:?}", h)).unwrap_or("an edge".into()),
+                    );
+                }
+            };
+
+            // Check if the given handle equals the handle of the edge between
+            // the vertices.
+            if let Some(expected_handle) = e.handle {
+                if expected_handle != handle {
+                    panic!(
+                        "`mesh.edge_between_vertices({:?}, {:?})` returned expected edge.\n\
+                            | expected: {:?}\n\
+                            |   actual: {:?}\n",
+                        e.vertices[0],
+                        e.vertices[1],
+                        expected_handle,
+                        handle,
+                    );
+                }
+            }
+
+            let edge_id = format!("{:?} ({:?} -- {:?})", handle, e.vertices[0], e.vertices[1]);
+
+            // Check if edge is boundary
+            // Check `is_boundary_*` method
+            if e.boundary != mesh.is_boundary_edge(handle) {
+                panic!(
+                    "mesh says {} is {}a boundary edge, but the opposite was expected",
+                    edge_id,
+                    if e.boundary { "not " } else { "" },
+                );
+            }
+
+            // Check `E -> F` adjacency
+            e.adjacent_faces.check(
+                &mesh.faces_of_edge(handle).into_vec(),
+                &format!("mesh.faces_of_edge({})", edge_id),
+            );
+
+            // Check `E -> V` adjacency
+            let expected_vertices = set(e.vertices.iter().cloned());
+            let actual_vertices = set(mesh.endpoints_of_edge(handle).iter().cloned());
+            if actual_vertices != expected_vertices {
+                panic!(
+                    "wrong neighbors returned by `endpoints_of_edge({})` (set comparison)\n\
+                        | expected: {:?}\n\
+                        |   actual: {:?}\n",
+                    edge_id,
+                    expected_vertices,
+                    actual_vertices,
+                );
+            }
+        }
+
+        // Checking `F -> E` adjacency by obtaining edges from the order
+        // adjacent vertices.
+        for f in self.faces.elements() {
+            if let NeighborCheck::OrderDefined(vertices) = &f.adjacent_vertices {
+                let actual_edges = mesh.edges_around_face(f.handle).collect::<Vec<_>>();
+                let expected_edges = (0..vertices.len()).map(|i| {
+                    let va = vertices[i];
+                    let vb = vertices[(i + 1) % vertices.len()];
+
+                    mesh.edge_between_vertices(va, vb).unwrap_or_else(|| {
+                        panic!(
+                            "`mesh.edge_between_vertices({:?}, {:?})` returned `None`, but an \
+                                edge was expected, as both vertices are part of {:?}",
+                            va,
+                            vb,
+                            f.handle,
+                        );
+                    })
+                }).collect::<Vec<_>>();
+
+                if let Err(rotated) = cmp_rotated(&actual_edges, &expected_edges) {
+                    panic!(
+                        "wrong edges returned by `edges_around_face({:?})` \
+                                (order respecting comparison)\n\
+                            | expected: {:?} (original: {:?}, obtained from ordered \
+                                vertices around face)\n\
+                            |   actual: {:?}\n",
+                        f.handle,
+                        rotated,
+                        expected_edges,
+                        actual_edges,
+                    );
+                }
+            }
+        }
+
+        // For each vertex, we compare the edges returned by
+        // `edges_around_vertex` with the edges obtained by using
+        // `edge_between_vertices` on all adjacent vertices. Making sure that
+        // both results are compatible.
+        for center in self.vertices.elements() {
+            // Obtain a list of edges that are connected to `center` and the
+            // vertices adjacent to `center`.
+            let edges_to_vertices = center.adjacent_vertices.potentially_partial()
+                .iter()
+                .map(|other| {
+                    mesh.edge_between_vertices(center.handle, *other).unwrap_or_else(|| {
+                        panic!(
+                            "`mesh.edge_between_vertices({:?}, {:?})` returned `None`, but \
+                                an edge was expected, as both vertices are adjacent",
+                            center.handle,
+                            other,
+                        );
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            // Obtain a list of edges the normal way: via adjacency method.
+            let adjacent_edges = mesh.edges_around_vertex(center.handle).collect::<Vec<_>>();
+
+            // Compare the two lists.
+            match &center.adjacent_vertices {
+                NeighborCheck::OrderDefined(_) => {
+                    if let Err(rotated) = cmp_rotated(&edges_to_vertices, &adjacent_edges) {
+                        panic!(
+                            "edges returned by `edges_around_vertex({:?})` differ from \
+                                edges returned from `edge_between_vertices` called with \
+                                {:?} and its neighbor vertices (order respecting comparison)\n\
+                                |   from `edges_around_vertex`: {:?} (original: {:?})\n\
+                                | from `edge_between_vertices`: {:?}\n",
+                            center.handle,
+                            center.handle,
+                            rotated,
+                            adjacent_edges,
+                            edges_to_vertices,
+                        );
+                    }
+                }
+                NeighborCheck::OrderUndefined(_) => {
+                    if set(&edges_to_vertices) != set(&adjacent_edges) {
+                        panic!(
+                            "edges returned by `edges_around_vertex({:?})` differ from \
+                                edges returned from `edge_between_vertices` called with \
+                                {:?} and its neighbor vertices (set comparison)\n\
+                                |   from `edges_around_vertex`: {:?}\n\
+                                | from `edge_between_vertices`: {:?}\n",
+                            center.handle,
+                            center.handle,
+                            set(&adjacent_edges),
+                            set(&edges_to_vertices),
+                        );
+                    }
+                }
+                NeighborCheck::Partial { .. } => {
+                    for (i, eh) in edges_to_vertices.iter().enumerate() {
+                        if !adjacent_edges.contains(&eh) {
+                            panic!(
+                                "{:?} is not in the result of edges_around_vertex({:?}), but it\
+                                    should be, as it's the edge between {:?} and {:?}.\n\
+                                    | actually returned by edges_around_vertex: {:?}\n",
+                                eh,
+                                center.handle,
+                                center.handle,
+                                center.adjacent_vertices.potentially_partial()[i],
+                                adjacent_edges,
+                            );
+                        }
+                    }
+                }
+                NeighborCheck::NoCheck => {}
+            }
         }
     }
 }
@@ -760,13 +937,15 @@ macro_rules! check_mesh {
         edges: $edge_checks:tt $(,)?
     }) => {{
         #[allow(unused_imports)] // Because of conditional code
-        use crate::ds::tests::util::{MeshCheck, ElementCheck, ElementInfo, NeighborCheck};
+        use crate::ds::tests::util::{
+            MeshCheck, EdgeInfo, ElementCheck, ElementInfo, NeighborCheck,
+        };
 
         // Build check description
         let checker = MeshCheck {
             vertices: check_mesh!(@element_check $vertex_checks),
             faces: check_mesh!(@element_check $face_checks),
-            edges: check_mesh!(@element_check $edge_checks),
+            edges: check_mesh!(@edge_check $edge_checks),
         };
 
         // Run Checks!
@@ -785,6 +964,12 @@ macro_rules! check_mesh {
                 checker.check_full_adj_tri(&$mesh);
             });
         });
+        test_helper!(@if EdgeMesh in $extras => {
+            checker.check_basic_edge(&$mesh);
+            test_helper!(@if EdgeAdj in $extras => {
+                checker.check_edge_adj(&$mesh);
+            });
+        })
     }};
 
     // Match on the different syntax for element checks
@@ -824,9 +1009,43 @@ macro_rules! check_mesh {
         }
     };
 
-    // Helper to convert the boundary word into a bool
-    (@is_boundary boundary) => { true };
-    (@is_boundary interior) => { false };
+    // Match on the different syntax for element checks
+    (@edge_check no_check) => { ElementCheck::NoCheck };
+    (@edge_check {
+        $(
+            $va:ident -- $vb:ident $(@ $eh:ident)? => $nf:tt, $boundary:ident
+        );*
+        $(;)?
+        ... $(; $len:expr)?
+    } ) =>  {
+        ElementCheck::Partial {
+            elements: vec![$(
+                check_mesh!(@make_edge $va -- $vb $(@ $eh)? => $nf, $boundary)
+            ),* ],
+            len: [$($len)?].get(0).copied(),
+        }
+    };
+    (@edge_check {
+        $(
+            $va:ident -- $vb:ident $(@ $eh:ident)? => $nf:tt, $boundary:ident
+        );*
+        $(;)?
+    } ) =>  {
+        ElementCheck::Full(vec![$(
+            check_mesh!(@make_edge $va -- $vb $(@ $eh)? => $nf, $boundary)
+        ),* ])
+    };
+
+    // Helper to construct an `EdgeInfo`
+    (@make_edge $va:ident -- $vb:ident $(@ $eh:ident)? => $nf:tt, $boundary:ident) => {
+        EdgeInfo {
+            vertices: [$va, $vb],
+            handle: [$($eh)?].get(0).copied(),
+            boundary: check_mesh!(@is_boundary $boundary),
+            adjacent_faces: check_mesh!(@neighbor_check $nf),
+        }
+    };
+
 
     // Match on different neighbor check syntax
     (@neighbor_check no_check) => { NeighborCheck::NoCheck };
@@ -842,6 +1061,10 @@ macro_rules! check_mesh {
     (@neighbor_check {$($n:ident),*}) => {
         NeighborCheck::OrderUndefined(vec![$($n),*])
     };
+
+    // Helper to convert the boundary word into a bool
+    (@is_boundary boundary) => { true };
+    (@is_boundary interior) => { false };
 }
 
 
