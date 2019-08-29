@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     cmp::PartialEq,
     fmt::Debug,
 };
@@ -851,9 +851,41 @@ impl MeshCheck {
 }
 
 
+// ===============================================================================================
+// ===== Symbol table
+// ===============================================================================================
+
+#[derive(Debug, Empty)]
+pub(crate) struct Symbols {
+    vertices: BTreeMap<VertexHandle, &'static str>,
+    faces: BTreeMap<FaceHandle, &'static str>,
+    edges: BTreeMap<EdgeHandle, &'static str>,
+}
+
+pub(crate) trait SymbolHelper<H: Handle> {
+    fn add(&mut self, h: H, ident: &'static str);
+}
+
+impl SymbolHelper<VertexHandle> for Symbols {
+    fn add(&mut self, h: VertexHandle, ident: &'static str) {
+        self.vertices.insert(h, ident);
+    }
+}
+impl SymbolHelper<FaceHandle> for Symbols {
+    fn add(&mut self, h: FaceHandle, ident: &'static str) {
+        self.faces.insert(h, ident);
+    }
+}
+impl SymbolHelper<EdgeHandle> for Symbols {
+    fn add(&mut self, h: EdgeHandle, ident: &'static str) {
+        self.edges.insert(h, ident);
+    }
+}
 
 
-// ===== The public macros =======================================================================
+// ===============================================================================================
+// ===== The public macros
+// ===============================================================================================
 
 /// Custom syntax to completely check a mesh.
 ///
@@ -938,14 +970,16 @@ macro_rules! check_mesh {
     }) => {{
         #[allow(unused_imports)] // Because of conditional code
         use crate::ds::tests::util::{
-            MeshCheck, EdgeInfo, ElementCheck, ElementInfo, NeighborCheck,
+            MeshCheck, EdgeInfo, ElementCheck, ElementInfo, NeighborCheck, Symbols, SymbolHelper,
         };
 
         // Build check description
+        #[allow(unused_mut)]
+        let mut symbols = Symbols::empty();
         let checker = MeshCheck {
-            vertices: check_mesh!(@element_check $vertex_checks),
-            faces: check_mesh!(@element_check $face_checks),
-            edges: check_mesh!(@edge_check $edge_checks),
+            vertices: check_mesh!(@element_check symbols; $vertex_checks),
+            faces: check_mesh!(@element_check symbols; $face_checks),
+            edges: check_mesh!(@edge_check symbols; $edge_checks),
         };
 
         // Run Checks!
@@ -977,14 +1011,16 @@ macro_rules! check_mesh {
             eprintln!();
             eprintln!("+++++ Additional failure information +++++");
             eprintln!("mesh: {:#?}", $mesh);
+            eprintln!();
+            eprintln!("symbols: {:#?}", symbols);
 
             std::panic::resume_unwind(e);
         }
     }};
 
     // Match on the different syntax for element checks
-    (@element_check no_check) => { ElementCheck::NoCheck };
-    (@element_check {
+    (@element_check $sym:ident; no_check) => { ElementCheck::NoCheck };
+    (@element_check $sym:ident; {
         $(
             $h:ident => $nf:tt, $nv:tt, $boundary:ident
         );*
@@ -993,68 +1029,74 @@ macro_rules! check_mesh {
     } ) =>  {
         ElementCheck::Partial {
             elements: vec![$(
-                check_mesh!(@make_element $h => $nf, $nv, $boundary)
+                check_mesh!(@make_element $sym; $h => $nf, $nv, $boundary)
             ),* ],
             len: [$($len)?].get(0).copied(),
         }
     };
-    (@element_check {
+    (@element_check $sym:ident; {
         $(
             $h:ident => $nf:tt, $nv:tt, $boundary:ident
         );*
         $(;)?
     } ) =>  {
         ElementCheck::Full(vec![$(
-            check_mesh!(@make_element $h => $nf, $nv, $boundary)
+            check_mesh!(@make_element $sym; $h => $nf, $nv, $boundary)
         ),* ])
     };
 
     // Helper to construct an `ElementInfo`
-    (@make_element $h:ident => $nf:tt, $nv:tt, $boundary:ident) => {
+    (@make_element $sym:ident; $h:ident => $nf:tt, $nv:tt, $boundary:ident) => {{
+        $sym.add($h, stringify!($h));
+
         ElementInfo {
             handle: $h,
             boundary: check_mesh!(@is_boundary $boundary),
             adjacent_faces: check_mesh!(@neighbor_check $nf),
             adjacent_vertices: check_mesh!(@neighbor_check $nv),
         }
-    };
+    }};
 
     // Match on the different syntax for element checks
-    (@edge_check no_check) => { ElementCheck::NoCheck };
-    (@edge_check {
+    (@edge_check $sym:ident; no_check) => { ElementCheck::NoCheck };
+    (@edge_check $sym:ident; {
         $(
             $va:ident -- $vb:ident $(@ $eh:ident)? => $nf:tt, $boundary:ident
         );*
         $(;)?
         ... $(; $len:expr)?
-    } ) =>  {
+    } ) => {
         ElementCheck::Partial {
             elements: vec![$(
-                check_mesh!(@make_edge $va -- $vb $(@ $eh)? => $nf, $boundary)
+                check_mesh!(@make_edge $sym; $va -- $vb $(@ $eh)? => $nf, $boundary)
             ),* ],
             len: [$($len)?].get(0).copied(),
         }
     };
-    (@edge_check {
+    (@edge_check $sym:ident; {
         $(
             $va:ident -- $vb:ident $(@ $eh:ident)? => $nf:tt, $boundary:ident
         );*
         $(;)?
     } ) =>  {
         ElementCheck::Full(vec![$(
-            check_mesh!(@make_edge $va -- $vb $(@ $eh)? => $nf, $boundary)
+            check_mesh!(@make_edge $sym; $va -- $vb $(@ $eh)? => $nf, $boundary)
         ),* ])
     };
 
     // Helper to construct an `EdgeInfo`
-    (@make_edge $va:ident -- $vb:ident $(@ $eh:ident)? => $nf:tt, $boundary:ident) => {
+    (@make_edge $sym:ident;
+        $va:ident -- $vb:ident $(@ $eh:ident)? => $nf:tt, $boundary:ident
+    ) => {{
+        $( $sym.add($eh); )?
+
         EdgeInfo {
             vertices: [$va, $vb],
             handle: [$($eh)?].get(0).copied(),
             boundary: check_mesh!(@is_boundary $boundary),
             adjacent_faces: check_mesh!(@neighbor_check $nf),
         }
-    };
+    }};
 
 
     // Match on different neighbor check syntax
