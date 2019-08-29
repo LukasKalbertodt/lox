@@ -16,6 +16,7 @@ use crate::{
 
 /// Takes two iterators, collects both into sets and compares those sets for
 /// equality.
+#[allow(unused_macros)]
 macro_rules! assert_eq_set {
     ($left:expr, $right:expr $(,)?) => {
         crate::ds::tests::util::assert_eq_set_fn(
@@ -28,6 +29,7 @@ macro_rules! assert_eq_set {
 }
 
 /// Internal helper function for `assert_eq_set`.
+#[allow(dead_code)]
 pub fn assert_eq_set_fn<T: Debug + Clone + Eq + Ord>(
     left: impl IntoIterator<Item = T>,
     right: impl IntoIterator<Item = T>,
@@ -108,6 +110,7 @@ pub(crate) struct MeshCheck {
 
 /// Specifies how elements of a mesh (face, vertex, edge) should be checked.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub(crate) enum ElementCheck<E> {
     /// The elements are given as a set, i.e. order will not be checked.
     Full(Vec<E>),

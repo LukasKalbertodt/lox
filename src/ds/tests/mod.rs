@@ -334,7 +334,20 @@ macro_rules! gen_tri_mesh_tests {
                     fy => [fu, fw],     [va, ve, vb], boundary;
                     fz => [fw, fv],     [vf, ve, vd], boundary;
                 },
-                edges: no_check, // TODO: check edges
+                edges: {
+                    va -- vb => {fu, fy}, interior;
+                    va -- vc => {ft, fu}, interior;
+                    va -- vd => {ft, fw}, interior;
+                    va -- ve => {fw, fy}, interior;
+                    vb -- vc => {fu, fx}, interior;
+                    vb -- ve => {fy},     boundary;
+                    vb -- vf => {fx},     boundary;
+                    vc -- vd => {ft, fv}, interior;
+                    vc -- vf => {fv, fx}, interior;
+                    vd -- ve => {fw, fz}, interior;
+                    vd -- vf => {fv, fz}, interior;
+                    ve -- vf => {fz},     boundary;
+                },
             });
         }
 
@@ -366,28 +379,55 @@ macro_rules! gen_tri_mesh_tests {
                 let res = m.split_edge_with_faces(edge);
                 let vn = res.vertex;
 
-                // -- check stuff
-                assert_eq!(m.num_edges(), 9);
+                // Obtain and check faces around `vn`
+                let upper_faces = m.faces_around_vertex(vn)
+                    .filter(|&fh| m.vertices_around_face(fh).any(|v| v == va))
+                    .collect::<Vec<_>>();
+                assert_eq!(upper_faces.len(), 2);
+                let [fu0, fu1] = [upper_faces[0], upper_faces[1]];
 
-                let split_faces = m.faces_around_vertex(vn).collect::<Vec<_>>();
-                assert_eq!(split_faces.len(), 4);
-                assert_eq_set!(
-                    split_faces.into_iter().chain(vec![f_bc]),
-                    m.face_handles(),
+                let lower_faces = m.faces_around_vertex(vn)
+                    .filter(|&fh| m.vertices_around_face(fh).any(|v| v == vm))
+                    .collect::<Vec<_>>();
+                assert_eq!(lower_faces.len(), 2);
+                let [fl0, fl1] = [lower_faces[0], lower_faces[1]];
+
+                // Check returned edges
+                let [re0, re1] = res.replacement_edges;
+                assert!(
+                    m.endpoints_of_edge(re0).contains(&va) ^ m.endpoints_of_edge(re1).contains(&va)
+                );
+                assert!(
+                    m.endpoints_of_edge(re0).contains(&vm) ^ m.endpoints_of_edge(re1).contains(&vm)
                 );
 
-                // TODO: we should check more stuff here
 
                 check_mesh!(m; $extras; {
                     vertices: {
-                        va    => no_check, [vc, vn, vb],     boundary;
-                        vb    => no_check, [va, vn, vm, vc], boundary;
-                        vc    => no_check, [vb, vm, vn, va], boundary;
-                        vm    => no_check, [vb, vn, vc],     interior;
-                        vn    => no_check, [va, vc, vm, vb], interior;
+                        va => {fu0, fu1},           [vc, vn, vb],     boundary;
+                        vb => {f_bc ...},           [va, vn, vm, vc], boundary;
+                        vc => {f_bc ...},           [vb, vm, vn, va], boundary;
+                        vm => {fl0, fl1, f_bc},     [vb, vn, vc],     interior;
+                        vn => {fu0, fu1, fl0, fl1}, [va, vc, vm, vb], interior;
                     },
-                    faces: {...; 5},
-                    edges: no_check, // TODO: check edges
+                    faces: {
+                        f_bc => {fl0, fl1},         [vb, vc, vm], boundary;
+                        fu0  => {fu1 ...; 2},       {va, vn ...}, boundary;
+                        fu1  => {fu0 ...; 2},       {va, vn ...}, boundary;
+                        fl0  => {fl1, f_bc ...; 3}, {vm, vn ...}, interior;
+                        fl1  => {fl0, f_bc ...; 3}, {vm, vn ...}, interior;
+                    },
+                    edges: {
+                        va -- vb => {...; 1}, boundary;
+                        va -- vc => {...; 1}, boundary;
+                        va -- vn => {...; 2}, interior;
+                        vb -- vc => {f_bc},   boundary;
+                        vb -- vm => {...; 2}, interior;
+                        vb -- vn => {...; 2}, interior;
+                        vc -- vm => {...; 2}, interior;
+                        vc -- vn => {...; 2}, interior;
+                        vm -- vn => {...; 2}, interior;
+                    },
                 });
             }
 
@@ -425,14 +465,20 @@ macro_rules! gen_tri_mesh_tests {
                 // -- check stuff
                 assert_eq!(m.num_edges(), 7);
 
+                // Obtain and check faces around `vn`
                 let split_faces = m.faces_around_vertex(vm).collect::<Vec<_>>();
                 assert_eq!(split_faces.len(), 2);
-                assert_eq_set!(
-                    split_faces.into_iter().chain(vec![f_bdc]),
-                    m.face_handles(),
+                let [fx, fy] = [split_faces[0], split_faces[1]];
+
+                // Check returned edges
+                let [re0, re1] = res.replacement_edges;
+                assert!(
+                    m.endpoints_of_edge(re0).contains(&va) ^ m.endpoints_of_edge(re1).contains(&va)
+                );
+                assert!(
+                    m.endpoints_of_edge(re0).contains(&vd) ^ m.endpoints_of_edge(re1).contains(&vd)
                 );
 
-                // TODO: we should check more stuff here
 
                 check_mesh!(m; $extras; {
                     vertices: {
@@ -442,8 +488,20 @@ macro_rules! gen_tri_mesh_tests {
                         vd => no_check, [vm, vb, vc],     boundary;
                         vm => no_check, [va, vb, vd],     boundary;
                     },
-                    faces: {...; 3},
-                    edges: no_check, // TODO: check edges
+                    faces: {
+                        f_bdc => {...; 1}, [vb, vd, vc], boundary;
+                        fx    => {fy ...}, {vm, vb ...}, boundary;
+                        fy    => {fx ...}, {vm, vb ...}, boundary;
+                    },
+                    edges: {
+                        va -- vb => {...; 1},       boundary;
+                        va -- vm => {...; 1},       boundary;
+                        vb -- vc => {f_bdc},        boundary;
+                        vb -- vd => {f_bdc ...; 2}, interior;
+                        vb -- vm => {fx, fy},       interior;
+                        vc -- vd => {f_bdc},        boundary;
+                        vd -- vm => {...; 1},       boundary;
+                    },
                 });
             }
         });
@@ -480,12 +538,14 @@ macro_rules! gen_tri_mesh_tests {
                     f1 => {f0, f2}, {vx ...; 3}, boundary;
                     f2 => {f0, f1}, {vx ...; 3}, boundary;
                 },
-                edges: no_check, // TODO: check edges
-            });
-
-            test_helper!(@if EdgeMesh in $extras => {
-                assert_eq!(m.num_edges(), 6);
-                // TODO: more edge tests
+                edges: {
+                    va -- vb => {...; 1}, boundary;
+                    vb -- vc => {...; 1}, boundary;
+                    vc -- va => {...; 1}, boundary;
+                    va -- vx => {...; 2}, interior;
+                    vb -- vx => {...; 2}, interior;
+                    vc -- vx => {...; 2}, interior;
+                },
             });
         }
 
@@ -775,7 +835,17 @@ macro_rules! gen_tri_mesh_tests {
                         fy => [], [vb, vd, ve], boundary;
                         fz => [], [vc, ve, vf], boundary;
                     },
-                    edges: no_check, // TODO: check edges
+                    edges: {
+                        va -- vb => {fx}, boundary;
+                        va -- vc => {fx}, boundary;
+                        vb -- vc => {fx}, boundary;
+                        vb -- vd => {fy}, boundary;
+                        vb -- ve => {fy}, boundary;
+                        vd -- ve => {fy}, boundary;
+                        vc -- ve => {fz}, boundary;
+                        vc -- vf => {fz}, boundary;
+                        ve -- vf => {fz}, boundary;
+                    },
                 });
 
                 // -- fill hole in middle
@@ -796,7 +866,17 @@ macro_rules! gen_tri_mesh_tests {
                         fz => [fw],         [vc, ve, vf], boundary;
                         fw => [fx, fy, fz], [vb, ve, vc], interior;
                     },
-                    edges: no_check, // TODO: check edges
+                    edges: {
+                        va -- vb => {fx},     boundary;
+                        va -- vc => {fx},     boundary;
+                        vb -- vc => {fx, fw}, interior;
+                        vb -- vd => {fy},     boundary;
+                        vb -- ve => {fy, fw}, interior;
+                        vd -- ve => {fy},     boundary;
+                        vc -- ve => {fz, fw}, interior;
+                        vc -- vf => {fz},     boundary;
+                        ve -- vf => {fz},     boundary;
+                    },
                 });
             }
         });
