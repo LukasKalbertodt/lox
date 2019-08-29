@@ -128,7 +128,7 @@ pub(crate) enum ElementCheck<E> {
 #[derive(Debug)]
 pub(crate) struct ElementInfo<H: Handle> {
     pub(crate) handle: H,
-    pub(crate) boundary: bool,
+    pub(crate) boundary: Option<bool>,
     pub(crate) adjacent_faces: NeighborCheck<FaceHandle>,
     pub(crate) adjacent_vertices: NeighborCheck<VertexHandle>,
 }
@@ -138,7 +138,7 @@ pub(crate) struct ElementInfo<H: Handle> {
 pub(crate) struct EdgeInfo {
     pub(crate) vertices: [VertexHandle; 2],
     pub(crate) handle: Option<EdgeHandle>,
-    pub(crate) boundary: bool,
+    pub(crate) boundary: Option<bool>,
     pub(crate) adjacent_faces: NeighborCheck<FaceHandle>,
 }
 
@@ -269,33 +269,17 @@ impl<H: Handle> ElementInfo<H> {
         H: ElementHandle,
     {
         // Check `is_boundary_*` method
-        if self.boundary != H::is_boundary(mesh, self.handle) {
-            panic!(
-                "mesh says {:?} is {}a boundary {}, but it is{}",
-                self.handle,
-                if self.boundary { "not " } else { "" },
-                H::SINGULAR,
-                if self.boundary { "" } else { " not" },
-            );
-        }
-
-        // Check `are_*_adjacent` method
-        H::for_all(mesh, |other| {
-            let actual_adjacent = H::are_adjacent(mesh, self.handle, other);
-            let expected_adjacent = H::neighbors(&self).potentially_partial().contains(&other);
-            if actual_adjacent != expected_adjacent {
+        if let Some(expected_boundary) = self.boundary {
+            if expected_boundary != H::is_boundary(mesh, self.handle) {
                 panic!(
-                    "{}({:?}, {:?}) returned {}, but those {} \
-                        are expected to{} be adjacent",
-                    H::ARE_ADJACENT_FN,
+                    "mesh says {:?} is {}a boundary {}, but it is{}",
                     self.handle,
-                    other,
-                    actual_adjacent,
-                    H::PLURAL,
-                    if expected_adjacent { "" } else { " not" },
+                    if expected_boundary { "not " } else { "" },
+                    H::SINGULAR,
+                    if expected_boundary { "" } else { " not" },
                 );
             }
-        })
+        }
     }
 }
 
@@ -706,12 +690,14 @@ impl MeshCheck {
 
             // Check if edge is boundary
             // Check `is_boundary_*` method
-            if e.boundary != mesh.is_boundary_edge(handle) {
-                panic!(
-                    "mesh says {} is {}a boundary edge, but the opposite was expected",
-                    edge_id,
-                    if e.boundary { "not " } else { "" },
-                );
+            if let Some(expected_boundary) = e.boundary {
+                if expected_boundary != mesh.is_boundary_edge(handle) {
+                    panic!(
+                        "mesh says {} is {}a boundary edge, but the opposite was expected",
+                        edge_id,
+                        if expected_boundary { "not " } else { "" },
+                    );
+                }
             }
 
             // Check `E -> F` adjacency
@@ -1115,8 +1101,9 @@ macro_rules! check_mesh {
     };
 
     // Helper to convert the boundary word into a bool
-    (@is_boundary boundary) => { true };
-    (@is_boundary interior) => { false };
+    (@is_boundary no_check) => { None };
+    (@is_boundary boundary) => { Some(true) };
+    (@is_boundary interior) => { Some(false) };
 }
 
 
