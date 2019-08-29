@@ -280,6 +280,30 @@ impl<H: Handle> ElementInfo<H> {
                 );
             }
         }
+
+        // Check `are_*_adjacent` method
+        match H::neighbors(&self) {
+            NeighborCheck::OrderDefined(neighbors) | NeighborCheck::OrderUndefined(neighbors) => {
+                H::for_all(mesh, |other| {
+                    let actual_adjacent = H::are_adjacent(mesh, self.handle, other);
+                    let expected_adjacent = neighbors.contains(&other);
+                    if actual_adjacent != expected_adjacent {
+                        panic!(
+                            "{}({:?}, {:?}) returned {}, but those {} \
+                                are expected to{} be adjacent",
+                            H::ARE_ADJACENT_FN,
+                            self.handle,
+                            other,
+                            actual_adjacent,
+                            H::PLURAL,
+                            if expected_adjacent { "" } else { " not" },
+                        );
+                    }
+                })
+
+            }
+            _ =>  {},
+        }
     }
 }
 
