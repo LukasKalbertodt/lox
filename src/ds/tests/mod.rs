@@ -701,10 +701,75 @@ macro_rules! gen_mesh_tests {
             });
         }
 
-        // TODO: more `split_face` tests:
-        // - one adjacent face
-        // - interior face
-        // - non-tri face
+        #[test]
+        fn split_face_interior() {
+            //
+            //             (a)                         (a)
+            //             / \                         / \
+            //            /   \                       /   \
+            //           /  X  \                     /  X  \
+            //          /       \                   /       \
+            //        (b) ----- (c)      ==>      (b) ----- (c)
+            //        / \       / \               / \ ⟍  ⟋ / \
+            //       /   \  W  /   \             /   \ (m) /   \
+            //      /  Y  \   /  Z  \           /  Y  \ | /  Z  \
+            //     /       \ /       \         /       \|/       \
+            //   (d) ----- (e) ----- (f)     (d) ----- (e) ----- (f)
+            //
+            let mut m = <$name>::empty();
+            let va = m.add_vertex();
+            let vb = m.add_vertex();
+            let vc = m.add_vertex();
+            let vd = m.add_vertex();
+            let ve = m.add_vertex();
+            let vf = m.add_vertex();
+
+            let fw = m.add_triangle([vb, ve, vc]);
+            let fx = m.add_triangle([va, vb, vc]);
+            let fy = m.add_triangle([vb, vd, ve]);
+            let fz = m.add_triangle([vc, ve, vf]);
+
+            let vm = m.split_face(fw);
+
+            let faces = m.face_handles()
+                .filter(|&fh| fh != fx && fh != fy && fh != fz)
+                .collect::<Vec<_>>();
+            let [f0, f1, f2] = [faces[0], faces[1], faces[2]];
+
+            check_mesh!(m; $extras; {
+                vertices: {
+                   va => [fx],            [vb, vc],             boundary;
+                   vb => {fx, fy ...; 4}, [va, vc, vm, ve, vd], boundary;
+                   vc => {fz, fx ...; 4}, [vf, ve, vm, vb, va], boundary;
+                   vd => [fy],            [vb, ve],             boundary;
+                   ve => {fy, fz ...; 4}, [vd, vb, vm, vc, vf], boundary;
+                   vf => [fz],            [ve, vc],             boundary;
+                   vm => {f0, f1, f2},    [vb, vc, ve],         interior;
+               },
+               faces: {
+                   fx => {...; 1},        [va, vb, vc], boundary;
+                   fy => {...; 1},        [vb, vd, ve], boundary;
+                   fz => {...; 1},        [vc, ve, vf], boundary;
+                   f0 => {f1, f2 ...; 3}, {vm ...; 3},  interior;
+                   f1 => {f2, f0 ...; 3}, {vm ...; 3},  interior;
+                   f2 => {f0, f1 ...; 3}, {vm ...; 3},  interior;
+               },
+               edges: {
+                   va -- vb => {fx},        boundary;
+                   va -- vc => {fx},        boundary;
+                   vb -- vc => {fx ...; 2}, interior;
+                   vb -- vd => {fy},        boundary;
+                   vb -- ve => {fy ...; 2}, interior;
+                   vd -- ve => {fy},        boundary;
+                   vc -- ve => {fz ...; 2}, interior;
+                   vc -- vf => {fz},        boundary;
+                   ve -- vf => {fz},        boundary;
+                   vm -- vb => {...; 2},    interior;
+                   vm -- vc => {...; 2},    interior;
+                   vm -- ve => {...; 2},    interior;
+               },
+            });
+        }
 
         test_helper!(@if_item [SupportsMultiBlade] in $extras => {
             #[test]
@@ -1124,6 +1189,6 @@ macro_rules! gen_mesh_tests {
 
         // TODO: flip edge
         // TODO: split edge
-        // TODO: split face
+        // TODO: split non-triangular face
     };
 }

@@ -1152,7 +1152,7 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         let vm = unsafe { Checked::new(self.add_vertex()) };
 
         // Add new half edges for face Y. `unsafe` is fine as we will override
-        // the twins and the handle returned by `push` is obviously valid`
+        // the twins and the handle returned by `push` is obviously valid.
         let [he_am, he_mc, he_ca] = self.push_half_edge_triple([
             unsafe { HalfEdge::dummy_to(vm) },
             unsafe { HalfEdge::dummy_to(vc) },
