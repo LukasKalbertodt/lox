@@ -9,7 +9,7 @@ mod tri {
         type StorePrev = False;
     }
 
-    gen_tri_mesh_tests!(HalfEdgeMesh::<Conf>: [
+    gen_mesh_tests!(HalfEdgeMesh::<Conf>: [
         TriMesh,
         EdgeMesh,
         BasicAdj,
@@ -29,7 +29,7 @@ mod poly {
         type StorePrev = False;
     }
 
-    gen_tri_mesh_tests!(HalfEdgeMesh::<Conf>: [
+    gen_mesh_tests!(HalfEdgeMesh::<Conf>: [
         PolyMesh,
         EdgeMesh,
         BasicAdj,
@@ -49,7 +49,7 @@ mod tri_with_prev {
         type StorePrev = True;
     }
 
-    gen_tri_mesh_tests!(HalfEdgeMesh::<Conf>: [
+    gen_mesh_tests!(HalfEdgeMesh::<Conf>: [
         TriMesh,
         EdgeMesh,
         BasicAdj,
@@ -69,7 +69,7 @@ mod poly_with_prev {
         type StorePrev = True;
     }
 
-    gen_tri_mesh_tests!(HalfEdgeMesh::<Conf>: [
+    gen_mesh_tests!(HalfEdgeMesh::<Conf>: [
         PolyMesh,
         EdgeMesh,
         BasicAdj,

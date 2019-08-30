@@ -719,7 +719,7 @@ impl<'a> Iterator for Circulator<'a> {
 mod test {
     use super::*;
 
-    gen_tri_mesh_tests!(FaceDelegateMesh: [
+    gen_mesh_tests!(FaceDelegateMesh: [
         TriMesh,
         BasicAdj,
         FullAdj,

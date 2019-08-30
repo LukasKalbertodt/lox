@@ -1197,7 +1197,7 @@ macro_rules! test_helper {
         compile_error!(concat!(
             "`",
             stringify!($other),
-            "` is not a valid trait to pass to `gen_tri_mesh_tests`",
+            "` is not a valid trait to pass to `gen_mesh_tests`",
         ));
     };
 }

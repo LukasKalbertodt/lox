@@ -14,19 +14,19 @@ pub(crate) mod util;
 /// macro is invoked with:
 /// - `TriMesh`
 /// - `TriMeshMut`
-macro_rules! gen_tri_mesh_tests {
+macro_rules! gen_mesh_tests {
     ($name:ty : [$($extra:ident),*]) => {
         $(
             test_helper!(@is_valid_extra_trait $extra);
         )*
         test_helper!(@if_item [TriMesh, PolyMesh] in [$($extra),*] => {
             compile_error!(
-                "`TriMesh` and `PolyMesh` given to `gen_tri_mesh_tests`! \
+                "`TriMesh` and `PolyMesh` given to `gen_mesh_tests`! \
                     Those are mutually exclusive."
             );
         });
 
-        gen_tri_mesh_tests!(@inner $name, [ $($extra),* ]);
+        gen_mesh_tests!(@inner $name, [ $($extra),* ]);
     };
     (@inner $name:ty, $extras:tt) => {
         #[allow(unused_imports)]
