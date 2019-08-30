@@ -1395,46 +1395,37 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
     where
         Self: TriMesh + EdgeMesh,
     {
-        //                                  |
-        //            Before                |                After
-        //            ------                |                -----
-        //                                  |
-        //                                  |
-        //              [C]                 |                 [C]
-        //                                  |
-        //          ^  /   ^  \             |             ^  /   ^  \
-        //         /  /     \  \            |            /  / ^ | \  \
-        //        /  /       \  \           |           /  /  | |  \  \
-        //       /  /         \  \          |          /  /   | |   \  \
-        //      /  /c         d\  \         |         /  /c   | |   d\  \
-        //     /  /     (X)     \  \        |        /  /     | |     \  \
-        //    /  /               \  \       |       /  /      | |      \  \
-        //   /  /                 \  \      |      /  /       | |       \  \
-        //  /  v         a         \  v     |     /  v        | |        \  v
-        //       --------------->           |                 | |
-        //  [A]                     [B]     |     [A]   (Y)  b| |a  (X)   [B]
-        //       <---------------           |                 | |
-        //  ^  \         b         ^  /     |     ^  \        | |        ^  /
-        //   \  \                 /  /      |      \  \       | |       /  /
-        //    \  \               /  /       |       \  \      | |      /  /
-        //     \  \     (Y)     /  /        |        \  \     | |     /  /
-        //      \  \e         f/  /         |         \  \e   | |   f/  /
-        //       \  \         /  /          |          \  \   | |   /  /
-        //        \  \       /  /           |           \  \  | |  /  /
-        //         \  \     /  /            |            \  \ | v /  /
-        //          \  v   /  v             |             \  v   /  v
-        //                                  |
-        //              [D]                 |                 [D]
-        //
+        //          Before           |            After
+        //          ------           |            -----
+        //                           |
+        //            (C)            |             (C)
+        //          ^/   ^\          |          ^/ ^ | ^\
+        //         //     \\         |         //  | |  \\
+        //        // c   d \\        |        // c | | d \\
+        //       //         \\       |       //    | |    \\
+        //      //    [X]    \\      |      //     | |     \\
+        //     //             \\     |     //      | |      \\
+        //    /v       a       \v    |    /v     b | | a     \v
+        //        ---------->        |             | |
+        //   (A)  <----------  (B)   |   (A)  [Y]  | |  [X]  (B)
+        //    ^\       b       ^/    |    ^\       | |       ^/
+        //     \\             //     |     \\      | |      //
+        //      \\    [Y]    //      |      \\     | |     //
+        //       \\ e     f //       |       \\ e  | |  f //
+        //        \\       //        |        \\   | |   //
+        //         \\     //         |         \\  | |  //
+        //          \v   /v          |          \v | v /v
+        //            (D)            |             (D)
+        //                           |
         //
         // ### A mapping from graphic names to variable names:
         //
         //  Edges                      Vertices               Faces
         //  -----                      --------               -----
-        //  a: he_center_above            [A]: v_left             (X): f_above
-        //  b: he_center_below            [B]: v_right            (Y): f_below
-        //  c: he_above_left              [C]: v_above
-        //  d: he_above_right             [D]: v_below
+        //  a: he_center_above            (A): v_left             [X]: f_above
+        //  b: he_center_below            (B): v_right            [Y]: f_below
+        //  c: he_above_left              (C): v_above
+        //  d: he_above_right             (D): v_below
         //  e: he_below_left
         //  f: he_below_right
         //
