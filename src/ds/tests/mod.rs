@@ -598,6 +598,109 @@ macro_rules! gen_mesh_tests {
             });
         }
 
+        #[test]
+        fn split_face_one_adjacent_face() {
+            //          (C) ------ (D)             (C) ------ (D)
+            //         /   \       /              / | \       /
+            //        /     \  K  /   =>         /  |  \  K  /
+            //       /   J   \   /              /  (X)  \   /
+            //      /         \ /              / ⟋    ⟍ \ /
+            //    (A) ------- (B)           (A) -------- (B)
+
+            let mut m = <$name>::empty();
+            let va = m.add_vertex();
+            let vb = m.add_vertex();
+            let vc = m.add_vertex();
+            let vd = m.add_vertex();
+            let fj = m.add_triangle([va, vb, vc]);
+            let fk = m.add_triangle([vd, vc, vb]);
+
+            let vx = m.split_face(fj);
+
+            let faces = m.face_handles().filter(|fh| *fh != fk).collect::<Vec<_>>();
+            let [f0, f1, f2] = [faces[0], faces[1], faces[2]];
+
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va => {...; 2},     [vc, vx, vb],     boundary;
+                    vb => {fk ...; 3},  [va, vx, vc, vd], boundary;
+                    vc => {fk ...; 3},  [vb, vx, va, vd], boundary;
+                    vd => {fk},         [vb, vc],         boundary;
+                    vx => {f0, f1, f2}, [va, vc, vb],     interior;
+                },
+                faces: {
+                    f0 => {f1, f2 ...}, {vx ...; 3},  no_check;
+                    f1 => {f0, f2 ...}, {vx ...; 3},  no_check;
+                    f2 => {f0, f1 ...}, {vx ...; 3},  no_check;
+                    fk => {...; 1},     [vb, vd, vc], boundary;
+                },
+                edges: {
+                    va -- vb => {...; 1},    boundary;
+                    va -- vx => {...; 2},    interior;
+                    vb -- vc => {fk ...; 2}, interior;
+                    vb -- vd => {fk},        boundary;
+                    vb -- vx => {...; 2},    interior;
+                    vc -- va => {...; 1},    boundary;
+                    vc -- vd => {fk},        boundary;
+                    vc -- vx => {...; 2},    interior;
+                },
+            });
+        }
+
+        #[test]
+        fn split_face_one_different_adjacent_face() {
+            // This is like the other test, but the additional face K is in a
+            // different position. This is important as most `split_face`
+            // implementations will reuse the original face for one of the side
+            // faces.
+            //
+            //   (D) ------ (C)              (D) ------ (C)
+            //     \       /   \               \       / | \
+            //      \  K  /     \      =>       \  K  /  |  \
+            //       \   /   J   \               \   /  (X)  \
+            //        \ /         \               \ / ⟋    ⟍ \
+            //        (A) ------- (B)             (A) ------- (B)
+
+            let mut m = <$name>::empty();
+            let va = m.add_vertex();
+            let vb = m.add_vertex();
+            let vc = m.add_vertex();
+            let vd = m.add_vertex();
+            let fj = m.add_triangle([va, vb, vc]);
+            let fk = m.add_triangle([vd, va, vc]);
+
+            let vx = m.split_face(fj);
+
+            let faces = m.face_handles().filter(|fh| *fh != fk).collect::<Vec<_>>();
+            let [f0, f1, f2] = [faces[0], faces[1], faces[2]];
+
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va => {fk ...; 3},  [vc, vx, vb, vd], boundary;
+                    vb => {...; 2},     [va, vx, vc],     boundary;
+                    vc => {fk ...; 3},  [vb, vx, va, vd], boundary;
+                    vd => {fk},         [vc, va],         boundary;
+                    vx => {f0, f1, f2}, [va, vc, vb],     interior;
+                },
+                faces: {
+                    f0 => {f1, f2 ...}, {vx ...; 3},  no_check;
+                    f1 => {f0, f2 ...}, {vx ...; 3},  no_check;
+                    f2 => {f0, f1 ...}, {vx ...; 3},  no_check;
+                    fk => {...; 1},     [va, vc, vd], boundary;
+                },
+                edges: {
+                    va -- vb => {...; 1},    boundary;
+                    va -- vd => {fk},        boundary;
+                    va -- vx => {...; 2},    interior;
+                    vb -- vc => {...; 1},    boundary;
+                    vb -- vx => {...; 2},    interior;
+                    vc -- va => {fk ...; 2}, interior;
+                    vc -- vd => {fk},        boundary;
+                    vc -- vx => {...; 2},    interior;
+                },
+            });
+        }
+
         // TODO: more `split_face` tests:
         // - one adjacent face
         // - interior face
