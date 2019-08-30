@@ -401,161 +401,6 @@ macro_rules! gen_mesh_tests {
             });
         }
 
-        test_helper!(@if_item [TriMesh, EdgeMesh, FullAdj] in $extras => {
-            #[test]
-            fn split_edge_with_two_faces() {
-                //
-                //             (A)                    (A)
-                //            / | \                  / | \
-                //           /  |  \                / (N) \
-                //          /   |   \      =>      / / | \ \
-                //         /   (M)   \            / / (M) \ \
-                //        /  ⟋    ⟍  \          / / ⟋   ⟍\ \
-                //       (B) ------- (C)        (B) ------- (C)
-                //
-                let mut m = <$name>::empty();
-                let va = m.add_vertex();
-                let vb = m.add_vertex();
-                let vc = m.add_vertex();
-                let vm = m.add_vertex();
-
-                m.add_triangle([va, vb, vm]);
-                let f_bc = m.add_triangle([vb, vc, vm]);
-                m.add_triangle([vc, va, vm]);
-
-                let edge = m.edge_between_vertices(va, vm)
-                    .expect("`edge_between_vertices` returned `None` incorrectly");
-
-                let res = m.split_edge_with_faces(edge);
-                let vn = res.vertex;
-
-                // Obtain and check faces around `vn`
-                let upper_faces = m.faces_around_vertex(vn)
-                    .filter(|&fh| m.vertices_around_face(fh).any(|v| v == va))
-                    .collect::<Vec<_>>();
-                assert_eq!(upper_faces.len(), 2);
-                let [fu0, fu1] = [upper_faces[0], upper_faces[1]];
-
-                let lower_faces = m.faces_around_vertex(vn)
-                    .filter(|&fh| m.vertices_around_face(fh).any(|v| v == vm))
-                    .collect::<Vec<_>>();
-                assert_eq!(lower_faces.len(), 2);
-                let [fl0, fl1] = [lower_faces[0], lower_faces[1]];
-
-                // Check returned edges
-                let [re0, re1] = res.replacement_edges;
-                assert!(
-                    m.endpoints_of_edge(re0).contains(&va) ^ m.endpoints_of_edge(re1).contains(&va)
-                );
-                assert!(
-                    m.endpoints_of_edge(re0).contains(&vm) ^ m.endpoints_of_edge(re1).contains(&vm)
-                );
-
-
-                check_mesh!(m; $extras; {
-                    vertices: {
-                        va => {fu0, fu1},           [vc, vn, vb],     boundary;
-                        vb => {f_bc ...},           [va, vn, vm, vc], boundary;
-                        vc => {f_bc ...},           [vb, vm, vn, va], boundary;
-                        vm => {fl0, fl1, f_bc},     [vb, vn, vc],     interior;
-                        vn => {fu0, fu1, fl0, fl1}, [va, vc, vm, vb], interior;
-                    },
-                    faces: {
-                        f_bc => {fl0, fl1},         [vb, vc, vm], boundary;
-                        fu0  => {fu1 ...; 2},       {va, vn ...}, boundary;
-                        fu1  => {fu0 ...; 2},       {va, vn ...}, boundary;
-                        fl0  => {fl1, f_bc ...; 3}, {vm, vn ...}, interior;
-                        fl1  => {fl0, f_bc ...; 3}, {vm, vn ...}, interior;
-                    },
-                    edges: {
-                        va -- vb => {...; 1}, boundary;
-                        va -- vc => {...; 1}, boundary;
-                        va -- vn => {...; 2}, interior;
-                        vb -- vc => {f_bc},   boundary;
-                        vb -- vm => {...; 2}, interior;
-                        vb -- vn => {...; 2}, interior;
-                        vc -- vm => {...; 2}, interior;
-                        vc -- vn => {...; 2}, interior;
-                        vm -- vn => {...; 2}, interior;
-                    },
-                });
-            }
-
-            #[test]
-            fn split_edge_with_one_face() {
-                //
-                //  (a) ------- (b) ------- (c)      (a) ------- (b) ------- (c)
-                //     \         |         /            \       / |         /
-                //      \        |        /              \     /  |        /
-                //       \       |       /                \   /   |       /
-                //        \      |      /                  \ /    |      /
-                //         \     |     /        =>         (m)    |     /
-                //          \    |    /                      \    |    /
-                //           \   |   /                        \   |   /
-                //            \  |  /                          \  |  /
-                //             \ | /                            \ | /
-                //              (d)                              (d)
-                //
-                //
-                let mut m = <$name>::empty();
-                let va = m.add_vertex();
-                let vb = m.add_vertex();
-                let vc = m.add_vertex();
-                let vd = m.add_vertex();
-
-                m.add_triangle([va, vd, vb]);
-                let f_bdc = m.add_triangle([vb, vd, vc]);
-
-                let edge = m.edge_between_vertices(va, vd)
-                    .expect("`edge_between_vertices` returned `None` incorrectly");
-
-                let res = m.split_edge_with_faces(edge);
-                let vm = res.vertex;
-
-                // -- check stuff
-                assert_eq!(m.num_edges(), 7);
-
-                // Obtain and check faces around `vn`
-                let split_faces = m.faces_around_vertex(vm).collect::<Vec<_>>();
-                assert_eq!(split_faces.len(), 2);
-                let [fx, fy] = [split_faces[0], split_faces[1]];
-
-                // Check returned edges
-                let [re0, re1] = res.replacement_edges;
-                assert!(
-                    m.endpoints_of_edge(re0).contains(&va) ^ m.endpoints_of_edge(re1).contains(&va)
-                );
-                assert!(
-                    m.endpoints_of_edge(re0).contains(&vd) ^ m.endpoints_of_edge(re1).contains(&vd)
-                );
-
-
-                check_mesh!(m; $extras; {
-                    vertices: {
-                        va => no_check, [vb, vm],         boundary;
-                        vb => no_check, [vc, vd, vm, va], boundary;
-                        vc => [f_bdc],  [vd, vb],         boundary;
-                        vd => no_check, [vm, vb, vc],     boundary;
-                        vm => no_check, [va, vb, vd],     boundary;
-                    },
-                    faces: {
-                        f_bdc => {...; 1}, [vb, vd, vc], boundary;
-                        fx    => {fy ...}, {vm, vb ...}, boundary;
-                        fy    => {fx ...}, {vm, vb ...}, boundary;
-                    },
-                    edges: {
-                        va -- vb => {...; 1},       boundary;
-                        va -- vm => {...; 1},       boundary;
-                        vb -- vc => {f_bdc},        boundary;
-                        vb -- vd => {f_bdc ...; 2}, interior;
-                        vb -- vm => {fx, fy},       interior;
-                        vc -- vd => {f_bdc},        boundary;
-                        vd -- vm => {...; 1},       boundary;
-                    },
-                });
-            }
-        });
-
         #[test]
         fn split_face_isolated() {
             //          (C)                       (C)
@@ -770,6 +615,161 @@ macro_rules! gen_mesh_tests {
                },
             });
         }
+
+        test_helper!(@if_item [TriMesh, EdgeMesh, FullAdj] in $extras => {
+            #[test]
+            fn split_edge_with_two_faces() {
+                //
+                //             (A)                    (A)
+                //            / | \                  / | \
+                //           /  |  \                / (N) \
+                //          /   |   \      =>      / / | \ \
+                //         /   (M)   \            / / (M) \ \
+                //        /  ⟋    ⟍  \          / / ⟋   ⟍\ \
+                //       (B) ------- (C)        (B) ------- (C)
+                //
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vm = m.add_vertex();
+
+                m.add_triangle([va, vb, vm]);
+                let f_bc = m.add_triangle([vb, vc, vm]);
+                m.add_triangle([vc, va, vm]);
+
+                let edge = m.edge_between_vertices(va, vm)
+                    .expect("`edge_between_vertices` returned `None` incorrectly");
+
+                let res = m.split_edge_with_faces(edge);
+                let vn = res.vertex;
+
+                // Obtain and check faces around `vn`
+                let upper_faces = m.faces_around_vertex(vn)
+                    .filter(|&fh| m.vertices_around_face(fh).any(|v| v == va))
+                    .collect::<Vec<_>>();
+                assert_eq!(upper_faces.len(), 2);
+                let [fu0, fu1] = [upper_faces[0], upper_faces[1]];
+
+                let lower_faces = m.faces_around_vertex(vn)
+                    .filter(|&fh| m.vertices_around_face(fh).any(|v| v == vm))
+                    .collect::<Vec<_>>();
+                assert_eq!(lower_faces.len(), 2);
+                let [fl0, fl1] = [lower_faces[0], lower_faces[1]];
+
+                // Check returned edges
+                let [re0, re1] = res.replacement_edges;
+                assert!(
+                    m.endpoints_of_edge(re0).contains(&va) ^ m.endpoints_of_edge(re1).contains(&va)
+                );
+                assert!(
+                    m.endpoints_of_edge(re0).contains(&vm) ^ m.endpoints_of_edge(re1).contains(&vm)
+                );
+
+
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => {fu0, fu1},           [vc, vn, vb],     boundary;
+                        vb => {f_bc ...},           [va, vn, vm, vc], boundary;
+                        vc => {f_bc ...},           [vb, vm, vn, va], boundary;
+                        vm => {fl0, fl1, f_bc},     [vb, vn, vc],     interior;
+                        vn => {fu0, fu1, fl0, fl1}, [va, vc, vm, vb], interior;
+                    },
+                    faces: {
+                        f_bc => {fl0, fl1},         [vb, vc, vm], boundary;
+                        fu0  => {fu1 ...; 2},       {va, vn ...}, boundary;
+                        fu1  => {fu0 ...; 2},       {va, vn ...}, boundary;
+                        fl0  => {fl1, f_bc ...; 3}, {vm, vn ...}, interior;
+                        fl1  => {fl0, f_bc ...; 3}, {vm, vn ...}, interior;
+                    },
+                    edges: {
+                        va -- vb => {...; 1}, boundary;
+                        va -- vc => {...; 1}, boundary;
+                        va -- vn => {...; 2}, interior;
+                        vb -- vc => {f_bc},   boundary;
+                        vb -- vm => {...; 2}, interior;
+                        vb -- vn => {...; 2}, interior;
+                        vc -- vm => {...; 2}, interior;
+                        vc -- vn => {...; 2}, interior;
+                        vm -- vn => {...; 2}, interior;
+                    },
+                });
+            }
+
+            #[test]
+            fn split_edge_with_one_face() {
+                //
+                //  (a) ------- (b) ------- (c)      (a) ------- (b) ------- (c)
+                //     \         |         /            \       / |         /
+                //      \        |        /              \     /  |        /
+                //       \       |       /                \   /   |       /
+                //        \      |      /                  \ /    |      /
+                //         \     |     /        =>         (m)    |     /
+                //          \    |    /                      \    |    /
+                //           \   |   /                        \   |   /
+                //            \  |  /                          \  |  /
+                //             \ | /                            \ | /
+                //              (d)                              (d)
+                //
+                //
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+
+                m.add_triangle([va, vd, vb]);
+                let f_bdc = m.add_triangle([vb, vd, vc]);
+
+                let edge = m.edge_between_vertices(va, vd)
+                    .expect("`edge_between_vertices` returned `None` incorrectly");
+
+                let res = m.split_edge_with_faces(edge);
+                let vm = res.vertex;
+
+                // -- check stuff
+                assert_eq!(m.num_edges(), 7);
+
+                // Obtain and check faces around `vn`
+                let split_faces = m.faces_around_vertex(vm).collect::<Vec<_>>();
+                assert_eq!(split_faces.len(), 2);
+                let [fx, fy] = [split_faces[0], split_faces[1]];
+
+                // Check returned edges
+                let [re0, re1] = res.replacement_edges;
+                assert!(
+                    m.endpoints_of_edge(re0).contains(&va) ^ m.endpoints_of_edge(re1).contains(&va)
+                );
+                assert!(
+                    m.endpoints_of_edge(re0).contains(&vd) ^ m.endpoints_of_edge(re1).contains(&vd)
+                );
+
+
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => no_check, [vb, vm],         boundary;
+                        vb => no_check, [vc, vd, vm, va], boundary;
+                        vc => [f_bdc],  [vd, vb],         boundary;
+                        vd => no_check, [vm, vb, vc],     boundary;
+                        vm => no_check, [va, vb, vd],     boundary;
+                    },
+                    faces: {
+                        f_bdc => {...; 1}, [vb, vd, vc], boundary;
+                        fx    => {fy ...}, {vm, vb ...}, boundary;
+                        fy    => {fx ...}, {vm, vb ...}, boundary;
+                    },
+                    edges: {
+                        va -- vb => {...; 1},       boundary;
+                        va -- vm => {...; 1},       boundary;
+                        vb -- vc => {f_bdc},        boundary;
+                        vb -- vd => {f_bdc ...; 2}, interior;
+                        vb -- vm => {fx, fy},       interior;
+                        vc -- vd => {f_bdc},        boundary;
+                        vd -- vm => {...; 1},       boundary;
+                    },
+                });
+            }
+        });
 
         test_helper!(@if_item [SupportsMultiBlade] in $extras => {
             #[test]
@@ -1190,5 +1190,6 @@ macro_rules! gen_mesh_tests {
         // TODO: flip edge
         // TODO: split edge
         // TODO: split non-triangular face
+        // TODO: remove all faces/vertices
     };
 }
