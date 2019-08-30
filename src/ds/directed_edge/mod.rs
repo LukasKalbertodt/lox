@@ -1136,6 +1136,16 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         let vc = self[he_bc].target;
         let va = self[he_ca_orig].target;
 
+        // Find other half edges that point to the edges that will be
+        // repurposed. We need to change their references later. But we need to
+        // obtain these edges already know as we haven't changed anything about
+        // the mesh yet.
+        let has_ab_as_next = self.circulate_around_vertex(vb)
+            .find(|&outgoing| self[outgoing].twin == EncodedTwin::next_boundary_he(he_ab_orig));
+        let has_ca_as_next = self.circulate_around_vertex(va)
+            .find(|&outgoing| self[outgoing].twin == EncodedTwin::next_boundary_he(he_ca_orig));
+        let has_ab_as_twin = self[he_ab_orig].twin.as_real_twin();
+        let has_ca_as_twin = self[he_ca_orig].twin.as_real_twin();
 
         // Add new vertex "in the middle". The `Checked::new` is correct as the
         // handle returned by `add_vertex` is obviously valid.
@@ -1174,14 +1184,23 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         self.set_twins(he_bm, he_mb);
         self.set_twins(he_cm, he_mc);
 
-        // We might also need to update the twins of two old outer half edges
-        // if they were boundary half edges and referred to other old outer
-        // half edges of the old face.
-        if self[he_bc].twin == EncodedTwin::next_boundary_he(he_ab_orig) {
-            self[he_bc].twin = EncodedTwin::next_boundary_he(he_ab);
+        // Fix links of edges that pointed to the repurposed edges.
+        if let Some(he) = has_ab_as_next {
+            self[he].twin = EncodedTwin::next_boundary_he(he_ab);
         }
-        if self[he_ab].twin == EncodedTwin::next_boundary_he(he_ca_orig) {
-            self[he_ab].twin = EncodedTwin::next_boundary_he(he_ca);
+        if let Some(he) = has_ca_as_next {
+            // There is a special case here: the edge that referred to
+            // `he_ca_orig` could be `he_ab_orig`! In that case we do not want
+            // to modify the original edge, but the new one, that's actually
+            // between `va` and `vb`.
+            let he = if he == he_ab_orig { he_ab } else { he };
+            self[he].twin = EncodedTwin::next_boundary_he(he_ca);
+        }
+        if let Some(he) = has_ab_as_twin {
+            self[he].twin = EncodedTwin::twin(he_ab);
+        }
+        if let Some(he) = has_ca_as_twin {
+            self[he].twin = EncodedTwin::twin(he_ca);
         }
 
         // For two of the outer vertices we have to check if they were
