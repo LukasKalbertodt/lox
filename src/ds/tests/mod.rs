@@ -9,12 +9,17 @@ pub(crate) mod util;
 /// Generates unit tests for the mesh data structure `$name`.
 ///
 /// In the brackets, you should specify additional traits that are implemented
-/// for the mesh type. These will generate additional asserts in the tests. The
-/// following traits are assumed to be implemented by every mesh type this
-/// macro is invoked with:
+/// for the mesh type. These will generate additional unit tests and additional
+/// checks in all tests. The following traits are assumed to be implemented by
+/// every mesh type this macro is invoked with:
 /// - `TriMesh`
 /// - `TriMeshMut`
+///
+/// For a list of traits you can specify here, check the `test_helper` macro
+/// definition.
 macro_rules! gen_mesh_tests {
+    // Entry point: here we just do some sanity checks on the specified extra
+    // traits.
     ($name:ty : [$($extra:ident),*]) => {
         $(
             test_helper!(@is_valid_extra_trait $extra);
@@ -28,6 +33,9 @@ macro_rules! gen_mesh_tests {
 
         gen_mesh_tests!(@inner $name, [ $($extra),* ]);
     };
+
+    // The main part. It's an extra macro arm in order to treat `$extras` as
+    // single tt which is a bit more convenient.
     (@inner $name:ty, $extras:tt) => {
         #[allow(unused_imports)]
         use crate::{
@@ -88,6 +96,45 @@ macro_rules! gen_mesh_tests {
                     va -- vb => {f}, boundary;
                     vb -- vc => {f}, boundary;
                     vc -- va => {f}, boundary;
+                },
+            });
+        }
+
+        #[test]
+        fn two_triangles() {
+            //
+            //         (C) ----- (D)
+            //        /   \  Y  /
+            //       /  X  \   /
+            //      /       \ /
+            //    (A) ----- (B)
+            //
+            let mut m = <$name>::empty();
+            let va = m.add_vertex();
+            let vb = m.add_vertex();
+            let vc = m.add_vertex();
+            let fx = m.add_triangle([va, vb, vc]);
+
+            let vd = m.add_vertex();
+            let fy = m.add_triangle([vb, vd, vc]);
+
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va => [fx],     [vc, vb],     boundary;
+                    vb => [fx, fy], [va, vc, vd], boundary;
+                    vc => [fx, fy], [vb, va, vd], boundary;
+                    vd => [fy],     [vb, vc],     boundary;
+                },
+                faces: {
+                    fx => [fy], [va, vb, vc], boundary;
+                    fy => [fx], [vb, vd, vc], boundary;
+                },
+                edges: {
+                    va -- vb => {fx},     boundary;
+                    va -- vc => {fx},     boundary;
+                    vb -- vc => {fx, fy}, interior;
+                    vb -- vd => {fy},     boundary;
+                    vc -- vd => {fy},     boundary;
                 },
             });
         }
@@ -247,7 +294,6 @@ macro_rules! gen_mesh_tests {
             let fz = m.add_triangle([vc, ve, vf]);
 
 
-            // ----- Check stuff
             check_mesh!(m; $extras; {
                 vertices: {
                     va => [fu, fw],         [ve, vb, vc],         boundary;
@@ -526,7 +572,6 @@ macro_rules! gen_mesh_tests {
             let f = m.add_triangle([va, vb, vc]);
             let vx = m.split_face(f);
 
-            assert_eq!(m.faces().count(), 3);
             let faces = m.face_handles().collect::<Vec<_>>();
             let [f0, f1, f2] = [faces[0], faces[1], faces[2]];
 
@@ -977,6 +1022,5 @@ macro_rules! gen_mesh_tests {
         // TODO: flip edge
         // TODO: split edge
         // TODO: split face
-        // TODO: two boundaries
     };
 }
