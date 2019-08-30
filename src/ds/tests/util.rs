@@ -702,7 +702,7 @@ impl MeshCheck {
             if let Some(expected_handle) = e.handle {
                 if expected_handle != handle {
                     panic!(
-                        "`mesh.edge_between_vertices({:?}, {:?})` returned expected edge.\n\
+                        "`mesh.edge_between_vertices({:?}, {:?})` returned unexpected edge.\n\
                             | expected: {:?}\n\
                             |   actual: {:?}\n",
                         e.vertices[0],
@@ -1023,9 +1023,9 @@ macro_rules! check_mesh {
         if let Err(e) = res {
             eprintln!();
             eprintln!("+++++ Additional failure information +++++");
-            eprintln!("mesh: {:#?}", $mesh);
-            eprintln!();
             eprintln!("symbols: {:#?}", symbols);
+            eprintln!();
+            eprintln!("mesh: {:#?}", $mesh);
 
             std::panic::resume_unwind(e);
         }
@@ -1101,7 +1101,7 @@ macro_rules! check_mesh {
     (@make_edge $sym:ident;
         $va:ident -- $vb:ident $(@ $eh:ident)? => $nf:tt, $boundary:ident
     ) => {{
-        $( $sym.add($eh); )?
+        $( $sym.add($eh, stringify!($eh)); )?
 
         EdgeInfo {
             vertices: [$va, $vb],
