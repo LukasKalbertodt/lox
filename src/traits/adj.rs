@@ -155,6 +155,8 @@ pub trait EdgeAdj: FullAdj + EdgeMesh {
         self.faces_of_edge(edge).len() != 2
     }
 
+    // TODO: remove `_vertices` from the name? For faces, there can be multiple
+    // shared edges.
     fn edge_between_vertices(&self, a: VertexHandle, b: VertexHandle) -> Option<EdgeHandle> {
         self.edges_around_vertex(a)
             .find(|&e| self.endpoints_of_edge(e).contains(&b))

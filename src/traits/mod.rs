@@ -408,17 +408,37 @@ pub trait MeshMut: Mesh {
     fn reserve_for_faces(&mut self, _count: hsize) {}
 
     /// Splits the face `f` into k new faces (where k is the valence of `f`) by
-    /// inserting a center vertex. The new vertex is returned.
+    /// inserting a center vertex. This new vertex is returned. This operation
+    /// is sometimes called "1-to-n split".
+    ///
+    /// TODO: nice SVG image (maybe inline?)
     ///
     /// After calling this function, the face `f` might be invalid and you
     /// cannot assume it now refers to one of the new faces.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `f` is not a valid face.
     // TODO: default impl this with `remove_face`
     fn split_face(&mut self, f: FaceHandle) -> VertexHandle;
 
+    /// Performs the "edge flip" operation on `e`. Requires `e` to be an
+    /// interior edge (i.e. being adjacent to two faces).
+    ///
+    /// TODO: nice SVG image
+    ///
+    /// The direction of the "rotation" is not specified, meaning that you
+    /// cannot assume which face is on what side. After this function was
+    /// called, the handle `e` will remain valid and refers to the now flipped
+    /// edge.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `e` is not a valid, interior edge.
     // TODO: think about adding these method with a version where you specify
-    // two faces? Or once face? (e.g. `flip_edge_between`,
-    // `split_face_2_to_4(a, b)` and `split_boundary_face_1to2`)
-    fn flip_edge(&mut self, edge: EdgeHandle)
+    // two vertices? (e.g. `flip_edge_between`, `split_face_2_to_4(a, b)` and
+    // `split_boundary_face_1to2`)
+    fn flip_edge(&mut self, e: EdgeHandle)
     where
         Self: EdgeMesh + TriMesh;
 
