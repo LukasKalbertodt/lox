@@ -615,6 +615,142 @@ impl<C: Config> Mesh for DirectedEdgeMesh<C> {
     {
         unreachable!()
     }
+
+    fn check_integrity(&self) {
+        if self.half_edges.num_elements() % 3 != 0 {
+            panic!("bug: number of half edges not divisible by 3");
+        }
+
+        // Check `outgoing` handle of vertices
+        for (vh, v) in self.vertices.iter() {
+            if let Some(outgoing) = v.outgoing.into_option() {
+                // Make sure outgoing handles are valid
+                if !self.half_edges.contains_handle(*outgoing) {
+                    panic!(
+                        "bug (broken reference): [{:?}].outgoing = Some({:?}), but that \
+                            half edge does not exist!",
+                        vh,
+                        outgoing,
+                    );
+                }
+
+                // Check `outgoing <-> target` connection
+                if let Some(incoming) = self[outgoing].twin.as_real_twin() {
+                    if *self[incoming].target != vh {
+                        panic!(
+                            "bug: [{:?}].outgoing = Some({:?}), but [{:?}].twin = {:?} \
+                                and [{:?}].target = {:?} (should be {:?})",
+                            vh,
+                            *outgoing,
+                            *outgoing,
+                            *incoming,
+                            *incoming,
+                            *self[incoming].target,
+                            vh,
+                        );
+                    }
+                }
+            }
+        }
+
+        // Check half edges
+        for fh in self.face_handles() {
+            let [heh0, heh1, heh2] = self.checked_half_edges_around(fh);
+
+            for &heh in &[heh0, heh1, heh2] {
+                // Make sure all exist
+                if !self.half_edges.contains_handle(*heh) {
+                    panic!(
+                        "bug: {:?} (returned by `checked_half_edges_around({:?})`) \
+                            does not exist in `self.half_edges`",
+                        heh,
+                        fh,
+                    );
+                }
+
+                let he = self[heh];
+
+                // Make sure target vertex is not isolated
+                if self[he.target].outgoing.is_none() {
+                    panic!(
+                        "bug: [{:?}].target = {:?}, but [{:?}].outgoing = None",
+                        heh,
+                        he.target,
+                        he.target,
+                    );
+                }
+
+                // Make sure `twin` handles match
+                match he.twin.decode() {
+                    Twin::Twin(twin) => {
+                        if self[twin].twin != EncodedTwin::twin(heh) {
+                            panic!(
+                                "bug: [{:?}].twin = {:?}, but [{:?}].twin = {:?}",
+                                heh,
+                                he.twin,
+                                twin,
+                                self[twin].twin,
+                            );
+                        }
+                    }
+                    Twin::NextBoundaryHe(next) => {
+                        if !self.half_edges.contains_handle(*next) {
+                            panic!(
+                                "bug: [{:?}].twin = {:?}, but {:?} does not exist",
+                                heh,
+                                he.twin,
+                                next,
+                            );
+                        }
+                    }
+                }
+            }
+
+            // TODO: test prev/next
+        }
+
+        // Walk around boundaries.
+        let mut visited = VecMap::with_capacity(self.half_edges.num_elements());
+        for (start, he) in self.half_edges.iter() {
+            if visited.contains_handle(start) {
+                continue;
+            }
+
+            if he.is_boundary() {
+                let mut heh = start;
+                loop {
+                    // All half edges in this cycles should be not visited yet!
+                    if visited.insert(heh, ()).is_some() {
+                        panic!(
+                            "bug: encountered {:?} while iterating on boundary starting \
+                                from {:?}, but we already visited it!",
+                            heh,
+                            start,
+                        );
+                    }
+
+                    heh = match self.half_edges[heh].twin.decode() {
+                        Twin::Twin(_) => {
+                            panic!(
+                                "bug: encountered {:?} while iterating on boundary starting \
+                                    from {:?}, but [{:?}].twin = {:?} (should be pointing \
+                                    to the next boundary edge)!",
+                                heh,
+                                start,
+                                heh,
+                                self.half_edges[heh].twin,
+                            );
+                        }
+                        Twin::NextBoundaryHe(next) => *next,
+                    };
+
+                    if heh == start {
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
