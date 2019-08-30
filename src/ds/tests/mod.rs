@@ -16,11 +16,15 @@ pub(crate) mod util;
 /// - `TriMeshMut`
 macro_rules! gen_tri_mesh_tests {
     ($name:ty : [$($extra:ident),*]) => {
-        // TODO: make sure exactly one of `TriMesh` and `PolyMesh` is
-        // specified as extra trait.
         $(
             test_helper!(@is_valid_extra_trait $extra);
         )*
+        test_helper!(@if_item [TriMesh, PolyMesh] in [$($extra),*] => {
+            compile_error!(
+                "`TriMesh` and `PolyMesh` given to `gen_tri_mesh_tests`! \
+                    Those are mutually exclusive."
+            );
+        });
 
         gen_tri_mesh_tests!(@inner $name, [ $($extra),* ]);
     };
