@@ -618,6 +618,56 @@ macro_rules! gen_mesh_tests {
 
         test_helper!(@if_item [TriMesh, EdgeMesh, FullAdj] in $extras => {
             #[test]
+            fn flip_edge() {
+                //
+                //        (a) ----- (b)               (a) ----- (b)
+                //        / \       / \               /       ⟋/  \
+                //       /   \  Y  /   \     =>      /  ?  ⟋  /    \
+                //      /  X  \   /  Z  \           /   ⟋ ?  /  Z   \
+                //     /       \ /       \         / ⟋      /        \
+                //   (c) ----- (d) ----- (e)     (c) ----- (d) ----- (e)
+                //⟍  ⟋
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                let ve = m.add_vertex();
+
+                let fx = m.add_triangle([va, vc, vd]);
+                let fy = m.add_triangle([va, vd, vb]);
+                let fz = m.add_triangle([vb, vd, ve]);
+
+                let e = m.edge_between_vertices(va, vd)
+                    .expect("`edge_between_vertices` returned `None` unexpectedly");
+                m.flip_edge(e);
+
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => {...; 1},     [vb, vc],         boundary;
+                        vb => {fx, fy, fz}, [ve, vd, vc, va], boundary;
+                        vc => {fx, fy},     [va, vb, vd],     boundary;
+                        vd => {fz ...; 2},  [vc, vb, ve],     boundary;
+                        ve => {fz},         [vd, vb],         boundary;
+                    },
+                    faces: {
+                        fx => {fy ...}, {vb, vc ...; 3}, boundary;
+                        fy => {fx ...}, {vb, vc ...; 3}, boundary;
+                        fz => {...; 1}, [ve, vb, vd],    boundary;
+                    },
+                    edges: {
+                        va -- vb     => {...; 1},    boundary;
+                        va -- vc     => {...; 1},    boundary;
+                        vb -- vc @ e => {fx, fy},    interior;
+                        vb -- vd     => {fz ...; 2}, interior;
+                        vb -- ve     => {fz},        boundary;
+                        vc -- vd     => {...; 1},    boundary;
+                        vd -- ve     => {fz},        boundary;
+                    },
+                });
+            }
+
+            #[test]
             fn split_edge_with_two_faces() {
                 //
                 //             (A)                    (A)
