@@ -616,6 +616,269 @@ macro_rules! gen_mesh_tests {
             });
         }
 
+        test_helper!(@if_item [PolyMesh] in $extras => {
+            #[test]
+            fn square() {
+                //
+                //     (a) ----- (b)
+                //      |         |
+                //      |    F    |
+                //      |         |
+                //     (c) ----- (d)
+                //
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                let f = m.add_face(&[va, vc, vd, vb]);
+
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => [f], [vb, vc], boundary;
+                        vb => [f], [va, vd], boundary;
+                        vc => [f], [va, vd], boundary;
+                        vd => [f], [vb, vc], boundary;
+                    },
+                    faces: {
+                        f => [], [va, vc, vd, vb], boundary;
+                    },
+                    edges: {
+                        va -- vb => [f], boundary;
+                        va -- vc => [f], boundary;
+                        vb -- vd => [f], boundary;
+                        vc -- vd => [f], boundary;
+                    },
+                });
+            }
+
+            #[test]
+            fn honeycomb() {
+                //
+                //                (a)
+                //              ⟋    ⟍
+                //           (b)       (c)
+                //            |    X    |
+                //           (d)       (e)
+                //         ⟋    ⟍   ⟋    ⟍
+                //      (f)       (g)       (h)
+                //       |    Y    |    Z    |
+                //      (i)       (j)       (k)
+                //         ⟍    ⟋   ⟍    ⟋
+                //           (l) - - - (m)
+                //
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                let ve = m.add_vertex();
+                let vf = m.add_vertex();
+                let vg = m.add_vertex();
+                let vh = m.add_vertex();
+                let vi = m.add_vertex();
+                let vj = m.add_vertex();
+                let vk = m.add_vertex();
+                let vl = m.add_vertex();
+                let vm = m.add_vertex();
+
+                let fx = m.add_face(&[va, vb, vd, vg, ve, vc]);
+                let fy = m.add_face(&[vd, vf, vi, vl, vj, vg]);
+                let fz = m.add_face(&[ve, vg, vj, vm, vk, vh]);
+
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => [fx],         [vb, vc],     boundary;
+                        vb => [fx],         [va, vd],     boundary;
+                        vc => [fx],         [va, ve],     boundary;
+                        vd => [fx, fy],     [vb, vg, vf], boundary;
+                        ve => [fx, fz],     [vc, vh, vg], boundary;
+                        vf => [fy],         [vd, vi],     boundary;
+                        vg => [fx, fz, fy], [vd, ve, vj], interior;
+                        vh => [fz],         [ve, vk],     boundary;
+                        vi => [fy],         [vf, vl],     boundary;
+                        vj => [fy, fz],     [vg, vm, vl], boundary;
+                        vk => [fz],         [vh, vm],     boundary;
+                        vl => [fy],         [vi, vj],     boundary;
+                        vm => [fz],         [vj, vk],     boundary;
+                    },
+                    faces: {
+                        fx => [fy, fz], [va, vb, vd, vg, ve, vc], boundary;
+                        fy => [fx, fz], [vd, vf, vi, vl, vj, vg], boundary;
+                        fz => [fx, fy], [ve, vg, vj, vm, vk, vh], boundary;
+                    },
+                    edges: {
+                        va -- vb => [fx],     boundary;
+                        va -- vc => [fx],     boundary;
+                        vb -- vd => [fx],     boundary;
+                        vc -- ve => [fx],     boundary;
+                        vd -- vf => [fy],     boundary;
+                        vd -- vg => [fx, fy], interior;
+                        ve -- vg => [fx, fz], interior;
+                        ve -- vh => [fz],     boundary;
+                        vf -- vi => [fy],     boundary;
+                        vg -- vj => [fy, fz], interior;
+                        vh -- vk => [fz],     boundary;
+                        vi -- vl => [fy],     boundary;
+                        vj -- vl => [fy],     boundary;
+                        vj -- vm => [fz],     boundary;
+                        vk -- vm => [fz],     boundary;
+                    },
+                });
+
+                let fw = m.add_face(&[vj, vl, vm]);
+
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => [fx],         [vb, vc],     boundary;
+                        vb => [fx],         [va, vd],     boundary;
+                        vc => [fx],         [va, ve],     boundary;
+                        vd => [fx, fy],     [vb, vg, vf], boundary;
+                        ve => [fx, fz],     [vc, vh, vg], boundary;
+                        vf => [fy],         [vd, vi],     boundary;
+                        vg => [fx, fz, fy], [vd, ve, vj], interior;
+                        vh => [fz],         [ve, vk],     boundary;
+                        vi => [fy],         [vf, vl],     boundary;
+                        vj => [fy, fz, fw], [vg, vm, vl], interior;
+                        vk => [fz],         [vh, vm],     boundary;
+                        vl => [fy, fw],     [vi, vj, vm], boundary;
+                        vm => [fz, fw],     [vj, vk, vl], boundary;
+                    },
+                    faces: {
+                        fx => [fy, fz],     [va, vb, vd, vg, ve, vc], boundary;
+                        fy => [fw, fz, fx], [vd, vf, vi, vl, vj, vg], boundary;
+                        fz => [fx, fy, fw], [ve, vg, vj, vm, vk, vh], boundary;
+                        fw => [fy, fz],     [vj, vl, vm], boundary;
+                    },
+                    edges: {
+                        va -- vb => [fx],     boundary;
+                        va -- vc => [fx],     boundary;
+                        vb -- vd => [fx],     boundary;
+                        vc -- ve => [fx],     boundary;
+                        vd -- vf => [fy],     boundary;
+                        vd -- vg => [fx, fy], interior;
+                        ve -- vg => [fx, fz], interior;
+                        ve -- vh => [fz],     boundary;
+                        vf -- vi => [fy],     boundary;
+                        vg -- vj => [fy, fz], interior;
+                        vh -- vk => [fz],     boundary;
+                        vi -- vl => [fy],     boundary;
+                        vj -- vl => [fy, fw], interior;
+                        vj -- vm => [fz, fw], interior;
+                        vk -- vm => [fz],     boundary;
+                        vl -- vm => [fw],     boundary;
+                    },
+                });
+            }
+
+            #[test]
+            fn cube() {
+                //
+                //               (a) ----- (b)
+                //                |         |
+                //                |    W    |
+                //                |         |
+                //     (a) ----- (c) ----- (d) ----- (b) ----- (a)
+                //      |         |         |         |         |
+                //      |    X    |    B    |    Y    |    T    |
+                //      |         |         |         |         |
+                //     (e) ----- (f) ----- (g) ----- (h) ----- (e)
+                //                |         |
+                //                |    Z    |
+                //                |         |
+                //               (e) ----- (h)
+                //
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                let ve = m.add_vertex();
+                let vf = m.add_vertex();
+                let vg = m.add_vertex();
+                let vh = m.add_vertex();
+
+                let fb = m.add_face(&[vc, vf, vg, vd]);
+                let fw = m.add_face(&[va, vc, vd, vb]);
+                let fx = m.add_face(&[va, ve, vf, vc]);
+                let fy = m.add_face(&[vd, vg, vh, vb]);
+                let fz = m.add_face(&[vf, ve, vh, vg]);
+
+                // First without top face
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => [fw, fx],     [vb, vc, ve], boundary;
+                        vb => [fy, fw],     [va, vh, vd], boundary;
+                        vc => [fb, fx, fw], [va, vd, vf], interior;
+                        vd => [fb, fw, fy], [vb, vg, vc], interior;
+                        ve => [fx, fz],     [va, vf, vh], boundary;
+                        vf => [fb, fz, fx], [vc, vg, ve], interior;
+                        vg => [fb, fy, fz], [vh, vf, vd], interior;
+                        vh => [fz, fy],     [vb, ve, vg], boundary;
+                    },
+                    faces: {
+                        fb => [fw, fx, fz, fy], [vc, vf, vg, vd], interior;
+                        fw => [fx, fb, fy],     [va, vc, vd, vb], boundary;
+                        fx => [fz, fb, fw],     [va, ve, vf, vc], boundary;
+                        fy => [fb, fz, fw],     [vd, vg, vh, vb], boundary;
+                        fz => [fx, fy, fb],     [vf, ve, vh, vg], boundary;
+                    },
+                    edges: {
+                        va -- vb => [fw],     boundary;
+                        va -- vc => [fw, fx], interior;
+                        va -- ve => [fx],     boundary;
+                        vb -- vd => [fw, fy], interior;
+                        vb -- vh => [fy],     boundary;
+                        vc -- vd => [fw, fb], interior;
+                        vc -- vf => [fx, fb], interior;
+                        vd -- vg => [fb, fy], interior;
+                        ve -- vf => [fx, fz], interior;
+                        ve -- vh => [fz],     boundary;
+                        vf -- vg => [fb, fz], interior;
+                        vg -- vh => [fz, fy], interior;
+                    },
+                });
+
+                // Add top face
+                let ft = m.add_face(&[vb, vh, ve, va]);
+
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => [ft, fw, fx], [vb, vc, ve], interior;
+                        vb => [ft, fy, fw], [va, vh, vd], interior;
+                        vc => [fb, fx, fw], [va, vd, vf], interior;
+                        vd => [fb, fw, fy], [vb, vg, vc], interior;
+                        ve => [fx, fz, ft], [va, vf, vh], interior;
+                        vf => [fb, fz, fx], [vc, vg, ve], interior;
+                        vg => [fb, fy, fz], [vh, vf, vd], interior;
+                        vh => [ft, fz, fy], [vb, ve, vg], interior;
+                    },
+                    faces: {
+                        fb => [fw, fx, fz, fy], [vc, vf, vg, vd], interior;
+                        fw => [fx, fb, fy, ft], [va, vc, vd, vb], interior;
+                        fx => [ft, fz, fb, fw], [va, ve, vf, vc], interior;
+                        fy => [fb, fz, ft, fw], [vd, vg, vh, vb], interior;
+                        fz => [fx, ft, fy, fb], [vf, ve, vh, vg], interior;
+                        ft => [fy, fz, fx, fw], [vb, vh, ve, va], interior;
+                    },
+                    edges: {
+                        va -- vb => [fw, ft], interior;
+                        va -- vc => [fw, fx], interior;
+                        va -- ve => [fx, ft], interior;
+                        vb -- vd => [fw, fy], interior;
+                        vb -- vh => [fy, ft], interior;
+                        vc -- vd => [fw, fb], interior;
+                        vc -- vf => [fx, fb], interior;
+                        vd -- vg => [fb, fy], interior;
+                        ve -- vf => [fx, fz], interior;
+                        ve -- vh => [fz, ft], interior;
+                        vf -- vg => [fb, fz], interior;
+                        vg -- vh => [fz, fy], interior;
+                    },
+                });
+            }
+        });
+
         test_helper!(@if_item [TriMesh, EdgeMesh, FullAdj] in $extras => {
             #[test]
             fn flip_edge() {
@@ -1323,10 +1586,7 @@ macro_rules! gen_mesh_tests {
         // TODO: test with 4 or more fan blades
         //
         // TODO: poly mesh tests
-        //  - simple quad
         //  - face with huge valance
-        //  - cube
-        //  - dodecahedron?
         //  - many different valences in one mesh
         //  - split edge with non-triangular face
         //  - split non-triangular face
