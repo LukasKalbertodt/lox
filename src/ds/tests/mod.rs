@@ -1146,6 +1146,100 @@ macro_rules! gen_mesh_tests {
                     },
                 });
             }
+
+            #[test]
+            fn two_blades_in_loop() {
+                //
+                //          (b)---(d)
+                //         / |   / | \
+                //      (a)  |  /  |  (a)
+                //         \ | /   | /
+                //          (c)---(e)
+                //
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                let ve = m.add_vertex();
+
+                let f_acb = m.add_triangle([va, vc, vb]);
+                let f_bcd = m.add_triangle([vb, vc, vd]);
+                let f_ced = m.add_triangle([vc, ve, vd]);
+                let f_ead = m.add_triangle([ve, va, vd]);
+
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => [f_acb, f_ead],        {vb, vc, vd, ve}, boundary;
+                        vb => [f_acb, f_bcd],        [vd, vc, va],     boundary;
+                        vc => [f_acb, f_bcd, f_ced], [va, vb, vd, ve], boundary;
+                        vd => [f_ead, f_ced, f_bcd], [va, ve, vc, vb], boundary;
+                        ve => [f_ced, f_ead],        [vc, vd, va],     boundary;
+                    },
+                    faces: {
+                        f_acb => [f_bcd],        [va, vc, vb], boundary;
+                        f_bcd => [f_acb, f_ced], [vb, vc, vd], boundary;
+                        f_ced => [f_bcd, f_ead], [vc, ve, vd], boundary;
+                        f_ead => [f_ced],        [ve, va, vd], boundary;
+                    },
+                    edges: {
+                        va -- vb => {f_acb},        boundary;
+                        va -- vc => {f_acb},        boundary;
+                        va -- vd => {f_ead},        boundary;
+                        va -- ve => {f_ead},        boundary;
+                        vb -- vc => {f_bcd, f_acb}, interior;
+                        vb -- vd => {f_bcd},        boundary;
+                        vc -- vd => {f_bcd, f_ced}, interior;
+                        vc -- ve => {f_ced},        boundary;
+                        vd -- ve => {f_ced, f_ead}, interior;
+                    },
+                });
+
+
+                // Add the two missing faces of the four sided pyramide.
+                //
+                //             (a)
+                //            /   \
+                //          (b)---(d)
+                //         / |   / | \
+                //      (a)  |  /  |  (a)
+                //         \ | /   | /
+                //          (c)---(e)
+                //            \   /
+                //             (a)
+                //
+                let f_bda = m.add_triangle([vb, vd, va]);
+                let f_aec = m.add_triangle([va, ve, vc]);
+
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => [f_acb, f_aec, f_ead, f_bda], {vb, vc, vd, ve}, interior;
+                        vb => [f_bda, f_bcd, f_acb],        [vd, vc, va],     interior;
+                        vc => [f_acb, f_bcd, f_ced, f_aec], [va, vb, vd, ve], interior;
+                        vd => [f_ead, f_ced, f_bcd, f_bda], [va, ve, vc, vb], interior;
+                        ve => [f_aec, f_ced, f_ead],        [vc, vd, va],     interior;
+                    },
+                    faces: {
+                        f_acb => [f_aec, f_bcd, f_bda], [va, vc, vb], interior;
+                        f_bcd => [f_acb, f_ced, f_bda], [vb, vc, vd], interior;
+                        f_ced => [f_bcd, f_aec, f_ead], [vc, ve, vd], interior;
+                        f_ead => [f_bda, f_ced, f_aec], [ve, va, vd], interior;
+                        f_bda => [f_acb, f_bcd, f_ead], [vb, vd, va], interior;
+                        f_aec => [f_ead, f_ced, f_acb], [va, ve, vc], interior;
+                    },
+                    edges: {
+                        va -- vb => {f_acb, f_bda}, interior;
+                        va -- vc => {f_acb, f_aec}, interior;
+                        va -- vd => {f_ead, f_bda}, interior;
+                        va -- ve => {f_ead, f_aec}, interior;
+                        vb -- vc => {f_bcd, f_acb}, interior;
+                        vb -- vd => {f_bcd, f_bda}, interior;
+                        vc -- vd => {f_bcd, f_ced}, interior;
+                        vc -- ve => {f_ced, f_aec}, interior;
+                        vd -- ve => {f_ced, f_ead}, interior;
+                    },
+                });
+            }
         });
 
         test_helper!(@if_item [Manifold] in $extras => {
@@ -1208,19 +1302,6 @@ macro_rules! gen_mesh_tests {
             }
         });
 
-        // TODO: Double Sided triangle
-        // TODO: Möbius strip
-
-        // TODO: something that maybe challenges the assumption repeated
-        // next() in a HEM equals a prev(). Maybe something like this?
-        //
-        //          (b)---(d)
-        //         / |   / | \
-        //      (a)  |  /  |  (a)
-        //         \ | /   | /
-        //          (c)---(e)
-        //
-        // The (a) vertex exists only once.
 
         // TODO: something that "only" has multi fan blades but cannot be
         // repaired into anything useful anymore. Like:
@@ -1234,12 +1315,25 @@ macro_rules! gen_mesh_tests {
         // The (a) vertex exists only once. Although... that doesn't necessarly
         // break things right? It cannot be closed without breaking stuff, but
         // it's fine as a manifold open mesh?
-
+        //
+        // TODO: things that are not clear yet if/how they are supported:
+        //  - Double Sided triangle
+        //  - Möbius strip
+        //
         // TODO: test with 4 or more fan blades
-
-        // TODO: flip edge
-        // TODO: split edge
-        // TODO: split non-triangular face
-        // TODO: remove all faces/vertices
+        //
+        // TODO: poly mesh tests
+        //  - simple quad
+        //  - face with huge valance
+        //  - cube
+        //  - dodecahedron?
+        //  - many different valences in one mesh
+        //  - split edge with non-triangular face
+        //  - split non-triangular face
+        //
+        // TODO: removal
+        //  - remove face/vertex simple
+        //  - remove and reinsert
+        //  - remove all faces/vertices
     };
 }

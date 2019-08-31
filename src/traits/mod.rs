@@ -444,7 +444,14 @@ pub trait MeshMut: Mesh {
 
     /// TODO
     ///
-    /// - edge handle stays valid and is one of the resulting center edges
+    /// - edge handle stays valid and is one of the resulting center edges.
+    ///   TODO: or make this unspecified? I mean: the user does not gain
+    ///   anything from the knowledge that the old handle stays valid, right?
+    ///   It's still unspecified on which side it is.
+    /// - maybe rename to `split_edge`. There is no other operation that this
+    ///   could be confused with. Only problem: with `split_edge` some people
+    ///   could think that faces are untouched (only makes sense in a poly
+    ///   mesh).
     fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> SplitEdgeWithFacesResult
     where
         Self: EdgeMesh + TriMesh;
