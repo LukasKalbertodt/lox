@@ -54,6 +54,9 @@ pub trait BasicAdj: Mesh {
 pub trait FullAdj: BasicAdj {
     /// Returns the faces around the given triangular face in front-face CCW
     /// order.
+    ///
+    /// TODO: explain that there can be duplicates in neighbor faces. We are
+    /// basically iterating over edges and returning their other face.
     fn faces_around_triangle(&self, face: FaceHandle) -> TriList<FaceHandle>
     where
         Self: TriMesh;
@@ -65,6 +68,9 @@ pub trait FullAdj: BasicAdj {
     /// If you are dealing with a triangular mesh, rather use
     /// [`faces_around_triangle`][FullAdj::faces_around_triangle] instead as
     /// it's usually faster.
+    ///
+    /// TODO: explain that there can be duplicates in neighbor faces. We are
+    /// basically iterating over edges and returning their other face.
     fn faces_around_face(&self, face: FaceHandle)
         -> <Self::FacesAroundFaceIterFamily as HandleIterFamily<'_, FaceHandle>>::Iter;
 

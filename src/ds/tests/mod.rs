@@ -41,6 +41,7 @@ macro_rules! gen_mesh_tests {
         use crate::{
             prelude::*,
             handle::{Handle, HSizeExt},
+            ds::tests::util::cmp_rotated,
         };
 
         #[test]
@@ -874,6 +875,154 @@ macro_rules! gen_mesh_tests {
                         ve -- vh => [fz, ft], interior;
                         vf -- vg => [fb, fz], interior;
                         vg -- vh => [fz, fy], interior;
+                    },
+                });
+            }
+
+            #[test]
+            fn huge_face() {
+                //
+                //         (a)
+                //         / \
+                //        /   \
+                //       /  X  \
+                //     (b) --- (c)
+                //   ⟋            ⟍
+                //  ...     Y     ...
+                //
+                const VALENCE: usize = 200;
+
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+
+                let mut face_vertices = vec![vc, vb];
+                for _ in 0..VALENCE - 2 {
+                    face_vertices.push(m.add_vertex());
+                }
+
+                let fx = m.add_face(&[va, vb, vc]);
+                let fy = m.add_face(&face_vertices);
+
+
+                test_helper!(@if BasicAdj in $extras => {
+                    let actual = m.vertices_around_face(fy).collect::<Vec<_>>();
+                    if let Err(rotated) = cmp_rotated(&actual, &face_vertices) {
+                        panic!(
+                            "wrong neighbors returned by `m.vertices_around_face(fy)` \
+                                (order respecting comparison)\n\
+                                | expected: {:?} (original: {:?})\n\
+                                |   actual: {:?}\n",
+                            rotated,
+                            face_vertices,
+                            actual,
+                        );
+                    }
+                });
+
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => [fx],     [vb, vc],        boundary;
+                        vb => [fx, fy], {va, vc ...; 3}, boundary;
+                        vc => [fx, fy], {va, vb ...; 3}, boundary;
+                        ...; VALENCE + 1
+                    },
+                    faces: {
+                        fx => [fy], [va, vb, vc],          boundary;
+                        fy => [fx], {vb, vc ...; VALENCE}, boundary;
+                    },
+                    edges: {
+                        va -- vb => [fx],     boundary;
+                        va -- vc => [fx],     boundary;
+                        vb -- vc => [fx, fy], interior;
+                        ...; VALENCE + 2
+                    },
+                });
+            }
+
+            #[test]
+            fn many_different_face_valences() {
+                //
+                //              (a) ---- (b) ---- (c) ---- (d)
+                //            ⟋  |        |        |        |
+                //          ⟋    |   V    |        |        |
+                //        ⟋   U  |        |        |        |
+                //     (e) ---- (f) ---- (g)      (h)  X   (i)
+                //      |               ⟋     Y    |        |
+                //      |      W      ⟋            |        |
+                //      |           ⟋              |        |
+                //     (j) ---- (k) ---- (l) ---- (m) ---- (n)
+                //
+                // Plus a face Z connecting the whole boundary.
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                let ve = m.add_vertex();
+                let vf = m.add_vertex();
+                let vg = m.add_vertex();
+                let vh = m.add_vertex();
+                let vi = m.add_vertex();
+                let vj = m.add_vertex();
+                let vk = m.add_vertex();
+                let vl = m.add_vertex();
+                let vm = m.add_vertex();
+                let vn = m.add_vertex();
+
+                let fu = m.add_triangle([va, ve, vf]);
+                let fv = m.add_face(&[va, vf, vg, vb]);
+                let fw = m.add_face(&[ve, vj, vk, vg, vf]);
+                let fx = m.add_face(&[vc, vh, vm, vn, vi, vd]);
+                let fy = m.add_face(&[vb, vg, vk, vl, vm, vh, vc]);
+                let fz = m.add_face(&[va, vb, vc, vd, vi, vn, vm, vl, vk, vj, ve]);
+
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => [fv, fu, fz], [vb, vf, ve], interior;
+                        vb => [fy, fv, fz], [vc, vg, va], interior;
+                        vc => [fx, fy, fz], [vd, vh, vb], interior;
+                        vd => [fx, fz],     [vi, vc],     interior;
+                        ve => [fu, fw, fz], [va, vf, vj], interior;
+                        vf => [fu, fv, fw], [va, vg, ve], interior;
+                        vg => [fv, fy, fw], [vk, vf, vb], interior;
+                        vh => [fx, fy],     [vc, vm],     interior;
+                        vi => [fx, fz],     [vd, vn],     interior;
+                        vj => [fw, fz],     [ve, vk],     interior;
+                        vk => [fw, fy, fz], [vj, vg, vl], interior;
+                        vl => [fy, fz],     [vk, vm],     interior;
+                        vm => [fy, fx, fz], [vl, vh, vn], interior;
+                        vn => [fx, fz],     [vm, vi],     interior;
+                    },
+                    faces: {
+                        fu => [fw, fv, fz],                 [va, ve, vf],                 interior;
+                        fv => [fu, fw, fy, fz],             [va, vf, vg, vb],             interior;
+                        fw => [fy, fv, fu, fz, fz],         [ve, vj, vk, vg, vf],         interior;
+                        fx => [fy, fy, fz, fz, fz, fz],     [vc, vh, vm, vn, vi, vd],     interior;
+                        fy => [fv, fw, fz, fz, fx, fx, fz], [vb, vg, vk, vl, vm, vh, vc], interior;
+                        fz => [fu, fv, fy, fx, fx, fx, fx, fy, fy, fw, fw],
+                            [va, vb, vc, vd, vi, vn, vm, vl, vk, vj, ve], interior;
+                    },
+                    edges: {
+                        va -- vb => [fv, fz], interior;
+                        va -- ve => [fu, fz], interior;
+                        va -- vf => [fu, fv], interior;
+                        vb -- vc => [fy, fz], interior;
+                        vb -- vg => [fv, fy], interior;
+                        vc -- vd => [fx, fz], interior;
+                        vc -- vh => [fx, fy], interior;
+                        vd -- vi => [fx, fz], interior;
+                        ve -- vf => [fu, fw], interior;
+                        ve -- vj => [fw, fz], interior;
+                        vf -- vg => [fv, fw], interior;
+                        vg -- vk => [fw, fy], interior;
+                        vh -- vm => [fx, fy], interior;
+                        vi -- vn => [fx, fz], interior;
+                        vj -- vk => [fw, fz], interior;
+                        vk -- vl => [fy, fz], interior;
+                        vl -- vm => [fy, fz], interior;
+                        vm -- vn => [fx, fz], interior;
                     },
                 });
             }
