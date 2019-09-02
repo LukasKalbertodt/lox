@@ -617,6 +617,38 @@ macro_rules! gen_mesh_tests {
             });
         }
 
+        #[test]
+        fn panic_on_invalid_vertex() {
+            let mut m = <$name>::empty();
+            let va = m.add_vertex();
+            let vb = m.add_vertex();
+            let vc = m.add_vertex();
+            let invalid = VertexHandle::new(
+                [va, vb, vc].iter().map(|h| h.idx()).max().unwrap() + 1
+            );
+
+            let mut clone = m.clone();
+            assert_panic!(clone.add_triangle([va, vb, invalid]));
+
+            let mut clone = m.clone();
+            assert_panic!(clone.add_triangle([va, invalid, vb]));
+
+            let mut clone = m.clone();
+            assert_panic!(clone.add_triangle([invalid, va, vb]));
+        }
+
+        #[test]
+        fn panic_on_invalid_split_face() {
+            let mut m = <$name>::empty();
+            let va = m.add_vertex();
+            let vb = m.add_vertex();
+            let vc = m.add_vertex();
+            let f = m.add_triangle([va, vb, vc]);
+
+            let invalid = FaceHandle::new(f.idx() + 1);
+            assert_panic!(m.split_face(invalid));
+        }
+
         test_helper!(@if_item [PolyMesh] in $extras => {
             #[test]
             fn square() {
@@ -1093,6 +1125,23 @@ macro_rules! gen_mesh_tests {
                     },
                 });
             }
+
+            #[test]
+            fn panic_on_too_small_face() {
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                m.add_vertex(); // A third one, such that a proper face *could* be possible
+
+                let mut clone = m.clone();
+                assert_panic!(clone.add_face(&[]));
+
+                let mut clone = m.clone();
+                assert_panic!(clone.add_face(&[va]));
+
+                let mut clone = m.clone();
+                assert_panic!(clone.add_face(&[va, vb]));
+            }
         });
 
         test_helper!(@if_item [TriMesh, EdgeMesh, FullAdj] in $extras => {
@@ -1297,6 +1346,41 @@ macro_rules! gen_mesh_tests {
                         vd -- vm => {...; 1},       boundary;
                     },
                 });
+            }
+        });
+
+        test_helper!(@if_item [TriMesh, EdgeMesh, EdgeAdj] in $extras => {
+            #[test]
+            fn panic_on_invalid_flip_edge() {
+                //
+                //         (C) ----- (D)
+                //        /   \  Y  /
+                //       /  X  \   /
+                //      /       \ /
+                //    (A) ----- (B)
+                //
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                m.add_triangle([va, vb, vc]);
+                m.add_triangle([vd, vc, vb]);
+
+                // Edge must be interior!
+                let e0 = m.edge_between_vertices(va, vb).unwrap();
+                let mut clone = m.clone();
+                assert_panic!(clone.flip_edge(e0));
+
+                // And edge must be valid
+                let e1 = m.edge_between_vertices(va, vc).unwrap();
+                let e2 = m.edge_between_vertices(vb, vc).unwrap();
+                let e3 = m.edge_between_vertices(vb, vd).unwrap();
+                let e4 = m.edge_between_vertices(vc, vd).unwrap();
+                let invalid = EdgeHandle::new(
+                    [e0, e1, e2, e3, e4].iter().map(|h| h.idx()).max().unwrap() + 1
+                );
+                assert_panic!(m.flip_edge(invalid));
             }
         });
 

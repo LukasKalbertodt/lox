@@ -334,6 +334,8 @@ pub trait MeshMut: Mesh {
     /// cross-product).
     ///
     /// TODO: what if face already there?
+    /// TODO: panics if vertex handles not unique, panics if one invalid vertex
+    /// handle
     fn add_triangle(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
 
 
@@ -344,6 +346,8 @@ pub trait MeshMut: Mesh {
     /// order. This means: if you look at front of the face you want to create
     /// (the face's normal is pointing to you), the vertices should appear in
     /// CCW order.
+    ///
+    /// TODO: panics if len < 3, panics if vertices invalid
     fn add_face(&mut self, vertices: &[VertexHandle]) -> FaceHandle
     where
         Self: PolyMesh;
