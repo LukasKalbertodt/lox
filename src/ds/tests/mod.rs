@@ -1026,6 +1026,73 @@ macro_rules! gen_mesh_tests {
                     },
                 });
             }
+
+            #[test]
+            fn split_quad_face() {
+                //
+                //            (a) ---- (b)                   (a) ---- (b)
+                //          ⟋  |        |                  ⟋  | ⟍   ⟋ |
+                //        ⟋    |   Y    |                ⟋    |   (m)   |
+                //      ⟋   X  |        |              ⟋   X  | ⟋   ⟍ |
+                //   (c) ---- (d) ---- (e)    =>    (c) ---- (d) ---- (e)
+                //      ⟍             ⟋                ⟍             ⟋ 
+                //        ⟍    Z    ⟋                    ⟍    Z    ⟋ 
+                //          ⟍     ⟋                        ⟍     ⟋ 
+                //            (f)                            (f)
+                //
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                let ve = m.add_vertex();
+                let vf = m.add_vertex();
+
+                let fx = m.add_triangle([va, vc, vd]);
+                let fy = m.add_face(&[va, vd, ve, vb]);
+                let fz = m.add_face(&[vc, vf, ve, vd]);
+
+                let vm = m.split_face(fy);
+
+                let faces = m.face_handles()
+                    .filter(|&fh| fh != fx && fh != fz)
+                    .collect::<Vec<_>>();
+                let [f0, f1, f2, f3] = [faces[0], faces[1], faces[2], faces[3]];
+
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => {fx ...; 3},      [vb, vm, vd, vc], boundary;
+                        vb => {...; 2},         [ve, vm, va],     boundary;
+                        vc => [fx, fz],         [va, vd, vf],     boundary;
+                        vd => {fx, fz ...; 4},  [va, vm, ve, vc], interior;
+                        ve => {fz ...; 3},      [vf, vd, vm, vb], boundary;
+                        vf => [fz],             [vc, ve],         boundary;
+                        vm => {f0, f1, f2, f3}, [va, vb, ve, vd], interior;
+                    },
+                    faces: {
+                        fx => {fz ...; 2}, [va, vc, vd],     boundary;
+                        fz => {fx ...; 2}, [vc, vf, ve, vd], boundary;
+                        f0 => no_check,    {vm ...; 3},      no_check;
+                        f1 => no_check,    {vm ...; 3},      no_check;
+                        f2 => no_check,    {vm ...; 3},      no_check;
+                        f3 => no_check,    {vm ...; 3},      no_check;
+                    },
+                    edges: {
+                        va -- vb => {...; 1},    boundary;
+                        va -- vc => {fx},        boundary;
+                        va -- vd => {fx ...; 2}, interior;
+                        va -- vm => {...; 2},    interior;
+                        vb -- ve => {...; 1},    boundary;
+                        vb -- vm => {...; 2},    interior;
+                        vc -- vd => {fx, fz},    interior;
+                        vc -- vf => {fz},        boundary;
+                        vd -- ve => {fz ...; 2}, interior;
+                        vd -- vm => {...; 2},    interior;
+                        ve -- vf => {fz},        boundary;
+                        ve -- vm => {...; 2},    interior;
+                    },
+                });
+            }
         });
 
         test_helper!(@if_item [TriMesh, EdgeMesh, FullAdj] in $extras => {
@@ -1038,7 +1105,7 @@ macro_rules! gen_mesh_tests {
                 //      /  X  \   /  Z  \           /   ⟋ ?  /  Z   \
                 //     /       \ /       \         / ⟋      /        \
                 //   (c) ----- (d) ----- (e)     (c) ----- (d) ----- (e)
-                //⟍  ⟋
+                //
                 let mut m = <$name>::empty();
                 let va = m.add_vertex();
                 let vb = m.add_vertex();
