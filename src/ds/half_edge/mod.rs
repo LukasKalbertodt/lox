@@ -349,11 +349,7 @@ impl<C: Config> HalfEdgeMesh<C> {
     fn circulate_around_vertex(&self, center: Checked<VertexHandle>) -> CwVertexCirculator<'_, C> {
         match self[center].outgoing.into_option() {
             None => CwVertexCirculator::Empty,
-            Some(start_he) => CwVertexCirculator::NonEmpty {
-                mesh: self,
-                current_he: start_he,
-                start_he,
-            }
+            Some(start_he) => CwVertexCirculator::new(self, start_he),
         }
     }
 
@@ -1232,8 +1228,217 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         self.add_face_impl(vertices, &mut inner_half_edges)
     }
 
-    fn remove_face(&mut self, _: FaceHandle) {
-        unimplemented!()
+    fn remove_face(&mut self, f: FaceHandle) {
+        let f = self.check_face(f);
+
+        // We use this piece of code twice below, that's why it's defined by
+        // this macro. See the comments where it's used for more information.
+        macro_rules! maybe_remove_edge {
+            ($inner:ident) => {
+                if self[$inner.twin()].face.is_none() {
+                    self.half_edges.remove(*$inner);
+                    self.half_edges.remove(*$inner.twin());
+                } else {
+                    self[$inner].face = Opt::none();
+                }
+            };
+        }
+
+        // Okay, so: the following is not trivial. The problem with this method
+        // is that we are removing and overwriting stuff while we still need to
+        // read/use the same information to correctly navigate on the mesh. One
+        // solution would be to simply create a `Vec` with a copy of all
+        // relevant information. But this leads to heap allocations, which we
+        // certainly want to avoid in a method like this.
+        //
+        // So instead, this method is careful about the order in which
+        // information is deleted or overwritten. It's actually not as bad as
+        // it sounds: it basically boils down to delay removing the start edge
+        // of the loop until after the loop. It just should be noted, that in
+        // this implementation, instructions cannot simply be reordered, as the
+        // order is important.
+        //
+        // We handle each corner seperately. That means that we look at two
+        // edges (four half edges) in each iteration. Of course, additional
+        // edges can be involved.
+        //
+        // So for each corner, we have this situation: the corner vertex `v`,
+        // the face `F` that will be deleted and the two outer edges
+        // `incoming_outer` and `outgoing_outer`. We don't yet know what `v` is
+        // also connected to:
+        //
+        //                    ?
+        //              ?           ?
+        //                   (v)
+        //                  ^/ ^\
+        // incoming_outer  //   \\  outgoing_outer
+        //                //  F  \\
+        //               /v       \v
+        //              ( )       ( )
+        //
+        let start_incoming = self[f].edge;
+        let mut incoming_inner = start_incoming;
+        loop {
+            // We iterate over the inner half edges via `next`. We have to pay
+            // attention here to obtain the `next` edges before we might
+            // overwrite that `next` handle.
+            let outgoing_inner = self[incoming_inner].next;
+
+            // Obtain other useful handles
+            let vh = self[incoming_inner].target;
+            let outgoing_outer = incoming_inner.twin();
+            let incoming_outer = outgoing_inner.twin();
+
+            // We do different things depending on one of five situations we
+            // can be in.
+            match (self[incoming_outer].face.is_some(), self[outgoing_outer].face.is_some()) {
+                // `f` is the only face connected to `v`. This is easy.
+                //
+                //                (v)
+                //               ^/ ^\
+                //              //   \\
+                //             //  F  \\
+                //            /v       \v
+                //           ( )       ( )
+                //
+                (false, false) if self[incoming_outer].next == outgoing_outer => {
+                    // As both pairs of half edges will be removed, we only
+                    // have to reset the `outgoing` handle of `v`.
+                    self[vh].outgoing = Opt::none();
+                }
+
+                // Here we have at least one other fan blade around the vertex.
+                //
+                //            ^  ?   ?  /
+                //             \       /
+                //       start  \  ?  /  end
+                //               \   v
+                //                (v)
+                //               ^/ ^\
+                //              //   \\
+                //             //  F  \\
+                //            /v       \v
+                //           ( )       ( )
+                //
+                // TODO: this can only happen if we allow multi blade vertices
+                (false, false) => {
+                    // Obtain the half edge starting the blade after our blade
+                    // and the half edge ending the blade before our blade.
+                    let start = self[incoming_outer].next;
+                    let end = self[outgoing_outer].prev.into_option().unwrap_or_else(|| {
+                        self.find_incoming_he(start.twin(), |incoming| {
+                            self[incoming].next == outgoing_outer
+                        }).expect("HEM bug: invalid cycle around vertex")
+                    });
+
+                    self[vh].outgoing = Opt::some(start);
+                    set_next_prev!(self, end -> start);
+                }
+
+                // `incoming_outer` is adjacent to another face, but
+                // `outgoing_outer` is not.
+                //
+                //                      /
+                //      ?         ?    /
+                //           ?        /  end
+                //                   /
+                //                  v
+                //      <-------- (v)
+                //               ^/ ^\
+                //   some face  //   \\
+                //             //     \\
+                //            //   F   \\
+                //           /v         \v
+                //          ( )         ( )
+                //
+                (true, false) => {
+                    // Obtain the half edge ending the blade before our blade.
+                    let end = self[outgoing_outer].prev.into_option().unwrap_or_else(|| {
+                        self.find_incoming_he(incoming_outer, |incoming| {
+                            self[incoming].next == outgoing_outer
+                        }).expect("HEM bug: invalid cycle around vertex")
+                    });
+
+                    set_next_prev!(self, end -> outgoing_inner);
+                    self[vh].outgoing = Opt::some(outgoing_inner);
+                }
+
+                // `outgoing_outer` is adjacent to another face, but
+                // `incoming_outer` is not.
+                //
+                //            ^
+                //             \   ?
+                //              \           ?
+                //        start  \   ?
+                //                \
+                //                (v)<---------
+                //               ^/ ^\
+                //              //   \\  some face
+                //             //     \\
+                //            //   F   \\
+                //           /v         \v
+                //          ( )         ( )
+                //
+                (false, true) => {
+                    // We only need to set one `next` handle. The `outgoing`
+                    // handle of `v` can't possibly be one of the edges we
+                    // remove, because none of those is boundary, but we know
+                    // that there are boundary outgoing edges.
+                    let start = self[incoming_outer].next;
+                    set_next_prev!(self, incoming_inner -> start);
+                }
+
+                // Both, `outgoing_outer` and `incoming_outer` are adjacent to
+                // another face. This is fairly easy.
+                //
+                //                 ?
+                //           ?           ?
+                //
+                //      <-------- (v) <--------
+                //               ^/ ^\
+                //   some face  //   \\  some face
+                //             //     \\
+                //            //   F   \\
+                //           /v         \v
+                //          ( )         ( )
+                //
+                (true, true) => {
+                    // We don't know if we need to overwrite it, but it's
+                    // always legal to overwrite.
+                    self[vh].outgoing = Opt::some(outgoing_inner);
+
+                    // We don't need to set any `next` handles as no half is
+                    // removed.
+                }
+            }
+
+            // If the edge of `incoming_inner` does not have another face, we
+            // remove both halves. Otherwise we keep them, but set the `face`
+            // of `incoming_inner` to `None`. We do not do that for the `start`
+            // half edge, because we still need that half edge for the last
+            // iteration of this loop (because we logically iterate around
+            // corners and look at both edges of a corner). The `start` half
+            // edge is handled after the loop.
+            if incoming_inner != start_incoming {
+                maybe_remove_edge!(incoming_inner);
+
+                // Stop the loop if we reached the start edge again. This check
+                // is inside the other `if` as we cannot be at the start and
+                // the end at the same time.
+                if outgoing_inner == start_incoming {
+                    break;
+                }
+            }
+
+            incoming_inner = outgoing_inner;
+        }
+
+        // Potentially remove the `start` edge. This happened to all other
+        // edges in the loop already, but for `start` we can only do it now.
+        maybe_remove_edge!(start_incoming);
+
+        // Actually remove the face from the vector.
+        self.faces.remove(*f);
     }
 
     #[inline(never)]

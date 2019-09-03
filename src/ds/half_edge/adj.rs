@@ -32,6 +32,16 @@ pub(super) enum CwVertexCirculator<'a, C: Config> {
     },
 }
 
+impl<'a, C: Config> CwVertexCirculator<'a, C> {
+    pub(super) fn new(mesh: &'a HalfEdgeMesh<C>, start_he: Checked<HalfEdgeHandle>) -> Self {
+        CwVertexCirculator::NonEmpty {
+            mesh,
+            current_he: start_he,
+            start_he,
+        }
+    }
+}
+
 impl<C: Config> Iterator for CwVertexCirculator<'_, C> {
     type Item = Checked<HalfEdgeHandle>;
 
