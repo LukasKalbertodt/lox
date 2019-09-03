@@ -649,6 +649,118 @@ macro_rules! gen_mesh_tests {
             assert_panic!(m.split_face(invalid));
         }
 
+        #[test]
+        fn remove_single_triangle() {
+            let mut m = <$name>::empty();
+            let va = m.add_vertex();
+            let vb = m.add_vertex();
+            let vc = m.add_vertex();
+            let f = m.add_triangle([va, vb, vc]);
+            m.remove_face(f);
+
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va => [], [], boundary;
+                    vb => [], [], boundary;
+                    vc => [], [], boundary;
+                },
+                faces: {},
+                edges: {},
+            });
+        }
+
+        #[test]
+        fn remove_one_of_two_triangles() {
+            //
+            //         (a) ----- (b)               (a) ----- (b)
+            //        /   \  Y  /                     \  Y  /
+            //       /  X  \   /        =>             \   /
+            //      /       \ /                         \ /
+            //    (c) ----- (d)               (c)       (d)
+            //
+            // We repeat the test three times with only one difference: the
+            // order of vertices for `fx`. This might be important for
+            // `remove_face`.
+            for shift in 0..3 {
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+
+                let mut vertices = [va, vc, vd];
+                vertices.rotate_left(shift);
+                let fx = m.add_triangle(vertices);
+                let fy = m.add_triangle([va, vd, vb]);
+
+                m.remove_face(fx);
+
+                check_mesh!(m; $extras; {
+                    vertices: {
+                        va => [fy], [vb, vd], boundary;
+                        vb => [fy], [va, vd], boundary;
+                        vc => [],   [],       boundary;
+                        vd => [fy], [va, vb], boundary;
+                    },
+                    faces: {
+                        fy => [], [va, vd, vb], boundary;
+                    },
+                    edges: {
+                        va -- vb => {fy}, boundary;
+                        va -- vd => {fy}, boundary;
+                        vb -- vd => {fy}, boundary;
+                    },
+                });
+            }
+        }
+
+        #[test]
+        fn remove_interior_face() {
+            //
+            //             (T)
+            //            / | \
+            //           /  |  \
+            //          /   |   \
+            //         /   (C)   \
+            //        / ⋰     ⋱  \
+            //       (A) ------- (B)
+            //
+            let mut m = <$name>::empty();
+            let va = m.add_vertex();
+            let vb = m.add_vertex();
+            let vc = m.add_vertex();
+            let v_top = m.add_vertex();
+
+            let f_bottom = m.add_triangle([va, vc, vb]);
+            let f_ab = m.add_triangle([va, vb, v_top]);
+            let f_bc = m.add_triangle([vb, vc, v_top]);
+            let f_ca = m.add_triangle([vc, va, v_top]);
+
+            m.remove_face(f_bottom);
+
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va    => [f_ca, f_ab],       [v_top, vb, vc], boundary;
+                    vb    => [f_ab, f_bc],       [v_top, vc, va], boundary;
+                    vc    => [f_bc, f_ca],       [v_top, va, vb], boundary;
+                    v_top => [f_ca, f_bc, f_ab], [va, vc, vb],    interior;
+                },
+                faces: {
+                    f_ab     => [f_bc, f_ca], [va, vb, v_top], boundary;
+                    f_bc     => [f_ca, f_ab], [vb, vc, v_top], boundary;
+                    f_ca     => [f_ab, f_bc], [vc, va, v_top], boundary;
+                },
+                edges: {
+                    va -- vb    => {f_ab}, boundary;
+                    vb -- vc    => {f_bc}, boundary;
+                    vc -- va    => {f_ca}, boundary;
+                    va -- v_top => {f_ca, f_ab}, interior;
+                    vb -- v_top => {f_ab, f_bc}, interior;
+                    vc -- v_top => {f_bc, f_ca}, interior;
+                },
+            });
+        }
+
         test_helper!(@if_item [PolyMesh] in $extras => {
             #[test]
             fn square() {
@@ -1124,6 +1236,64 @@ macro_rules! gen_mesh_tests {
                         ve -- vm => {...; 2},    interior;
                     },
                 });
+            }
+
+            #[test]
+            fn remove_quad_face() {
+                //
+                //            (a) ---- (b)                   (a)      (b)
+                //          ⟋  |        |                  ⟋  |
+                //        ⟋    |   Y    |                ⟋    |
+                //      ⟋   X  |        |              ⟋   X  |
+                //   (c) ---- (d) ---- (e)    =>    (c) ---- (d) ---- (e)
+                //      ⟍             ⟋                ⟍             ⟋ 
+                //        ⟍    Z    ⟋                    ⟍    Z    ⟋ 
+                //          ⟍     ⟋                        ⟍     ⟋ 
+                //            (f)                            (f)
+                //
+                // We repeat the test three times with only one difference: the
+                // order of vertices for `fy`. This might be important for
+                // `remove_face`.
+                for shift in 0..4 {
+                    let mut m = <$name>::empty();
+                    let va = m.add_vertex();
+                    let vb = m.add_vertex();
+                    let vc = m.add_vertex();
+                    let vd = m.add_vertex();
+                    let ve = m.add_vertex();
+                    let vf = m.add_vertex();
+
+                    let mut vertices = [va, vd, ve, vb];
+                    vertices.rotate_left(shift);
+                    let fx = m.add_triangle([va, vc, vd]);
+                    let fy = m.add_face(&vertices);
+                    let fz = m.add_face(&[vc, vf, ve, vd]);
+
+                    m.remove_face(fy);
+
+                    check_mesh!(m; $extras; {
+                        vertices: {
+                            va => [fx],     [vd, vc],     boundary;
+                            vb => [],       [],           boundary;
+                            vc => [fx, fz], [va, vd, vf], boundary;
+                            vd => [fx, fz], [va, ve, vc], boundary;
+                            ve => [fz],     [vf, vd],     boundary;
+                            vf => [fz],     [vc, ve],     boundary;
+                        },
+                        faces: {
+                            fx => [fz], [va, vc, vd],     boundary;
+                            fz => [fx], [vc, vf, ve, vd], boundary;
+                        },
+                        edges: {
+                            va -- vc => {fx},     boundary;
+                            va -- vd => {fx},     boundary;
+                            vc -- vd => {fx, fz}, interior;
+                            vc -- vf => {fz},     boundary;
+                            vd -- ve => {fz},     boundary;
+                            ve -- vf => {fz},     boundary;
+                        },
+                    });
+                }
             }
 
             #[test]
@@ -1802,6 +1972,122 @@ macro_rules! gen_mesh_tests {
                         vd -- ve => {f_ced, f_ead}, interior;
                     },
                 });
+            }
+
+            #[test]
+            fn remove_face_of_two_blade_vertex() {
+                //
+                //      (b)-------(c)       (b)       (c)
+                //        \       /
+                //         \  X  /
+                //          \   /
+                //           \ /
+                //           (a)       =>        (a)
+                //           / \                 / \
+                //          /   \               /   \
+                //         /  Y  \             /  Y  \
+                //        /       \           /       \
+                //      (d)-------(e)       (d)-------(e)
+                //
+                // We repeat the test three times with only one difference: the
+                // order of vertices for `fx`. This might be important for
+                // `remove_face`.
+                for shift in 0..3 {
+                    let mut m = <$name>::empty();
+                    let va = m.add_vertex();
+                    let vb = m.add_vertex();
+                    let vc = m.add_vertex();
+                    let vd = m.add_vertex();
+                    let ve = m.add_vertex();
+
+                    let mut vertices = [va, vc, vb];
+                    vertices.rotate_left(shift);
+                    let fx = m.add_triangle(vertices);
+                    let fy = m.add_triangle([va, vd, ve]);
+
+                    m.remove_face(fx);
+
+                    check_mesh!(m; $extras; {
+                        vertices: {
+                            va => [fy], [vd, ve], boundary;
+                            vb => [],   [],       boundary;
+                            vc => [],   [],       boundary;
+                            vd => [fy], [va, ve], boundary;
+                            ve => [fy], [va, vd], boundary;
+                        },
+                        faces: {
+                            fy => [], [va, vd, ve], boundary;
+                        },
+                        edges: {
+                            va -- vd => {fy}, boundary;
+                            va -- ve => {fy}, boundary;
+                            vd -- ve => {fy}, boundary;
+                        },
+                    });
+                }
+            }
+
+            #[test]
+            fn remove_face_of_three_blade_vertex() {
+                //
+                //       (b)-------(c)
+                //         \       /
+                //          \  X  /
+                //           \   /
+                //            \ /
+                //  (g)-------(a)-------(d)
+                //    \       / \       /
+                //     \  Z  /   \  Y  /
+                //      \   /     \   /
+                //       \ /       \ /
+                //       (f)       (e)
+                //
+                // We repeat the test three times with only one difference: the
+                // order of vertices for `fx`. This might be important for
+                // `remove_face`.
+                for shift in 0..3 {
+                    let mut m = <$name>::empty();
+                    let va = m.add_vertex();
+                    let vb = m.add_vertex();
+                    let vc = m.add_vertex();
+                    let vd = m.add_vertex();
+                    let ve = m.add_vertex();
+                    let vf = m.add_vertex();
+                    let vg = m.add_vertex();
+
+                    let mut vertices = [va, vc, vb];
+                    vertices.rotate_left(shift);
+                    let fx = m.add_triangle(vertices);
+                    let fy = m.add_triangle([va, ve, vd]);
+                    let fz = m.add_triangle([va, vg, vf]);
+
+                    m.remove_face(fx);
+
+                    // ----- Check stuff
+                    check_mesh!(m; $extras; {
+                        vertices: {
+                            va => [fy, fz], {vd, ve, vf, vg}, boundary;
+                            vb => [],       [],               boundary;
+                            vc => [],       [],               boundary;
+                            vd => [fy],     [va, ve],         boundary;
+                            ve => [fy],     [vd, va],         boundary;
+                            vf => [fz],     [va, vg],         boundary;
+                            vg => [fz],     [vf, va],         boundary;
+                        },
+                        faces: {
+                            fy => [], [va, ve, vd], boundary;
+                            fz => [], [va, vg, vf], boundary;
+                        },
+                        edges: {
+                            va -- vd => {fy}, boundary;
+                            va -- ve => {fy}, boundary;
+                            va -- vf => {fz}, boundary;
+                            va -- vg => {fz}, boundary;
+                            vd -- ve => {fy}, boundary;
+                            vf -- vg => {fz}, boundary;
+                        }
+                    });
+                }
             }
         });
 
