@@ -1232,6 +1232,10 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         self.add_face_impl(vertices, &mut inner_half_edges)
     }
 
+    fn remove_face(&mut self, _: FaceHandle) {
+        unimplemented!()
+    }
+
     #[inline(never)]
     fn reserve_for_vertices(&mut self, count: hsize) {
         self.vertices.reserve(count);

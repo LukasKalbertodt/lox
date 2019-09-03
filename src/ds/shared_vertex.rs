@@ -112,6 +112,10 @@ impl MeshMut for SharedVertexMesh {
         self.faces.push([va, vb, vc])
     }
 
+    fn remove_face(&mut self, face: FaceHandle) {
+        self.faces.remove(face);
+    }
+
     fn remove_all_vertices(&mut self) {
         assert!(
             self.num_faces() == 0,

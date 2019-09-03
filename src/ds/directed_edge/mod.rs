@@ -1216,6 +1216,10 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         *vm
     }
 
+    fn remove_face(&mut self, _: FaceHandle) {
+        unimplemented!()
+    }
+
     fn add_face(&mut self, _: &[VertexHandle]) -> FaceHandle
     where
         Self: PolyMesh

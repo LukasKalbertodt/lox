@@ -352,6 +352,8 @@ pub trait MeshMut: Mesh {
     where
         Self: PolyMesh;
 
+    fn remove_face(&mut self, face: FaceHandle);
+
     /// Removes all vertices of this mesh. This can be more efficient than
     /// calling `remove_vertex` (TODO: link) for each vertex individually.
     ///
