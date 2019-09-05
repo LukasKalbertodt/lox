@@ -42,6 +42,18 @@ pub(super) enum CwVertexCirculatorState {
     },
 }
 
+impl<'a, C: Config> CwVertexCirculator<'a, C> {
+    pub(crate) fn new(mesh: &'a DirectedEdgeMesh<C>, start_he: Checked<HalfEdgeHandle>) -> Self {
+        Self {
+            mesh,
+            state: CwVertexCirculatorState::NonEmpty {
+                current_he: start_he,
+                start_he,
+            }
+        }
+    }
+}
+
 impl<C: Config> Iterator for CwVertexCirculator<'_, C> {
     type Item = Checked<HalfEdgeHandle>;
 

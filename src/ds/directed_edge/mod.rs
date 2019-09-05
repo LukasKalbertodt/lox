@@ -218,6 +218,13 @@ impl EncodedTwin {
         unsafe { Checked::new(HalfEdgeHandle::new(self.0 & !TWIN_MASK)) }
     }
 
+    /// Create a new encoded twin that is always a "next boundary half edge"
+    /// and uses the half edge that is stored in `self`. The purpose of the
+    /// half edge in `self` is ignored.
+    fn to_next_boundary_he(&self) -> EncodedTwin {
+        Self(self.0 | TWIN_MASK)
+    }
+
     #[inline(always)]
     fn is_real_twin(&self) -> bool {
         self.0 & TWIN_MASK == 0
@@ -1216,8 +1223,130 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         *vm
     }
 
-    fn remove_face(&mut self, _: FaceHandle) {
-        unimplemented!()
+    fn remove_face(&mut self, f: FaceHandle) {
+        let [he0, he1, he2] = self.checked_half_edges_around(f);
+
+        // We iterate over the three corners of `f` and look at each corner
+        // individually. We have the half edges of `f` as shown here:
+        //
+        //                    ?
+        //              ?           ?
+        //                   (v)
+        //                   / ^
+        //         outgoing /   \ incoming
+        //                 /  F  \
+        //                v       \
+        //              ( ) ----> ( )
+        //              opposite_of_v
+        //
+        let corners = [[he0, he1, he2], [he1, he2, he0], [he2, he0, he1]];
+        for &[incoming, outgoing, opposite_of_v] in &corners {
+            let v = self[incoming].target;
+
+            // If we have a face on the left, we always have to set a new
+            // `twin` value for the twin of `outgoing`.
+            //
+            //           ?         ?
+            //
+            //      <-------- (v)
+            //               ^/ ^
+            //   some face  //   \      ?
+            //             //     \
+            //            //   F   \
+            //           /v         \
+            //          ( )         ( )
+            //
+            if let Twin::Twin(incoming_outer) = self[outgoing].twin.decode() {
+                // We need to change the `twin` handle of `incoming_outer` as
+                // `outgoing` will be removed. We have basically two
+                // possibilities: `opposite_of_v` has a real twin (left) or not
+                // (right).
+                //
+                //    x --- v            |          x --- v
+                //     \   / \    ?      |           \   / \    ?
+                //   ?  \ / f \          |         ?  \ / f \
+                //       x --- x         |             x --- x
+                //        \   /          |         ?  /
+                //      ?  \ /    ?      |           /
+                //          x            |          x
+                //
+                // In either way, `opposite_of_v.twin` is what
+                // `incoming_outer.twin` needs to pointer to.
+                self[incoming_outer].twin = self[opposite_of_v].twin.to_next_boundary_he();
+            }
+
+            // We handle the rest on a per case basis
+            match (self[outgoing].twin.decode(), self[incoming].twin.decode()) {
+                //
+                //                (v)
+                //                / ^
+                //               /   \
+                //              /  F  \
+                //             v       \
+                //           ( )       ( )
+                //
+                (Twin::NextBoundaryHe(next), Twin::NextBoundaryHe(_)) if next == incoming => {
+                    self[v].outgoing = Opt::none();
+                }
+
+                //                      ^
+                //      ?         ?    /            |         \  ?   ?  ^
+                //           ?        /  end        |          \       /
+                //                   /              |    start  \  ?  /  end
+                //                  /               |            v   /
+                //      <-------- (v)               |             (v)
+                //               ^/ ^               |             / ^
+                //   some face  //   \              |            /   \
+                //             //     \             |           /  F  \
+                //            //   F   \            |          v       \
+                //           /v         \           |        ( )       ( )
+                //          ( )         ( )
+                //
+                (_, Twin::NextBoundaryHe(_)) => {
+                    // Obtain `end`, the half edge ending the blade before our
+                    // blade.
+                    let end = CwVertexCirculator::new(self, outgoing).find(|&outgoing| {
+                        self[outgoing].twin.as_next_boundary_he() == Some(incoming)
+                    }).expect("DEM bug: invalid cycle around vertex");
+
+                    self[end].twin = self[outgoing].twin.to_next_boundary_he();
+
+                    // We need to overwrite `v.outgoing` if it is currently
+                    // pointing to `outgoing` (which can only happen if
+                    // `outgoing` is a boundary edge). TODO: this can only
+                    // happen if we allow multi blade vertices.
+                    if self[v].outgoing == Opt::some(outgoing) {
+                        self[v].outgoing = Opt::some(end);
+                    }
+                }
+
+                //            ?         ?
+                //
+                //                (v)<---------
+                //        ?       / ^\
+                //               /   \\  some face
+                //              /     \\
+                //             /   F   \\
+                //            v         \v
+                //          ( )         ( )
+                //
+                (_, Twin::Twin(outgoing_outer)) => {
+                    // `outgoing` could have a real twin or not. But in either
+                    // case, that half edge stored in `outgoing.twin` will be
+                    // the next boundary half edge of `outgoing_outer`.
+                    self[outgoing_outer].twin = self[outgoing].twin.to_next_boundary_he();
+
+                    // We just overwrite `v.outgoing` as it might have pointed
+                    // to `outgoing`.
+                    self[v].outgoing = Opt::some(outgoing_outer);
+                }
+            }
+        }
+
+        // Actually remove the half edges from the vector.
+        self.half_edges.remove(*he0);
+        self.half_edges.remove(*he1);
+        self.half_edges.remove(*he2);
     }
 
     fn add_face(&mut self, _: &[VertexHandle]) -> FaceHandle
