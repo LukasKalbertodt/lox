@@ -746,18 +746,95 @@ macro_rules! gen_mesh_tests {
                     v_top => [f_ca, f_bc, f_ab], [va, vc, vb],    interior;
                 },
                 faces: {
-                    f_ab     => [f_bc, f_ca], [va, vb, v_top], boundary;
-                    f_bc     => [f_ca, f_ab], [vb, vc, v_top], boundary;
-                    f_ca     => [f_ab, f_bc], [vc, va, v_top], boundary;
+                    f_ab => [f_bc, f_ca], [va, vb, v_top], boundary;
+                    f_bc => [f_ca, f_ab], [vb, vc, v_top], boundary;
+                    f_ca => [f_ab, f_bc], [vc, va, v_top], boundary;
                 },
                 edges: {
-                    va -- vb    => {f_ab}, boundary;
-                    vb -- vc    => {f_bc}, boundary;
-                    vc -- va    => {f_ca}, boundary;
+                    va -- vb    => {f_ab},       boundary;
+                    vb -- vc    => {f_bc},       boundary;
+                    vc -- va    => {f_ca},       boundary;
                     va -- v_top => {f_ca, f_ab}, interior;
                     vb -- v_top => {f_ab, f_bc}, interior;
                     vc -- v_top => {f_bc, f_ca}, interior;
                 },
+            });
+        }
+
+        #[test]
+        fn remove_tetrahedron_face_by_face() {
+            //
+            //             (T)
+            //            / | \
+            //           /  |  \
+            //          /   |   \
+            //         /   (C)   \
+            //        / ⋰     ⋱  \
+            //       (A) ------- (B)
+            //
+            let mut m = <$name>::empty();
+            let va = m.add_vertex();
+            let vb = m.add_vertex();
+            let vc = m.add_vertex();
+            let v_top = m.add_vertex();
+
+            let f_bottom = m.add_triangle([va, vc, vb]);
+            let f_ab = m.add_triangle([va, vb, v_top]);
+            let f_bc = m.add_triangle([vb, vc, v_top]);
+            let f_ca = m.add_triangle([vc, va, v_top]);
+
+            m.remove_face(f_bottom);
+            // This state is checked by `remove_interior_face`
+
+            m.remove_face(f_bc);
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va    => [f_ca, f_ab], [v_top, vb, vc], boundary;
+                    vb    => [f_ab],       [v_top, va],     boundary;
+                    vc    => [f_ca],       [v_top, va],     boundary;
+                    v_top => [f_ca, f_ab], [va, vc, vb],    boundary;
+                },
+                faces: {
+                    f_ab => [f_ca], [va, vb, v_top], boundary;
+                    f_ca => [f_ab], [vc, va, v_top], boundary;
+                },
+                edges: {
+                    va -- vb    => {f_ab},       boundary;
+                    vc -- va    => {f_ca},       boundary;
+                    va -- v_top => {f_ca, f_ab}, interior;
+                    vb -- v_top => {f_ab},       boundary;
+                    vc -- v_top => {f_ca},       boundary;
+                },
+            });
+
+            m.remove_face(f_ca);
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va    => [f_ab], [v_top, vb], boundary;
+                    vb    => [f_ab], [v_top, va], boundary;
+                    vc    => [],     [],          boundary;
+                    v_top => [f_ab], [va, vb],    boundary;
+                },
+                faces: {
+                    f_ab => [], [va, vb, v_top], boundary;
+                },
+                edges: {
+                    va -- vb    => {f_ab}, boundary;
+                    va -- v_top => {f_ab}, boundary;
+                    vb -- v_top => {f_ab}, boundary;
+                },
+            });
+
+            m.remove_face(f_ab);
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va    => [], [], boundary;
+                    vb    => [], [], boundary;
+                    vc    => [], [], boundary;
+                    v_top => [], [], boundary;
+                },
+                faces: {},
+                edges: {},
             });
         }
 
