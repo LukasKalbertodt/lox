@@ -838,6 +838,69 @@ macro_rules! gen_mesh_tests {
             });
         }
 
+        #[test]
+        fn remove_isolated_vertices() {
+            //
+            //  (e)      (a) ----- (b)        (e)      (a) ----- (b)
+            //          /   \  Y  /                       \  Y  /
+            //         /  X  \   /        =>               \   /
+            //        /       \ /                           \ /
+            //      (c) ----- (d)                 (c)       (d)
+            //
+            let mut m = <$name>::empty();
+            let va = m.add_vertex();
+            let vb = m.add_vertex();
+            let vc = m.add_vertex();
+            let vd = m.add_vertex();
+            let ve = m.add_vertex();
+
+            let fx = m.add_triangle([va, vc, vd]);
+            let fy = m.add_triangle([va, vd, vb]);
+
+            // First remove only `ve`
+            m.remove_isolated_vertex(ve);
+
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va => [fy, fx], [vb, vd, vc], boundary;
+                    vb => [fy],     [va, vd],     boundary;
+                    vc => [fx],     [va, vd],     boundary;
+                    vd => [fy, fx], [vc, va, vb], boundary;
+                },
+                faces: {
+                    fx => [fy], [va, vc, vd], boundary;
+                    fy => [fx], [va, vd, vb], boundary;
+                },
+                edges: {
+                    va -- vb => {fy},     boundary;
+                    va -- vc => {fx},     boundary;
+                    va -- vd => {fy, fx}, interior;
+                    vb -- vd => {fy},     boundary;
+                    vc -- vd => {fx},     boundary;
+                },
+            });
+
+            // Now remove face `fx` to make `vc` isolated.
+            m.remove_face(fx);
+            m.remove_isolated_vertex(vc);
+
+            check_mesh!(m; $extras; {
+                vertices: {
+                    va => [fy], [vb, vd], boundary;
+                    vb => [fy], [va, vd], boundary;
+                    vd => [fy], [va, vb], boundary;
+                },
+                faces: {
+                    fy => [], [va, vd, vb], boundary;
+                },
+                edges: {
+                    va -- vb => {fy}, boundary;
+                    va -- vd => {fy}, boundary;
+                    vb -- vd => {fy}, boundary;
+                },
+            });
+        }
+
         test_helper!(@if_item [PolyMesh] in $extras => {
             #[test]
             fn square() {
@@ -1388,6 +1451,40 @@ macro_rules! gen_mesh_tests {
 
                 let mut clone = m.clone();
                 assert_panic!(clone.add_face(&[va, vb]));
+            }
+        });
+
+        test_helper!(@if_item [FullAdj] in $extras => {
+            #[test]
+            fn panic_on_remove_non_isolated_vertex() {
+                //
+                //  (e)      (a) ----- (b)        (e)      (a) ----- (b)
+                //          /   \  Y  /                       \  Y  /
+                //         /  X  \   /        =>               \   /
+                //        /       \ /                           \ /
+                //      (c) ----- (d)                 (c)       (d)
+                //
+                let mut m = <$name>::empty();
+                let va = m.add_vertex();
+                let vb = m.add_vertex();
+                let vc = m.add_vertex();
+                let vd = m.add_vertex();
+                m.add_vertex();
+
+                m.add_triangle([va, vc, vd]);
+                m.add_triangle([va, vd, vb]);
+
+                let mut clone = m.clone();
+                assert_panic!(clone.remove_isolated_vertex(va));
+
+                let mut clone = m.clone();
+                assert_panic!(clone.remove_isolated_vertex(vb));
+
+                let mut clone = m.clone();
+                assert_panic!(clone.remove_isolated_vertex(vc));
+
+                let mut clone = m.clone();
+                assert_panic!(clone.remove_isolated_vertex(vd));
             }
         });
 

@@ -112,6 +112,13 @@ impl MeshMut for SharedVertexMesh {
         self.faces.push([va, vb, vc])
     }
 
+    fn remove_isolated_vertex(&mut self, vertex: VertexHandle) {
+        // Unfortunately, we cannot check if `vertex` is isolated. If it's not,
+        // this mesh is inconsistent, but it won't lead to memory unsafety as
+        // we never access `vertices` unchecked.
+        self.vertices.remove(vertex);
+    }
+
     fn remove_face(&mut self, face: FaceHandle) {
         self.faces.remove(face);
     }

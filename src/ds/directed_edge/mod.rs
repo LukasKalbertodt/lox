@@ -1223,6 +1223,17 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         *vm
     }
 
+    fn remove_isolated_vertex(&mut self, v: VertexHandle) {
+        // If `outgoing` is `None`, no other element points to `v`, so we can
+        // safely remove it.
+        assert!(
+            self.vertices[v].outgoing.is_none(),
+            "{:?} is not isolated but was passed to `remove_isolated_vertex",
+        );
+
+        self.vertices.remove(v);
+    }
+
     fn remove_face(&mut self, f: FaceHandle) {
         let [he0, he1, he2] = self.checked_half_edges_around(f);
 

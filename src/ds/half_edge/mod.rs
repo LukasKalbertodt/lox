@@ -1228,6 +1228,17 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         self.add_face_impl(vertices, &mut inner_half_edges)
     }
 
+    fn remove_isolated_vertex(&mut self, v: VertexHandle) {
+        // If `outgoing` is `None`, no other element points to `v`, so we can
+        // safely remove it.
+        assert!(
+            self.vertices[v].outgoing.is_none(),
+            "{:?} is not isolated but was passed to `remove_isolated_vertex",
+        );
+
+        self.vertices.remove(v);
+    }
+
     fn remove_face(&mut self, f: FaceHandle) {
         let f = self.check_face(f);
 

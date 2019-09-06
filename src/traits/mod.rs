@@ -352,6 +352,18 @@ pub trait MeshMut: Mesh {
     where
         Self: PolyMesh;
 
+    /// Removes the given isolated `vertex` from the mesh. **You have to make
+    /// sure that the given vertex is indeed isolated!**
+    ///
+    /// All implementations which can will check if `vertex` is isolated and
+    /// panic if not. However, not all implementations are able to check this
+    /// quickly so they will not perform this test. In these cases, calling
+    /// this method with a non-isolated vertex will lead to unspecified
+    /// behavior of the mesh, mostly resulting in panics in other methods
+    /// later. While it will not lead to memory unsafety (as this method is not
+    /// `unsafe`), it can still lead to hard to debug bugs.
+    fn remove_isolated_vertex(&mut self, vertex: VertexHandle);
+
     fn remove_face(&mut self, face: FaceHandle);
 
     /// Removes all vertices of this mesh. This can be more efficient than
