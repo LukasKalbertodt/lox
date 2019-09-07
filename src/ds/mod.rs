@@ -7,8 +7,6 @@
 //! - list all implementations
 //! - explain advantages and disadvantages of data structures
 
-use std::fmt;
-
 use crate::{
     traits::marker::{Bool, True, False},
 };
@@ -40,9 +38,9 @@ pub(crate) use self::checked::Checked;
 /// With this, we build a type system function from a Boolean and a type `T` to
 /// a type. That output type is either `()` or `T`. Unfortunately, we have to
 /// use a few hacks to actually make this work.
-trait TypeOrVoid<T: Copy + fmt::Debug>: Bool {
+trait TypeOrVoid<T: Copy>: Bool {
     /// The output type. `T` for `True`, and `()` for `False`.
-    type Output: Copy + fmt::Debug;
+    type Output: Copy;
 
     /// Convert `T` to the output type. Either the value is just returned or
     /// discarded.
@@ -55,7 +53,7 @@ trait TypeOrVoid<T: Copy + fmt::Debug>: Bool {
     fn into_option(v: Self::Output) -> Option<T>;
 }
 
-impl<B: Bool, T: Copy + fmt::Debug> TypeOrVoid<T> for B {
+impl<B: Bool, T: Copy> TypeOrVoid<T> for B {
     // Unreachable. The compiler doesn't know that `True` and `False` are the
     // only types implementing `Bool` (because well, we could add new ones). So
     // the compiler doesn't know that this impl will never be active.
@@ -69,7 +67,7 @@ impl<B: Bool, T: Copy + fmt::Debug> TypeOrVoid<T> for B {
 }
 
 // Specialization for `True`
-impl<T: Copy + fmt::Debug> TypeOrVoid<T> for True {
+impl<T: Copy> TypeOrVoid<T> for True {
     type Output = T;
     fn new(t: T) -> Self::Output {
         t
@@ -80,7 +78,7 @@ impl<T: Copy + fmt::Debug> TypeOrVoid<T> for True {
 }
 
 // Specialization for `False`
-impl<T: Copy + fmt::Debug> TypeOrVoid<T> for False {
+impl<T: Copy> TypeOrVoid<T> for False {
     type Output = ();
     fn new(_: T) -> Self::Output {
         ()
@@ -100,9 +98,9 @@ impl<T: Copy + fmt::Debug> TypeOrVoid<T> for False {
 /// and `Debug` bounds here although they have nothing to do with the `TypeOpt`
 /// type itself. That's because we need those bounds later where we use
 /// `TypeOpt`.
-struct TypeOpt<T: Copy + fmt::Debug, B: Bool>(<B as TypeOrVoid<T>>::Output);
+struct TypeOpt<T: Copy, B: Bool>(<B as TypeOrVoid<T>>::Output);
 
-impl<T: Copy + fmt::Debug, B: Bool> TypeOpt<T, B> {
+impl<T: Copy, B: Bool> TypeOpt<T, B> {
     /// Create a new instance of this optional. If `B` is `False`, the value
     /// `v` is just discarded. You can also use the `From<T>` impl.
     fn new(v: T) -> Self {
@@ -118,14 +116,14 @@ impl<T: Copy + fmt::Debug, B: Bool> TypeOpt<T, B> {
     }
 }
 
-impl<T: Copy + fmt::Debug, B: Bool> From<T> for TypeOpt<T, B> {
+impl<T: Copy, B: Bool> From<T> for TypeOpt<T, B> {
     fn from(t: T) -> Self {
         Self::new(t)
     }
 }
 
-impl<T: Copy + fmt::Debug, B: Bool> Copy for TypeOpt<T, B> {}
-impl<T: Copy + fmt::Debug, B: Bool> Clone for TypeOpt<T, B> {
+impl<T: Copy, B: Bool> Copy for TypeOpt<T, B> {}
+impl<T: Copy, B: Bool> Clone for TypeOpt<T, B> {
     fn clone(&self) -> Self {
         Self(self.0)
     }

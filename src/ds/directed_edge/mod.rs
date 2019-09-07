@@ -31,7 +31,7 @@ use crate::{
     traits::adj::{HandleIterFamily},
     util::{DiList, TriList},
 };
-use super::{Checked, TypeOrVoid};
+use super::{Checked, TypeOpt};
 use self::adj::{CwVertexCirculator, CwVertexCirculatorState};
 
 
@@ -255,17 +255,6 @@ enum Twin {
     NextBoundaryHe(Checked<HalfEdgeHandle>),
 }
 
-type NextHandle<C> = <<C as Config>::StoreNext as TypeOrVoid<Checked<HalfEdgeHandle>>>::Output;
-type PrevHandle<C> = <<C as Config>::StorePrev as TypeOrVoid<Checked<HalfEdgeHandle>>>::Output;
-
-fn new_next_handle<C: Config>(h: Checked<HalfEdgeHandle>) -> NextHandle<C> {
-    <C::StoreNext as TypeOrVoid<Checked<HalfEdgeHandle>>>::new(h)
-}
-fn new_prev_handle<C: Config>(h: Checked<HalfEdgeHandle>) -> PrevHandle<C> {
-    <C::StorePrev as TypeOrVoid<Checked<HalfEdgeHandle>>>::new(h)
-}
-
-
 /// Data stored per half edge.
 pub(crate) struct HalfEdge<C: Config> {
     /// The specially encoded twin. See [`EncodedTwin`] for more information.
@@ -274,11 +263,15 @@ pub(crate) struct HalfEdge<C: Config> {
     /// The vertex this half edge points to.
     target: Checked<VertexHandle>,
 
-    /// TODO
-    next: NextHandle<C>,
+    /// Points to the next half edge around the face. This is always equal to
+    /// `(self_id / 3) * 3 + (self_id + 1) % 3` where `self_id` is the id of
+    /// the handle of this half edge.
+    next: TypeOpt<Checked<HalfEdgeHandle>, C::StoreNext>,
 
-    /// TODO
-    prev: PrevHandle<C>,
+    /// Points to the previous half edge around the face. This is always equal
+    /// to `(self_id / 3) * 3 + (self_id + 2) % 3` where `self_id` is the id of
+    /// the handle of this half edge.
+    prev: TypeOpt<Checked<HalfEdgeHandle>, C::StorePrev>,
 }
 
 impl<C: Config> HalfEdge<C> {
@@ -289,8 +282,8 @@ impl<C: Config> HalfEdge<C> {
         Self {
             twin: EncodedTwin::dummy(),
             target,
-            next: new_next_handle::<C>(Checked::new(HalfEdgeHandle::new(0))),
-            prev: new_prev_handle::<C>(Checked::new(HalfEdgeHandle::new(0))),
+            next: Checked::new(HalfEdgeHandle::new(0)).into(),
+            prev: Checked::new(HalfEdgeHandle::new(0)).into(),
         }
     }
 
@@ -354,22 +347,20 @@ impl<C: Config> Clone for HalfEdge<C> {
 
 impl<C: Config> fmt::Debug for HalfEdge<C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let next = match C::StoreNext::VALUE {
-            true => format!(" next: {:6}", format!("{:?},", self.next)),
-            false => format!(""),
-        };
-        let prev = match C::StorePrev::VALUE {
-            true => format!(" prev: {:?}", self.prev),
-            false => format!(""),
-        };
+        let next = self.next.into_option()
+            .map(|next| format!(" next: {:6}", format!("{:?},", next)))
+            .unwrap_or("".into());
+        let prev = self.prev.into_option()
+            .map(|prev| format!(" prev: {:6}", format!("{:?},", prev)))
+            .unwrap_or("".into());
 
         write!(
             f,
-            "HalfEdge {{ target: {:5} twin: {:13}{}{} }}",
+            "HalfEdge {{ target: {:5}{}{} twin: {:?} }}",
             format!("{:?},", self.target),
-            format!("{:?},", self.twin),
             next,
             prev,
+            self.twin,
         )
     }
 }
@@ -450,7 +441,9 @@ impl<C: Config> DirectedEdgeMesh<C> {
     }
 
     fn next_he(&self, he: Checked<HalfEdgeHandle>) -> Checked<HalfEdgeHandle> {
-        // TODO: use `next` value if available
+        if let Some(next) = self[he].next.into_option() {
+            return next;
+        }
 
         // The first HE of the face is `(he.idx() / 3) * 3`. If the given HE is
         // the first or second half edge of the face, we just need to add one.
@@ -469,7 +462,9 @@ impl<C: Config> DirectedEdgeMesh<C> {
     }
 
     fn prev_he(&self, he: Checked<HalfEdgeHandle>) -> Checked<HalfEdgeHandle> {
-        // TODO: use `prev` value if available
+        if let Some(prev) = self[he].prev.into_option() {
+            return prev;
+        }
 
         // See `next_he` for explanation on this code.
         let prev = if is_divisible_by_3(he.idx()) {
@@ -494,12 +489,20 @@ impl<C: Config> DirectedEdgeMesh<C> {
         &mut self,
         [a, b, c]: [HalfEdge<C>; 3],
     ) -> [Checked<HalfEdgeHandle>; 3] {
-        let ah = self.half_edges.push(a);
-        let bh = self.half_edges.push(b);
-        let ch = self.half_edges.push(c);
-
         // The handles are clearly valid as we just pushed them.
-        unsafe { [Checked::new(ah), Checked::new(bh), Checked::new(ch)] }
+        let ah = unsafe { Checked::new(self.half_edges.push(a)) };
+        let bh = unsafe { Checked::new(self.half_edges.push(b)) };
+        let ch = unsafe { Checked::new(self.half_edges.push(c)) };
+
+        self[ah].next = bh.into();
+        self[bh].next = ch.into();
+        self[ch].next = ah.into();
+
+        self[ah].prev = ch.into();
+        self[bh].prev = ah.into();
+        self[ch].prev = bh.into();
+
+        [ah, bh, ch]
     }
 }
 
@@ -713,7 +716,35 @@ impl<C: Config> Mesh for DirectedEdgeMesh<C> {
                 }
             }
 
-            // TODO: test prev/next
+            macro_rules! check_next_prev {
+                ($prev:ident -> $next:ident) => {
+                    if let Some(next) = self[$prev].next.into_option() {
+                        if next != $next {
+                            panic!(
+                                "[{:?}].next = {:?}, but should be {:?}",
+                                $prev,
+                                next,
+                                $next,
+                            );
+                        }
+                    }
+
+                    if let Some(prev) = self[$next].prev.into_option() {
+                        if prev != $prev {
+                            panic!(
+                                "[{:?}].prev = {:?}, but should be {:?}",
+                                $next,
+                                prev,
+                                $prev,
+                            );
+                        }
+                    }
+                };
+            }
+
+            check_next_prev!(heh0 -> heh1);
+            check_next_prev!(heh1 -> heh2);
+            check_next_prev!(heh2 -> heh0);
         }
 
         // Walk around boundaries.
@@ -801,11 +832,6 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
             let outgoing_inner = inner_hes[idx];
             let incoming_outer = outer_hes[idx];
             let outgoing_outer = outer_hes[prev_idx];
-
-            // Set `next` and `prev` handles. We can do that here, they are not
-            // read anywhere by this method.
-            self[incoming_inner].next = new_next_handle::<C>(outgoing_inner);
-            self[outgoing_inner].prev = new_prev_handle::<C>(incoming_inner);
 
             let v = &self[vh];
 
@@ -1133,7 +1159,6 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         //      v                   \       |     v ⟋↙              ⟍↘ \
         //    (B) ----------------> (C)     |    (B) ----------------> (C)
         //
-        //
 
         // Obtain handles of outer half edges and vertices. Two of these half
         // edges will be repurposed: `a -> b` and `c -> a`. They are changed to
@@ -1176,8 +1201,8 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
 
         // Overwrite half edges of face X. `unsafe` is fine as we will override
         // the twins.
-        self[he_ca_orig] = unsafe { HalfEdge::dummy_to(vm) };
-        self[he_ab_orig] = unsafe { HalfEdge::dummy_to(vb) };
+        self[he_ca_orig].target = vm;
+        self[he_ab_orig].target = vb;
         let he_cm = he_ca_orig;
         let he_mb = he_ab_orig;
 
