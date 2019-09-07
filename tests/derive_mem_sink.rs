@@ -3,6 +3,7 @@
 //! We use complete path everywhere and avoid imports to make sure when the
 //! derive code falsely assumes a symbol is in scope.
 
+#![cfg(feature = "io")]
 
 #[test]
 fn disc4() {

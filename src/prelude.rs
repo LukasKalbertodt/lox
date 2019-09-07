@@ -10,7 +10,7 @@
 //! Now you have all important traits in scope.
 
 pub use crate::{
-    Empty, MemSource, MemSink,
+    Empty,
     handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
     map::{PropMap, PropStore, PropStoreMut},
     prop::{ColorLike, Pos3Like, Vec3Like},
@@ -24,6 +24,7 @@ pub use crate::{
 
 #[cfg(feature = "io")]
 pub use crate::{
+    MemSink, MemSource,
     io::{
         StreamSource, StreamSink, MemSource, MemSink, DynStreamSource, DynStreamSink,
         util::{MemSourceExt},

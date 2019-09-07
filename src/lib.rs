@@ -213,6 +213,7 @@ pub use lox_macros::Empty;
 ///     - For `*_color`: `T::Target` must implement
 ///       [`ColorLike`][crate::prop::ColorLike] and `T::Target::Channel` must
 ///       implement [`Primitive`].
+#[cfg(feature= "io")]
 pub use lox_macros::MemSink;
 
 /// Derive macro for [the `MemSource` trait][io::MemSource].
@@ -263,6 +264,7 @@ pub use lox_macros::MemSink;
 ///     - For `*_color`: `T::Target` must implement
 ///       [`ColorLike`][crate::prop::ColorLike] and `T::Target::Channel` must
 ///       implement [`Primitive`].
+#[cfg(feature= "io")]
 pub use lox_macros::MemSource;
 
 /// Convenience macro to quickly create a small mesh.
