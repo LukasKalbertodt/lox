@@ -11,7 +11,7 @@ use crate::{
     cast::{try_cast, is_cast_possible, CastRigor},
     handle::{hsize, Handle, VertexHandle, FaceHandle},
     io::{ColorType, Error, ErrorKind, MemSource, PrimitiveType, Primitive, PropKind},
-    map::{PropMap, PropStoreMut, VecMap},
+    map::{PropMap, PropStoreMut, DenseMap},
     prop::{ColorLike, Pos3Like, Vec3Like},
 };
 
@@ -518,7 +518,7 @@ pub(super) enum HandleIndexMap<H: Handle> {
     },
     /// Something else
     Arbitrary {
-        map: VecMap<H, hsize>,
+        map: DenseMap<H, hsize>,
     },
 }
 
@@ -537,7 +537,7 @@ impl<H: Handle> HandleIndexMap<H> {
                 } else {
                     // This is bad: now we have to convert this simple map into
                     // the arbitrary map. First transfer all old values.
-                    let mut map = VecMap::with_capacity(*len + 1);
+                    let mut map = DenseMap::with_capacity(*len + 1);
                     for i in 0..*len {
                         map.insert(H::new(i), i);
                     }

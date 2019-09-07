@@ -25,7 +25,7 @@ use optional::Optioned as Opt;
 use crate::{
     prelude::*,
     handle::{hsize, Handle},
-    map::VecMap,
+    map::DenseMap,
     mesh::SplitEdgeWithFacesResult,
     traits::marker::{Bool, False, TriFaces},
     traits::adj::{HandleIterFamily},
@@ -120,8 +120,8 @@ impl fmt::Debug for HalfEdgeHandle {
 /// TODO
 #[derive(Empty)]
 pub struct DirectedEdgeMesh<C: Config = DefaultConfig> {
-    vertices: VecMap<VertexHandle, Vertex>,
-    half_edges: VecMap<HalfEdgeHandle, HalfEdge<C>>,
+    vertices: DenseMap<VertexHandle, Vertex>,
+    half_edges: DenseMap<HalfEdgeHandle, HalfEdge<C>>,
     _config: PhantomData<C>,
 }
 
@@ -717,7 +717,7 @@ impl<C: Config> Mesh for DirectedEdgeMesh<C> {
         }
 
         // Walk around boundaries.
-        let mut visited = VecMap::with_capacity(self.half_edges.num_elements());
+        let mut visited = DenseMap::with_capacity(self.half_edges.num_elements());
         for (start, he) in self.half_edges.iter() {
             if visited.contains_handle(start) {
                 continue;

@@ -7,7 +7,7 @@ use crate::{
     ds::SharedVertexMesh,
     fat::MiniMesh,
     io::IsFormat,
-    map::VecMap,
+    map::DenseMap,
 };
 use super::{
     Config, Encoding, Reader, is_file_start,
@@ -122,19 +122,19 @@ struct FullMesh {
     mesh: SharedVertexMesh,
 
     #[lox(vertex_position)]
-    vertex_positions: VecMap<VertexHandle, Point3<f64>>,
+    vertex_positions: DenseMap<VertexHandle, Point3<f64>>,
 
     #[lox(vertex_normal)]
-    vertex_normals: VecMap<VertexHandle, Vector3<f32>>,
+    vertex_normals: DenseMap<VertexHandle, Vector3<f32>>,
 
     #[lox(vertex_color)]
-    vertex_colors: VecMap<VertexHandle, [u8; 3]>,
+    vertex_colors: DenseMap<VertexHandle, [u8; 3]>,
 
     #[lox(face_normal)]
-    face_normals: VecMap<FaceHandle, Vector3<f32>>,
+    face_normals: DenseMap<FaceHandle, Vector3<f32>>,
 
     #[lox(face_color)]
-    face_colors: VecMap<FaceHandle, [u8; 4]>,
+    face_colors: DenseMap<FaceHandle, [u8; 4]>,
 }
 
 fn three_tris_all_props() -> FullMesh {

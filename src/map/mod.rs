@@ -22,7 +22,7 @@ mod fn_map;
 mod sparse;
 mod special_maps;
 mod tiny;
-mod vec_map;
+mod dense;
 
 pub use self::{
     aliases::*,
@@ -30,7 +30,7 @@ pub use self::{
     sparse::SparseMap,
     special_maps::{ConstMap, EmptyMap},
     tiny::TinyMap,
-    vec_map::VecMap,
+    dense::DenseMap,
 };
 
 

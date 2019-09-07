@@ -140,7 +140,7 @@ impl<'a, MeshT: 'a + FullAdj> VertexRef<'a, MeshT> {
     ///     mesh,
     ///     prelude::*,
     ///     ds::HalfEdgeMesh,
-    ///     map::VecMap,
+    ///     map::DenseMap,
     /// };
     ///
     /// //    (A)---(D)
@@ -162,7 +162,7 @@ impl<'a, MeshT: 'a + FullAdj> VertexRef<'a, MeshT> {
     /// // Now we have a prop map storing the number of adjacent faces per vertex.
     /// let number_of_faces = mesh.vertices()
     ///     .map(|v| (v.handle(), v.adjacent_faces().count()))
-    ///     .collect::<VecMap<_, _>>();
+    ///     .collect::<DenseMap<_, _>>();
     /// ```
     ///
     pub fn adjacent_faces(&self) -> impl Iterator<Item = FaceRef<'a, MeshT>> {

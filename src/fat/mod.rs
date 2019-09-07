@@ -34,7 +34,7 @@ use crate::{
     ds::SharedVertexMesh,
     handle::hsize,
     io::{ColorType, Error, Primitive, PrimitiveType},
-    map::VecMap,
+    map::DenseMap,
 };
 use self::any::{AnyColorMap, AnyPointMap, AnyVectorMap};
 pub mod any;
@@ -55,7 +55,7 @@ pub struct MiniMesh<M: TriMesh + MeshMut + BasicAdj> { // TODO: shouldn't ned to
     pub mesh: M,
 
     #[lox(vertex_position, cast = "lossy")]
-    pub vertex_positions: VecMap<VertexHandle, Point3<f32>>,
+    pub vertex_positions: DenseMap<VertexHandle, Point3<f32>>,
 }
 
 

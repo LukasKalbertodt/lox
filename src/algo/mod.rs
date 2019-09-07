@@ -2,7 +2,7 @@ use cgmath::prelude::*;
 
 use crate::{
     prelude::*,
-    map::{VecMap, VertexPropMap},
+    map::{DenseMap, VertexPropMap},
     math::PrimitiveFloat,
     prop::Pos3Like,
     refs::VertexRef,
@@ -16,7 +16,7 @@ pub mod subdivision;
 pub fn smooth_simple<MeshT, MapT>(
     mesh: &MeshT,
     vertex_positions: &MapT,
-) -> VecMap<VertexHandle, MapT::Target>
+) -> DenseMap<VertexHandle, MapT::Target>
 where
     MeshT: FullAdj,
     MapT: VertexPropMap,
@@ -98,7 +98,7 @@ pub fn dijkstra<MeshT, MapT, ScalarT>(
     mesh: &MeshT,
     vertex_positions: &MapT,
     start_vertex: VertexHandle,
-) -> VecMap<VertexHandle, DijsktraVertexData<ScalarT>>
+) -> DenseMap<VertexHandle, DijsktraVertexData<ScalarT>>
 where
     MeshT: FullAdj,
     MapT: VertexPropMap,
@@ -147,8 +147,8 @@ where
     // count in the heap is somewhere around 1.3 times the number of vertices.
     // Allocating 1.5 times as much shouldn't be wasting a lot of space and we
     // are still on the save side.
-    let mut vertex_data = VecMap::with_capacity(mesh.num_vertices());
-    let mut visited = VecMap::with_capacity(mesh.num_vertices()); // TODO: real set
+    let mut vertex_data = DenseMap::with_capacity(mesh.num_vertices());
+    let mut visited = DenseMap::with_capacity(mesh.num_vertices()); // TODO: real set
     let mut heap = BinaryHeap::with_capacity((mesh.num_vertices() as f64 * 1.5) as usize);
 
     // Initialization: set all distances to infinity and the `prev` field to

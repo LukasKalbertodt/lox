@@ -52,10 +52,11 @@ use super::{
 /// However, **if you have a handle source with sequential IDs and you want to
 /// associated data with (almost) all of those handles, this map is the best
 /// choice.** If you only want to associated data with some of those handles,
-/// you should probably use [`SparseMap`][SparseMap] or `TinyMap`
-/// instead (TODO: add link to tiny map once implemented).
+/// you should probably use [`SparseMap`][SparseMap] or [`TinyMap`][TinyMap]
+/// instead.
 ///
 /// [SparseMap]: crate::map::SparseMap
+/// [TinyMap]: crate::map::TinyMap
 ///
 /// # Example
 ///
@@ -63,18 +64,18 @@ use super::{
 /// use lox::{
 ///     FaceHandle,
 ///     handle::Handle,
-///     map::{PropStore, PropStoreMut, VecMap},
+///     map::{PropStore, PropStoreMut, DenseMap},
 /// };
 ///
 ///
-/// let mut map = VecMap::new();
+/// let mut map = DenseMap::new();
 ///
 /// let f0 = FaceHandle::from_usize(0);
 /// assert_eq!(map.get_ref(f0), None);
 /// map.insert(f0, "bob");
 /// assert_eq!(map.get_ref(f0), Some(&"bob"));
 ///
-/// // Note that after this insert operation, the `VecMap` has allocated memory
+/// // Note that after this insert operation, the `DenseMap` has allocated memory
 /// // for 6 elements (2 of which are used).
 /// let f5 = FaceHandle::from_usize(5);
 /// map.insert(f5, "lena");
@@ -85,13 +86,13 @@ use super::{
 /// - generating some property for all vertices of a mesh
 /// - iterator stuff
 #[derive(Clone)]
-pub struct VecMap<H: Handle, T> {
+pub struct DenseMap<H: Handle, T> {
     vec: StableVec<T>,
     _dummy: PhantomData<H>,
 }
 
-impl<H: Handle, T> VecMap<H, T> {
-    /// Creates an empty `VecMap`.
+impl<H: Handle, T> DenseMap<H, T> {
+    /// Creates an empty `DenseMap`.
     pub fn new() -> Self {
         Self {
             vec: StableVec::new(),
@@ -143,7 +144,7 @@ impl<H: Handle, T> VecMap<H, T> {
     }
 }
 
-impl<H: Handle, T: Clone> VecMap<H, T> {
+impl<H: Handle, T: Clone> DenseMap<H, T> {
     pub fn from_elem(elem: T, count: usize) -> Self {
         let mut v = StableVec::with_capacity(count);
         for _ in 0..count {
@@ -157,7 +158,7 @@ impl<H: Handle, T: Clone> VecMap<H, T> {
     }
 }
 
-impl<H: Handle, T> PropMap<H> for VecMap<H, T> {
+impl<H: Handle, T> PropMap<H> for DenseMap<H, T> {
     type Target = T;
     type Marker = boo::Borrowed;
 
@@ -170,7 +171,7 @@ impl<H: Handle, T> PropMap<H> for VecMap<H, T> {
     }
 }
 
-impl<H: Handle, T> Index<H> for VecMap<H, T> {
+impl<H: Handle, T> Index<H> for DenseMap<H, T> {
     type Output = T;
     fn index(&self, handle: H) -> &Self::Output {
         match self.get_ref(handle) {
@@ -180,7 +181,7 @@ impl<H: Handle, T> Index<H> for VecMap<H, T> {
     }
 }
 
-impl<H: Handle, T> PropStore<H> for VecMap<H, T> {
+impl<H: Handle, T> PropStore<H> for DenseMap<H, T> {
     fn get_ref(&self, handle: H) -> Option<&Self::Output> {
         self.vec.get(handle.to_usize())
     }
@@ -194,7 +195,7 @@ impl<H: Handle, T> PropStore<H> for VecMap<H, T> {
     }
 }
 
-impl<H: Handle, T> IndexMut<H> for VecMap<H, T> {
+impl<H: Handle, T> IndexMut<H> for DenseMap<H, T> {
     fn index_mut(&mut self, handle: H) -> &mut Self::Output {
         match self.get_mut(handle) {
             None => panic!("no property found for handle '{:?}'", handle),
@@ -203,13 +204,13 @@ impl<H: Handle, T> IndexMut<H> for VecMap<H, T> {
     }
 }
 
-impl<H: Handle, T> Empty for VecMap<H, T> {
+impl<H: Handle, T> Empty for DenseMap<H, T> {
     fn empty() -> Self {
         Self::new()
     }
 }
 
-impl<H: Handle, T> PropStoreMut<H> for VecMap<H, T> {
+impl<H: Handle, T> PropStoreMut<H> for DenseMap<H, T> {
     fn get_mut(&mut self, handle: H) -> Option<&mut Self::Output> {
         self.vec.get_mut(handle.to_usize())
     }
@@ -242,7 +243,7 @@ impl<H: Handle, T> PropStoreMut<H> for VecMap<H, T> {
     }
 }
 
-impl<H: Handle, T: fmt::Debug> fmt::Debug for VecMap<H, T> {
+impl<H: Handle, T: fmt::Debug> fmt::Debug for DenseMap<H, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_map()
             .entries(self.vec.indices().map(|k| (H::from_usize(k), &self.vec[k])))
@@ -250,7 +251,7 @@ impl<H: Handle, T: fmt::Debug> fmt::Debug for VecMap<H, T> {
     }
 }
 
-impl<H: Handle, T> Extend<(H, T)> for VecMap<H, T> {
+impl<H: Handle, T> Extend<(H, T)> for DenseMap<H, T> {
     fn extend<I: IntoIterator<Item = (H, T)>>(&mut self, iter: I) {
         // We use the same strategy as the std `HashMap`: since keys may be
         // already present or show multiple times in the iterator, we don't
@@ -272,7 +273,7 @@ impl<H: Handle, T> Extend<(H, T)> for VecMap<H, T> {
     }
 }
 
-impl<H: Handle, T> FromIterator<(H, T)> for VecMap<H, T> {
+impl<H: Handle, T> FromIterator<(H, T)> for DenseMap<H, T> {
     fn from_iter<I: IntoIterator<Item = (H, T)>>(iter: I) -> Self {
         let mut out = Self::empty();
         out.extend(iter);
@@ -298,7 +299,7 @@ macro_rules! gen_iter_wrapper {
         }
 
         impl<$lt, $h: Handle, $t> $name<$lt, $h, $t> {
-            fn new(map: &$lt $($mutable)? VecMap<$h, $t>) -> Self {
+            fn new(map: &$lt $($mutable)? DenseMap<$h, $t>) -> Self {
                 Self {
                     iter: map.vec.$iter_method(),
                     _dummy: PhantomData,
@@ -362,5 +363,5 @@ gen_iter_wrapper!(ValuesMut, SvValuesMut, values_mut, [mut], [], |'map, H, T| &'
 mod tests {
     use super::*;
 
-    gen_tests_for_store_impl!(VecMap);
+    gen_tests_for_store_impl!(DenseMap);
 }

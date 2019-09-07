@@ -123,8 +123,8 @@ fn check_vertices_of_face_are_unique(mesh: &(impl BasicAdj + TriMesh)) {
 mod inner {
     pub(crate) fn make_mesh() -> (
         lox::ds::SharedVertexMesh,
-        lox::map::VecMap<lox::VertexHandle, char>,
-        lox::map::VecMap<lox::FaceHandle, u32>,
+        lox::map::DenseMap<lox::VertexHandle, char>,
+        lox::map::DenseMap<lox::FaceHandle, u32>,
     ) {
         lox::mesh! {
             type: lox::ds::SharedVertexMesh,

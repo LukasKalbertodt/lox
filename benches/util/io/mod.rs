@@ -7,7 +7,7 @@ use lox::{
     ds::SharedVertexMesh,
     fat::MiniMesh,
     handle::hsize,
-    map::VecMap,
+    map::DenseMap,
     io::{
         Error, Primitive,
     },
@@ -178,10 +178,10 @@ pub struct NormalPosMesh {
     mesh: SharedVertexMesh,
 
     #[lox(vertex_position)]
-    vertex_positions: VecMap<VertexHandle, Point3<f32>>,
+    vertex_positions: DenseMap<VertexHandle, Point3<f32>>,
 
     #[lox(vertex_normal)]
-    vertex_normals: VecMap<VertexHandle, Vector3<f32>>,
+    vertex_normals: DenseMap<VertexHandle, Vector3<f32>>,
 }
 
 pub fn sphere_vnormals() -> NormalPosMesh {

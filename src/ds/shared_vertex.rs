@@ -6,7 +6,7 @@ use crate as lox;
 use crate::{
     prelude::*,
     handle::hsize,
-    map::VecMap,
+    map::DenseMap,
     mesh::SplitEdgeWithFacesResult,
     traits::marker::TriFaces,
     traits::adj::HandleIterFamily,
@@ -17,8 +17,8 @@ use crate::{
 
 #[derive(Clone, Empty)]
 pub struct SharedVertexMesh {
-    vertices: VecMap<VertexHandle, ()>,
-    faces: VecMap<FaceHandle, [VertexHandle; 3]>,
+    vertices: DenseMap<VertexHandle, ()>,
+    faces: DenseMap<FaceHandle, [VertexHandle; 3]>,
 }
 
 impl Mesh for SharedVertexMesh {
@@ -194,7 +194,7 @@ impl SupportsMultiBlade for SharedVertexMesh {}
 
 impl fmt::Debug for SharedVertexMesh {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        struct VerticesDebug<'a>(&'a VecMap<VertexHandle, ()>);
+        struct VerticesDebug<'a>(&'a DenseMap<VertexHandle, ()>);
         impl fmt::Debug for VerticesDebug<'_> {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_list().entries(self.0.handles()).finish()

@@ -23,7 +23,7 @@ use optional::Optioned as Opt;
 use crate::{
     prelude::*,
     handle::{hsize, Handle},
-    map::VecMap,
+    map::DenseMap,
     mesh::SplitEdgeWithFacesResult,
     traits::marker::{Bool, TriFaces, FaceKind, PolyFaces, True},
 };
@@ -165,9 +165,9 @@ impl fmt::Debug for HalfEdgeHandle {
 /// TODO
 #[derive(Empty)]
 pub struct HalfEdgeMesh<C: Config = PolyConfig> {
-    vertices: VecMap<VertexHandle, Vertex>,
-    faces: VecMap<FaceHandle, Face>,
-    half_edges: VecMap<HalfEdgeHandle, HalfEdge<C>>,
+    vertices: DenseMap<VertexHandle, Vertex>,
+    faces: DenseMap<FaceHandle, Face>,
+    half_edges: DenseMap<HalfEdgeHandle, HalfEdge<C>>,
     _config: PhantomData<C>,
 }
 
@@ -1112,7 +1112,7 @@ impl<C: Config> Mesh for HalfEdgeMesh<C> {
         }
 
         // Iterate around all faces to make sure all cycles are fine.
-        let mut visited = VecMap::with_capacity(self.half_edges.num_elements());
+        let mut visited = DenseMap::with_capacity(self.half_edges.num_elements());
         for start in self.half_edges.handles() {
             if visited.contains_handle(start) {
                 continue;
@@ -1151,7 +1151,7 @@ impl<C: Config> Mesh for HalfEdgeMesh<C> {
         }
 
         // Iterate around all vertices to make sure all cycles are fine.
-        let mut visited = VecMap::with_capacity(self.half_edges.num_elements());
+        let mut visited = DenseMap::with_capacity(self.half_edges.num_elements());
         for start in self.half_edges.handles() {
             if visited.contains_handle(start) {
                 continue;

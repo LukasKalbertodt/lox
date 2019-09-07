@@ -7,7 +7,7 @@ use crate::{
     prelude::*,
     cast,
     handle::hsize,
-    map::VecMap,
+    map::DenseMap,
     io::{ColorType, Primitive, PrimitiveType, PrimitiveColorChannelType},
     util::downcast_as,
 };
@@ -18,28 +18,28 @@ macro_rules! gen_vec3_any_map {
         $(#[$attr])*
         #[derive(Debug, Clone)]
         pub enum $name<H: Handle> {
-            Uint8(VecMap<H, $vec_type<u8>>),
-            Uint16(VecMap<H, $vec_type<u16>>),
-            Uint32(VecMap<H, $vec_type<u32>>),
-            Int8(VecMap<H, $vec_type<i8>>),
-            Int16(VecMap<H, $vec_type<i16>>),
-            Int32(VecMap<H, $vec_type<i32>>),
-            Float32(VecMap<H, $vec_type<f32>>),
-            Float64(VecMap<H, $vec_type<f64>>),
+            Uint8(DenseMap<H, $vec_type<u8>>),
+            Uint16(DenseMap<H, $vec_type<u16>>),
+            Uint32(DenseMap<H, $vec_type<u32>>),
+            Int8(DenseMap<H, $vec_type<i8>>),
+            Int16(DenseMap<H, $vec_type<i16>>),
+            Int32(DenseMap<H, $vec_type<i32>>),
+            Float32(DenseMap<H, $vec_type<f32>>),
+            Float64(DenseMap<H, $vec_type<f64>>),
         }
 
         impl<H: Handle> $name<H> {
             /// Creates a new instance of this map with the given scalar type.
             pub fn new<T: Primitive>() -> Self {
                 match T::TY {
-                    PrimitiveType::Uint8 => $name::Uint8(VecMap::new()),
-                    PrimitiveType::Int8 => $name::Int8(VecMap::new()),
-                    PrimitiveType::Uint16 => $name::Uint16(VecMap::new()),
-                    PrimitiveType::Int16 => $name::Int16(VecMap::new()),
-                    PrimitiveType::Uint32 => $name::Uint32(VecMap::new()),
-                    PrimitiveType::Int32 => $name::Int32(VecMap::new()),
-                    PrimitiveType::Float32 => $name::Float32(VecMap::new()),
-                    PrimitiveType::Float64 => $name::Float64(VecMap::new()),
+                    PrimitiveType::Uint8 => $name::Uint8(DenseMap::new()),
+                    PrimitiveType::Int8 => $name::Int8(DenseMap::new()),
+                    PrimitiveType::Uint16 => $name::Uint16(DenseMap::new()),
+                    PrimitiveType::Int16 => $name::Int16(DenseMap::new()),
+                    PrimitiveType::Uint32 => $name::Uint32(DenseMap::new()),
+                    PrimitiveType::Int32 => $name::Int32(DenseMap::new()),
+                    PrimitiveType::Float32 => $name::Float32(DenseMap::new()),
+                    PrimitiveType::Float64 => $name::Float64(DenseMap::new()),
                 }
             }
 
@@ -206,16 +206,16 @@ gen_vec3_any_map!(
 /// you don't want to use this map.
 #[derive(Debug, Clone)]
 pub enum AnyColorMap<H: Handle> {
-    RgbUint8(VecMap<H, [u8; 3]>),
-    RgbUint16(VecMap<H, [u16; 3]>),
-    RgbUint32(VecMap<H, [u32; 3]>),
-    RgbFloat32(VecMap<H, [f32; 3]>),
-    RgbFloat64(VecMap<H, [f64; 3]>),
-    RgbaUint8(VecMap<H, [u8; 4]>),
-    RgbaUint16(VecMap<H, [u16; 4]>),
-    RgbaUint32(VecMap<H, [u32; 4]>),
-    RgbaFloat32(VecMap<H, [f32; 4]>),
-    RgbaFloat64(VecMap<H, [f64; 4]>),
+    RgbUint8(DenseMap<H, [u8; 3]>),
+    RgbUint16(DenseMap<H, [u16; 3]>),
+    RgbUint32(DenseMap<H, [u32; 3]>),
+    RgbFloat32(DenseMap<H, [f32; 3]>),
+    RgbFloat64(DenseMap<H, [f64; 3]>),
+    RgbaUint8(DenseMap<H, [u8; 4]>),
+    RgbaUint16(DenseMap<H, [u16; 4]>),
+    RgbaUint32(DenseMap<H, [u32; 4]>),
+    RgbaFloat32(DenseMap<H, [f32; 4]>),
+    RgbaFloat64(DenseMap<H, [f64; 4]>),
 }
 
 impl<H: Handle> AnyColorMap<H> {
@@ -226,16 +226,16 @@ impl<H: Handle> AnyColorMap<H> {
         C::Channel: Primitive,
     {
         match (C::HAS_ALPHA, C::Channel::channel_type()) {
-            (false, PrimitiveColorChannelType::Uint8) => AnyColorMap::RgbUint8(VecMap::new()),
-            (false, PrimitiveColorChannelType::Uint16) => AnyColorMap::RgbUint16(VecMap::new()),
-            (false, PrimitiveColorChannelType::Uint32) => AnyColorMap::RgbUint32(VecMap::new()),
-            (false, PrimitiveColorChannelType::Float32) => AnyColorMap::RgbFloat32(VecMap::new()),
-            (false, PrimitiveColorChannelType::Float64) => AnyColorMap::RgbFloat64(VecMap::new()),
-            (true, PrimitiveColorChannelType::Uint8) => AnyColorMap::RgbaUint8(VecMap::new()),
-            (true, PrimitiveColorChannelType::Uint16) => AnyColorMap::RgbaUint16(VecMap::new()),
-            (true, PrimitiveColorChannelType::Uint32) => AnyColorMap::RgbaUint32(VecMap::new()),
-            (true, PrimitiveColorChannelType::Float32) => AnyColorMap::RgbaFloat32(VecMap::new()),
-            (true, PrimitiveColorChannelType::Float64) => AnyColorMap::RgbaFloat64(VecMap::new()),
+            (false, PrimitiveColorChannelType::Uint8) => AnyColorMap::RgbUint8(DenseMap::new()),
+            (false, PrimitiveColorChannelType::Uint16) => AnyColorMap::RgbUint16(DenseMap::new()),
+            (false, PrimitiveColorChannelType::Uint32) => AnyColorMap::RgbUint32(DenseMap::new()),
+            (false, PrimitiveColorChannelType::Float32) => AnyColorMap::RgbFloat32(DenseMap::new()),
+            (false, PrimitiveColorChannelType::Float64) => AnyColorMap::RgbFloat64(DenseMap::new()),
+            (true, PrimitiveColorChannelType::Uint8) => AnyColorMap::RgbaUint8(DenseMap::new()),
+            (true, PrimitiveColorChannelType::Uint16) => AnyColorMap::RgbaUint16(DenseMap::new()),
+            (true, PrimitiveColorChannelType::Uint32) => AnyColorMap::RgbaUint32(DenseMap::new()),
+            (true, PrimitiveColorChannelType::Float32) => AnyColorMap::RgbaFloat32(DenseMap::new()),
+            (true, PrimitiveColorChannelType::Float64) => AnyColorMap::RgbaFloat64(DenseMap::new()),
         }
     }
 

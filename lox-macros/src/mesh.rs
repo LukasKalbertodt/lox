@@ -46,7 +46,7 @@ impl MeshInput {
         let mut add_vertices = vertex_maps.iter()
             .map(|map| {
                 quote! {
-                    let mut #map = VecMap::new();
+                    let mut #map = DenseMap::new();
                     PropStoreMut::reserve(&mut #map, Into::into(#vertex_count));
                 }
             })
@@ -69,7 +69,7 @@ impl MeshInput {
         let mut add_faces = face_maps.iter()
             .map(|map| {
                 quote! {
-                    let mut #map = VecMap::new();
+                    let mut #map = DenseMap::new();
                     PropStoreMut::reserve(&mut #map, Into::into(#face_count));
                 }
             })
@@ -96,7 +96,7 @@ impl MeshInput {
             use std::convert::Into;
             use lox::{
                 traits::{MeshMut, Empty},
-                map::{PropStoreMut, VecMap},
+                map::{PropStoreMut, DenseMap},
             };
 
             let mut mesh = <#mesh_type as Empty>::empty();

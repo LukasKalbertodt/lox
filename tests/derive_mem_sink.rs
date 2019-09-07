@@ -12,13 +12,13 @@ fn disc4() {
         mesh: lox::ds::SharedVertexMesh,
 
         #[lox(vertex_position)]
-        vertex_positions: lox::map::VecMap<lox::VertexHandle, lox::cgmath::Point3<f64>>,
+        vertex_positions: lox::map::DenseMap<lox::VertexHandle, lox::cgmath::Point3<f64>>,
 
         #[lox(vertex_normal)]
-        vertex_normals: lox::map::VecMap<lox::VertexHandle, lox::cgmath::Vector3<f64>>,
+        vertex_normals: lox::map::DenseMap<lox::VertexHandle, lox::cgmath::Vector3<f64>>,
 
         #[lox(face_normal)]
-        face_normals: lox::map::VecMap<lox::FaceHandle, lox::cgmath::Vector3<f64>>,
+        face_normals: lox::map::DenseMap<lox::FaceHandle, lox::cgmath::Vector3<f64>>,
     }
 
 

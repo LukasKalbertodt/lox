@@ -3,7 +3,7 @@
 use crate::{
     prelude::*,
     handle::{hsize, FaceHandle, VertexHandle, Opt},
-    map::{VecMap, PropMap, PropStoreMut},
+    map::{DenseMap, PropMap, PropStoreMut},
     traits::marker::TriFaces,
     util::{DynList, TriList, TriArrayExt},
 };
@@ -12,8 +12,8 @@ use crate::{
 
 #[derive(Debug, Clone, Empty)]
 pub struct FaceDelegateMesh {
-    vertices: VecMap<VertexHandle, Vertex>,
-    faces: VecMap<FaceHandle, Face>,
+    vertices: DenseMap<VertexHandle, Vertex>,
+    faces: DenseMap<FaceHandle, Face>,
 }
 
 #[derive(Debug, Clone, Copy)]

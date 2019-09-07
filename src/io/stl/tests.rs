@@ -9,7 +9,7 @@ use crate::{
     fat::MiniMesh,
     ds::SharedVertexMesh,
     io::IsFormat,
-    map::VecMap,
+    map::DenseMap,
 };
 use super::{RawStorage, Reader, Config, is_file_start};
 
@@ -138,8 +138,8 @@ fn read_cube_binary() -> Result<(), Error> {
 // ===========================================================================
 fn triangle_mesh() -> (
     SharedVertexMesh,
-    VecMap<VertexHandle, Point3<f32>>,
-    VecMap<FaceHandle, [f32; 3]>,
+    DenseMap<VertexHandle, Point3<f32>>,
+    DenseMap<FaceHandle, [f32; 3]>,
 ) {
     mesh! {
         type: SharedVertexMesh,

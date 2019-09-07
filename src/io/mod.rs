@@ -1256,7 +1256,7 @@ where
 ///     MemSink, VertexHandle,
 ///     cgmath::Point3,
 ///     ds::HalfEdgeMesh,
-///     map::VecMap,
+///     map::DenseMap,
 /// };
 ///
 ///
@@ -1266,7 +1266,7 @@ where
 ///     mesh: HalfEdgeMesh,
 ///
 ///     #[lox(vertex_position)]
-///     positions: VecMap<VertexHandle, Point3<f32>>,
+///     positions: DenseMap<VertexHandle, Point3<f32>>,
 /// }
 /// ```
 ///
@@ -1321,7 +1321,7 @@ where
 /// #     MemSink, VertexHandle,
 /// #     cgmath::{Point3, Vector3},
 /// #     ds::HalfEdgeMesh,
-/// #     map::VecMap,
+/// #     map::DenseMap,
 /// # };
 /// #
 /// #[derive(MemSink)]
@@ -1331,10 +1331,10 @@ where
 ///     mesh: HalfEdgeMesh,
 ///
 ///     #[lox(vertex_position)]
-///     positions: VecMap<VertexHandle, Point3<f32>>,
+///     positions: DenseMap<VertexHandle, Point3<f32>>,
 ///
 ///     #[lox(vertex_normal, cast = "lossy")]
-///     normals: VecMap<VertexHandle, Vector3<f32>>,
+///     normals: DenseMap<VertexHandle, Vector3<f32>>,
 /// }
 /// ```
 ///
@@ -1617,7 +1617,7 @@ where
 ///     MemSource, VertexHandle,
 ///     cgmath::Point3,
 ///     ds::SharedVertexMesh,
-///     map::VecMap,
+///     map::DenseMap,
 /// };
 ///
 ///
@@ -1627,7 +1627,7 @@ where
 ///     mesh: SharedVertexMesh,
 ///
 ///     #[lox(vertex_position)]
-///     positions: VecMap<VertexHandle, Point3<f32>>,
+///     positions: DenseMap<VertexHandle, Point3<f32>>,
 /// }
 /// ```
 ///

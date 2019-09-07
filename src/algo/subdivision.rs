@@ -11,7 +11,7 @@ use crate::{
     prelude::*,
     cast,
     handle::hsize,
-    map::{VecMap, SparseMap},
+    map::{DenseMap, SparseMap},
     math::PrimitiveFloat,
     prop::Pos3Like,
 };
@@ -121,7 +121,7 @@ where
     // calculate the positions anymore.
     //
     //TODO: replace with proper prop set
-    let mut old_edges = VecMap::with_capacity(mesh.num_edges());
+    let mut old_edges = DenseMap::with_capacity(mesh.num_edges());
     let mut new_boundary_points = SparseMap::new();
     for e in mesh.edges() {
         if e.is_boundary() {
@@ -234,7 +234,7 @@ where
         };
 
         (vh, new_pos)
-    }).collect::<VecMap<_, _>>();
+    }).collect::<DenseMap<_, _>>();
 
 
     // ----- (3) Split faces and calc new vertex positions ---------------------------------------
