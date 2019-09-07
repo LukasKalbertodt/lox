@@ -13,3 +13,6 @@ Cargo.lock
 
 # Output of `perf`
 perf.data*
+
+# A dummy example for library developers to test stuff
+examples/dummy.rs
