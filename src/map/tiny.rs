@@ -35,6 +35,8 @@ use super::{
 ///
 /// # TODO:
 /// - examples
+/// - when const generics are implemented, let users decide how many elements
+///   are stored inline
 #[derive(Clone)]
 pub struct TinyMap<H: Handle, T> {
     vec: SmallVec<[(H, T); 4]>,

@@ -21,7 +21,7 @@ pub mod boo;
 mod fn_map;
 mod sparse;
 mod special_maps;
-mod tiny_map;
+mod tiny;
 mod vec_map;
 
 pub use self::{
@@ -29,7 +29,7 @@ pub use self::{
     fn_map::FnMap,
     sparse::SparseMap,
     special_maps::{ConstMap, EmptyMap},
-    tiny_map::TinyMap,
+    tiny::TinyMap,
     vec_map::VecMap,
 };
 
