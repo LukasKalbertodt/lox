@@ -30,26 +30,8 @@ pub mod adj;
 ///
 /// # Deriving
 ///
-/// This trait can automatically be derived:
-///
-/// ```
-/// use lox::Empty; // this imports the custom-derive and not the trait!
-///
-/// #[derive(Empty)]
-/// struct MyStruct {
-///     a: Vec<u32>,        // => `vec![]`
-///     b: Option<String>,  // => `None`
-///     c: (),              // => `()`
-/// }
-/// ```
-///
-/// This can only be derived for structs. All struct fields need to implement
-/// `Empty` in order for the derive to work. If your struct has generic
-/// parameters, they won't be bounded with `Empty` in the generated impl block.
-/// This is useful most of the time, because things like `Vec<T>` and
-/// `Option<T>` don't require `T: Empty` to implement `Empty`. But this means
-/// that you sometimes have to add a global `Empty` bound to your parameter or
-/// implement `Empty` manually.
+/// This trait can automatically be derived. See [the derive
+/// macro](../derive.Empty.html) for more information on that.
 pub trait Empty {
     /// Returns an empty value of this type.
     fn empty() -> Self;

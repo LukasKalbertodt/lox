@@ -16,9 +16,7 @@ mod derives;
 mod mesh;
 
 
-/// See [`lox::mesh_macro`][dummy] for documentation.
-///
-/// [dummy]: ../lox/macro.mesh_macro.html
+// See [`lox::mesh`][../lox/macro.mesh.html] for documentation.
 #[proc_macro]
 pub fn mesh(input: TokenStream) -> TokenStream {
     use crate::mesh::MeshInput;
@@ -30,12 +28,7 @@ pub fn mesh(input: TokenStream) -> TokenStream {
 }
 
 
-/// Custom derive for the `Empty` trait.
-///
-/// See [the documentation of the `Empty` trait in `lox`][trait] for more information
-/// about this derive.
-///
-/// [trait]: ../lox/traits/trait.Empty.html
+// See main crate (`lox`) for documentation.
 #[proc_macro_derive(Empty)]
 pub fn derive_empty(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -45,12 +38,7 @@ pub fn derive_empty(input: TokenStream) -> TokenStream {
 }
 
 
-/// Custom derive for the `MemSink` trait.
-///
-/// See [the documentation of the `MemSink` trait in `lox`][trait] for more
-/// information about this derive.
-///
-/// [trait]: ../lox/io/trait.MemSink.html
+// See main crate (`lox`) for documentation.
 #[proc_macro_derive(MemSink, attributes(lox))]
 pub fn derive_mem_sink(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -60,12 +48,7 @@ pub fn derive_mem_sink(input: TokenStream) -> TokenStream {
         .into()
 }
 
-/// Custom derive for the `MemSource` trait.
-///
-/// See [the documentation of the `MemSource` trait in `lox`][trait] for more
-/// information about this derive.
-///
-/// [trait]: ../lox/io/trait.MemSource.html
+// See main crate (`lox`) for documentation.
 #[proc_macro_derive(MemSource, attributes(lox))]
 pub fn derive_mem_source(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
