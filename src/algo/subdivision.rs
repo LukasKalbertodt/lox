@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap as StdHashMap,
+    collections::HashMap,
 };
 
 use cgmath::{
@@ -11,7 +11,7 @@ use crate::{
     prelude::*,
     cast,
     handle::hsize,
-    map::{VecMap, HashMap},
+    map::{VecMap, SparseMap},
     math::PrimitiveFloat,
     prop::Pos3Like,
 };
@@ -63,7 +63,8 @@ where
     /// different valences is usually pretty low.
     struct AlphaCache<ScalarT: PrimitiveFloat> {
         low: [ScalarT; 10],
-        rest: StdHashMap<hsize, ScalarT>,
+        // TODO: use a faster hash function
+        rest: HashMap<hsize, ScalarT>,
     }
 
     impl<ScalarT: PrimitiveFloat> AlphaCache<ScalarT> {
@@ -89,7 +90,7 @@ where
                     Self::alpha_for(8),
                     Self::alpha_for(9),
                 ],
-                rest: StdHashMap::new(),
+                rest: HashMap::new(),
             }
         }
 
@@ -121,7 +122,7 @@ where
     //
     //TODO: replace with proper prop set
     let mut old_edges = VecMap::with_capacity(mesh.num_edges());
-    let mut new_boundary_points = HashMap::new();
+    let mut new_boundary_points = SparseMap::new();
     for e in mesh.edges() {
         if e.is_boundary() {
             if split_boundary {

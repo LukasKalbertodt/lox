@@ -19,7 +19,7 @@ pub mod adaptors;
 pub mod aliases;
 pub mod boo;
 mod fn_map;
-mod hash_map;
+mod sparse;
 mod special_maps;
 mod tiny_map;
 mod vec_map;
@@ -27,7 +27,7 @@ mod vec_map;
 pub use self::{
     aliases::*,
     fn_map::FnMap,
-    hash_map::HashMap,
+    sparse::SparseMap,
     special_maps::{ConstMap, EmptyMap},
     tiny_map::TinyMap,
     vec_map::VecMap,
@@ -92,14 +92,14 @@ pub trait PropMap<H: Handle> {
     ///
     /// # Example
     ///
-    /// This example shows a normal hash map on which `map` is called. The
+    /// This example shows a [`SparseMap`] on which `map` is called. The
     /// element's borrowed state and type is changed (from `&str` to `usize`).
     ///
     /// ```
     /// use lox::{
     ///     FaceHandle,
     ///     prelude::*,
-    ///     map::HashMap,
+    ///     map::SparseMap,
     /// };
     ///
     /// // Just shortcuts for later
@@ -107,8 +107,8 @@ pub trait PropMap<H: Handle> {
     /// let f1 = FaceHandle::from_usize(1);
     /// let f2 = FaceHandle::from_usize(2);
     ///
-    /// // Create a normal hashmap and insert two values
-    /// let mut orig = HashMap::new();
+    /// // Create a sparse map and insert two values
+    /// let mut orig = SparseMap::new();
     /// orig.insert(f0, "Anna");
     /// orig.insert(f1, "Peter");
     ///
@@ -184,15 +184,15 @@ pub trait PropMap<H: Handle> {
     /// use lox::{
     ///     FaceHandle,
     ///     prelude::*,
-    ///     map::HashMap,
+    ///     map::SparseMap,
     /// };
     ///
     /// // Just shortcuts for later
     /// let f0 = FaceHandle::from_usize(0);
     /// let f1 = FaceHandle::from_usize(1);
     ///
-    /// // Create a normal hashmap and insert two values
-    /// let mut orig = HashMap::new();
+    /// // Create a sparse map and insert two values
+    /// let mut orig = SparseMap::new();
     /// orig.insert(f0, ["a".to_string(), "b".to_string()]);
     /// orig.insert(f1, ["x".to_string(), "y".to_string()]);
     ///

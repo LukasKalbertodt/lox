@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap as StdHashMap,
+    collections::HashMap,
     hash::Hash,
     ops::{Index, IndexMut},
 };
@@ -12,6 +12,13 @@ use super::{boo, PropMap, PropStore, PropStoreMut};
 
 
 /// A property map using a hashmap to store the properties.
+///
+/// This kind of map is very useful when not every handle from one mesh has a
+/// value associated with it. The lookup is a bit slower than for `DenseMap`,
+/// but the memory usage depends only on the number of inserted values and
+/// *not* on the highest handle ID! As a simple rule that's correct in most
+/// cases: if you want to associated a value with less than half of all
+/// handles, `SparseMap` is a good choice.
 ///
 /// This is just a wrapper around `std::collections::HashMap`. We cannot
 /// implement the traits for `std::collections::HashMap` directly, because it
@@ -29,20 +36,17 @@ use super::{boo, PropMap, PropStore, PropStoreMut};
 /// to switch to `FxHash` in the future if we are sure that it's very unlikely
 /// to cause any trouble in ou situation.
 #[derive(Clone, Debug)]
-pub struct HashMap<H: Handle + Hash, T>(StdHashMap<H, T, ahash::ABuildHasher>);
+pub struct SparseMap<H: Handle + Hash, T>(HashMap<H, T, ahash::ABuildHasher>);
 
-impl<H: Handle + Hash, T> HashMap<H, T> {
-    /// Creates an empty `HashMap`.
-    ///
-    /// To create a `HashMap` from a `std::collections::HashMap` you can use
-    /// `HashMap::from()`.
+impl<H: Handle + Hash, T> SparseMap<H, T> {
+    /// Creates an empty `SparseMap`.
     pub fn new() -> Self {
-        HashMap(StdHashMap::default())
+        SparseMap(HashMap::default())
     }
 }
 
 
-impl<H: Handle + Hash, T> PropMap<H> for HashMap<H, T> {
+impl<H: Handle + Hash, T> PropMap<H> for SparseMap<H, T> {
     type Target = T;
     type Marker = boo::Borrowed;
 
@@ -55,7 +59,7 @@ impl<H: Handle + Hash, T> PropMap<H> for HashMap<H, T> {
     }
 }
 
-impl<H: Handle + Hash, T> Index<H> for HashMap<H, T> {
+impl<H: Handle + Hash, T> Index<H> for SparseMap<H, T> {
     type Output = T;
     fn index(&self, handle: H) -> &Self::Output {
         match self.get_ref(handle) {
@@ -65,7 +69,7 @@ impl<H: Handle + Hash, T> Index<H> for HashMap<H, T> {
     }
 }
 
-impl<H: Handle + Hash, T> PropStore<H> for HashMap<H, T> {
+impl<H: Handle + Hash, T> PropStore<H> for SparseMap<H, T> {
     fn get_ref(&self, handle: H) -> Option<&Self::Output> {
         self.0.get(&handle)
     }
@@ -79,7 +83,7 @@ impl<H: Handle + Hash, T> PropStore<H> for HashMap<H, T> {
     }
 }
 
-impl<H: Handle + Hash, T> IndexMut<H> for HashMap<H, T> {
+impl<H: Handle + Hash, T> IndexMut<H> for SparseMap<H, T> {
     fn index_mut(&mut self, handle: H) -> &mut Self::Output {
         match self.get_mut(handle) {
             None => panic!("no property found for handle '{:?}'", handle),
@@ -88,13 +92,13 @@ impl<H: Handle + Hash, T> IndexMut<H> for HashMap<H, T> {
     }
 }
 
-impl<H: Handle + Hash, T> Empty for HashMap<H, T> {
+impl<H: Handle + Hash, T> Empty for SparseMap<H, T> {
     fn empty() -> Self {
         Self::new()
     }
 }
 
-impl<H: Handle + Hash, T> PropStoreMut<H> for HashMap<H, T> {
+impl<H: Handle + Hash, T> PropStoreMut<H> for SparseMap<H, T> {
     fn get_mut(&mut self, handle: H) -> Option<&mut Self::Output> {
         self.0.get_mut(&handle)
     }
@@ -126,5 +130,5 @@ impl<H: Handle + Hash, T> PropStoreMut<H> for HashMap<H, T> {
 mod tests {
     use super::*;
 
-    gen_tests_for_store_impl!(HashMap);
+    gen_tests_for_store_impl!(SparseMap);
 }

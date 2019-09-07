@@ -36,8 +36,9 @@ use super::{
 /// important consequences:
 ///
 /// - **Good**: this map usually has the best access times since it just is
-///   just an array lookup. A hash map would need to calculate the hash and do
-///   more work to find an element for a given handle.
+///   just an array lookup. A hash map (used in [`SparseMap`][SparseMap]) would
+///   need to calculate the hash and do more work to find an element for a
+///   given handle.
 /// - **Bad**: if you don't pay attention, you could waste a lot of memory with
 ///   this map and subsequently lose the speed advantage.
 ///
@@ -51,9 +52,10 @@ use super::{
 /// However, **if you have a handle source with sequential IDs and you want to
 /// associated data with (almost) all of those handles, this map is the best
 /// choice.** If you only want to associated data with some of those handles,
-/// you should probably use [`HashMap`][crate::map::HashMap] or `TinyMap`
+/// you should probably use [`SparseMap`][SparseMap] or `TinyMap`
 /// instead (TODO: add link to tiny map once implemented).
 ///
+/// [SparseMap]: crate::map::SparseMap
 ///
 /// # Example
 ///
