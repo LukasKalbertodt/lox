@@ -7,8 +7,9 @@
 To update Rust in the image, run:
 
 ```
-docker build --no-cache -t lukaskalbertodt/loc-ci:yyyy-mm-dd  # replace with date
-docker push lukaskalbertodt/loc-ci:yyyy-mm-dd
+# replace with date
+docker build --no-cache -t lukaskalbertodt/lox-ci:yyyy-mm-dd .
+docker push lukaskalbertodt/lox-ci:yyyy-mm-dd
 ```
 
 You can check the images you built with `docker images`.
