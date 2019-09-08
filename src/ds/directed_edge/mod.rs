@@ -1,7 +1,5 @@
 //! Everything related to the [`DirectedEdgeMesh`].
 
-#![allow(unused_imports)] // TODO
-
 // # Some notes for developers about this implementation
 //
 // - The twin half edges are stored implicitly: twins are always stored next to
@@ -17,7 +15,6 @@ use std::{
     fmt,
     marker::PhantomData,
     ops,
-    slice,
 };
 
 use optional::Optioned as Opt;
@@ -28,8 +25,6 @@ use crate::{
     map::DenseMap,
     mesh::SplitEdgeWithFacesResult,
     traits::marker::{Bool, False, TriFaces},
-    traits::adj::{HandleIterFamily},
-    util::{DiList, TriList},
 };
 use super::{Checked, TypeOpt};
 use self::adj::{CwVertexCirculator, CwVertexCirculatorState};
@@ -41,8 +36,6 @@ mod tests;
 
 
 
-// const NON_MANIFOLD_VERTEX_ERR: &str =
-//     "new face would add a non-manifold vertex (no hole found in cycle)";
 const NON_MANIFOLD_EDGE_ERR: &str =
     "new face would add a non-manifold edge";
 

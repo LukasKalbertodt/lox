@@ -5,13 +5,11 @@ use std::{
     marker::PhantomData,
 };
 
-use optional::Optioned as Opt;
-
 use crate::{
     prelude::*,
     traits::adj::{HandleIterFamily},
     util::{
-        DiList, TriList, TriArrayIntoIter, TriArrayExt,
+        TriList, TriArrayIntoIter, TriArrayExt,
         list::TriListIntoIter,
     },
 };
