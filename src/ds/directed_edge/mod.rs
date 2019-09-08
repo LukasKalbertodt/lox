@@ -1,4 +1,4 @@
-//! Everything related to the `DirectedEdgeMesh`.
+//! Everything related to the [`DirectedEdgeMesh`].
 
 #![allow(unused_imports)] // TODO
 
@@ -49,16 +49,26 @@ const NON_MANIFOLD_EDGE_ERR: &str =
 
 
 // ===============================================================================================
-// ===== Compile time configuration of HalfEdgeMesh
+// ===== Compile time configuration of DirectedEdgeMesh
 // ===============================================================================================
 
 /// Compile-time configuration for [`DirectedEdgeMesh`].
 ///
-/// To configure a half edge mesh, either use one of the existing types
-/// implementing this trait, or create your own (preferably inhabitable) type
-/// and implement this trait.
+/// To configure a directed edge mesh, either use [`DefaultConfig`], or create
+/// your own (preferably inhabitable) type and implement this trait.
 pub trait Config: 'static {
+    /// Specifies whether a `next` handle is stored per directed edge. This is
+    /// usually not necessary as the handle can be obtained by a simple
+    /// calculation.
+    ///
+    /// TODO: check in benchmarks!
     type StoreNext: Bool;
+
+    /// Specifies whether a `prev` handle is stored per directed edge. This is
+    /// usually not necessary as the handle can be obtained by a simple
+    /// calculation.
+    ///
+    /// TODO: check in benchmarks!
     type StorePrev: Bool;
 
     // TODO:
@@ -66,8 +76,7 @@ pub trait Config: 'static {
     // - source/target vertex
 }
 
-/// The standard configuration for the half edge mesh. Poly faces are
-/// supported.
+/// The standard configuration for the directed edge mesh.
 #[allow(missing_debug_implementations)]
 pub enum DefaultConfig {}
 impl Config for DefaultConfig {
@@ -117,7 +126,28 @@ impl fmt::Debug for HalfEdgeHandle {
 
 
 
-/// TODO
+/// An implementation of the *directed edge mesh*. This is sometimes described
+/// as "memory efficient version of the half edge mesh for triangle meshes".
+///
+/// This data structure stores information in directed edges which are stored
+/// per face (each face has exactly three). Each directed edge stores its twin
+/// directed edge and its target vertex. The `next` and `prev` handles to
+/// circulate around a face are typically not stored but given implictly by the
+/// memory location of the directed edge: all three directed edges of a face
+/// are stored contiguously in memory.
+///
+/// The literature mentions that it's not trivial to handle the boundary of a
+/// mesh with this data structure. However, there doesn't seem to be a standard
+/// way how to actually implement boundary operations in this data structure.
+/// As such, this implementation uses one solution that works for now, but this
+/// might get changed in the future.
+///
+///
+/// # References
+///
+/// Initially introduced in: Campagna, Swen, Leif Kobbelt, and Hans-Peter
+/// Seidel. "Directed edges—A scalable representation for triangle meshes."
+/// Journal of Graphics tools 3.4 (1998): 1-11.
 #[derive(Empty)]
 pub struct DirectedEdgeMesh<C: Config = DefaultConfig> {
     vertices: DenseMap<VertexHandle, Vertex>,
@@ -377,7 +407,8 @@ impl<C: Config> DirectedEdgeMesh<C> {
             unsafe { Checked::new(vh) }
         } else {
             panic!(
-                "{:?} was passed to a half edge mesh, but this vertex does not exist in this mesh",
+                "{:?} was passed to a directed edge mesh, but this vertex does not \
+                    exist in this mesh",
                 vh,
             );
         }

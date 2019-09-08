@@ -1,5 +1,5 @@
 //! This lives in its own module to make sure no one can access the private
-//! field. To create a `Checked` everyone has to go through the `unsafe`
+//! field. To create a `Checked`, everyone has to go through the `unsafe`
 //! method `new`.
 
 use std::{fmt, ops};

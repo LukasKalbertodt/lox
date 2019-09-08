@@ -1,8 +1,7 @@
-//! Everything related to the `SharedVertexMesh`.
+//! Everything related to the [`SharedVertexMesh`].
 
 use std::fmt;
 
-use crate as lox;
 use crate::{
     prelude::*,
     handle::hsize,
@@ -14,7 +13,17 @@ use crate::{
 };
 
 
-
+/// One of the simplest and the most used data structure for representing
+/// triangles meshes.
+///
+/// The only thing this data structure stores are three vertex handles per
+/// face. This is very similar to to a "triangle list" index buffer of real
+/// time graphic pipelines (like OpenGL). As core meshes do not store
+/// properties, no data is stored per vertex.
+///
+/// This data structure is fairly limited as it can only answer one kind of
+/// adjacency query: F → V (`BasicAdj`). This is sufficient for most kinds of
+/// rendering and to read and write meshes from/to files.
 #[derive(Clone, Empty)]
 pub struct SharedVertexMesh {
     vertices: DenseMap<VertexHandle, ()>,
@@ -168,7 +177,6 @@ impl MeshMut for SharedVertexMesh {
     }
 }
 
-
 impl BasicAdj for SharedVertexMesh {
     fn vertices_around_triangle(&self, face: FaceHandle) -> [VertexHandle; 3] {
         self.faces[face]
@@ -183,14 +191,13 @@ impl BasicAdj for SharedVertexMesh {
     }
 }
 
+impl SupportsMultiBlade for SharedVertexMesh {}
+
 #[allow(missing_debug_implementations)]
 pub struct FaceToVertexIterFam(!);
 impl<'a> HandleIterFamily<'a, VertexHandle> for FaceToVertexIterFam {
     type Iter = TriArrayIntoIter<VertexHandle>;
 }
-
-impl SupportsMultiBlade for SharedVertexMesh {}
-
 
 impl fmt::Debug for SharedVertexMesh {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

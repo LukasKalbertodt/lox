@@ -1,4 +1,4 @@
-//! Everything related to the `HalfEdgeMesh`.
+//! Everything related to the [`HalfEdgeMesh`].
 
 // # Some notes for developers about this implementation
 //
@@ -64,8 +64,8 @@ pub trait Config: 'static {
     /// `Mesh` implementation.
     type FaceKind: FaceKind;
 
-    /// Whether a `prev` reference is stored. This makes some operations
-    /// faster, but increases memory consumption.
+    /// Specifies whether a `prev` handle is stored per half edge. This makes
+    /// some operations faster, but increases memory consumption.
     type StorePrev: Bool;
 
     // TODO:
@@ -162,7 +162,19 @@ impl fmt::Debug for HalfEdgeHandle {
 // ===== Definition of types stored inside the data structure
 // ===============================================================================================
 
-/// TODO
+/// Implementation of the *half edge mesh*. This data structure is widely used
+/// in geometry processing due to its many capabilities paired with fairly good
+/// speed and memory consumption.
+///
+/// This data structure allows you to represent polygon meshes where each face
+/// can have differently many vertices. (However, you can restrict this mesh to
+/// triangle meshes via the configuration.) Furthermore, it can answer all
+/// adjacency queries and exposes full edges.
+///
+/// # References
+///
+/// Introduced in: Mäntylä, Martti. An introduction to solid modeling. Computer
+/// science press, 1988.
 #[derive(Empty)]
 pub struct HalfEdgeMesh<C: Config = PolyConfig> {
     vertices: DenseMap<VertexHandle, Vertex>,
