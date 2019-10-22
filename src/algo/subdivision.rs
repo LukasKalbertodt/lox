@@ -11,7 +11,7 @@ use crate::{
     prelude::*,
     cast,
     handle::hsize,
-    map::{DenseMap, SparseMap},
+    map::{DenseMap, SparseMap, set::DenseSet},
     math::PrimitiveFloat,
     prop::Pos3Like,
 };
@@ -119,9 +119,7 @@ where
     // positions if we will split the boundaries. We have to do this now
     // because later we will already change the topology and can't properly
     // calculate the positions anymore.
-    //
-    //TODO: replace with proper prop set
-    let mut old_edges = DenseMap::with_capacity(mesh.num_edges());
+    let mut old_edges = DenseSet::with_capacity(mesh.num_edges());
     let mut new_boundary_points = SparseMap::new();
     for e in mesh.edges() {
         if e.is_boundary() {
@@ -161,7 +159,7 @@ where
                 new_boundary_points.insert(e.handle(), [pos_a, pos_b]);
             }
         } else {
-            old_edges.insert(e.handle(), ());
+            old_edges.insert(e.handle());
         }
     }
 

@@ -2,7 +2,7 @@ use cgmath::prelude::*;
 
 use crate::{
     prelude::*,
-    map::{DenseMap, VertexPropMap},
+    map::{DenseMap, VertexPropMap, set::DenseSet},
     math::PrimitiveFloat,
     prop::Pos3Like,
     refs::VertexRef,
@@ -148,7 +148,7 @@ where
     // Allocating 1.5 times as much shouldn't be wasting a lot of space and we
     // are still on the save side.
     let mut vertex_data = DenseMap::with_capacity(mesh.num_vertices());
-    let mut visited = DenseMap::with_capacity(mesh.num_vertices()); // TODO: real set
+    let mut visited = DenseSet::with_capacity(mesh.num_vertices());
     let mut heap = BinaryHeap::with_capacity((mesh.num_vertices() as f64 * 1.5) as usize);
 
     // Initialization: set all distances to infinity and the `prev` field to
@@ -176,7 +176,7 @@ where
         }
 
         // Mark vertex as visited (its distance is now finalized)
-        visited.insert(current.handle, ());
+        visited.insert(current.handle);
 
         // Visit all neighbors
         for nh in mesh.vertices_around_vertex(current.handle) {

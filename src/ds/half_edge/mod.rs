@@ -23,7 +23,7 @@ use optional::Optioned as Opt;
 use crate::{
     prelude::*,
     handle::{hsize, Handle},
-    map::DenseMap,
+    map::{DenseMap, set::DenseSet},
     mesh::SplitEdgeWithFacesResult,
     traits::marker::{Bool, TriFaces, FaceKind, PolyFaces, True},
 };
@@ -1124,7 +1124,7 @@ impl<C: Config> Mesh for HalfEdgeMesh<C> {
         }
 
         // Iterate around all faces to make sure all cycles are fine.
-        let mut visited = DenseMap::with_capacity(self.half_edges.num_elements());
+        let mut visited = DenseSet::with_capacity(self.half_edges.num_elements());
         for start in self.half_edges.handles() {
             if visited.contains_handle(start) {
                 continue;
@@ -1145,7 +1145,7 @@ impl<C: Config> Mesh for HalfEdgeMesh<C> {
                 }
 
                 // All half edges in this cycles should be not visited yet!
-                if visited.insert(heh, ()).is_some() {
+                if visited.insert(heh) {
                     panic!(
                         "bug: encountered {:?} while iterating around {:?}, but we \
                             already visited it!",
@@ -1163,7 +1163,7 @@ impl<C: Config> Mesh for HalfEdgeMesh<C> {
         }
 
         // Iterate around all vertices to make sure all cycles are fine.
-        let mut visited = DenseMap::with_capacity(self.half_edges.num_elements());
+        let mut visited = DenseSet::with_capacity(self.half_edges.num_elements());
         for start in self.half_edges.handles() {
             if visited.contains_handle(start) {
                 continue;
@@ -1184,7 +1184,7 @@ impl<C: Config> Mesh for HalfEdgeMesh<C> {
                 }
 
                 // All half edges in this cycles should be not visited yet!
-                if visited.insert(heh, ()).is_some() {
+                if visited.insert(heh) {
                     panic!(
                         "bug: encountered {:?} while iterating around {:?}, but we \
                             already visited it!",

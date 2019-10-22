@@ -22,7 +22,7 @@ use optional::Optioned as Opt;
 use crate::{
     prelude::*,
     handle::{hsize, Handle},
-    map::DenseMap,
+    map::{DenseMap, set::DenseSet},
     mesh::SplitEdgeWithFacesResult,
     traits::marker::{Bool, False, TriFaces},
 };
@@ -772,7 +772,7 @@ impl<C: Config> Mesh for DirectedEdgeMesh<C> {
         }
 
         // Walk around boundaries.
-        let mut visited = DenseMap::with_capacity(self.half_edges.num_elements());
+        let mut visited = DenseSet::with_capacity(self.half_edges.num_elements());
         for (start, he) in self.half_edges.iter() {
             if visited.contains_handle(start) {
                 continue;
@@ -782,7 +782,7 @@ impl<C: Config> Mesh for DirectedEdgeMesh<C> {
                 let mut heh = start;
                 loop {
                     // All half edges in this cycles should be not visited yet!
-                    if visited.insert(heh, ()).is_some() {
+                    if visited.insert(heh) {
                         panic!(
                             "bug: encountered {:?} while iterating on boundary starting \
                                 from {:?}, but we already visited it!",
