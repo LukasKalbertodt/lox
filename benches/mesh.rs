@@ -15,7 +15,7 @@ use lox::{
         half_edge::TriConfig,
     },
     fat::MiniMesh,
-    map::VecMap,
+    map::DenseMap,
     shape::Sphere,
 };
 
@@ -114,7 +114,7 @@ fn calc_vertex_normals(c: &mut Criterion) {
 
                         (fh, normal)
                     })
-                    .collect::<VecMap<_, _>>();
+                    .collect::<DenseMap<_, _>>();
                 // println!("{:?}", face_normals.handles().take(10).collect::<Vec<_>>());
 
                 b.iter(|| {
