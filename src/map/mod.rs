@@ -18,11 +18,12 @@ mod tests;
 pub mod adaptors;
 pub mod aliases;
 pub mod boo;
+mod dense;
 mod fn_map;
+pub mod set;
 mod sparse;
 mod special_maps;
 mod tiny;
-mod dense;
 
 pub use self::{
     aliases::*,
