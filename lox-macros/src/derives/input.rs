@@ -6,7 +6,7 @@
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{
-    Attribute, DeriveInput, Error, Ident, Type, Meta, NestedMeta, Lit, Generics,
+    Attribute, DeriveInput, Error, Ident, Type, Meta, NestedMeta, Path, Lit, Generics,
     spanned::Spanned,
 };
 
@@ -357,7 +357,10 @@ fn parse_field_attrs(attrs: &[Attribute]) -> Result<FieldAttrs, Error> {
         }}
     }
 
-    visit_lox_attrs(attrs, |ident, lit| {
+    visit_lox_attrs(attrs, |path, lit| {
+        let ident = path.get_ident()
+            .ok_or(Error::new(path.span(), "found path, expected single ident"))?;
+
         match ident.to_string().as_str() {
             // ===== 'cast' attribute =====
             "cast" => {
@@ -400,7 +403,10 @@ fn parse_struct_attrs(attrs: &[Attribute]) -> Result<StructAttrs, Error> {
         cast_mode: None,
     };
 
-    visit_lox_attrs(attrs, |ident, lit| {
+    visit_lox_attrs(attrs, |path, lit| {
+        let ident = path.get_ident()
+            .ok_or(Error::new(path.span(), "found path, expected single ident"))?;
+
         match ident.to_string().as_str() {
             // ===== 'cast' attribute =====
             "cast" => {
@@ -445,12 +451,12 @@ fn parse_struct_attrs(attrs: &[Attribute]) -> Result<StructAttrs, Error> {
 ///   and then with `(#bar, None)`.
 fn visit_lox_attrs<F>(attrs: &[Attribute], mut visit: F) -> Result<(), Error>
 where
-    F: FnMut(Ident, Option<Lit>) -> Result<(), Error>,
+    F: FnMut(Path, Option<Lit>) -> Result<(), Error>,
 {
     for attr in attrs.iter().filter(|attr| attr.path.is_ident("lox")) {
         // Interpret it as "meta list" and get the items or error
         let items = match attr.parse_meta()? {
-            Meta::Word(_) => {
+            Meta::Path(_) => {
                 bail!(attr.span(), "empty `lox` attribute (only `#[lox(...)]` is allowed)");
             }
             Meta::NameValue(_) => {
@@ -463,7 +469,7 @@ where
         // visitor.
         for item in items {
             match item {
-                NestedMeta::Literal(lit) => {
+                NestedMeta::Lit(lit) => {
                     bail!(
                         lit.span(),
                         "found literal, expected ident (`foo`) or named value (`foo = true`)",
@@ -475,8 +481,8 @@ where
                         "found nested list, expected ident (`foo`) or named value (`foo = true`)",
                     );
                 }
-                NestedMeta::Meta(Meta::Word(w)) => visit(w, None)?,
-                NestedMeta::Meta(Meta::NameValue(nv)) => visit(nv.ident, Some(nv.lit))?,
+                NestedMeta::Meta(Meta::Path(p)) => visit(p, None)?,
+                NestedMeta::Meta(Meta::NameValue(nv)) => visit(nv.path, Some(nv.lit))?,
 
             }
         }

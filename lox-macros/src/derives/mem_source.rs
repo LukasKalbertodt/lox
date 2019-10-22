@@ -3,7 +3,7 @@
 
 #![allow(unused_imports)] // TODO
 use proc_macro2::{TokenStream, Span};
-use quote::{quote, quote_spanned};
+use quote::{format_ident, quote, quote_spanned};
 use syn::{
     Ident,
     spanned::Spanned,
@@ -93,12 +93,12 @@ fn gen_prop_code(
     global_cast_mode: Option<CastMode>,
 ) -> TokenStream {
     // Create idents
-    let elem_prop = ident!("{}{}", elem, prop);
-    let elem_handle = ident!("{}Handle", elem);
-    let prop_type_fn = ident!("{}_{}_type", elem.to_lowercase(), prop.to_lowercase());
-    let prop_fn = ident!("{}_{}", elem.to_lowercase(), prop.to_lowercase());
-    let prop_type = ident!("{}", type_name);
-    let trait_name = ident!("{}", trait_name);
+    let elem_prop = format_ident!("{}{}", elem, prop);
+    let elem_handle = format_ident!("{}Handle", elem);
+    let prop_type_fn = format_ident!("{}_{}_type", elem.to_lowercase(), prop.to_lowercase());
+    let prop_fn = format_ident!("{}_{}", elem.to_lowercase(), prop.to_lowercase());
+    let prop_type = format_ident!("{}", type_name);
+    let trait_name = format_ident!("{}", trait_name);
 
 
     // Generate the code to check whether the source scalar type can be cast
@@ -213,10 +213,10 @@ fn gen_color_prop_code(
     global_cast_mode: Option<CastMode>,
 ) -> TokenStream {
     // Create idents
-    let elem_prop = ident!("{}Color", elem);
-    let elem_handle = ident!("{}Handle", elem);
-    let prop_color_fn = ident!("{}_color_type", elem.to_lowercase());
-    let prop_fn = ident!("{}_color", elem.to_lowercase());
+    let elem_prop = format_ident!("{}Color", elem);
+    let elem_handle = format_ident!("{}Handle", elem);
+    let prop_color_fn = format_ident!("{}_color_type", elem.to_lowercase());
+    let prop_fn = format_ident!("{}_color", elem.to_lowercase());
 
 
     // Generate the code to check whether the source color type can be cast

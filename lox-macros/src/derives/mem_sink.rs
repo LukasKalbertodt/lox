@@ -1,8 +1,8 @@
 //! Contains function to generate the `impl MemSink` for a type. Main function
 //! is `gen_impl`.
 
-use proc_macro2::{TokenStream, Span};
-use quote::{quote, quote_spanned};
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote, quote_spanned};
 use syn::{
     Ident,
     spanned::Spanned,
@@ -98,7 +98,7 @@ fn gen_mesh_code(field: &CoreMeshField) -> TokenStream {
 /// Generates the code for `finish()`.
 fn gen_finish_code(input: &Input) -> TokenStream {
     fn gen_check(field_name: &Ident, prop: &str, expected: &Ident) -> TokenStream {
-        let prop_kind = ident!("{}", prop);
+        let prop_kind = format_ident!("{}", prop);
         let err_msg = "{} provided, {} expected";
         quote! {
             // We only have to check for the case where the number of
@@ -121,8 +121,8 @@ fn gen_finish_code(input: &Input) -> TokenStream {
 
 
     // Generate on check for each field that is present
-    let num_vertices = ident!("_num_vertices");
-    let num_faces = ident!("_num_faces");
+    let num_vertices = format_ident!("_num_vertices");
+    let num_faces = format_ident!("_num_faces");
 
     let vertex_position = input.vertex_position.as_ref()
         .map(|f| gen_check(&f.name, "VertexPosition", &num_vertices));
@@ -173,12 +173,12 @@ fn gen_prop_code(
     global_cast_mode: Option<CastMode>,
 ) -> TokenStream {
     // Create idents
-    let elem_prop = ident!("{}{}", elem, prop);
-    let elem_handle = ident!("{}Handle", elem);
-    let prep_fn_name = ident!("prepare_{}_{}s", elem.to_lowercase(), prop.to_lowercase());
-    let set_fn_name = ident!("set_{}_{}", elem.to_lowercase(), prop.to_lowercase());
-    let prop_type = ident!("{}", type_name);
-    let trait_name = ident!("{}", trait_name);
+    let elem_prop = format_ident!("{}{}", elem, prop);
+    let elem_handle = format_ident!("{}Handle", elem);
+    let prep_fn_name = format_ident!("prepare_{}_{}s", elem.to_lowercase(), prop.to_lowercase());
+    let set_fn_name = format_ident!("set_{}_{}", elem.to_lowercase(), prop.to_lowercase());
+    let prop_type = format_ident!("{}", type_name);
+    let trait_name = format_ident!("{}", trait_name);
 
 
     // Generate the code to check whether the supplied scalar type can be cast
@@ -317,11 +317,11 @@ fn gen_color_prop_code(
     global_cast_mode: Option<CastMode>,
 ) -> TokenStream {
     // Create idents
-    let elem_color = ident!("{}Color", elem);
-    let elem_handle = ident!("{}Handle", elem);
+    let elem_color = format_ident!("{}Color", elem);
+    let elem_handle = format_ident!("{}Handle", elem);
     let elem = elem.to_lowercase();
-    let prep_fn_name = ident!("prepare_{}_colors", elem);
-    let set_fn_name = ident!("set_{}_color", elem);
+    let prep_fn_name = format_ident!("prepare_{}_colors", elem);
+    let set_fn_name = format_ident!("set_{}_color", elem);
 
     // The code to check whether the supplied color channel type can be cast
     // into the target type, respecting the specified cast modes. Plus the code
