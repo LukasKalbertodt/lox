@@ -43,12 +43,12 @@ impl MemSink for NullSinkPos {
         self.vertex_count += 1;
         out
     }
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
+    fn add_face(&mut self, vertices: &[VertexHandle]) -> Result<FaceHandle, Error> {
         black_box(vertices);
 
         let out = FaceHandle::new(self.face_count);
         self.face_count += 1;
-        out
+        Ok(out)
     }
 
     fn size_hint(&mut self, hint: MeshSizeHint) {
@@ -83,7 +83,7 @@ impl MemSink for NullSinkPosVNormal {
     fn add_vertex(&mut self) -> VertexHandle {
         self.0.add_vertex()
     }
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
+    fn add_face(&mut self, vertices: &[VertexHandle]) -> Result<FaceHandle, Error> {
         self.0.add_face(vertices)
     }
 
@@ -131,7 +131,7 @@ impl MemSink for NullSinkPosFNormal {
     fn add_vertex(&mut self) -> VertexHandle {
         self.0.add_vertex()
     }
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
+    fn add_face(&mut self, vertices: &[VertexHandle]) -> Result<FaceHandle, Error> {
         self.0.add_face(vertices)
     }
 

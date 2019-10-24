@@ -13,7 +13,7 @@ use lox::{
 fn main() {
     let data = get_data();
     let reader = Reader::new(Cursor::new(data)).unwrap();
-    reader.read_raw(|tri| { black_box(tri); }).expect("failed to read");
+    reader.read_raw(|tri| { black_box(tri); Ok(()) }).expect("failed to read");
 }
 
 #[inline(never)]

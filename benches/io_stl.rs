@@ -59,7 +59,7 @@ fn read_sphere_raw(c: &mut Criterion) {
 
             b.iter_batched(
                 || reader.clone(),
-                |r| r.read_raw(|tri| { black_box(tri); }),
+                |r| r.read_raw(|tri| { black_box(tri); Ok(()) }),
                 BatchSize::SmallInput,
             )
         },
