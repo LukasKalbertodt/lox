@@ -36,9 +36,9 @@ use super::{
     Encoding,
     raw::{
         ElementDef, PropertyDef, PropertyType, PropIndex, RawElement,
-        ScalarType, RawStorage, RawSink,
+        ScalarType, RawStorage, RawSink, RawListInfo,
         ListLenType, RawOffset, RawPropertyInfo,
-        ScalarLen, RawData,
+        ScalarLen,
     },
 };
 
@@ -600,9 +600,16 @@ impl<R: io::Read> StreamSource for Reader<R> {
             vertex_indices_idx: PropIndex,
 
             /// Function to read the `vertex_indices` property and add the
-            /// face. Returns `Err(idx)` if an vertex index is not valid.
+            /// face. Returns `Err` if an vertex index is not valid or if the
+            /// sink returns an error from `add_face`.
             read_face_vertex_indices:
-                fn(&mut Self, RawOffset, &RawData) -> Result<FaceHandle, usize>,
+                fn(&mut Self, &RawElement, &RawListInfo) -> Result<FaceHandle, Error>,
+
+            /// This is a temporary buffer for `read_face_vertex_indices` to
+            /// store vertex handles in. It shouldn't be used except inside of
+            /// `read_face_vertex_indices`.
+            vertex_handles_buffer: Vec<VertexHandle>,
+
 
             /// The position of the nx, ny and nz properties in the list of
             /// face properties
@@ -689,7 +696,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
                     }
                     None => (
                         PropIndex(0),
-                        Self::vertex_indices_bug as fn(&mut _, _, &_) -> _,
+                        Self::vertex_indices_bug as fn(&mut _, &_, &_) -> _,
                     ),
                 };
 
@@ -782,6 +789,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
                     vertex_indices_idx,
                     read_face_vertex_indices,
+                    vertex_handles_buffer: Vec::with_capacity(3),
                     face_normal_idx,
                     read_face_normal,
                     face_color_idx,
@@ -824,21 +832,18 @@ impl<R: io::Read> StreamSource for Reader<R> {
                 // We checked before that this property is indeed a list
                 let vi_list = elem.decode_list_at(self.vertex_indices_idx).unwrap();
 
-                if vi_list.list_len != 3 {
+                // Make sure the list is not too short.
+                if vi_list.list_len < 3 {
                     return Err(Error::new(|| ErrorKind::InvalidInput(format!(
-                        "the face at position {} has {} vertices (right now, only triangular \
-                            faces are supported)",
+                        "the face at index {} has only {} vertices, but at least 3 are required \
+                            per face",
                         self.face_count,
                         vi_list.list_len,
                     ))));
                 }
 
                 // Add face
-                let fh = (self.read_face_vertex_indices)(self, vi_list.data_offset, &elem.data)
-                    .map_err(|idx| Error::new(|| {
-                        let msg = format!("invalid vertex index {} in PLY file", idx);
-                        ErrorKind::InvalidInput(msg)
-                    }))?;
+                let fh = (self.read_face_vertex_indices)(self, &elem, &vi_list)?;
                 self.face_handles.add(self.face_count, fh);
                 self.face_count += 1;
                 self.curr_face_handle = fh;
@@ -899,9 +904,9 @@ impl<R: io::Read> StreamSource for Reader<R> {
             /// Only dummy function that should never be called.
             fn vertex_indices_bug(
                 &mut self,
-                _: RawOffset,
-                _: &RawData,
-            ) -> Result<FaceHandle, usize> {
+                _: &RawElement,
+                _: &RawListInfo,
+            ) -> Result<FaceHandle, Error> {
                 panic!("internal bug in PLY reader")
             }
 
@@ -909,20 +914,45 @@ impl<R: io::Read> StreamSource for Reader<R> {
             /// interprets them as vertex indices and adds a face to the sink.
             fn read_face_vertex_indices<T: Primitive + FromBytes + PlyInteger>(
                 &mut self,
-                offset: RawOffset,
-                data: &RawData,
-            ) -> Result<FaceHandle, usize> {
-                let a = T::from_bytes_ne(&data[offset + RawOffset(0 * T::SIZE as u32)..]);
-                let b = T::from_bytes_ne(&data[offset + RawOffset(1 * T::SIZE as u32)..]);
-                let c = T::from_bytes_ne(&data[offset + RawOffset(2 * T::SIZE as u32)..]);
+                elem: &RawElement,
+                vi_list: &RawListInfo,
+            ) -> Result<FaceHandle, Error> {
+                // Obtain the relevant raw slice (all the list data).
+                let start = vi_list.data_offset;
+                let end = start + RawOffset(vi_list.list_len * T::SIZE as u32);
+                let data = &elem.data[start..end];
 
-                let [a, b, c] = [a.as_usize(), b.as_usize(), c.as_usize()];
-                let vhs = [
-                    self.vertex_handles.get(a).ok_or(a)?,
-                    self.vertex_handles.get(b).ok_or(b)?,
-                    self.vertex_handles.get(c).ok_or(c)?,
-                ];
-                Ok(self.sink.add_face(vhs))
+                // Iterate over the list of indices to vertices, convert them
+                // to handles and add the handles to `vertex_handles_buffer`.
+                self.vertex_handles_buffer.clear();
+                for raw in data.chunks(T::SIZE) {
+                    let index = T::from_bytes_ne(raw).as_usize();
+
+                    // TODO: the closure should probably be extracted into an
+                    // `inline(never)` function that is not generic, to tackle
+                    // code bloat.
+                    let handle = self.vertex_handles.get(index).ok_or_else(|| {
+                        Error::new(|| {
+                            let msg = format!(
+                                "invalid vertex index {} in PLY file: a face's `vertice_indices` \
+                                    property refers to that vertex index, but no vertex with such \
+                                    a high index exists in the file",
+                                index,
+                            );
+                            ErrorKind::InvalidInput(msg)
+                        })
+                    })?;
+
+                    // TODO: we can probably improve performance a bit by
+                    // preallocating the vector, setting the len to the list
+                    // len and just write the elements. That way, `push`
+                    // doesn't have to perform a capacity check each time.
+                    // However, this optimization would require `unsafe` code.
+                    self.vertex_handles_buffer.push(handle);
+                }
+
+                // Add the face to the mesh.
+                self.sink.add_face(&self.vertex_handles_buffer)
             }
 
             /// Read the x, y and z property and pass the position to the sink.

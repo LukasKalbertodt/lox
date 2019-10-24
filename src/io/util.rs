@@ -1,6 +1,7 @@
 //! Small utility items used in the `io` module.
 
 use std::{
+    convert::TryInto,
     marker::PhantomData,
 };
 
@@ -13,6 +14,7 @@ use crate::{
     io::{ColorType, Error, ErrorKind, MemSource, PrimitiveType, Primitive, PropKind},
     map::{PropMap, PropStoreMut, DenseMap},
     prop::{ColorLike, Pos3Like, Vec3Like},
+    traits::{MeshMut, PolyMesh},
 };
 
 
@@ -42,6 +44,45 @@ pub enum IsFormat {
     /// number is not found).
     No,
 }
+
+/// Adds the face with the given `vertices` to the given `mesh` or returns an
+/// error if that is not possible.
+///
+/// If the given mesh type `M` implements `PolyMesh`, then this function will
+/// always succeed. If not, this function will succeed if `vertices.len() == 3`
+/// and will fail otherwise.
+pub fn try_add_face<M>(mesh: &mut M, vertices: &[VertexHandle]) -> Result<FaceHandle, Error>
+where
+    M: MeshMut,
+{
+    // To get this kind of different behavior for poly and tri meshes, we have
+    // to use specialization. And for that, we need a helper trait.
+    trait Helper {
+        fn add_face_helper(&mut self, vertices: &[VertexHandle]) -> Result<FaceHandle, Error>;
+    }
+
+    impl<M: MeshMut> Helper for M {
+        default fn add_face_helper(
+            &mut self,
+            vertices: &[VertexHandle],
+        ) -> Result<FaceHandle, Error> {
+            if let Ok(vertices) = vertices.try_into() {
+                Ok(self.add_triangle(vertices))
+            } else {
+                Err(Error::new(|| ErrorKind::MemSinkDoesNotSupportPolygonFaces))
+            }
+        }
+    }
+
+    impl<M: MeshMut + PolyMesh> Helper for M {
+        fn add_face_helper(&mut self, vertices: &[VertexHandle]) -> Result<FaceHandle, Error> {
+            Ok(self.add_face(vertices))
+        }
+    }
+
+    Helper::add_face_helper(mesh, vertices)
+}
+
 
 // ===========================================================================
 // ===== MemSourceExt

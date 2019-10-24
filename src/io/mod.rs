@@ -122,7 +122,7 @@
 //! `Reader` and `Writer` types come into play. There is a module for each file
 //! format lox supports, each of which contains a `Reader` and `Writer`. These
 //! are the types implementing `StreamSource` and `StreamSink`, respectively.
-//! These `Writer` types are often configurable via a `Config` type, which is
+//! The `Writer` types are often configurable via a `Config` type, which is
 //! also defined in the file format module.
 //!
 //! In very rare cases, you might need even more control. That's why the
@@ -757,7 +757,7 @@ impl fmt::Debug for Error {
 #[derive(Debug, Fail)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    /// An IO error.
+    /// An underlying IO error.
     ///
     /// Can be caused by all kinds of failures. For example, if the underlying
     /// writer or reader returns an error or a file cannot be opened, this
@@ -782,9 +782,9 @@ pub enum ErrorKind {
     /// something very much related to the low level syntax of the input file,
     /// this `InvalidInput` rather represents logical errors in the file (like
     /// faces not defining their vertices or wrong order of elements).
-    /// Furthmore, parse errors can usually point to the exact part of the file
-    /// where the error occured. These general input errors are more abstract
-    /// and often don't just belong to one specific span.
+    /// Furthermore, parse errors can usually point to the exact part of the
+    /// file where the error occured. These general input errors are more
+    /// abstract and often don't just belong to one specific span.
     ///
     /// If you encounter this error, here is what you can do: make sure your
     /// input file is well-formed. If you are sure that your file is fine and
@@ -799,6 +799,8 @@ pub enum ErrorKind {
     /// attempting to store a mesh with more than 2<sup>32</sup> elements with
     /// that format would fail with this error.
     SinkIncompatible(String),
+
+    MemSinkDoesNotSupportPolygonFaces,
 
     /// This error can be returned by a `MemSink` to signal that it is not able
     /// to handle incoming property data.
@@ -890,6 +892,13 @@ impl fmt::Display for ErrorKind {
                         (if you derived `MemSink`, you might want to change the casting mode)",
                     prop.plural_form(),
                     source_type,
+                )
+            }
+            ErrorKind::MemSinkDoesNotSupportPolygonFaces => {
+                write!(
+                    f,
+                    "the `MemSink` does not support polygon faces, but the `StreamSource` \
+                        contains some",
                 )
             }
             ErrorKind::SourceIncompatibleProp { prop, requested_type } => {
@@ -1251,8 +1260,33 @@ pub trait MemSink {
     // =======================================================================
     // ===== Mesh connectivity
     // =======================================================================
+
+    /// Adds a vertex to the mesh stored in this mem sink.
     fn add_vertex(&mut self) -> VertexHandle;
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
+
+    /// Adds a face with the given `vertices` to the mesh stored in this mem
+    /// sink.
+    ///
+    /// The semantics of this method are very similar to `MeshMut::add_face`,
+    /// with a few exceptions: if the mesh does not support polygon faces, but
+    /// `vertices.len() > 3`, then an error should be returned be the sink.
+    /// However, it's the callers responsibility to make sure `vertices.len()
+    /// >= 3`.
+    ///
+    /// If the source already knows it will only pass triangular faces, it can
+    /// call `add_triangle` instead, which might be faster as it does not need
+    /// a check.
+    ///
+    /// Implementors of this method can often use `io::util::try_add_face` for
+    /// convenience.
+    ///
+    /// TODO: refine these docs
+    fn add_face(&mut self, vertices: &[VertexHandle]) -> Result<FaceHandle, Error>;
+
+    /// TODO: docs
+    fn add_triangle(&mut self, vertices: [VertexHandle; 3]) -> Result<FaceHandle, Error> {
+        self.add_face(&vertices)
+    }
 
 
     // =======================================================================

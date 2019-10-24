@@ -69,7 +69,7 @@ fn gen_mesh_code(field: &CoreMeshField) -> TokenStream {
         lox::traits::MeshMut::add_vertex(&mut self.#field_name)
     };
     let add_face = quote_spanned!{field.ty.span()=>
-        lox::traits::MeshMut::add_triangle(&mut self.#field_name, vertices)
+        lox::io::util::try_add_face(&mut self.#field_name, vertices)
     };
     let size_hint = quote_spanned!{field.ty.span()=>
         lox::traits::MeshMut::reserve_for_vertices(
@@ -86,7 +86,10 @@ fn gen_mesh_code(field: &CoreMeshField) -> TokenStream {
         fn add_vertex(&mut self) -> lox::VertexHandle {
             #add_vertex
         }
-        fn add_face(&mut self, vertices: [lox::VertexHandle; 3]) -> lox::FaceHandle {
+        fn add_face(
+            &mut self,
+            vertices: &[lox::VertexHandle],
+        ) -> Result<lox::FaceHandle, lox::io::Error> {
             #add_face
         }
         fn size_hint(&mut self, hint: lox::util::MeshSizeHint) {

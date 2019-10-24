@@ -109,10 +109,10 @@ impl StreamSource for Tetrahedron {
         sink.set_vertex_position::<f64>(c, self.center + self.radius * cpos);
 
         // Add faces
-        sink.add_face([a, c, b]);
-        sink.add_face([a, b, top]);
-        sink.add_face([b, c, top]);
-        sink.add_face([c, a, top]);
+        sink.add_triangle([a, c, b])?;
+        sink.add_triangle([a, b, top])?;
+        sink.add_triangle([b, c, top])?;
+        sink.add_triangle([c, a, top])?;
 
         Ok(())
     }
@@ -218,8 +218,8 @@ impl StreamSource for Square {
                     //  x ---- x--
                     //
                     let col = col as usize;
-                    let fa = sink.add_face([vh, curr_line[col - 1], last_line[col - 1]]);
-                    let fb = sink.add_face([vh, last_line[col - 1], last_line[col]]);
+                    let fa = sink.add_triangle([vh, curr_line[col - 1], last_line[col - 1]])?;
+                    let fb = sink.add_triangle([vh, last_line[col - 1], last_line[col]])?;
 
                     sink.set_face_normal::<f64>(fa, normal);
                     sink.set_face_normal::<f64>(fb, normal);
@@ -326,14 +326,14 @@ impl StreamSource for Disc {
             sink.set_vertex_position::<f64>(v, position);
             sink.set_vertex_normal::<f64>(v, vertex_normal);
 
-            let f = sink.add_face([center, last, v]);
+            let f = sink.add_triangle([center, last, v])?;
             sink.set_face_normal::<f64>(f, face_normal);
 
             last = v;
         }
 
         // Add last face (with the first outer vertex)
-        let f = sink.add_face([center, last, first]);
+        let f = sink.add_triangle([center, last, first])?;
         sink.set_face_normal::<f64>(f, face_normal);
 
         Ok(())
@@ -455,11 +455,11 @@ impl StreamSource for Sphere {
             if lat == 0 {
                 // Connect to north pole
                 for i in 0..num_longs {
-                    sink.add_face([
+                    sink.add_triangle([
                         north_pole,
                         new_latitude_points[i],
                         new_latitude_points[(i + 1) % num_longs],
-                    ]);
+                    ])?;
                 }
             } else {
                 // Connect to last latitude line
@@ -469,8 +469,8 @@ impl StreamSource for Sphere {
                     let new_0 = new_latitude_points[i];
                     let new_1 = new_latitude_points[(i + 1) % num_longs];
 
-                    sink.add_face([last_0, new_1, last_1]);
-                    sink.add_face([last_0, new_0, new_1]);
+                    sink.add_triangle([last_0, new_1, last_1])?;
+                    sink.add_triangle([last_0, new_0, new_1])?;
                 }
             }
 
@@ -486,11 +486,11 @@ impl StreamSource for Sphere {
         }
 
         for i in 0..num_longs {
-            sink.add_face([
+            sink.add_triangle([
                 south_pole,
                 last_latitude_points[(i + 1) % num_longs],
                 last_latitude_points[i],
-            ]);
+            ])?;
         }
 
         Ok(())

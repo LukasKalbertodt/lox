@@ -33,7 +33,7 @@ use crate::{
     prelude::*,
     ds::SharedVertexMesh,
     handle::hsize,
-    io::{ColorType, Error, Primitive, PrimitiveType},
+    io::{self, ColorType, Error, Primitive, PrimitiveType},
     map::DenseMap,
 };
 use self::any::{AnyColorMap, AnyPointMap, AnyVectorMap};
@@ -78,7 +78,7 @@ pub struct MiniMesh<M: TriMesh + MeshMut + BasicAdj> { // TODO: shouldn't ned to
 /// property getters never fail.
 #[derive(Debug, Empty, Clone)]
 pub struct AnyMesh {
-    pub mesh: SharedVertexMesh,
+    pub mesh: SharedVertexMesh, // TODO: this should be a HEM or generic
     pub vertex_positions: Option<AnyPointMap<VertexHandle>>,
     pub vertex_normals: Option<AnyVectorMap<VertexHandle>>,
     pub vertex_colors: Option<AnyColorMap<VertexHandle>>,
@@ -90,8 +90,8 @@ impl MemSink for AnyMesh {
     fn add_vertex(&mut self) -> VertexHandle {
         self.mesh.add_vertex()
     }
-    fn add_face(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle {
-        self.mesh.add_triangle(vertices)
+    fn add_face(&mut self, vertices: &[VertexHandle]) -> Result<FaceHandle, Error> {
+        io::util::try_add_face(&mut self.mesh, vertices)
     }
 
     fn prepare_vertex_positions<N: Primitive>(&mut self, count: hsize) -> Result<(), Error> {

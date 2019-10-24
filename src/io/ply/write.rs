@@ -560,7 +560,7 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     // activated: if the handle is larger than 2^32, we cannot
                     // store it in PLY, so we return an error.
                     let err = || ErrorKind::SinkIncompatible(
-                        "PLY does not support indices larger than 2^32, but mesh returned \
+                        "PLY does not support indices larger than 2^32, but the mesh returned \
                             such a large handle (either this is a huge mesh or the mesh type \
                             is doing something strange)".into()
                     );

@@ -338,7 +338,10 @@ impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
         }
 
         // Read the all triangles into the raw result
-        self.read_raw(|tri| out.triangles.push(tri))?;
+        self.read_raw(|tri| {
+            out.triangles.push(tri);
+            Ok(())
+        })?;
 
         Ok(out)
     }
@@ -352,7 +355,10 @@ impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
     /// to use the [`StreamSource`]) interface to actually read meshes from
     /// this reader.
     #[inline(never)]
-    pub fn read_raw(self, add_triangle: impl FnMut(RawTriangle)) -> Result<(), Error> {
+    pub fn read_raw<F>(self, add_triangle: F) -> Result<(), Error>
+    where
+        F: FnMut(RawTriangle) -> Result<(), Error>,
+    {
         if let Some(triangle_count) = self.triangle_count {
             self.read_raw_binary(triangle_count, add_triangle)
         } else {
@@ -362,11 +368,10 @@ impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
 
     /// The `read_raw` implementation for binary bodies.
     #[inline(never)]
-    fn read_raw_binary(
-        self,
-        triangle_count: u32,
-        mut add_triangle: impl FnMut(RawTriangle),
-    ) -> Result<(), Error> {
+    fn read_raw_binary<F>(self, triangle_count: u32, mut add_triangle: F) -> Result<(), Error>
+    where
+        F: FnMut(RawTriangle) -> Result<(), Error>,
+    {
         const BYTES_PER_TRI: usize = 4 * 3 * 4 + 2;
 
 
@@ -401,7 +406,7 @@ impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
                 ],
                 attribute_byte_count: LittleEndian::read_u16(&data[48..50]),
             };
-            add_triangle(triangle);
+            add_triangle(triangle)?;
 
             buf.consume(BYTES_PER_TRI);
         }
@@ -415,7 +420,10 @@ impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
 
     /// The `read_raw` implementation for ASCII bodies.
     #[inline(never)]
-    pub fn read_raw_ascii(self, mut add_triangle: impl FnMut(RawTriangle)) -> Result<(), Error> {
+    pub fn read_raw_ascii<F>(self, mut add_triangle: F) -> Result<(), Error>
+    where
+        F: FnMut(RawTriangle) -> Result<(), Error>,
+    {
         /// Parses three floats separated by whitespace. No leading or trailing
         /// whitespace is handled.
         fn vec3(buf: &mut impl ParseBuf) -> Result<[f32; 3], Error> {
@@ -461,7 +469,7 @@ impl<R: io::Read, U: UnifyingMarker> Reader<R, U> {
                 normal,
                 vertices,
                 attribute_byte_count: 0,
-            });
+            })?;
 
             // Parse last line (`endfacet`)
             parse::line(&mut buf, |buf| buf.expect_tag(b"endfacet"))?;
@@ -657,8 +665,10 @@ impl<R: io::Read, U: UnifyingMarker> StreamSource for Reader<R, U> {
             let b = vertex_adder.add_vertex(sink, pb);
             let c = vertex_adder.add_vertex(sink, pc);
 
-            let f = sink.add_face([a, b, c]);
+            let f = sink.add_face(&[a, b, c])?;
             sink.set_face_normal(f, triangle.normal.to_vector3());
+
+            Ok(())
         })
     }
 }
