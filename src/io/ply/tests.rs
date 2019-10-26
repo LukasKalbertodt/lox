@@ -368,7 +368,34 @@ fn write_half_cube_with_normals_bbe() -> Result<(), Error> {
     Ok(())
 }
 
-// TODO: add test with mesh with some deleted faces & vertices
+#[test]
+fn write_mesh_with_removed_elements() -> Result<(), Error> {
+    let (mut mesh, mut vertex_positions) = mesh! {
+        type: SharedVertexMesh,
+        vertices: [
+            v0: (Point3::new(0.1f32, 0.2, 0.3)),
+            v1: (Point3::new(1.1f32, 1.2, 1.3)),
+            v2: (Point3::new(2.1f32, 2.2, 2.3)),
+            v3: (Point3::new(3.1f32, 3.2, 3.3)),
+            v4: (Point3::new(4.1f32, 4.2, 4.3)),
+        ],
+        faces: [
+            [v0, v1, v3],
+            [v0, v3, v4],
+            [v3, v1, v4],
+        ],
+    };
+
+    mesh.remove_isolated_vertex(VertexHandle::new(2));
+    vertex_positions.remove(VertexHandle::new(2));
+    mesh.remove_face(FaceHandle::new(1));
+
+    let mesh = MiniMesh { mesh, vertex_positions };
+
+    let res = to_mem(Config::new(Encoding::Ascii), &mesh)?;
+    assert_eq_file!(&res, "mesh_with_removed_elements.ply");
+    Ok(())
+}
 
 
 // ===========================================================================
