@@ -265,6 +265,13 @@ pub trait Mesh: Empty + fmt::Debug {
         ElementRefIter::<Self, EdgeHandle>::new(self)
     }
 
+    /// Returns `true` if `Self` is a `TriMesh`, meaning that all faces are
+    /// triangles. If `false` is returned, that means that you can't assume all
+    /// faces are triangles, but it could still be the case.
+    fn is_tri_mesh(&self) -> bool {
+        Self::FaceKind::ONLY_TRIANGLES
+    }
+
     /// Performs a number of integrity checks on internal data and panics if
     /// something is broken.
     ///
