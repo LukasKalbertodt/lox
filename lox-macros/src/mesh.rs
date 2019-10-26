@@ -17,7 +17,7 @@ use crate::{
 pub(crate) struct MeshInput {
     mesh_type: syn::Path,
     vertices: Vec<(Ident, Vec<syn::Expr>)>,
-    faces: Vec<([Ident; 3], Vec<syn::Expr>)>,
+    faces: Vec<(Vec<Ident>, Vec<syn::Expr>)>,
 }
 
 impl MeshInput {
@@ -74,10 +74,14 @@ impl MeshInput {
                 }
             })
             .collect::<TokenStream>();
-        for ([va, vb, vc], values) in faces {
-            add_faces.extend(quote! {
-                let face = MeshMut::add_triangle(&mut mesh, [#va, #vb, #vc]);
-            });
+        for (vertices, values) in faces {
+            let call = if vertices.len() == 3 {
+                quote! { MeshMut::add_triangle(&mut mesh, [ #(#vertices ,)* ]) }
+            } else {
+                quote! { MeshMut::add_face(&mut mesh, &[ #(#vertices ,)* ]) }
+            };
+
+            add_faces.extend(quote! { let face = #call; });
 
             for (value, map_ident) in values.into_iter().zip(&face_maps) {
                 add_faces.extend(quote! {
@@ -219,16 +223,15 @@ impl Parse for MeshInput {
             let vertices_of_face: Punctuated<_, Token![,]>
                 = vertices_inner.parse_terminated(syn::Ident::parse)?;
 
-            // Make sure we have exactly three vertices
-            let vertices_of_face = if vertices_of_face.len() != 3 {
+            // Make sure we have enough vertices
+            if vertices_of_face.len() < 3 {
                 return Err(Error::new(
                     vertex_list_span,
-                    "right now, only triangular faces are supported",
+                    "faces must have at least three vertices",
                 ));
-            } else {
-                let mut it = vertices_of_face.into_iter();
-                [it.next().unwrap(), it.next().unwrap(), it.next().unwrap()]
-            };
+            }
+
+            let vertices_of_face = vertices_of_face.into_iter().collect::<Vec<_>>();
 
             // Parse face properties.
             let values = parse_prop_values(&inner, faces.get(0).map(|v| v.1.len()))?;

@@ -155,3 +155,24 @@ fn rectangle_multi_props_inner_mod() {
 
     // TODO: check more
 }
+
+#[test]
+fn poly_faces() {
+    use lox::{
+        ds::{HalfEdgeMesh, half_edge::PolyConfig},
+    };
+
+    let mesh = mesh! {
+        type: HalfEdgeMesh<PolyConfig>,
+        vertices: [v0, v1, v2, v3, v4],
+        faces: [
+            [v0, v1, v2],
+            [v1, v3, v4, v2],
+        ],
+    };
+
+    assert_eq!(mesh.num_vertices(), 5);
+    assert_eq!(mesh.num_faces(), 2);
+    assert_eq!(mesh.vertices_around_face(FaceHandle::new(0)).count(), 3);
+    assert_eq!(mesh.vertices_around_face(FaceHandle::new(1)).count(), 4);
+}
