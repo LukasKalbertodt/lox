@@ -41,7 +41,7 @@ macro_rules! gen_mesh_tests {
         use crate::{
             prelude::*,
             handle::{Handle, HSizeExt},
-            ds::tests::util::cmp_rotated,
+            test_utils::cmp_rotated,
         };
 
         #[test]

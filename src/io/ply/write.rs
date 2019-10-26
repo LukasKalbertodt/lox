@@ -301,6 +301,10 @@ impl<W: io::Write> StreamSink for Writer<W> {
                 ListLenType::UInt
             };
 
+        // TODO: use a smaller scalar type if `num_vertices` allows it.
+        // However, MeshLab can't read files with `ushort` or `uchar` vertex
+        // indices (it crashes...). So maybe we should just stick to `uint`? At
+        // until we provide a viewer that can load these files.
         face_def.property_defs.push(PropertyDef {
             ty: PropertyType::List {
                 len_type: vi_list_len_type,

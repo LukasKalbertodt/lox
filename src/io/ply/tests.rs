@@ -4,7 +4,10 @@ use failure::Error;
 use crate::{
     mesh, MemSource, MemSink,
     prelude::*,
-    ds::SharedVertexMesh,
+    ds::{
+        HalfEdgeMesh, SharedVertexMesh,
+        half_edge::PolyConfig,
+    },
     fat::MiniMesh,
     io::IsFormat,
     map::DenseMap,
@@ -265,6 +268,105 @@ fn write_three_tris_all_props_bbe() -> Result<(), Error> {
     Ok(())
 }
 
+#[derive(Empty, MemSink, MemSource, Debug)]
+struct NormalsMesh {
+    #[lox(core_mesh)]
+    mesh: HalfEdgeMesh<PolyConfig>,
+
+    #[lox(vertex_position)]
+    vertex_positions: DenseMap<VertexHandle, Point3<f64>>,
+
+    #[lox(face_normal)]
+    face_normals: DenseMap<FaceHandle, Vector3<f32>>,
+}
+
+fn half_cube_with_normals() -> NormalsMesh {
+    //
+    //    (0) ----- (1)
+    //     |         |
+    //     |         |
+    //     |         |
+    //    (2) ----- (3) ----- (1)
+    //     |         |         |
+    //     |         |         |
+    //     |         |         |
+    //    (4) ----- (5) ----- (6)
+    //
+    let (mesh, vertex_positions, face_normals) = mesh! {
+        type: HalfEdgeMesh<PolyConfig>,
+        vertices: [
+            v0: (Point3::new(0.011, 1.021, 1.031)),
+            v1: (Point3::new(1.012, 1.022, 1.032)),
+            v2: (Point3::new(0.013, 1.023, 0.033)),
+            v3: (Point3::new(1.014, 1.024, 0.034)),
+            v4: (Point3::new(0.015, 0.025, 0.035)),
+            v5: (Point3::new(1.016, 0.026, 0.036)),
+            v6: (Point3::new(1.017, 0.027, 1.037)),
+        ],
+        faces: [
+            [v0, v2, v3, v1]: (Vector3::new(0.041, 0.051, 1.061)),
+            [v2, v4, v5, v3]: (Vector3::new(0.042, 0.052, 1.062)),
+            [v3, v5, v6, v1]: (Vector3::new(0.043, 0.053, 1.063)),
+        ],
+    };
+
+    NormalsMesh { mesh, vertex_positions, face_normals }
+}
+
+fn check_half_cube_with_normals(m: &NormalsMesh) {
+    let vh = VertexHandle::new;
+    let fh = FaceHandle::new;
+    let (v0, v1, v2, v3, v4, v5, v6) = (vh(0), vh(1), vh(2), vh(3), vh(4), vh(5), vh(6));
+    let (f0, f1, f2) = (fh(0), fh(1), fh(2));
+
+    // Mesh and connectivity
+    assert_eq!(m.mesh.num_vertices(), 7);
+    assert_eq!(m.mesh.num_faces(), 3);
+
+    assert_eq!(m.mesh.vertex_handles().collect::<Vec<_>>(), [v0, v1, v2, v3, v4, v5, v6]);
+    assert_eq!(m.mesh.face_handles().collect::<Vec<_>>(), [f0, f1, f2]);
+
+    assert_rotated_eq!(m.mesh.vertices_around_face(f0).collect::<Vec<_>>(), [v0, v2, v3, v1]);
+    assert_rotated_eq!(m.mesh.vertices_around_face(f1).collect::<Vec<_>>(), [v2, v4, v5, v3]);
+    assert_rotated_eq!(m.mesh.vertices_around_face(f2).collect::<Vec<_>>(), [v3, v5, v6, v1]);
+
+    // Vertex position
+    assert_eq!(m.vertex_positions.num_elements(), 7);
+    assert_eq!(m.vertex_positions.get_ref(v0), Some(&Point3::new(0.011, 1.021, 1.031)));
+    assert_eq!(m.vertex_positions.get_ref(v1), Some(&Point3::new(1.012, 1.022, 1.032)));
+    assert_eq!(m.vertex_positions.get_ref(v2), Some(&Point3::new(0.013, 1.023, 0.033)));
+    assert_eq!(m.vertex_positions.get_ref(v3), Some(&Point3::new(1.014, 1.024, 0.034)));
+    assert_eq!(m.vertex_positions.get_ref(v4), Some(&Point3::new(0.015, 0.025, 0.035)));
+    assert_eq!(m.vertex_positions.get_ref(v5), Some(&Point3::new(1.016, 0.026, 0.036)));
+    assert_eq!(m.vertex_positions.get_ref(v6), Some(&Point3::new(1.017, 0.027, 1.037)));
+
+    // Face normals
+    assert_eq!(m.face_normals.num_elements(), 3);
+    assert_eq!(m.face_normals.get_ref(f0), Some(&Vector3::new(0.041, 0.051, 1.061)));
+    assert_eq!(m.face_normals.get_ref(f1), Some(&Vector3::new(0.042, 0.052, 1.062)));
+    assert_eq!(m.face_normals.get_ref(f2), Some(&Vector3::new(0.043, 0.053, 1.063)));
+}
+
+#[test]
+fn write_half_cube_with_normals_ascii() -> Result<(), Error> {
+    let res = to_mem(Config::ascii(), &half_cube_with_normals())?;
+    assert_eq_file!(&res, "half_cube_with_normals_ascii.ply");
+    Ok(())
+}
+
+#[test]
+fn write_half_cube_with_normals_ble() -> Result<(), Error> {
+    let res = to_mem(Config::new(Encoding::BinaryLittleEndian), &half_cube_with_normals())?;
+    assert_eq_file!(&res, "half_cube_with_normals_ble.ply");
+    Ok(())
+}
+
+#[test]
+fn write_half_cube_with_normals_bbe() -> Result<(), Error> {
+    let res = to_mem(Config::new(Encoding::BinaryBigEndian), &half_cube_with_normals())?;
+    assert_eq_file!(&res, "half_cube_with_normals_bbe.ply");
+    Ok(())
+}
 
 // TODO: add test with mesh with some deleted faces & vertices
 
@@ -566,6 +668,30 @@ fn read_three_tris_all_props_bbe() -> Result<(), Error> {
     let input = include_test_file!("three_tris_all_props_bbe.ply");
     let m = FullMesh::create_from(Reader::new(input)?)?;
     check_three_tris_all_props(&m);
+    Ok(())
+}
+
+#[test]
+fn read_half_cube_with_normals_ascii() -> Result<(), Error> {
+    let input = include_test_file!("half_cube_with_normals_ascii.ply");
+    let m = NormalsMesh::create_from(Reader::new(input)?)?;
+    check_half_cube_with_normals(&m);
+    Ok(())
+}
+
+#[test]
+fn read_half_cube_with_normals_ble() -> Result<(), Error> {
+    let input = include_test_file!("half_cube_with_normals_ble.ply");
+    let m = NormalsMesh::create_from(Reader::new(input)?)?;
+    check_half_cube_with_normals(&m);
+    Ok(())
+}
+
+#[test]
+fn read_half_cube_with_normals_bbe() -> Result<(), Error> {
+    let input = include_test_file!("half_cube_with_normals_bbe.ply");
+    let m = NormalsMesh::create_from(Reader::new(input)?)?;
+    check_half_cube_with_normals(&m);
     Ok(())
 }
 
