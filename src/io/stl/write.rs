@@ -221,7 +221,19 @@ impl<W: io::Write> StreamSink for Writer<W> {
 
         // The triangle iterator
         let triangles = mesh.face_handles().map(|fh| {
-            let [va, vb, vc] = mesh.vertices_around_triangle(fh);
+            let mut it = mesh.vertices_around_face(fh);
+            let va = it.next().expect("bug: less than 3 vertices around face");
+            let vb = it.next().expect("bug: less than 3 vertices around face");
+            let vc = it.next().expect("bug: less than 3 vertices around face");
+
+            // Make sure this is a triangle face. Note: we do not check
+            // `mesh.is_tri_mesh()` in the beginning, as we also want to be
+            // able to serialize triangle meshes whose type does not implement
+            // `TriMesh`. We only want to error if there is actually a non-tri
+            // face.
+            if it.next().is_some() {
+                return Err(Error::new(|| ErrorKind::StreamSinkDoesNotSupportPolygonFaces));
+            }
 
             // Get positions from map and convert them to array
             let get_v = |vh| -> Result<[f32; 3], Error> {

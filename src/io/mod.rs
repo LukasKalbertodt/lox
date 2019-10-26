@@ -176,7 +176,7 @@ use crate::{
     prop::{ColorLike, PrimitiveColorChannel},
     sealed::Sealed,
     traits::{
-        Empty, TriMesh,
+        Empty,
         adj::BasicAdj,
     },
     util::MeshSizeHint,
@@ -801,6 +801,7 @@ pub enum ErrorKind {
     SinkIncompatible(String),
 
     MemSinkDoesNotSupportPolygonFaces,
+    StreamSinkDoesNotSupportPolygonFaces,
 
     /// This error can be returned by a `MemSink` to signal that it is not able
     /// to handle incoming property data.
@@ -898,6 +899,13 @@ impl fmt::Display for ErrorKind {
                 write!(
                     f,
                     "the `MemSink` does not support polygon faces, but the `StreamSource` \
+                        contains some",
+                )
+            }
+            ErrorKind::StreamSinkDoesNotSupportPolygonFaces => {
+                write!(
+                    f,
+                    "the `StreamSink` does not support polygon faces, but the `MemSource` \
                         contains some",
                 )
             }
@@ -1502,10 +1510,10 @@ where
 /// these methods. Those rules are covered here instead of repeating the same
 /// rules in all method descriptions.
 ///
-/// The `*_type` method gives two pieces of information: (a) does the source
-/// provide this property, and (b) what type does that property have. If the
-/// source does *not* provide a property "foo", then calling the method `foo()`
-/// will always panic. Thus, a sink using this interface should always call the
+/// The `*_type` method gives two pieces of information: (a) whether the source
+/// provide this property, and (b) the type of that property. If the source
+/// does *not* provide a property "foo", then calling the method `foo()` will
+/// always panic. Thus, a sink using this interface should always call the
 /// `*_type` method first to check if the property is provided.
 ///
 /// The type returned by the `*_type` method is merely a recommendation for the
@@ -1524,8 +1532,8 @@ where
 /// The handles passed to all main property methods must be valid handles
 /// obtained from the mesh returned by `core_mesh()`.
 ///
-/// All property methods have a default implemention which returns `None` and
-/// panics in `*_type` and `*` respectively.
+/// All property methods have a default implemention which returns `None` in
+/// `*_type` and panics in `*`.
 ///
 ///
 /// # Deriving
@@ -1534,7 +1542,7 @@ where
 /// macro's documentation](../derive.MemSource.html) for more information.
 pub trait MemSource {
     /// The type of the core mesh.
-    type CoreMesh: TriMesh + BasicAdj;
+    type CoreMesh: BasicAdj;
 
     /// Returns the core mesh (storing the connectivity).
     fn core_mesh(&self) -> &Self::CoreMesh;

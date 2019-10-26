@@ -288,10 +288,22 @@ impl<W: io::Write> StreamSink for Writer<W> {
             property_defs: PropVec::new(),
         };
 
-        // Connectivity: vertex_indices
+        // Connectivity: vertex_indices. To save memory, we figure out the
+        // smallest list len type we can use. It would be handy to have an
+        // upper bound of vertices per face from the mesh, but if we haven't,
+        // we can still take the number of vertices as upper bound.
+        let vi_list_len_type =
+            if mesh.is_tri_mesh() || mesh.num_vertices() < u8::max_value() as hsize {
+                ListLenType::UChar
+            } else if mesh.num_vertices() < u16::max_value() as hsize {
+                ListLenType::UShort
+            } else {
+                ListLenType::UInt
+            };
+
         face_def.property_defs.push(PropertyDef {
             ty: PropertyType::List {
-                len_type: ListLenType::UChar,
+                len_type: vi_list_len_type,
                 scalar_type: ScalarType::UInt,
             },
             name: "vertex_indices".into(),
@@ -324,11 +336,14 @@ impl<W: io::Write> StreamSink for Writer<W> {
         // ===== Body writing implementation
         // ====================================================================
 
-        struct HelperSource<'a, SrcT: MemSource>(&'a SrcT);
+        struct HelperSource<'a, SrcT: MemSource> {
+            src: &'a SrcT,
+            vi_list_len_type: ListLenType,
+        }
 
         impl<SrcT: MemSource> RawSource for HelperSource<'_, SrcT> {
             fn serialize_into<S: Serializer>(self, mut ser: S) -> Result<(), Error> {
-                let src = self.0;
+                let src = self.src;
                 let mesh = src.core_mesh();
 
                 // ===========================================================
@@ -544,35 +559,43 @@ impl<W: io::Write> StreamSink for Writer<W> {
                     ser.end_element()?;
                 }
 
+                let mut vertex_indices = Vec::new();
+
                 for fh in mesh.face_handles() {
                     // Vertex indices: get handles from mesh and get the
                     // corresponding index.
-                    let [a, b, c] = mesh.vertices_around_triangle(fh).map(|vh| {
+                    for vh in mesh.vertices_around_face(fh) {
                         // A panic here means that the mesh returned a handle
-                        // from `vertices_around_triangle` that was not
-                        // returned by `vertex_handles()`. That's not allowed.
-                        indices_map
-                            .get(vh)
-                            .expect("corrupt mesh: triangle adjacent to non-existing vertex")
-                    });
+                        // from `vertices_around_face` that was not returned by
+                        // `vertex_handles()`. That's not allowed.
+                        let index = indices_map.get(vh)
+                            .expect("corrupt mesh: face adjacent to non-existing vertex");
 
-                    // This is just relevant if the feature `large-handle` is
-                    // activated: if the handle is larger than 2^32, we cannot
-                    // store it in PLY, so we return an error.
-                    let err = || ErrorKind::SinkIncompatible(
-                        "PLY does not support indices larger than 2^32, but the mesh returned \
-                            such a large handle (either this is a huge mesh or the mesh type \
-                            is doing something strange)".into()
-                    );
-                    let mut indices = [
-                        u32::try_from(a).map_err(|_| Error::new(err))?,
-                        u32::try_from(b).map_err(|_| Error::new(err))?,
-                        u32::try_from(c).map_err(|_| Error::new(err))?,
-                    ];
+                        // This is just relevant if the feature `large-handle`
+                        // is activated: if the handle is larger than 2^32, we
+                        // cannot store it in PLY, so we return an error.
+                        let ply_index = u32::try_from(index).map_err(|_| {
+                            Error::new(|| ErrorKind::SinkIncompatible(
+                                "PLY does not support indices larger than 2^32, but the mesh \
+                                    returned such a large handle (either this is a huge mesh or \
+                                    the mesh type is doing something strange)".into()
+                            ))
+                        })?;
 
-                    // Actually store vertces indices
-                    ser.add::<u8>(3)?;
-                    ser.add_slice(&mut indices)?;
+                        vertex_indices.push(ply_index);
+                    }
+
+
+                    // Actually store vertex indices
+                    match self.vi_list_len_type {
+                        // All the casts are fine, as we've chosen
+                        // `vi_list_len_type` appropriately above.
+                        ListLenType::UChar => ser.add::<u8>(vertex_indices.len() as u8)?,
+                        ListLenType::UShort => ser.add::<u16>(vertex_indices.len() as u16)?,
+                        ListLenType::UInt => ser.add::<u32>(vertex_indices.len() as u32)?,
+                    }
+                    ser.add_slice(&mut vertex_indices)?;
+                    vertex_indices.clear();
 
                     // Other face properties
                     write_f_normal(&mut ser, src, fh)?;
@@ -587,7 +610,7 @@ impl<W: io::Write> StreamSink for Writer<W> {
 
 
         // Actually start the write operation.
-        self.write_raw(&[vertex_def, face_def], HelperSource(src))
+        self.write_raw(&[vertex_def, face_def], HelperSource { src, vi_list_len_type })
     }
 }
 
