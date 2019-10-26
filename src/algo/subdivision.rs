@@ -23,8 +23,7 @@ pub fn sqrt3<MeshT, MapT, ScalarT>(
 )
 where
     MeshT: TriMesh + EdgeMesh + MeshMut + EdgeAdj, // TODO: doesn't need to be tri in the beginning
-    MapT: PropStoreMut<VertexHandle>,
-    MapT::Target: Pos3Like<Scalar = ScalarT>,
+    MapT: PropStoreMut<VertexHandle, Target: Pos3Like<Scalar = ScalarT>>,
     ScalarT: PrimitiveFloat,
 {
     for i in 0..num_iterations {
@@ -48,8 +47,7 @@ fn sqrt3_impl<MeshT, MapT, ScalarT>(
 )
 where
     MeshT: TriMesh + EdgeMesh + MeshMut + EdgeAdj, // TODO: doesn't need to be tri in the beginning
-    MapT: PropStoreMut<VertexHandle>,
-    MapT::Target: Pos3Like<Scalar = ScalarT>,
+    MapT: PropStoreMut<VertexHandle, Target: Pos3Like<Scalar = ScalarT>>,
     ScalarT: PrimitiveFloat,
 {
     // Helper macro to create literal values of type `ScalarT`

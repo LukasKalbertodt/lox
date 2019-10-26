@@ -124,8 +124,7 @@ impl MemSink for AnyMesh {
 
     fn prepare_vertex_colors<C>(&mut self, count: hsize) -> Result<(), Error>
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         let mut map = AnyColorMap::new::<C>();
         map.reserve(count);
@@ -134,8 +133,7 @@ impl MemSink for AnyMesh {
     }
     fn set_vertex_color<C>(&mut self, handle: VertexHandle, color: C)
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         self.vertex_colors.as_mut().unwrap().insert(handle, color);
     }
@@ -156,8 +154,7 @@ impl MemSink for AnyMesh {
 
     fn prepare_face_colors<C>(&mut self, count: hsize) -> Result<(), Error>
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         let mut map = AnyColorMap::new::<C>();
         map.reserve(count);
@@ -166,8 +163,7 @@ impl MemSink for AnyMesh {
     }
     fn set_face_color<C>(&mut self, handle: FaceHandle, color: C)
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         self.face_colors.as_mut().unwrap().insert(handle, color);
     }
@@ -208,8 +204,7 @@ impl MemSource for AnyMesh {
     }
     fn vertex_color<C>(&self, v: VertexHandle) -> Result<Option<C>, Error>
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         let out = self.vertex_colors
             .as_ref()
@@ -236,8 +231,7 @@ impl MemSource for AnyMesh {
     }
     fn face_color<C>(&self, v: FaceHandle) -> Result<Option<C>, Error>
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         let out = self.face_colors
             .as_ref()

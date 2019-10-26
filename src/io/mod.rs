@@ -1147,8 +1147,7 @@ impl ColorType {
     /// instance) from it.
     pub fn from_color_like<C>() -> Self
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         Self {
             alpha: C::HAS_ALPHA,
@@ -1391,8 +1390,7 @@ pub trait MemSink {
     /// vertex colors with the color type `C`.
     fn prepare_vertex_colors<C>(&mut self, _count: hsize) -> Result<(), Error>
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         Ok(())
     }
@@ -1400,8 +1398,7 @@ pub trait MemSink {
     /// Sets the color (with color type `C`) of the vertex `v`.
     fn set_vertex_color<C>(&mut self, _v: VertexHandle, _color: C)
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {}
 
 
@@ -1425,8 +1422,7 @@ pub trait MemSink {
     /// face colors with the color type `C`.
     fn prepare_face_colors<C>(&mut self, _count: hsize) -> Result<(), Error>
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         Ok(())
     }
@@ -1434,8 +1430,7 @@ pub trait MemSink {
     /// Sets the color (with color type `C`) of the face `f`.
     fn set_face_color<C>(&mut self, _f: FaceHandle, _color: C)
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {}
 }
 
@@ -1604,8 +1599,7 @@ pub trait MemSource {
     /// See [the trait documentation][MemSource] for important information!
     fn vertex_color<C>(&self, _v: VertexHandle) -> Result<Option<C>, Error>
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         panic!(
             "requested vertex color from `MemSource`, but this source doesn't \
@@ -1649,8 +1643,7 @@ pub trait MemSource {
     /// See [the trait documentation][MemSource] for important information!
     fn face_color<C>(&self, _f: FaceHandle) -> Result<Option<C>, Error>
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         panic!(
             "requested face color from `MemSource`, but this source doesn't \

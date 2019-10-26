@@ -452,13 +452,15 @@ impl<W: io::Write> StreamSink for Writer<W> {
                 );
 
                 // ----- Vertex colors --------------------------------------
-                fn write_vertex_color<S: Serializer, SrcT: MemSource, C: ColorLike>(
+                fn write_vertex_color<S, SrcT, C>(
                     ser: &mut S,
                     src: &SrcT,
                     handle: VertexHandle,
                 ) -> Result<(), Error>
                 where
-                    C::Channel: PlyScalar,
+                    S: Serializer,
+                    SrcT: MemSource,
+                    C: ColorLike<Channel: PlyScalar>,
                 {
                     let color = match src.vertex_color::<C>(handle)? {
                         Some(color) => color,
@@ -513,13 +515,15 @@ impl<W: io::Write> StreamSink for Writer<W> {
                 );
 
                 // ----- Face colors --------------------------------------
-                fn write_face_color<S: Serializer, SrcT: MemSource, C: ColorLike>(
+                fn write_face_color<S, SrcT, C>(
                     ser: &mut S,
                     src: &SrcT,
                     handle: FaceHandle,
                 ) -> Result<(), Error>
                 where
-                    C::Channel: PlyScalar,
+                    S: Serializer,
+                    SrcT: MemSource,
+                    C: ColorLike<Channel: PlyScalar>,
                 {
                     let color = match src.face_color::<C>(handle)? {
                         Some(color) => color,

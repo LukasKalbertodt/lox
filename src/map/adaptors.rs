@@ -13,9 +13,8 @@ pub struct Mapper<'m, M, F> {
 impl<'m, H, M, F, TargetT> PropMap<H> for Mapper<'m, M, F>
 where
     H: Handle,
-    M: PropMap<H>,
+    M: PropMap<H, Target: 'm>,
     F: Fn(boo::Wrap<'_, M::Target, M::Marker>) -> TargetT,
-    M::Target: 'm,
 {
     type Target = TargetT;
     type Marker = boo::Owned;
@@ -38,8 +37,7 @@ pub struct RefMapper<'m, M, F> {
 impl<'m, H, M, F, TargetT> PropMap<H> for RefMapper<'m, M, F>
 where
     H: Handle,
-    M: PropMap<H, Marker = boo::Borrowed>,
-    M::Target: 'm,
+    M: PropMap<H, Marker = boo::Borrowed, Target: 'm>,
     F: Fn(&M::Target) -> &TargetT,
 {
     type Target = TargetT;

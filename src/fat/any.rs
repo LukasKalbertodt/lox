@@ -222,8 +222,7 @@ impl<H: Handle> AnyColorMap<H> {
     /// Creates a new instance of this map with the given color type.
     pub fn new<C>() -> Self
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         match (C::HAS_ALPHA, C::Channel::channel_type()) {
             (false, PrimitiveColorChannelType::Uint8) => AnyColorMap::RgbUint8(DenseMap::new()),
@@ -291,8 +290,7 @@ impl<H: Handle> AnyColorMap<H> {
     /// map! Otherwise, this method panics.
     pub fn get<C>(&self, handle: H) -> Option<C>
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         macro_rules! get {
             ($map:ident, $n:expr) => {{
@@ -362,8 +360,7 @@ impl<H: Handle> AnyColorMap<H> {
     /// map! Otherwise, this method panics.
     pub fn insert<C>(&mut self, handle: H, prop: C)
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         macro_rules! insert {
             ($map:ident, $n:expr) => {{

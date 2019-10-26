@@ -102,9 +102,7 @@ pub trait MemSourceExt {
     ) -> SourceWithVertexPositions<'a, Self, M, R>
     where
         R: CastRigor,
-        M: PropMap<VertexHandle>,
-        M::Target: Pos3Like,
-        <M::Target as Pos3Like>::Scalar: Primitive,
+        M: PropMap<VertexHandle, Target: Pos3Like<Scalar: Primitive>>,
     {
         SourceWithVertexPositions {
             original: self,
@@ -124,9 +122,7 @@ pub trait MemSourceExt {
     ) -> SourceWithVertexNormals<'a, Self, M, R>
     where
         R: CastRigor,
-        M: PropMap<VertexHandle>,
-        M::Target: Vec3Like,
-        <M::Target as Vec3Like>::Scalar: Primitive,
+        M: PropMap<VertexHandle, Target: Vec3Like<Scalar: Primitive>>,
     {
         SourceWithVertexNormals {
             original: self,
@@ -145,9 +141,7 @@ pub trait MemSourceExt {
         vertex_colors: &'a M,
     ) -> SourceWithVertexColors<'a, Self, M>
     where
-        M: PropMap<VertexHandle>,
-        M::Target: ColorLike,
-        <M::Target as ColorLike>::Channel: Primitive,
+        M: PropMap<VertexHandle, Target: ColorLike<Channel: Primitive>>,
     {
         SourceWithVertexColors {
             original: self,
@@ -166,9 +160,7 @@ pub trait MemSourceExt {
     ) -> SourceWithFaceNormals<'a, Self, M, R>
     where
         R: CastRigor,
-        M: PropMap<FaceHandle>,
-        M::Target: Vec3Like,
-        <M::Target as Vec3Like>::Scalar: Primitive,
+        M: PropMap<FaceHandle, Target: Vec3Like<Scalar: Primitive>>,
     {
         SourceWithFaceNormals {
             original: self,
@@ -187,9 +179,7 @@ pub trait MemSourceExt {
         face_colors: &'a M,
     ) -> SourceWithFaceColors<'a, Self, M>
     where
-        M: PropMap<FaceHandle>,
-        M::Target: ColorLike,
-        <M::Target as ColorLike>::Channel: Primitive,
+        M: PropMap<FaceHandle, Target: ColorLike<Channel: Primitive>>,
     {
         SourceWithFaceColors {
             original: self,
@@ -237,8 +227,7 @@ macro_rules! old_impl_items {
         }
         fn vertex_color<C>(&self, v: VertexHandle) -> Result<Option<C>, Error>
         where
-            C: ColorLike,
-            C::Channel: Primitive,
+            C: ColorLike<Channel: Primitive>,
         {
             self.original.vertex_color::<C>(v)
         }
@@ -257,8 +246,7 @@ macro_rules! old_impl_items {
         }
         fn face_color<C>(&self, f: FaceHandle) -> Result<Option<C>, Error>
         where
-            C: ColorLike,
-            C::Channel: Primitive,
+            C: ColorLike<Channel: Primitive>,
         {
             self.original.face_color::<C>(f)
         }
@@ -277,9 +265,7 @@ pub struct SourceWithVertexPositions<'a, S: ?Sized, M, R: CastRigor> {
 impl<S: ?Sized, M, R: CastRigor> MemSource for SourceWithVertexPositions<'_, S, M, R>
 where
     S: MemSource,
-    M: PropMap<VertexHandle>,
-    M::Target: Pos3Like,
-    <M::Target as Pos3Like>::Scalar: Primitive,
+    M: PropMap<VertexHandle, Target: Pos3Like<Scalar: Primitive>>,
 {
     old_impl_items!(core_mesh);
     old_impl_items!(vertex_normal);
@@ -318,9 +304,7 @@ pub struct SourceWithVertexNormals<'a, S: ?Sized, M, R: CastRigor> {
 impl<S: ?Sized, M, R: CastRigor> MemSource for SourceWithVertexNormals<'_, S, M, R>
 where
     S: MemSource,
-    M: PropMap<VertexHandle>,
-    M::Target: Vec3Like,
-    <M::Target as Vec3Like>::Scalar: Primitive,
+    M: PropMap<VertexHandle, Target: Vec3Like<Scalar: Primitive>>,
 {
     old_impl_items!(core_mesh);
     old_impl_items!(vertex_position);
@@ -358,9 +342,7 @@ pub struct SourceWithVertexColors<'a, S: ?Sized, M> {
 impl<S: ?Sized, M> MemSource for SourceWithVertexColors<'_, S, M>
 where
     S: MemSource,
-    M: PropMap<VertexHandle>,
-    M::Target: ColorLike,
-    <M::Target as ColorLike>::Channel: Primitive,
+    M: PropMap<VertexHandle, Target: ColorLike<Channel: Primitive>>,
 {
     old_impl_items!(core_mesh);
     old_impl_items!(vertex_position);
@@ -374,8 +356,7 @@ where
 
     fn vertex_color<C>(&self, v: VertexHandle) -> Result<Option<C>, Error>
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         // TODO: check cast
 
@@ -394,9 +375,7 @@ pub struct SourceWithFaceNormals<'a, S: ?Sized, M, R: CastRigor> {
 impl<S: ?Sized, M, R: CastRigor> MemSource for SourceWithFaceNormals<'_, S, M, R>
 where
     S: MemSource,
-    M: PropMap<FaceHandle>,
-    M::Target: Vec3Like,
-    <M::Target as Vec3Like>::Scalar: Primitive,
+    M: PropMap<FaceHandle, Target: Vec3Like<Scalar: Primitive>>,
 {
     old_impl_items!(core_mesh);
     old_impl_items!(vertex_position);
@@ -434,9 +413,7 @@ pub struct SourceWithFaceColors<'a, S: ?Sized, M> {
 impl<S: ?Sized, M> MemSource for SourceWithFaceColors<'_, S, M>
 where
     S: MemSource,
-    M: PropMap<FaceHandle>,
-    M::Target: ColorLike,
-    <M::Target as ColorLike>::Channel: Primitive,
+    M: PropMap<FaceHandle, Target: ColorLike<Channel: Primitive>>,
 {
     old_impl_items!(core_mesh);
     old_impl_items!(vertex_position);
@@ -450,8 +427,7 @@ where
 
     fn face_color<C>(&self, f: FaceHandle) -> Result<Option<C>, Error>
     where
-        C: ColorLike,
-        C::Channel: Primitive,
+        C: ColorLike<Channel: Primitive>,
     {
         // TODO: check cast
 
