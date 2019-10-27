@@ -24,7 +24,7 @@ use crate::{
     handle::{hsize, Handle},
     map::{DenseMap, set::DenseSet},
     mesh::SplitEdgeWithFacesResult,
-    traits::marker::{Bool, False, TriFaces},
+    traits::marker::{Bool, False, TriFaces, True},
 };
 use super::{Checked, TypeOpt};
 use self::adj::{CwVertexCirculator, CwVertexCirculatorState};
@@ -590,6 +590,7 @@ impl_index!(HalfEdgeHandle, half_edges, C, HalfEdge<C>);
 
 impl<C: Config> Mesh for DirectedEdgeMesh<C> {
     type FaceKind = TriFaces;
+    type Orientable = True;
 
     fn num_vertices(&self) -> hsize {
         self.vertices.num_elements()

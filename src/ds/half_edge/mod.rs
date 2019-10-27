@@ -936,6 +936,7 @@ impl_index!(HalfEdgeHandle, half_edges, |C| HalfEdge<C>);
 
 impl<C: Config> Mesh for HalfEdgeMesh<C> {
     type FaceKind = C::FaceKind;
+    type Orientable = True;
 
     fn num_vertices(&self) -> hsize {
         self.vertices.num_elements()

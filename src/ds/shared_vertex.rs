@@ -7,7 +7,7 @@ use crate::{
     handle::hsize,
     map::DenseMap,
     mesh::SplitEdgeWithFacesResult,
-    traits::marker::TriFaces,
+    traits::marker::{False, TriFaces},
     traits::adj::HandleIterFamily,
     util::TriArrayIntoIter,
 };
@@ -32,6 +32,7 @@ pub struct SharedVertexMesh {
 
 impl Mesh for SharedVertexMesh {
     type FaceKind = TriFaces;
+    type Orientable = False;
 
     fn num_vertices(&self) -> hsize {
         self.vertices.num_elements()

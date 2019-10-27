@@ -9,7 +9,7 @@ use crate::{
     refs::ElementRef,
 };
 use self::{
-    marker::{FaceKind, TriFaces, PolyFaces},
+    marker::{Bool, FaceKind, False, TriFaces, PolyFaces, True},
 };
 
 pub mod marker;
@@ -52,6 +52,34 @@ pub trait Mesh: Empty + fmt::Debug {
     /// non-triangular faces. And of course, there are data structures for that
     /// as well.
     type FaceKind: FaceKind;
+
+    /// Denotes whether this mesh is always orientable *or* potentially
+    /// non-orientable.
+    ///
+    /// Most meshes that represent real-life objects are orientable, e.g. a sphere
+    /// or a cube. A famous non-orientable surface is the Möbius strip. From
+    /// [Wikipedia on orientability][wiki-orientable]:
+    ///
+    /// > Orientability is a property of surfaces in Euclidean space that measures
+    /// > whether it is possible to make a consistent choice of surface normal
+    /// > vector at every point.
+    ///
+    /// This is set to `True` by types which guarantee that they represent an
+    /// orientable mesh. For example, the *half edge mesh* can only represent
+    /// orientable meshes. On the other hand, the *shared vertex mesh* does not
+    /// care about the orientability of meshes and can thus store
+    /// non-orientable ones. It sets this to `False` as it cannot guarantee
+    /// anything about orientability.
+    ///
+    /// Note however, that a `False` value does *not* mean the mesh is always
+    /// non-orientable. A shared vertex mesh can *also* represent orientable
+    /// meshes.
+    ///
+    /// Also see the [`Orientable`] and [`NonOrientable`] traits.
+    ///
+    ///
+    /// [wiki-orientable]: https://en.wikipedia.org/wiki/Orientability
+    type Orientable: Bool;
 
     // ===== Vertices ========================================================
     /// Returns the number of vertices in this mesh.
@@ -315,16 +343,10 @@ pub trait MeshMut: Mesh {
     /// Adds a new triangular face (defined by the three vertices) to this mesh
     /// and returns the handle representing that face.
     ///
-    /// The vertices have to be given in front-face CCW (counterclockwise)
-    /// order. This means: if you look at front of the face you want to create
-    /// (the face's normal is pointing to you), the vertices should appear in
-    /// CCW order. Or in more mathy terms: the face's normal is equal to `(v0 -
-    /// v1) ⨯ (v0 - v2)` in the right-handed coordinate system (where `⨯` is
-    /// cross-product).
-    ///
-    /// TODO: what if face already there?
-    /// TODO: panics if vertex handles not unique, panics if one invalid vertex
-    /// handle
+    /// The function of this method has the same semantics as
+    /// [`MeshMut::add_face`]. The only difference is that this is specialized
+    /// for triangles. See [`MeshMut::add_face`]'s documentation for important
+    /// information about the usage of this method.
     fn add_triangle(&mut self, vertices: [VertexHandle; 3]) -> FaceHandle;
 
 
@@ -336,7 +358,23 @@ pub trait MeshMut: Mesh {
     /// (the face's normal is pointing to you), the vertices should appear in
     /// CCW order.
     ///
-    /// TODO: panics if len < 3, panics if vertices invalid
+    /// You have to respect `Mesh::Orientable` when adding faces. If it is
+    /// `True`, you must not add faces in a way that creates a non-orientable
+    /// mesh.
+    ///
+    ///
+    /// # Panics
+    ///
+    /// This method panics ...
+    /// - ... if `vertices.len() < 3`: faces must have at least three vertices!
+    /// - ... if any given vertex handle is invalid, i.e. does not refer to a
+    ///   vertex in this mesh.
+    /// - ... TODO
+    ///
+    ///
+    /// TODO: what if face already there?
+    /// TODO: panics if vertex handles not unique
+    /// TODO: return result for certain problems, like non orientability or so?
     fn add_face(&mut self, vertices: &[VertexHandle]) -> FaceHandle
     where
         Self: PolyMesh;
@@ -496,6 +534,23 @@ impl<T> TriMesh for T where T: Mesh<FaceKind = TriFaces> {}
 pub trait PolyMesh: Mesh<FaceKind = PolyFaces> {}
 impl<T> PolyMesh for T where T: Mesh<FaceKind = PolyFaces> {}
 
+
+/// Marker trait for mesh types that guarantee orientable meshes.
+///
+/// This trait is automatically implemented for all types that implement
+/// `Mesh<Orientable = True>`. See [`Mesh::Orientable`] for more information.
+pub trait Orientable: Mesh {}
+
+impl<M: Mesh<Orientable = True>> Orientable for M {}
+
+
+/// Marker trait for mesh types that allow non-orientable meshes.
+///
+/// This trait is automatically implemented for all types that implement
+/// `Mesh<Orientable = False>`. See [`Mesh::Orientable`] for more information.
+pub trait NonOrientable: Mesh {}
+
+impl<M: Mesh<Orientable = False>> NonOrientable for M {}
 
 
 
