@@ -14,6 +14,7 @@
 use std::{
     fmt,
     marker::PhantomData,
+    mem,
     ops,
     slice,
 };
@@ -180,7 +181,20 @@ pub struct HalfEdgeMesh<C: Config = PolyConfig> {
     vertices: DenseMap<VertexHandle, Vertex>,
     faces: DenseMap<FaceHandle, Face>,
     half_edges: DenseMap<HalfEdgeHandle, HalfEdge<C>>,
+
+    /// We box the cache to not increase the size of `Self` by too much.
+    cache: Box<OpCache>,
     _config: PhantomData<C>,
+}
+
+/// Cache of memory needed for operations on the mesh. That way we avoid that
+/// each operation has to allocate memory over and over again. For example,
+/// `add_face` needs temporary memory, but allocating each call would be
+/// wasteful.
+#[derive(Empty)]
+struct OpCache {
+    /// Used for `add_face`.
+    inner_half_edges: Vec<Checked<HalfEdgeHandle>>,
 }
 
 /// Data stored per `Face`.
@@ -251,6 +265,8 @@ impl<C: Config> Clone for HalfEdgeMesh<C> {
             vertices: self.vertices.clone(),
             faces: self.faces.clone(),
             half_edges: self.half_edges.clone(),
+            // As it's cache, we do not actually clone it, but create a new one
+            cache: Box::new(OpCache::empty()),
             _config: PhantomData,
         }
     }
@@ -1229,16 +1245,40 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
     {
         assert!(
             vertices.len() >= 3,
-            "attempt to add a face with only {} vertices",
+            "attempt to add a face with only {} vertices, but at least 3 vertices are required",
             vertices.len(),
         );
         // TODO: check uniqueness of vertices?
 
         // The `unsafe Checked::new` is fine as `add_face_impl` overrides all
-        // values in its third argument before reading those values.
-        let mut inner_half_edges
-            = vec![unsafe { Checked::new(HalfEdgeHandle::new(0))}; vertices.len()];
-        self.add_face_impl(vertices, &mut inner_half_edges)
+        // values before reading those values.
+        let dummy_he = unsafe { Checked::new(HalfEdgeHandle::new(0))};
+
+        // We dispatch over the face valence to special case important cases.
+        // Even if we don't need to allocate memory, having the temporary
+        // memory on the stack is better for the CPU cache.
+        match vertices.len() {
+            3 => self.add_face_impl(vertices, &mut [dummy_he; 3]),
+            4 => self.add_face_impl(vertices, &mut [dummy_he; 4]),
+            len => {
+                // We temporarily move the vector from its actual location into
+                // this function. This is just a hack, because otherwise we get
+                // problems with the borrow checker below: cannot borrow `self`
+                // mutably twice.
+                let mut inner_half_edges
+                    = mem::replace(&mut self.cache.inner_half_edges, Vec::new());
+
+                inner_half_edges.clear();
+                inner_half_edges.resize(len, dummy_he);
+
+                let fh = self.add_face_impl(vertices, &mut inner_half_edges);
+
+                // Move the vector back
+                self.cache.inner_half_edges = inner_half_edges;
+
+                fh
+            }
+        }
     }
 
     fn remove_isolated_vertex(&mut self, v: VertexHandle) {
