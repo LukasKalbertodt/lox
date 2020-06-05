@@ -61,3 +61,9 @@ jobs:
         use-tool-cache: true
     - name: Run fuzz tests
       run: ls fuzz/corpus/ | xargs -L1 -i cargo fuzz run -a -j2 {} -- -max_total_time=15s
+    - name: Upload crash artifacts
+      if: ${{ failure() }}
+      uses: actions/upload-artifact@v2
+      with:
+        name: crash-artifacts
+        path: fuzz/artifacts/**/crash*
