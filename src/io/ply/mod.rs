@@ -31,17 +31,15 @@
 //! # Reading and writing
 //!
 //! Most of the time you don't even need to look into this module, but can
-//! instead use the functions in the `io` module, like [`read_file`] or
-//! [`write_file`]. If you need a bit more control, take a look at
-//! [`Writer`][ply::Writer] and [`Reader`][ply::Reader].
+//! instead use the functions in the `io` module, like
+//! [`read_file`][super::read_file] or [`write_file`][super::write_file]. If you
+//! need a bit more control, take a look at [`Writer`] and [`Reader`].
 //!
 //!
 //! # Raw APIs
 //!
-//! If you need full low-level control, you can use
-//! [`Writer::write_raw`][ply::Writer::write_raw] or
-//! [`Reader::read_raw`][ply::Reader::read_raw]. However, this is usually not
-//! necessary.
+//! If you need full low-level control, you can use [`Writer::write_raw`] or
+//! [`Reader::read_raw`]. However, this is usually not necessary.
 
 use crate::{
     io::{

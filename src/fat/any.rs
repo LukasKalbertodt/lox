@@ -1,5 +1,5 @@
 //! Dynamically typed property maps (for all IO primitive types). Mainly used
-//! for [`AnyMesh`].
+//! for [`AnyMesh`][super::AnyMesh].
 
 use cgmath::{Point3, Vector3};
 

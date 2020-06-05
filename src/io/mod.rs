@@ -9,18 +9,16 @@
 //! # Quick start
 //!
 //! To read or write meshes, you need a type that can store your mesh data and
-//! implements [`MemSink`][io::MemSink] or [`MemSource`][io::MemSource],
-//! respectively. You want to either use a type from the [`fat`] module or
-//! write your own type and then `#[derive(MemSink, MemSource)]` for it. Most
-//! examples in this modules use types from the `fat` module. (See the next
-//! section for more details about the sink/source traits.)
+//! implements [`MemSink`] or [`MemSource`], respectively. You want to either
+//! use a type from the [`fat`][crate::fat] module or write your own type and
+//! then `#[derive(MemSink, MemSource)]` for it. Most examples in this modules
+//! use types from the `fat` module. (See the next section for more details
+//! about the sink/source traits.)
 //!
 //! There are multiple ways to actually read or write. **You most certainly are
-//! looking for [`read_file`][io::read_file] or
-//! [`write_file`][io::write_file].** If you don't read from/write to a file,
-//! there are four other convenience functions: [`read_from`][io::read_from],
-//! [`read_from_mem`][io::read_from_mem], [`write_to`][io::write_to] and
-//! [`write_to_mem`][io::write_to_mem].
+//! looking for [`read_file`] or [`write_file`].** If you don't read from/write
+//! to a file, there are four other convenience functions: [`read_from`],
+//! [`read_from_mem`], [`write_to`] and [`write_to_mem`].
 //!
 //! Here is a simple example of your basic small program using IO:
 //!
@@ -50,14 +48,12 @@
 //!
 //! # Sources and Sinks
 //!
-//! There are four traits at the core of this module:
-//! [`MemSource`][io::MemSource], [`StreamSource`][io::StreamSource],
-//! [`MemSink`][io::MemSink] and [`StreamSink`][io::StreamSink]. They abstract
-//! over all types that can provide or receive mesh data (connectivity *and*
-//! property data). The `Mem*` variants can provide or receive data in
-//! arbitrary order (random access), while the `Stream*` variants cannot and
-//! are restricted to one particular access pattern. This has the following
-//! consequences:
+//! There are four traits at the core of this module: [`MemSource`],
+//! [`StreamSource`], [`MemSink`] and [`StreamSink`]. They abstract over all
+//! types that can provide or receive mesh data (connectivity *and* property
+//! data). The `Mem*` variants can provide or receive data in arbitrary order
+//! (random access), while the `Stream*` variants cannot and are restricted to
+//! one particular access pattern. This has the following consequences:
 //!
 //! - We cannot transfer data from a `StreamSource` to a `StreamSink`, because
 //!   the source generally provides data in a different order than the sink
@@ -108,8 +104,8 @@
 //!
 //! More formats will be added in the future.
 //!
-//! All available file formats are listed by the enum
-//! [`FileFormat`][io::FileFormat]. It also defines a few very useful methods.
+//! All available file formats are listed by the enum [`FileFormat`]. It also
+//! defines a few very useful methods.
 //!
 //!
 //! # Three levels of IO: Convenience vs. Control

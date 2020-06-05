@@ -45,9 +45,9 @@
 //!
 //! | Name | Memory | Face kind | `EdgeMesh` | `BasicAdj` | `FullAdj` | `EdgeAdj` |
 //! | ---- | ------ | --------- | ---------- | ---------- | --------- | --------- |
-//! | [`SharedVertexMesh`][SVM] | 24 | Triangles | ✘ | ✔ | ✘ | ✘ |
-//! | [`DirectedEdgeMesh`][DEM] | 52 – 100 | Triangles | ✘ | ✔ | ✔ | ✘ |
-//! | [`HalfEdgeMesh`][HEM]     | 84 – 108 | *configurable* | ✔ | ✔ | ✔ | ✔ |
+//! | [`SharedVertexMesh`] | 24 | Triangles | ✘ | ✔ | ✘ | ✘ |
+//! | [`DirectedEdgeMesh`] | 52 – 100 | Triangles | ✘ | ✔ | ✔ | ✘ |
+//! | [`HalfEdgeMesh`]     | 84 – 108 | *configurable* | ✔ | ✔ | ✔ | ✔ |
 //!
 //!
 //! *Note about the "memory" column*: this value is given in bytes and is
@@ -80,10 +80,6 @@
 //! create a new enum type without any variants (e.g. `enum MyConfig {}`) and
 //! then implement `Config` for it.
 //!
-//!
-//! [SVM]: ds::SharedVertexMesh
-//! [DEM]: ds::DirectedEdgeMesh
-//! [HEM]: ds::HalfEdgeMesh
 
 use crate::{
     traits::marker::{Bool, True, False},

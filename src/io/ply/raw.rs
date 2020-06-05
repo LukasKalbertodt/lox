@@ -8,7 +8,8 @@
 //!
 //! You usually can just use the high level API, but if you have very special
 //! needs, the raw API could help you. For reading files, the entry point is
-//! [`Reader::read_raw`]. For writing files, it's [`Writer::write_raw`].
+//! [`Reader::read_raw`][super::Reader::read_raw]. For writing files, it's
+//! [`Writer::write_raw`][super::Writer::write_raw].
 
 use std::{
     fmt,

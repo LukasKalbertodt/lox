@@ -26,10 +26,10 @@
 //! int).
 //!
 //! Two binary choices lead to four different rigors:
-//! - [`Lossless`][cast::Lossless]: neither clamping nor rounding allowed.
-//! - [`AllowClamping`][cast::AllowClamping]: clamping allowed, rounding not allowed.
-//! - [`AllowRounding`][cast::AllowRounding]: rounding allowed, clamping not allowed.
-//! - [`Lossy`][cast::Lossy]: both, clamping and rounding, allowed.
+//! - [`Lossless`]: neither clamping nor rounding allowed.
+//! - [`AllowClamping`]: clamping allowed, rounding not allowed.
+//! - [`AllowRounding`]: rounding allowed, clamping not allowed.
+//! - [`Lossy`]: both, clamping and rounding, allowed.
 //!
 //! In the following table you can see what can happen during the conversions
 //! between primitive number types. Here, '×' stands for "clamping", '○' stands
@@ -57,8 +57,8 @@
 //! # Casting functions
 //!
 //! For each cast rigor, there are two corresponding functions called
-//! `{{rigor}}` and `try_{{rigor}}`, e.g. [`lossless`][cast::lossless] and
-//! [`try_lossless`][cast::try_lossless].
+//! `{{rigor}}` and `try_{{rigor}}`, e.g. [`lossless`] and
+//! [`try_lossless`].
 //!
 //! The functions without `try_` prefix work with classical trait bounds: if
 //! you attempt to cast betwene two types that are not castable with the
@@ -71,12 +71,12 @@
 //! functions without `try_` prefix as a compiler error is better than a
 //! runtime error.
 //!
-//! Additionally, there are two functions generic over the cast rigor:
-//! [`cast`][cast::cast] and [`try_cast`][cast::try_cast]. You usually don't
-//! want to use them manually, but they are useful in generic contexts.
+//! Additionally, there are two functions generic over the cast rigor: [`cast`]
+//! and [`try_cast`]. You usually don't want to use them manually, but they are
+//! useful in generic contexts.
 //!
 //! If you need to find out if a cast is possible without providing a value,
-//! [`is_cast_possible`][cast::is_cast_possible] is what you are looking for.
+//! [`is_cast_possible`] is what you are looking for.
 //!
 //! ## Example
 //!

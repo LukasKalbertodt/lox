@@ -14,10 +14,10 @@
 //! # `hsize` and Arena Allocators
 //!
 //! A handle type is just a wrapper around a simple integer, or more precisely:
-//! around the [`hsize`][handle::hsize] integer type. This integer is usually
-//! used as an index to an array-like thing (like a `Vec`) -- that way, we can
-//! refer to data. It is called `hsize` because it is very similar to `usize`
-//! in many regards. The *h* is for *handle*.
+//! around the [`hsize`] integer type. This integer is usually used as an index
+//! to an array-like thing (like a `Vec`) -- that way, we can refer to data. It
+//! is called `hsize` because it is very similar to `usize` in many regards. The
+//! *h* is for *handle*.
 //!
 //! Note that handles share some properties with pointers (they refer to a
 //! thing and are actually just an integer), but have some important

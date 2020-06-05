@@ -1,30 +1,26 @@
 //! Fat meshes: types that store mesh connectivity and element properties.
 //!
 //! The core meshes in this library (e.g.
-//! [`SharedVertexMesh`][ds::SharedVertexMesh] and
-//! [`HalfEdgeMesh`][ds::HalfEdgeMesh]) only store mesh connectivity. That in
-//! itself is usually not sufficient to do anything useful. At the very least,
-//! one usually wants to store vertex positions. Often, normals and other
+//! [`SharedVertexMesh`][crate::ds::SharedVertexMesh] and
+//! [`HalfEdgeMesh`][crate::ds::HalfEdgeMesh]) only store mesh connectivity.
+//! That in itself is usually not sufficient to do anything useful. At the very
+//! least, one usually wants to store vertex positions. Often, normals and other
 //! properties need to be stored as well. Types that store connectivity and
 //! properties are called "*fat* meshes" in this library.
 //!
 //! This library is designed so that users can very easily create their own fat
-//! mesh types that store exactly the properties they need. Just define a
-//! struct and derive [`Empty`][traits::Empty], [`MemSink`][io::MemSink] and
-//! [`MemSource`][io::MemSource] for it. However, there are some very common
-//! requirements (e.g. "just `f32` vertex positions"), so that it's worth
+//! mesh types that store exactly the properties they need. Just define a struct
+//! and derive [`Empty`][crate::traits::Empty], [`MemSink`][crate::io::MemSink]
+//! and [`MemSource`][crate::io::MemSource] for it. However, there are some very
+//! common requirements (e.g. "just `f32` vertex positions"), so that it's worth
 //! offering some very common fat mesh types here.
 //!
 //! Overview of the fat mesh types in this module:
 //!
 //! | Type | Core Mesh | v-position | v-normal | v-color | f-normal | f-color |
 //! | ---- | --------- | ---------- | -------- | ------- | -------- | ------- |
-//! | [`MiniMesh`][mini] | `<T: Mesh>` | `f32` | - | - | - | - |
-//! | [`AnyMesh`][any] | `SharedVertexMesh` | *any* | *any* | *any* | *any* | *any* |
-//!
-//!
-//! [any]: fat::AnyMesh
-//! [mini]: fat::MiniMesh
+//! | [`MiniMesh`] | `<T: Mesh>` | `f32` | - | - | - | - |
+//! | [`AnyMesh`] | `SharedVertexMesh` | *any* | *any* | *any* | *any* | *any* |
 //!
 
 use cgmath::{Point3, Vector3};

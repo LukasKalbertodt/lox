@@ -7,9 +7,9 @@
 //! stored multiple times, making the format fairly space inefficient.
 //!
 //! Furthermore, for most uses of the mesh from an STL file, you need to unify
-//! the vertices. The [`Reader`][stl::Reader] in this module can do this for
-//! you, but it's a time consuming task, being a couple of times slower than
-//! reading a file without unifying the vertices.
+//! the vertices. The [`Reader`][Reader] in this module can do this for you, but
+//! it's a time consuming task, being a couple of times slower than reading a
+//! file without unifying the vertices.
 //!
 //! Despite its many flaws, the file format is still used a lot, in particular
 //! for 3D printing. The only advantage is its simplicity. If possible, try not
@@ -23,23 +23,23 @@
 //! # Reading
 //!
 //! Most of the time, you don't even need to look in this module as you can
-//! simply use [`io::read_file`][read_file] to read mesh files. If you need
-//! more control over the reading process, take a look at [the STL
-//! `Reader`][stl::Reader].
+//! simply use [`io::read_file`][super::read_file] to read mesh files. If you
+//! need more control over the reading process, take a look at [the STL
+//! `Reader`][Reader].
 //!
 //!
 //! # Writing
 //!
-//! You can usually just use [`io::write_file`][write_file] to write meshes to
-//! files. If you need more control over the writing process, take a look at
-//! [the STL `Writer`][stl::Writer].
+//! You can usually just use [`io::write_file`][super::write_file] to write
+//! meshes to files. If you need more control over the writing process, take a
+//! look at [the STL `Writer`][Writer].
 //!
 //!
 //! # Raw APIs
 //!
 //! If you need full low-level control, you can use
-//! [`Writer::write_raw`][stl::Writer::write_raw] or
-//! [`Reader::read_raw`][stl::Reader::read_raw]. This is usually not necessary.
+//! [`Writer::write_raw`] or
+//! [`Reader::read_raw`]. This is usually not necessary.
 
 use std::{
     convert::TryFrom,
