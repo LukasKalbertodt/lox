@@ -10,6 +10,14 @@ env:
   RUSTFLAGS: --deny warnings
 
 jobs:
+  style:
+    name: 'Check basic style'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Check basic style
+      run: ./.github/check-basic-style.sh
+
   check:
     name: 'Build, test & document'
     runs-on: ubuntu-latest
