@@ -8,7 +8,6 @@
 #![feature(proc_macro_hygiene)]
 #![feature(try_blocks)]
 #![feature(specialization)]
-#![feature(non_exhaustive)]
 #![feature(associated_type_defaults)]
 #![feature(associated_type_bounds)]
 
