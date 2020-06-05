@@ -36,7 +36,7 @@ use super::{boo, PropMap, PropStore, PropStoreMut};
 /// to switch to `FxHash` in the future if we are sure that it's very unlikely
 /// to cause any trouble in ou situation.
 #[derive(Clone, Debug)]
-pub struct SparseMap<H: Handle + Hash, T>(HashMap<H, T, ahash::ABuildHasher>);
+pub struct SparseMap<H: Handle + Hash, T>(HashMap<H, T, ahash::RandomState>);
 
 impl<H: Handle + Hash, T> SparseMap<H, T> {
     /// Creates an empty `SparseMap`.
