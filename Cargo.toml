@@ -23,17 +23,17 @@ ahash = "0.3.5"
 boolinator = "2.4"
 byteorder = "1.2"
 cgmath = "0.17"
-derive_more = "0.15"
+derive_more = "0.99"
 failure = "0.1.2"
 fxhash = "0.2"
 lox-macros = { path = "lox-macros" }
 num-traits = "0.2"
 optional = "0.5"
-smallvec = { version = "0.6", features = ["union"] }
+smallvec = { version = "1.4.0", features = ["union"] }
 stable-vec = "0.4"
 
 [dev-dependencies]
-color-backtrace = "0.2"
+color-backtrace = "0.4.2"
 criterion = { version = "0.3", features = ["real_blackbox"] }
 
 
