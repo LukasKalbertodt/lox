@@ -27,7 +27,7 @@ use cgmath::{Point3, Vector3};
 
 use crate::{
     prelude::*,
-    ds::SharedVertexMesh,
+    ds::{HalfEdgeMesh, half_edge},
     handle::hsize,
     io::{self, ColorType, Error, Primitive, PrimitiveType},
     map::DenseMap,
@@ -73,8 +73,8 @@ pub struct MiniMesh<M: MeshMut + BasicAdj> {
 /// The `MemSource` implementation always casts to the requested type, so the
 /// property getters never fail.
 #[derive(Debug, Empty, Clone)]
-pub struct AnyMesh {
-    pub mesh: SharedVertexMesh, // TODO: this should be a HEM or generic
+pub struct AnyMesh<M: Mesh = HalfEdgeMesh<half_edge::PolyConfig>> {
+    pub mesh: M,
     pub vertex_positions: Option<AnyPointMap<VertexHandle>>,
     pub vertex_normals: Option<AnyVectorMap<VertexHandle>>,
     pub vertex_colors: Option<AnyColorMap<VertexHandle>>,
@@ -82,7 +82,7 @@ pub struct AnyMesh {
     pub face_colors: Option<AnyColorMap<FaceHandle>>,
 }
 
-impl MemSink for AnyMesh {
+impl<M: MeshMut + BasicAdj> MemSink for AnyMesh<M> {
     fn add_vertex(&mut self) -> VertexHandle {
         self.mesh.add_vertex()
     }
@@ -165,8 +165,8 @@ impl MemSink for AnyMesh {
     }
 }
 
-impl MemSource for AnyMesh {
-    type CoreMesh = SharedVertexMesh;
+impl<M: MeshMut + BasicAdj> MemSource for AnyMesh<M> {
+    type CoreMesh = M;
     fn core_mesh(&self) -> &Self::CoreMesh {
         &self.mesh
     }
