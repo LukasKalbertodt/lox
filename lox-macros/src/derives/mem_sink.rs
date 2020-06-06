@@ -71,6 +71,9 @@ fn gen_mesh_code(field: &CoreMeshField) -> TokenStream {
     let add_face = quote_spanned!{field.ty.span()=>
         lox::io::util::try_add_face(&mut self.#field_name, vertices)
     };
+    let get_edge_between = quote_spanned!{field.ty.span()=>
+        lox::io::util::try_get_edge_between(&self.#field_name, endpoints)
+    };
     let size_hint = quote_spanned!{field.ty.span()=>
         lox::traits::MeshMut::reserve_for_vertices(
             &mut self.#field_name,
@@ -91,6 +94,12 @@ fn gen_mesh_code(field: &CoreMeshField) -> TokenStream {
             vertices: &[lox::VertexHandle],
         ) -> Result<lox::FaceHandle, lox::io::Error> {
             #add_face
+        }
+        fn get_edge_between(
+            &self,
+            endpoints: [lox::VertexHandle; 2],
+        ) -> Result<Option<lox::EdgeHandle>, lox::io::Error> {
+            #get_edge_between
         }
         fn size_hint(&mut self, hint: lox::util::MeshSizeHint) {
             #size_hint

@@ -10,11 +10,11 @@ use stable_vec::StableVec;
 
 use crate::{
     cast::{try_cast, is_cast_possible, CastRigor},
-    handle::{hsize, Handle, VertexHandle, FaceHandle},
+    handle::{hsize, Handle, VertexHandle, FaceHandle, EdgeHandle},
     io::{ColorType, Error, ErrorKind, MemSource, PrimitiveType, Primitive, PropKind},
     map::{PropMap, PropStoreMut, DenseMap},
     prop::{ColorLike, Pos3Like, Vec3Like},
-    traits::{MeshMut, PolyMesh},
+    traits::{Mesh, MeshMut, PolyMesh, adj::EdgeAdj},
 };
 
 
@@ -81,6 +81,49 @@ where
     }
 
     Helper::add_face_helper(mesh, vertices)
+}
+
+/// Adds the face with the given `vertices` to the given `mesh` or returns an
+/// error if that is not possible.
+///
+/// If the given mesh type `M` implements `PolyMesh`, then this function will
+/// always succeed. If not, this function will succeed if `vertices.len() == 3`
+/// and will fail otherwise.
+pub fn try_get_edge_between<M>(
+    mesh: &M,
+    endpoints: [VertexHandle; 2],
+) -> Result<Option<EdgeHandle>, Error>
+where
+    M: Mesh,
+{
+    // To get this kind of different behavior for poly and tri meshes, we have
+    // to use specialization. And for that, we need a helper trait.
+    trait Helper {
+        fn get_edge_between_helper(
+            &self,
+            endpoints: [VertexHandle; 2],
+        ) -> Result<Option<EdgeHandle>, Error>;
+    }
+
+    impl<M: Mesh> Helper for M {
+        default fn get_edge_between_helper(
+            &self,
+            _: [VertexHandle; 2],
+        ) -> Result<Option<EdgeHandle>, Error> {
+            Err(Error::new(|| ErrorKind::MemSinkDoesNotSupportEdges))
+        }
+    }
+
+    impl<M: Mesh + EdgeAdj> Helper for M {
+        fn get_edge_between_helper(
+            &self,
+            [a, b]: [VertexHandle; 2],
+        ) -> Result<Option<EdgeHandle>, Error> {
+            Ok(self.edge_between_vertices(a, b))
+        }
+    }
+
+    Helper::get_edge_between_helper(mesh, endpoints)
 }
 
 

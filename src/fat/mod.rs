@@ -89,6 +89,10 @@ impl<M: MeshMut + BasicAdj> MemSink for AnyMesh<M> {
     fn add_face(&mut self, vertices: &[VertexHandle]) -> Result<FaceHandle, Error> {
         io::util::try_add_face(&mut self.mesh, vertices)
     }
+    fn get_edge_between(&self, endpoints: [VertexHandle; 2]) -> Result<Option<EdgeHandle>, Error> {
+        io::util::try_get_edge_between(&self.mesh, endpoints)
+    }
+
 
     fn prepare_vertex_positions<N: Primitive>(&mut self, count: hsize) -> Result<(), Error> {
         let mut map = AnyPointMap::new::<N>();

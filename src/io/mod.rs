@@ -167,7 +167,7 @@ use cgmath::{Point3, Vector3};
 use failure::Fail;
 
 use crate::{
-    handle::{VertexHandle, FaceHandle, hsize},
+    handle::{VertexHandle, EdgeHandle, FaceHandle, hsize},
     math::PrimitiveNum,
     prop::{ColorLike, PrimitiveColorChannel},
     sealed::Sealed,
@@ -719,6 +719,12 @@ impl From<ParseError> for Error {
     }
 }
 
+impl From<ErrorKind> for Error {
+    fn from(src: ErrorKind) -> Self {
+        Self::new(|| src)
+    }
+}
+
 impl Fail for Error {
     fn name(&self) -> Option<&str> {
         Some("io::Error")
@@ -798,6 +804,8 @@ pub enum ErrorKind {
 
     MemSinkDoesNotSupportPolygonFaces,
     StreamSinkDoesNotSupportPolygonFaces,
+
+    MemSinkDoesNotSupportEdges,
 
     /// This error can be returned by a `MemSink` to signal that it is not able
     /// to handle incoming property data.
@@ -902,6 +910,13 @@ impl fmt::Display for ErrorKind {
                 write!(
                     f,
                     "the `StreamSink` does not support polygon faces, but the `MemSource` \
+                        contains some",
+                )
+            }
+            ErrorKind::MemSinkDoesNotSupportEdges => {
+                write!(
+                    f,
+                    "the `MemSink` does not support explicit edges, but the `StreamSource` \
                         contains some",
                 )
             }
@@ -1272,7 +1287,7 @@ pub trait MemSink {
     ///
     /// The semantics of this method are very similar to `MeshMut::add_face`,
     /// with a few exceptions: if the mesh does not support polygon faces, but
-    /// `vertices.len() > 3`, then an error should be returned be the sink.
+    /// `vertices.len() > 3`, then an error should be returned by the sink.
     /// However, it's the callers responsibility to make sure `vertices.len()
     /// >= 3`.
     ///
@@ -1289,6 +1304,11 @@ pub trait MemSink {
     /// TODO: docs
     fn add_triangle(&mut self, vertices: [VertexHandle; 3]) -> Result<FaceHandle, Error> {
         self.add_face(&vertices)
+    }
+
+    // Use try_get_edge_between
+    fn get_edge_between(&self, _endpoints: [VertexHandle; 2]) -> Result<Option<EdgeHandle>, Error> {
+        Err(ErrorKind::MemSinkDoesNotSupportEdges.into())
     }
 
 
