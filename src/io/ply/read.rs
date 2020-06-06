@@ -745,15 +745,12 @@ impl<R: io::Read> StreamSource for Reader<R> {
                 // For face properties red, green, blue, [alpha]
                 let (face_color_idx, read_face_color) = match info.face_color {
                     Some((offset, alpha)) => {
-                        let fun = match alpha {
-                            true => {
-                                sink.prepare_face_colors::<[u8; 4]>(info.face_count.unwrap())?;
-                                Self::read_face_color::<[u8; 4]> as FnPropHandler<Self>
-                            }
-                            false => {
-                                sink.prepare_face_colors::<[u8; 4]>(info.face_count.unwrap())?;
-                                Self::read_face_color::<[u8; 3]> as FnPropHandler<Self>
-                            }
+                        let fun = if alpha {
+                            sink.prepare_face_colors::<[u8; 4]>(info.face_count.unwrap())?;
+                            Self::read_face_color::<[u8; 4]> as FnPropHandler<Self>
+                        } else {
+                            sink.prepare_face_colors::<[u8; 3]>(info.face_count.unwrap())?;
+                            Self::read_face_color::<[u8; 3]> as FnPropHandler<Self>
                         };
                         (offset, fun)
                     }
