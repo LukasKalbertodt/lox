@@ -25,6 +25,7 @@
 //!
 //! ### Links:
 //! - ["Specification"](http://paulbourke.net/dataformats/ply/)
+//! - [Another specification?](http://people.math.sc.edu/Burkardt/data/ply/ply.txt)
 //! - [Wikipedia](https://en.wikipedia.org/wiki/PLY_(file_format))
 //!
 //!

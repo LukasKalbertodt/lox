@@ -471,14 +471,14 @@ impl FromStr for ScalarType {
     type Err = ScalarTypeParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "char" => Ok(ScalarType::Char),
-            "short" => Ok(ScalarType::Short),
-            "int" => Ok(ScalarType::Int),
-            "uchar" => Ok(ScalarType::UChar),
-            "ushort" => Ok(ScalarType::UShort),
-            "uint" => Ok(ScalarType::UInt),
-            "float" => Ok(ScalarType::Float),
-            "double" => Ok(ScalarType::Double),
+            "char" | "int8" => Ok(ScalarType::Char),
+            "short" | "int16" => Ok(ScalarType::Short),
+            "int" | "int32" => Ok(ScalarType::Int),
+            "uchar" | "uint8" => Ok(ScalarType::UChar),
+            "ushort" | "uint16" => Ok(ScalarType::UShort),
+            "uint" | "uint32" => Ok(ScalarType::UInt),
+            "float" | "float32" => Ok(ScalarType::Float),
+            "double" | "float64" => Ok(ScalarType::Double),
             other => Err(ScalarTypeParseError(other.to_string())),
         }
     }
