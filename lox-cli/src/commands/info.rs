@@ -23,81 +23,83 @@ use crate::{
 };
 
 pub fn run(global_args: &GlobalArgs, args: &InfoArgs) -> Result<(), Error> {
-    // Open file and figure out file format
-    let filename = &args.file;
-    let mut file = File::open(filename)
-        .context(format!("failed to open file '{}'", filename))?;
-    let format = guess_file_format(args.source_format, filename, &mut file)?;
+    for filename in &args.files {
+        // Open file and figure out file format
+        let mut file = File::open(filename)
+            .context(format!("failed to open file '{}'", filename))?;
+        let format = guess_file_format(args.source_format, filename, &mut file)
+            .context(format!("failed to guess file format of '{}'", filename))?;
 
 
-    let header_is_sufficient = match format {
-        FileFormat::Stl => false,
-        FileFormat::Ply => true,
-        _ => unimplemented!(),
-    };
+        let header_is_sufficient = match format {
+            FileFormat::Stl => false,
+            FileFormat::Ply => true,
+            _ => unimplemented!(),
+        };
 
-    let read_only_header = args.header_only
-        || (header_is_sufficient && !args.read_body && !args.analyze);
+        let read_only_header = args.header_only
+            || (header_is_sufficient && !args.read_body && !args.analyze);
 
-    // ===== Obtaining the information =======================================
-    let (info, mesh) = if read_only_header {
-        if !args.header_only && header_is_sufficient {
-            info!(
-                "Note: since (for {} files) all information is already contained in the \
-                    header, the body of the file is not read. This means that errors in the \
-                    file's body are not detected. You can force reading the body \
-                    with `--read-body`.",
-                format,
-            );
-        }
+        // ===== Obtaining the information =======================================
+        let (info, mesh) = if read_only_header {
+            if !args.header_only && header_is_sufficient {
+                info!(
+                    "Note: since (for {} files) all information is already contained in the \
+                        header, the body of the file is not read. This means that errors in the \
+                        file's body are not detected. You can force reading the body \
+                        with `--read-body`.",
+                    format,
+                );
+            }
 
-        let info = Info::from_header(format, file, global_args, args)?;
-        (info, None)
-    } else {
-        let (info, mesh) = Info::from_body(format, file, global_args, args)?;
-        (info, Some(mesh))
-    };
-
-
-    // ===== Actually printing the information ===============================
-    println!();
-    Color::White.bold().with(|| {
-        println!("══════════╡ {} ╞══════════", Color::Green.paint(&args.file));
-    });
-
-    println!(
-        "File format: {} (encoding: {})",
-        Color::BrightWhite.bold().paint(info.format),
-        Color::BrightWhite.paint(info.encoding),
-    );
-
-    println!();
-    info.mesh.print(global_args);
-    println!();
+            let info = Info::from_header(format, filename, file, global_args, args)?;
+            (info, None)
+        } else {
+            let (info, mesh) = Info::from_body(format, filename, file, global_args, args)?;
+            (info, Some(mesh))
+        };
 
 
-    // Printing additional information which require analyzing the mesh
-    if args.analyze {
-        // We can unwrap because we always read the body in the `analyze` case.
-        let mesh = mesh.as_ref().unwrap();
+        // ===== Actually printing the information ===============================
+        println!();
+        Color::White.bold().with(|| {
+            println!("══════════╡ {} ╞══════════", Color::Green.paint(&filename));
+        });
 
-        println!("Additional information:");
-
-        if let Some(vertex_positions) = &mesh.vertex_positions {
-            let vertex_positions = mesh.mesh.vertex_handles()
-                .map(|vh| vertex_positions.get_casted_lossy::<f64>(vh).unwrap());
-
-            print!(" - Bounding box");
-            let bb = BoundingBox::around(vertex_positions.clone());
-            let center: [_; 3] = bb.center().into();
-            println!(" (center: {:.3?})", center);
-            println!("    - x: {:.3}..{:.3}", bb.x()[0], bb.x()[1]);
-            println!("    - y: {:.3}..{:.3}", bb.y()[0], bb.y()[1]);
-            println!("    - z: {:.3}..{:.3}", bb.z()[0], bb.z()[1]);
-        }
-
+        println!(
+            "File format: {} (encoding: {})",
+            Color::BrightWhite.bold().paint(info.format),
+            Color::BrightWhite.paint(info.encoding),
+        );
 
         println!();
+        info.mesh.print(global_args);
+        println!();
+
+
+        // Printing additional information which require analyzing the mesh
+        if args.analyze {
+            // We can unwrap because we always read the body in the `analyze` case.
+            let mesh = mesh.as_ref().unwrap();
+
+            println!("Additional information:");
+
+            if let Some(vertex_positions) = &mesh.vertex_positions {
+                let vertex_positions = mesh.mesh.vertex_handles()
+                    .map(|vh| vertex_positions.get_casted_lossy::<f64>(vh).unwrap());
+
+                print!(" - Bounding box");
+                let bb = BoundingBox::around(vertex_positions.clone());
+                let center: [_; 3] = bb.center().into();
+                println!(" (center: {:.3?})", center);
+                println!("    - x: {:.3}..{:.3}", bb.x()[0], bb.x()[1]);
+                println!("    - y: {:.3}..{:.3}", bb.y()[0], bb.y()[1]);
+                println!("    - z: {:.3}..{:.3}", bb.z()[0], bb.z()[1]);
+            }
+
+
+            println!();
+        }
     }
 
     Ok(())
@@ -146,12 +148,13 @@ impl Info {
     /// Gets information from just reading the header of the input file.
     pub fn from_header(
         format: FileFormat,
+        filename: &str,
         file: File,
         _global_args: &GlobalArgs,
         _args: &InfoArgs,
     ) -> Result<Self, Error> {
         // Get information. This is different for each format.
-        let err_read_header = format!("failed to read {} header", format);
+        let err_read_header = format!("failed to read {} header of '{}'", format, filename);
         let info = match format {
             // ===== STL =========================================================
             FileFormat::Stl => {
@@ -234,14 +237,15 @@ impl Info {
     /// from there (more accurate than only reading the header).
     pub fn from_body(
         format: FileFormat,
+        filename: &str,
         file: File,
         _global_args: &GlobalArgs,
-        args: &InfoArgs,
+        _args: &InfoArgs,
     ) -> Result<(Self, AnyMesh), Error> {
         let (reader, encoding) = reader_and_encoding(format, file)?;
 
         let mut mesh = AnyMesh::empty();
-        progress!(["Reading '{}'", args.file] => {
+        progress!(["Reading '{}'", filename] => {
             reader.transfer_to(&mut mesh)?;
             mesh.finish()?;
         });

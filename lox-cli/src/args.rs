@@ -159,7 +159,7 @@ pub struct InfoArgs {
     pub analyze: bool,
 
     /// Path to the mesh file.
-    pub file: String,
+    pub files: Vec<String>,
 
     // TODO:
     // - different output types (short, json, ...)
