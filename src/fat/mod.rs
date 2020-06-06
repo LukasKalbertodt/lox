@@ -80,6 +80,7 @@ pub struct AnyMesh<M: Mesh = HalfEdgeMesh<half_edge::PolyConfig>> {
     pub vertex_colors: Option<AnyColorMap<VertexHandle>>,
     pub face_normals: Option<AnyVectorMap<FaceHandle>>,
     pub face_colors: Option<AnyColorMap<FaceHandle>>,
+    pub edge_colors: Option<AnyColorMap<EdgeHandle>>,
 }
 
 impl<M: MeshMut + BasicAdj> MemSink for AnyMesh<M> {
@@ -166,6 +167,22 @@ impl<M: MeshMut + BasicAdj> MemSink for AnyMesh<M> {
         C: ColorLike<Channel: Primitive>,
     {
         self.face_colors.as_mut().unwrap().insert(handle, color);
+    }
+
+    fn prepare_edge_colors<C>(&mut self, count: hsize) -> Result<(), Error>
+    where
+        C: ColorLike<Channel: Primitive>,
+    {
+        let mut map = AnyColorMap::new::<C>();
+        map.reserve(count);
+        self.edge_colors = Some(map);
+        Ok(())
+    }
+    fn set_edge_color<C>(&mut self, handle: EdgeHandle, color: C)
+    where
+        C: ColorLike<Channel: Primitive>,
+    {
+        self.edge_colors.as_mut().unwrap().insert(handle, color);
     }
 }
 

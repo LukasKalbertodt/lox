@@ -889,7 +889,7 @@ impl<T> ops::DerefMut for PropVec<T> {
 /// The sizes of the smallvecs are choosen so that the inline variant won't
 /// inflict a size overhead (on x64). This still means that the most common
 /// form of list, the three-tuple `vertex_indices`, will fit inline.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Property {
     Char(i8),
     Short(i16),
@@ -953,6 +953,40 @@ impl Property {
             Property::Float(v) => Some(v.into()),
             Property::Double(v) => Some(v),
             _ => None,
+        }
+    }
+}
+
+// Custom debug formatter to keep it in one line, even if pretty printing with
+// '#' is enabled.
+impl fmt::Debug for Property {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        macro_rules! w {
+            ($name:literal, $value:ident) => {{
+                f.write_str(concat!($name, "("))?;
+                $value.fmt(f)?;
+                f.write_str(")")?;
+                Ok(())
+            }};
+        }
+
+        match self {
+            Self::Char(x) => w!("Char", x),
+            Self::Short(x) => w!("Short", x),
+            Self::Int(x) => w!("Int", x),
+            Self::UChar(x) => w!("UChar", x),
+            Self::UShort(x) => w!("UShort", x),
+            Self::UInt(x) => w!("UInt", x),
+            Self::Float(x) => w!("Float", x),
+            Self::Double(x) => w!("Double", x),
+            Self::CharList(x) => w!("CharList", x),
+            Self::ShortList(x) => w!("ShortList", x),
+            Self::IntList(x) => w!("IntList", x),
+            Self::UCharList(x) => w!("UCharList", x),
+            Self::UShortList(x) => w!("UShortList", x),
+            Self::UIntList(x) => w!("UIntList", x),
+            Self::FloatList(x) => w!("FloatList", x),
+            Self::DoubleList(x) => w!("DoubleList", x),
         }
     }
 }

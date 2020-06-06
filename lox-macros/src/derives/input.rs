@@ -161,6 +161,7 @@ pub(crate) struct Input {
     pub(crate) vertex_color: Option<ColorPropField>,
     pub(crate) face_normal: Option<PropField>,
     pub(crate) face_color: Option<ColorPropField>,
+    pub(crate) edge_color: Option<ColorPropField>,
 }
 
 impl Input {
@@ -181,6 +182,7 @@ impl Input {
         let mut vertex_color = None;
         let mut face_normal = None;
         let mut face_color = None;
+        let mut edge_color = None;
 
         for f in fields {
             // Make sure the field is named and extract that name.
@@ -263,6 +265,7 @@ impl Input {
                     FieldPurpose::VertexColor => set_color_field!(vertex_color, attrs),
                     FieldPurpose::FaceNormal => set_prop_field!(face_normal, attrs),
                     FieldPurpose::FaceColor => set_color_field!(face_color, attrs),
+                    FieldPurpose::EdgeColor => set_color_field!(edge_color, attrs),
                 }
 
             } else {
@@ -299,6 +302,7 @@ impl Input {
             vertex_color,
             face_normal,
             face_color,
+            edge_color,
         })
     }
 }
@@ -313,6 +317,7 @@ enum FieldPurpose {
     VertexColor,
     FaceNormal,
     FaceColor,
+    EdgeColor,
 }
 
 impl FieldPurpose {
@@ -326,6 +331,7 @@ impl FieldPurpose {
             FieldPurpose::VertexColor => "vertex_color",
             FieldPurpose::FaceNormal => "face_normal",
             FieldPurpose::FaceColor => "face_color",
+            FieldPurpose::EdgeColor => "edge_color",
         }
     }
 }
@@ -380,6 +386,7 @@ fn parse_field_attrs(attrs: &[Attribute]) -> Result<FieldAttrs, Error> {
             "vertex_color" => check_purpose!(ident, VertexColor),
             "face_normal" => check_purpose!(ident, FaceNormal),
             "face_color" => check_purpose!(ident, FaceColor),
+            "edge_color" => check_purpose!(ident, EdgeColor),
 
             // ===== Unknown attribute =====
             _ => bail!(ident.span(), "'{}' is not a valid lox attribute for a field", ident),

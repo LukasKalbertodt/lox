@@ -35,6 +35,10 @@ pub(crate) fn gen_impl(input: &Input) -> TokenStream {
     let face_normal_code = input.face_normal.as_ref()
         .map(|f| gen_prop_code(f, "Face", "Normal", "Vector3", "Vec3Like", global_cast_mode));
 
+    // Edge properties
+    let edge_color_code = input.edge_color.as_ref()
+        .map(|f| gen_color_prop_code(f, "Edge", global_cast_mode));
+
     // The `finish()` method
     let finish_code = gen_finish_code(input);
 
@@ -53,6 +57,7 @@ pub(crate) fn gen_impl(input: &Input) -> TokenStream {
             #vertex_color_code
             #face_normal_code
             #face_color_code
+            #edge_color_code
         }
     }
 }
@@ -321,8 +326,8 @@ fn gen_prop_code(
 /// Generates the code for `prepare_*_colors` and `set_*_color` for a given
 /// field.
 ///
-/// The `elem` string has to be either `"Face"` or `"Vertex"` -- the first
-/// character has to be uppercase.
+/// The `elem` string has to be either `"Face"`, `"Vertex"` or `"Edge"` -- the
+/// first character has to be uppercase.
 fn gen_color_prop_code(
     field: &ColorPropField,
     elem: &str,

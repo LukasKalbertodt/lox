@@ -8,6 +8,12 @@
 //!   the specification! So in this file we use `parse::whitespace` which just
 //!   works with '\n'.
 //!
+//! # TODO
+//!
+//! - Maybe accept 'point' as vertex element
+//! - Accept 'property list * * vertex_index' for edges (currently only
+//!   `vertex0` and `vertex1` are accepted).
+//! - Refactor the reading part
 //!
 
 use std::{
@@ -544,6 +550,10 @@ impl<R: io::Read> StreamSource for Reader<R> {
             vertex_indices: Option<(PropIndex, ScalarType)>,
             face_normal: Option<([PropIndex; 3], ScalarType)>,
             face_color: Option<([PropIndex; 4], bool)>,
+
+            edge_count: Option<hsize>,
+            edge_endpoints: Option<([PropIndex; 2], ScalarType)>,
+            edge_color: Option<([PropIndex; 4], bool)>,
         }
 
         /// Helper type alias for property handler functions.
@@ -562,6 +572,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
             // return useless values.
             curr_vertex_handle: VertexHandle,
             curr_face_handle: FaceHandle,
+            curr_edge_handle: EdgeHandle,
             // TODO: we could put the current element here, but we don't want
             // to clone it and via reference brings lifetime problems...
 
@@ -624,6 +635,27 @@ impl<R: io::Read> StreamSource for Reader<R> {
 
             /// Function to read the red, green, blue and alpha properties
             read_face_color: FnPropHandler<Self>,
+
+
+            // ----- State for edge handling -----
+            edge_handles: IndexHandleMap<EdgeHandle>,
+            edge_count: usize,
+
+            /// The position of the `vertex1` and `vertex2` properties in the list
+            /// of edge properties (usually 0 and 1).
+            endpoint_indices_idx: [PropIndex; 2],
+
+            /// Function to read the `vertex1` and `vertex2` properties. Returns
+            /// the edge handle of the edge between the two vertices, or an
+            /// `Err` if none such edge exists.
+            read_edge_endpoint_indices: fn(&mut Self, &RawElement) -> Result<EdgeHandle, Error>,
+
+            /// The position of the red, green, blue and alpha properties in
+            /// the list of edge properties (alpha value potentially garbage)
+            edge_color_idx: [PropIndex; 4],
+
+            /// Function to read the red, green, blue and alpha properties.
+            read_edge_color: FnPropHandler<Self>,
         }
 
         impl<'a, S: MemSink> HelperSink<'a, S> {
@@ -757,9 +789,47 @@ impl<R: io::Read> StreamSource for Reader<R> {
                     None => ([PropIndex(0); 4], Self::noop as FnPropHandler<Self>),
                 };
 
+                // For property `vertex_indices`
+                let (endpoint_indices_idx, read_edge_endpoint_indices) = match info.edge_endpoints {
+                    Some((offsets, ty)) => {
+                        let fun = match ty {
+                            ScalarType::Char => Self::read_edge_endpoint_indices::<i8>,
+                            ScalarType::UChar => Self::read_edge_endpoint_indices::<u8>,
+                            ScalarType::Short => Self::read_edge_endpoint_indices::<i16>,
+                            ScalarType::UShort => Self::read_edge_endpoint_indices::<u16>,
+                            ScalarType::Int => Self::read_edge_endpoint_indices::<i32>,
+                            ScalarType::UInt => Self::read_edge_endpoint_indices::<u32>,
+
+                            // We check before that the type is an integer.
+                            ScalarType::Float | ScalarType::Double => unreachable!(),
+                        };
+
+                        (offsets, fun)
+                    }
+                    None => (
+                        [PropIndex(0); 2],
+                        Self::edge_endpoints_bug as fn(&mut _, &_) -> _,
+                    ),
+                };
+
+                // For edge properties red, green, blue, [alpha]
+                let (edge_color_idx, read_edge_color) = match info.edge_color {
+                    Some((offset, alpha)) => {
+                        let fun = if alpha {
+                            sink.prepare_edge_colors::<[u8; 4]>(info.edge_count.unwrap())?;
+                            Self::read_edge_color::<[u8; 4]> as FnPropHandler<Self>
+                        } else {
+                            sink.prepare_edge_colors::<[u8; 3]>(info.edge_count.unwrap())?;
+                            Self::read_edge_color::<[u8; 3]> as FnPropHandler<Self>
+                        };
+                        (offset, fun)
+                    }
+                    None => ([PropIndex(0); 4], Self::noop as FnPropHandler<Self>),
+                };
+
 
                 Ok(Self {
-                    sink: sink,
+                    sink,
 
                     // It will be overwritten in `element_group_start`, but if
                     // `read_raw` is buggy, this function might be called,
@@ -770,6 +840,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
                     // overwritten in `handle_vertex` and `handle_face`.
                     curr_vertex_handle: VertexHandle::from_usize(0),
                     curr_face_handle: FaceHandle::from_usize(0),
+                    curr_edge_handle: EdgeHandle::from_usize(0),
 
                     vertex_handles: IndexHandleMap::new(),
                     vertex_count: 0,
@@ -791,6 +862,14 @@ impl<R: io::Read> StreamSource for Reader<R> {
                     read_face_normal,
                     face_color_idx,
                     read_face_color,
+
+                    edge_handles: IndexHandleMap::new(),
+                    edge_count: 0,
+
+                    endpoint_indices_idx,
+                    read_edge_endpoint_indices,
+                    edge_color_idx,
+                    read_edge_color,
                 })
             }
 
@@ -848,6 +927,20 @@ impl<R: io::Read> StreamSource for Reader<R> {
                 // Face properties
                 (self.read_face_normal)(self, elem);
                 (self.read_face_color)(self, elem);
+
+                Ok(())
+            }
+
+            /// Called for each element in the `edge` group.
+            fn handle_edge(&mut self, elem: &RawElement) -> Result<(), Error> {
+                // Add edge
+                let eh = (self.read_edge_endpoint_indices)(self, elem)?;
+                self.edge_handles.add(self.edge_count, eh);
+                self.edge_count += 1;
+                self.curr_edge_handle = eh;
+
+                // Edge properties
+                (self.read_edge_color)(self, elem);
 
                 Ok(())
             }
@@ -978,6 +1071,69 @@ impl<R: io::Read> StreamSource for Reader<R> {
                     self.sink.set_face_color(self.curr_face_handle, [r, g, b]);
                 }
             }
+
+
+            // ----- edge property handler ----------------------------------
+            /// Only dummy function that should never be called.
+            fn edge_endpoints_bug(&mut self, _: &RawElement) -> Result<EdgeHandle, Error> {
+                panic!("internal bug in PLY reader: no edge endpoints")
+            }
+
+            /// Reads three values from the raw data at the specified offset,
+            /// interprets them as vertex indices and adds a face to the sink.
+            fn read_edge_endpoint_indices<T: Primitive + FromBytes + PlyInteger>(
+                &mut self,
+                elem: &RawElement,
+            ) -> Result<EdgeHandle, Error> {
+                let get_handle = |index| {
+                    self.vertex_handles.get(index).ok_or_else(|| {
+                        Error::new(|| {
+                            let msg = format!(
+                                "invalid vertex index {} in PLY file: a face's `vertice_indices` \
+                                    property refers to that vertex index, but no vertex with such \
+                                    a high index exists in the file",
+                                index,
+                            );
+                            ErrorKind::InvalidInput(msg)
+                        })
+                    })
+                };
+
+                let [idx0, idx1] = self.endpoint_indices_idx;
+                let vi0 = T::from_bytes_ne(&elem.data[elem.prop_infos[idx0].offset..]);
+                let vi1 = T::from_bytes_ne(&elem.data[elem.prop_infos[idx1].offset..]);
+
+                let v0 = get_handle(vi0.as_usize())?;
+                let v1 = get_handle(vi1.as_usize())?;
+
+                // Retrieve edge handle
+                let edge = self.sink.get_edge_between([v0, v1])?;
+                edge.ok_or_else(|| {
+                    Error::new(|| {
+                        let msg = format!(
+                            "invalid edge: PLY file refers to edge between vertex indices {} and \
+                                {}, but not such edge exists",
+                            vi0.as_usize(),
+                            vi1.as_usize(),
+                        );
+                        ErrorKind::InvalidInput(msg)
+                    })
+                })
+            }
+
+            fn read_edge_color<C: ColorLike<Channel = u8>>(&mut self, elem: &RawElement) {
+                let [r_idx, g_idx, b_idx, a_idx] = self.edge_color_idx;
+                let r = elem.data[elem.prop_infos[r_idx].offset];
+                let g = elem.data[elem.prop_infos[g_idx].offset];
+                let b = elem.data[elem.prop_infos[b_idx].offset];
+
+                if C::HAS_ALPHA {
+                    let a = elem.data[elem.prop_infos[a_idx].offset];
+                    self.sink.set_edge_color(self.curr_edge_handle, [r, g, b, a]);
+                } else {
+                    self.sink.set_edge_color(self.curr_edge_handle, [r, g, b]);
+                }
+            }
         }
 
         impl<S: MemSink> RawSink for HelperSink<'_, S> {
@@ -985,6 +1141,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
                 match &*def.name {
                     "vertex" => self.elem_handler = Self::handle_vertex,
                     "face" => self.elem_handler = Self::handle_face,
+                    "edge" => self.elem_handler = Self::handle_edge,
                     _ => self.elem_handler = Self::ignore_elem,
                 }
 
@@ -1000,7 +1157,8 @@ impl<R: io::Read> StreamSource for Reader<R> {
         // ===== Interpret and collect header information (and do checks) =====
         fn u64_to_hsize(v: u64, elem: &str) -> Result<hsize, Error> {
             v.try_into().map_err(|_| Error::new(|| ErrorKind::InvalidInput(
-                format!("too many {} (LOX meshes can only contain 2^32 elements)", elem)
+                format!("too many {} (LOX meshes can only contain 2^32 elements, \
+                    unless you enabled the 'large-handle' feature)", elem)
             )))
         }
 
@@ -1020,6 +1178,9 @@ impl<R: io::Read> StreamSource for Reader<R> {
             vertex_indices: None,
             face_normal: None,
             face_color: None,
+            edge_count: None,
+            edge_endpoints: None,
+            edge_color: None,
         };
 
         // Check faces
@@ -1062,6 +1223,56 @@ impl<R: io::Read> StreamSource for Reader<R> {
             prop_info.face_color = face_group.check_color_prop()?;
         }
 
+        // Check edges
+        if let Some(edge_pos) = self.elements.iter().position(|e| e.name == "edge") {
+            // Edges can only be in the file after vertices and faces.
+            let face_pos = self.elements.iter().position(|e| e.name == "face");
+            if face_pos.is_none() || edge_pos < face_pos.unwrap() {
+                let problem = if face_pos.is_none() { "but no" } else { "before" };
+                let msg = format!(
+                    "found 'edge' elements {} 'face' elements (that's not allowed as \
+                        LOX can't add edges on their own; edges always need to be part of a face)",
+                    problem,
+                );
+                return Err(Error::new(|| ErrorKind::InvalidInput(msg)));
+            }
+
+            let edge_group = &self.elements[edge_pos];
+            prop_info.edge_count = Some(u64_to_hsize(edge_group.count, "edges")?);
+
+            // The properties `vertex1` and `vertex2` are required.
+            let v1_idx = edge_group.prop_pos("vertex1");
+            let v2_idx = edge_group.prop_pos("vertex2");
+            if let (Some(v1_idx), Some(v2_idx)) = (v1_idx, v2_idx) {
+                for &(name, idx) in &[("vertex1", v1_idx), ("vertex2", v2_idx)] {
+                    let def = &edge_group.property_defs[idx];
+                    if def.ty.is_list() {
+                        return Err(Error::new(|| ErrorKind::InvalidInput(
+                            format!("'{}' property has a list type (must be a scalar)", name)
+                        )));
+                    }
+
+                    if def.ty.scalar_type().is_floating_point() {
+                        return Err(Error::new(|| ErrorKind::InvalidInput(
+                            format!("'{}' list has a floating point element type (only \
+                                integers are allowed)", name)
+                        )));
+                    }
+                }
+
+                prop_info.edge_endpoints = Some((
+                    [v1_idx, v2_idx],
+                    edge_group.property_defs[v1_idx].ty.scalar_type(),
+                ));
+            } else {
+                return Err(Error::new(|| ErrorKind::InvalidInput(
+                    "'edge' elements without 'vertex1' and 'vertex2' property".into()
+                )));
+            }
+
+            // Check other edge properties
+            prop_info.edge_color = edge_group.check_color_prop()?;
+        }
         // ===== Read the data through our helper sink =====
         sink.size_hint(MeshSizeHint {
             vertex_count: Some(prop_info.vertex_count),

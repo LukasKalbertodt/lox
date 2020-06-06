@@ -650,16 +650,18 @@ pub enum PropKind {
     VertexColor,
     FaceNormal,
     FaceColor,
+    EdgeColor,
 }
 
 impl PropKind {
     fn plural_form(&self) -> &'static str {
         match self {
-            PropKind::VertexPosition => "vertex positions",
-            PropKind::VertexNormal => "vertex normals",
-            PropKind::VertexColor => "vertex colors",
-            PropKind::FaceNormal => "face normals",
-            PropKind::FaceColor => "face colors",
+            Self::VertexPosition => "vertex positions",
+            Self::VertexNormal => "vertex normals",
+            Self::VertexColor => "vertex colors",
+            Self::FaceNormal => "face normals",
+            Self::FaceColor => "face colors",
+            Self::EdgeColor => "edge colors",
         }
     }
 }
@@ -1445,6 +1447,23 @@ pub trait MemSink {
 
     /// Sets the color (with color type `C`) of the face `f`.
     fn set_face_color<C>(&mut self, _f: FaceHandle, _color: C)
+    where
+        C: ColorLike<Channel: Primitive>,
+    {}
+
+
+    // ----- Edge colors ----------------------------------------------------
+    /// Informs the sink that the source will provide at least `count` many
+    /// edge colors with the color type `C`.
+    fn prepare_edge_colors<C>(&mut self, _count: hsize) -> Result<(), Error>
+    where
+        C: ColorLike<Channel: Primitive>,
+    {
+        Ok(())
+    }
+
+    /// Sets the color (with color type `C`) of the edge `e`.
+    fn set_edge_color<C>(&mut self, _e: EdgeHandle, _color: C)
     where
         C: ColorLike<Channel: Primitive>,
     {}
