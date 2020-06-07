@@ -913,38 +913,49 @@ impl<'a, S: MemSink> RawTransferSink<'a, S> {
                 $idx:ident $(,)?
             ) => {
                 if let Some(Vec3PropInfo { ty, idx }) = $info {
+                    macro_rules! fn_ptr {
+                        ($scalar:ident) => {
+                            if idx.is_contiguous() {
+                                read_prop::<S, $state, $prop<$scalar>, ContiguousIdx>
+                            } else {
+                                read_prop::<S, $state, $prop<$scalar>, SeparateIdx>
+                            }
+
+                        };
+                    }
+
                     let fn_ptr = match ty {
                         ScalarType::Char => {
                             sink.$prep_fn::<i8>($count)?;
-                            read_prop::<S, $state, $prop<i8>, SeparateIdx>
+                            fn_ptr!(i8)
                         },
                         ScalarType::UChar => {
                             sink.$prep_fn::<u8>($count)?;
-                            read_prop::<S, $state, $prop<u8>, SeparateIdx>
+                            fn_ptr!(u8)
                         },
                         ScalarType::Short => {
                             sink.$prep_fn::<i16>($count)?;
-                            read_prop::<S, $state, $prop<i16>, SeparateIdx>
+                            fn_ptr!(i16)
                         },
                         ScalarType::UShort => {
                             sink.$prep_fn::<u16>($count)?;
-                            read_prop::<S, $state, $prop<u16>, SeparateIdx>
+                            fn_ptr!(u16)
                         },
                         ScalarType::Int => {
                             sink.$prep_fn::<i32>($count)?;
-                            read_prop::<S, $state, $prop<i32>, SeparateIdx>
+                            fn_ptr!(i32)
                         },
                         ScalarType::UInt => {
                             sink.$prep_fn::<u32>($count)?;
-                            read_prop::<S, $state, $prop<u32>, SeparateIdx>
+                            fn_ptr!(u32)
                         },
                         ScalarType::Float => {
                             sink.$prep_fn::<f32>($count)?;
-                            read_prop::<S, $state, $prop<f32>, SeparateIdx>
+                            fn_ptr!(f32)
                         },
                         ScalarType::Double => {
                             sink.$prep_fn::<f64>($count)?;
-                            read_prop::<S, $state, $prop<f64>, SeparateIdx>
+                            fn_ptr!(f64)
                         },
                     };
 

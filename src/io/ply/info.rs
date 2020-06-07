@@ -345,6 +345,14 @@ impl Vec3PropIndex {
         }
     }
 
+    /// Returns `true` if `self` is `Contiguous`.
+    pub fn is_contiguous(&self) -> bool {
+        match *self {
+            Self::Contiguous(_) => true,
+            Self::Separate(_) => false,
+        }
+    }
+
     /// Returns the indices of all properties.
     pub fn indices(&self) -> [PropIndex; 3] {
         match *self {
