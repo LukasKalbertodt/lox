@@ -21,6 +21,7 @@ use std::{
     convert::{TryFrom, TryInto},
     fs::File,
     io,
+    marker::PhantomData,
     path::Path,
 };
 
@@ -552,7 +553,7 @@ impl<R: io::Read> StreamSource for Reader<R> {
             vertex_count: Some(info.vertex.count),
             face_count: info.face.as_ref().map(|i| i.count),
         });
-        let mut helper_sink = RawTransferSink::new(sink, info)?;
+        let mut helper_sink = ReadState::new(sink, &info)?;
         self.read_raw(&mut helper_sink)
     }
 }
@@ -1113,6 +1114,541 @@ struct RawTransferSink<'a, S: MemSink> {
     /// Function to read the red, green, blue and alpha properties.
     read_edge_color: FnPropHandler<Self>,
 }
+
+
+/// Abstracts over N-dimensional properties (currently only 3 or 4).
+trait PropLayout {
+    type Scalar: Primitive + FromBytes;
+    /// An array of `PropIndex` elements with length N.
+    type Idx;
+    /// An array of `Scalar` elements with length N.
+    type Out;
+
+    /// Stupid helper function to extract the first index from `Idx`. This could
+    /// be avoided if array would implement `Index`.
+    fn first(idx: &Self::Idx) -> PropIndex;
+    /// Maps the given array `idx` with the function `f`. Calls `f` N times.
+    fn map(idx: &Self::Idx, f: impl FnMut(PropIndex, usize) -> Self::Scalar) -> Self::Out;
+}
+
+/// A 3 dimensional property.
+struct Vec3Layout<T>(!, PhantomData<T>);
+impl<T: Primitive + FromBytes> PropLayout for Vec3Layout<T> {
+    type Scalar = T;
+    type Idx = [PropIndex; 3];
+    type Out = [T; 3];
+    fn first(idx: &Self::Idx) -> PropIndex {
+        idx[0]
+    }
+    fn map(idx: &Self::Idx, mut f: impl FnMut(PropIndex, usize) -> Self::Scalar) -> Self::Out {
+        [f(idx[0], 0), f(idx[1], 1), f(idx[2], 2)]
+    }
+}
+
+/// A 4 dimensional property.
+struct Vec4Layout<T>(!, PhantomData<T>);
+impl<T: Primitive + FromBytes> PropLayout for Vec4Layout<T> {
+    type Scalar = T;
+    type Idx = [PropIndex; 4];
+    type Out = [T; 4];
+    fn first(idx: &Self::Idx) -> PropIndex {
+        idx[0]
+    }
+    fn map(idx: &Self::Idx, mut f: impl FnMut(PropIndex, usize) -> Self::Scalar) -> Self::Out {
+        [f(idx[0], 0), f(idx[1], 1), f(idx[2], 2), f(idx[3], 3)]
+    }
+}
+
+/// Abstracts over marker types representing a kind of property (like position,
+/// normal or color). Does not contain information about the associated element
+/// (e.g. vertex, face, edge).
+trait PropKind {
+    /// Layout of this property.
+    type Layout: PropLayout;
+    /// The target type that is expected by the corresponding method of
+    /// `MemSink`.
+    type Target: From<<Self::Layout as PropLayout>::Out>;
+}
+
+macro_rules! new_prop_kind {
+    ($name:ident, $layout:ident, $target:ident) => {
+        struct $name<T: Primitive + FromBytes>(!, PhantomData<T>);
+
+        impl<T: Primitive + FromBytes> PropKind for $name<T> {
+            type Layout = $layout<T>;
+            type Target = $target<T>;
+        }
+    };
+}
+
+new_prop_kind!(PositionProp, Vec3Layout, Point3);
+new_prop_kind!(NormalProp, Vec3Layout, Vector3);
+
+/// A prop kind that can be associated with a specific element (through `H`) and
+/// that can be inserted into a `MemSink`.
+trait SinkInserter<H>: PropKind {
+    fn insert<S: MemSink>(sink: &mut S, handle: H, value: Self::Target);
+}
+
+macro_rules! impl_sink_inserter {
+    ($name:ident, $handle:ident, $method:ident) => {
+        impl<T: Primitive + FromBytes> SinkInserter<$handle> for $name<T> {
+            fn insert<S: MemSink>(sink: &mut S, handle: $handle, value: Self::Target) {
+                sink.$method(handle, value);
+            }
+        }
+    };
+}
+
+impl_sink_inserter!(PositionProp, VertexHandle, set_vertex_position);
+impl_sink_inserter!(NormalProp, VertexHandle, set_vertex_normal);
+impl_sink_inserter!(NormalProp, FaceHandle, set_face_normal);
+
+/// Abstracts over the layout of the values of one property in the file. They
+/// can either be contiguous or separate.
+trait IdxLayout {
+    /// Extracts all values of this property from the given `elem` using the
+    /// indices by the given `provider`.
+    fn extract<Prop, Provider>(
+        provider: &Provider,
+        elem: &RawElement,
+    ) -> <Prop::Layout as PropLayout>::Out
+    where
+        Prop: PropKind,
+        Provider: IdxProvider<Prop>;
+}
+
+/// All values are next to each other in the right order. This is the usual case
+/// and it allows for some faster special casing.
+enum ContiguousIdx {}
+impl IdxLayout for ContiguousIdx {
+    fn extract<Prop, Provider>(
+        provider: &Provider,
+        elem: &RawElement,
+    ) -> <Prop::Layout as PropLayout>::Out
+    where
+        Prop: PropKind,
+        Provider: IdxProvider<Prop>
+    {
+        let idxs = provider.idx();
+        let offset = elem.prop_infos[Prop::Layout::first(idxs)].offset;
+        Prop::Layout::map(idxs, |_, i| {
+            <Prop::Layout as PropLayout>::Scalar::from_bytes_ne(
+                &elem.data[RawOffset(offset.0 + (i * <Prop::Layout as PropLayout>::Scalar::SIZE) as u32)..]
+            )
+        })
+    }
+}
+
+/// The individual values are not in the right order or not next to each other.
+/// This is very rare, but we still want to read those files.
+enum SeparateIdx {}
+impl IdxLayout for SeparateIdx {
+    fn extract<Prop, Provider>(
+        provider: &Provider,
+        elem: &RawElement,
+    ) -> <Prop::Layout as PropLayout>::Out
+    where
+        Prop: PropKind,
+        Provider: IdxProvider<Prop>
+    {
+        Prop::Layout::map(provider.idx(), |idx, _| {
+            <Prop::Layout as PropLayout>::Scalar::from_bytes_ne(
+                &elem.data[elem.prop_infos[idx].offset..]
+            )
+        })
+    }
+}
+
+/// Something that can provide indices for a specific property. These indices
+/// denote the position of the invididual values of the property inside the raw
+/// element data.
+trait IdxProvider<Prop: PropKind> {
+    fn idx(&self) -> &<Prop::Layout as PropLayout>::Idx;
+}
+
+macro_rules! impl_idx_provider {
+    ($name:ident, $prop:ident, $field:ident) => {
+        impl<T: Primitive + FromBytes> IdxProvider<$prop<T>> for $name {
+            fn idx(&self) -> &[PropIndex; 3] {
+                &self.$field
+            }
+        }
+    };
+}
+
+impl_idx_provider!(VertexReadState, PositionProp, position_idx);
+impl_idx_provider!(VertexReadState, NormalProp, normal_idx);
+impl_idx_provider!(FaceReadState, NormalProp, normal_idx);
+
+
+/// Something that is associated with a specific element (through the `Handle`)
+/// and can provide the handle of the currently handled element.
+trait ElementReadState {
+    type Handle;
+    fn current_handle(&self) -> Self::Handle;
+}
+
+macro_rules! impl_element_read_state {
+    ($name:ident, $handle:ident) => {
+        impl ElementReadState for $name {
+            type Handle = $handle;
+            fn current_handle(&self) -> Self::Handle {
+                self.current_handle
+            }
+        }
+    };
+}
+
+impl_element_read_state!(VertexReadState, VertexHandle);
+impl_element_read_state!(FaceReadState, FaceHandle);
+
+struct VertexReadState {
+    count: usize,
+    handles: IndexHandleMap<VertexHandle>,
+    current_handle: VertexHandle,
+    position_idx: [PropIndex; 3],
+    normal_idx: [PropIndex; 3],
+}
+struct FaceReadState {
+    count: usize,
+    handles: IndexHandleMap<FaceHandle>,
+    current_handle: FaceHandle,
+    vertex_indices_idx: PropIndex,
+    normal_idx: [PropIndex; 3],
+}
+
+/// Super generic property reading function. This function is monomorphized
+/// appropriately in `ReadState::new` and those instances are saved as function
+/// pointers. These are then called at the appropriate time.
+///
+/// TODO
+fn read_prop<Sink, State, Prop, Layout>(
+    sink: &mut Sink,
+    elem: &RawElement,
+    state: &State,
+)
+where
+    Sink: MemSink,
+    State: IdxProvider<Prop> + ElementReadState,
+    Prop: PropKind + SinkInserter<State::Handle>,
+    Prop::Target: From<<Prop::Layout as PropLayout>::Out>,
+    Layout: IdxLayout,
+{
+    let prop_data = Layout::extract::<Prop, State>(&state, elem);
+    Prop::insert(sink, state.current_handle(), prop_data.into());
+}
+
+/// Part of the reader state.
+#[derive(Debug, Clone, Copy)]
+enum CurrentElement {
+    None,
+    Vertex,
+    Face,
+    Edge,
+    Ignored,
+}
+
+struct ReadState<'a, S: MemSink> {
+    sink: &'a mut S,
+
+    current_element: CurrentElement,
+
+    vertex_state: VertexReadState,
+    face_state: FaceReadState,
+
+    // Generic property handler as a list of function pointers.
+    vertex_prop_fns: Vec<VertexPropHandler<S>>,
+    face_prop_fns: Vec<FacePropHandler<S>>,
+
+    /// Function to read the `vertex_indices` property and add the
+    /// face. Returns `Err` if an vertex index is not valid or if the
+    /// sink returns an error from `add_face`.
+    read_face_vertex_indices:
+        fn(&mut Self, &RawElement, &RawListInfo) -> Result<FaceHandle, Error>,
+
+    /// This is a temporary buffer for `read_face_vertex_indices` to
+    /// store vertex handles in. It shouldn't be used except inside of
+    /// `read_face_vertex_indices`.
+    vertex_handles_buffer: Vec<VertexHandle>,
+}
+
+type VertexPropHandler<S> = fn(&mut S, &RawElement, &VertexReadState);
+type FacePropHandler<S> = fn(&mut S, &RawElement, &FaceReadState);
+
+impl<'a, S: MemSink> ReadState<'a, S> {
+    fn new(sink: &'a mut S, info: &ElementInfo) -> Result<Self, Error> {
+        // Calls the `prepare_` function and returns the offset as well as the
+        // function pointer to the `read_prop` function monomorphized with the
+        // correct types.
+        macro_rules! prepare_prop {
+            (
+                $info:expr,
+                $prep_fn:ident,
+                $prop:ident,
+                $count:expr,
+                $state:ident,
+                $fns_vec:expr,
+                $idx:ident $(,)?
+            ) => {
+                if let Some(Vec3PropInfo { ty, idx }) = $info {
+                    let fn_ptr = match ty {
+                        ScalarType::Char => {
+                            sink.$prep_fn::<i8>($count)?;
+                            read_prop::<S, $state, $prop<i8>, SeparateIdx>
+                        },
+                        ScalarType::UChar => {
+                            sink.$prep_fn::<u8>($count)?;
+                            read_prop::<S, $state, $prop<u8>, SeparateIdx>
+                        },
+                        ScalarType::Short => {
+                            sink.$prep_fn::<i16>($count)?;
+                            read_prop::<S, $state, $prop<i16>, SeparateIdx>
+                        },
+                        ScalarType::UShort => {
+                            sink.$prep_fn::<u16>($count)?;
+                            read_prop::<S, $state, $prop<u16>, SeparateIdx>
+                        },
+                        ScalarType::Int => {
+                            sink.$prep_fn::<i32>($count)?;
+                            read_prop::<S, $state, $prop<i32>, SeparateIdx>
+                        },
+                        ScalarType::UInt => {
+                            sink.$prep_fn::<u32>($count)?;
+                            read_prop::<S, $state, $prop<u32>, SeparateIdx>
+                        },
+                        ScalarType::Float => {
+                            sink.$prep_fn::<f32>($count)?;
+                            read_prop::<S, $state, $prop<f32>, SeparateIdx>
+                        },
+                        ScalarType::Double => {
+                            sink.$prep_fn::<f64>($count)?;
+                            read_prop::<S, $state, $prop<f64>, SeparateIdx>
+                        },
+                    };
+
+                    $fns_vec.push(fn_ptr);
+                    $idx = idx.indices();
+                }
+            }
+        }
+
+        // Prepare handlers and indices for generic vertex properties.
+        let mut vertex_prop_fns: Vec<VertexPropHandler<S>> = Vec::new();
+        let mut vertex_position_idx = [PropIndex(0); 3];
+        let mut vertex_normal_idx = [PropIndex(0); 3];
+
+        prepare_prop!(
+            info.vertex.position,
+            prepare_vertex_positions,
+            PositionProp,
+            info.vertex.count,
+            VertexReadState,
+            vertex_prop_fns,
+            vertex_position_idx,
+        );
+        prepare_prop!(
+            info.vertex.normal,
+            prepare_vertex_normals,
+            NormalProp,
+            info.vertex.count,
+            VertexReadState,
+            vertex_prop_fns,
+            vertex_normal_idx,
+        );
+
+        // Prepare handlers and indices for generic face properties.
+        let mut face_prop_fns: Vec<FacePropHandler<S>> = Vec::new();
+        let mut face_normal_idx = [PropIndex(0); 3];
+        if let Some(face_info) = info.face.as_ref() {
+            prepare_prop!(
+                face_info.normal,
+                prepare_face_normals,
+                NormalProp,
+                face_info.count,
+                FaceReadState,
+                face_prop_fns,
+                face_normal_idx,
+            );
+        }
+
+        // Correctly instantiate the function reading the 'vertex_indices'
+        // property which is used to create the faces.
+        let (vertex_indices_idx, read_face_vertex_indices)
+            = match info.face.as_ref().map(|f| f.vertex_indices)
+        {
+            Some(VertexIndicesInfo { idx, ty }) => {
+                let fun = match ty {
+                    ScalarType::Char => Self::read_face_vertex_indices::<i8>,
+                    ScalarType::UChar => Self::read_face_vertex_indices::<u8>,
+                    ScalarType::Short => Self::read_face_vertex_indices::<i16>,
+                    ScalarType::UShort => Self::read_face_vertex_indices::<u16>,
+                    ScalarType::Int => Self::read_face_vertex_indices::<i32>,
+                    ScalarType::UInt => Self::read_face_vertex_indices::<u32>,
+
+                    // Checked by `VertexIndicesInfo::new`
+                    ScalarType::Float | ScalarType::Double => unreachable!(),
+                };
+
+                (idx, fun)
+            }
+            None => (
+                PropIndex(0),
+                Self::vertex_indices_bug as fn(&mut _, &_, &_) -> _,
+            ),
+        };
+
+
+        Ok(Self {
+            sink,
+            current_element: CurrentElement::None,
+
+            vertex_state: VertexReadState {
+                count: 0,
+                handles: IndexHandleMap::new(),
+                current_handle: VertexHandle::new(0),
+                position_idx: vertex_position_idx,
+                normal_idx: vertex_normal_idx,
+            },
+            face_state: FaceReadState {
+                count: 0,
+                handles: IndexHandleMap::new(),
+                current_handle: FaceHandle::new(0),
+                normal_idx: face_normal_idx,
+                vertex_indices_idx,
+            },
+
+            vertex_prop_fns,
+            face_prop_fns,
+
+            read_face_vertex_indices,
+            vertex_handles_buffer: Vec::new(),
+        })
+    }
+
+    /// Only dummy function that should never be called.
+    fn vertex_indices_bug(
+        &mut self,
+        _: &RawElement,
+        _: &RawListInfo,
+    ) -> Result<FaceHandle, Error> {
+        panic!("internal bug in PLY reader: 'vertex_indices' handler called but no faces")
+    }
+
+    /// Reads from the raw data at the specified offset, interprets them as
+    /// vertex indices and adds a face to the sink.
+    fn read_face_vertex_indices<T: Primitive + FromBytes + PlyInteger>(
+        &mut self,
+        elem: &RawElement,
+        vi_list: &RawListInfo,
+    ) -> Result<FaceHandle, Error> {
+        // Obtain the relevant raw slice (all the list data).
+        let start = vi_list.data_offset;
+        let end = start + RawOffset(vi_list.list_len * T::SIZE as u32);
+        let data = &elem.data[start..end];
+
+        // Iterate over the list of indices to vertices, convert them
+        // to handles and add the handles to `vertex_handles_buffer`.
+        self.vertex_handles_buffer.clear();
+        for raw in data.chunks(T::SIZE) {
+            let index = T::from_bytes_ne(raw).as_usize();
+
+            // TODO: the closure should probably be extracted into an
+            // `inline(never)` function that is not generic, to tackle
+            // code bloat.
+            let handle = self.vertex_state.handles.get(index).ok_or_else(|| {
+                invalid_input!(
+                    "invalid vertex index {} in PLY file: a face's `vertice_indices` \
+                        property refers to that vertex index, but no vertex with such \
+                        a high index exists in the file",
+                    index,
+                )
+            })?;
+
+            // TODO: we can probably improve performance a bit by
+            // preallocating the vector, setting the len to the list
+            // len and just write the elements. That way, `push`
+            // doesn't have to perform a capacity check each time.
+            // However, this optimization would require `unsafe` code.
+            self.vertex_handles_buffer.push(handle);
+        }
+
+        // Add the face to the mesh.
+        self.sink.add_face(&self.vertex_handles_buffer)
+    }
+}
+
+impl<S: MemSink> RawSink for ReadState<'_, S> {
+    fn element_group_start(&mut self, def: &ElementDef) -> Result<(), Error> {
+        self.current_element = match &*def.name {
+            "vertex" => CurrentElement::Vertex,
+            "face" => CurrentElement::Face,
+            "edge" => CurrentElement::Edge,
+            _ => CurrentElement::Ignored,
+        };
+
+        Ok(())
+    }
+
+    fn element(&mut self, elem: &RawElement) -> Result<(), Error> {
+        match self.current_element {
+            CurrentElement::None => {
+                panic!(
+                    "bug in `ply::Reader::read_raw`: `element()` called \
+                        before `element_group_start()`"
+                );
+            }
+            CurrentElement::Ignored => {}
+            CurrentElement::Vertex => {
+                // Add vertex
+                let vh = self.sink.add_vertex();
+                self.vertex_state.handles.add(self.vertex_state.count, vh);
+                self.vertex_state.count += 1;
+                self.vertex_state.current_handle = vh;
+
+                // Read vertex properties
+                for f in &self.vertex_prop_fns {
+                    f(&mut self.sink, elem, &self.vertex_state);
+                }
+            }
+            CurrentElement::Face => {
+                // `VertexIndicesInfo::new` already made sure that this is a
+                // list.
+                let vi_list = elem.decode_list_at(self.face_state.vertex_indices_idx)
+                    .expect("bug in PLY reader: 'vertex_indices' not a list?");
+
+                // Make sure the list is not too short.
+                if vi_list.list_len < 3 {
+                    return Err(invalid_input!(
+                        "the face at index {} has only {} vertices, but at least 3 are required \
+                            per face",
+                        self.face_state.count,
+                        vi_list.list_len,
+                    ));
+                }
+
+                // Add face
+                let fh = (self.read_face_vertex_indices)(self, &elem, &vi_list)?;
+                self.face_state.handles.add(self.face_state.count, fh);
+                self.face_state.count += 1;
+                self.face_state.current_handle = fh;
+
+                // Read generic face properties
+                for f in &self.face_prop_fns {
+                    f(&mut self.sink, elem, &self.face_state);
+                }
+            }
+            CurrentElement::Edge => {
+
+            }
+        }
+
+        Ok(())
+    }
+}
+
+
+
 
 impl<'a, S: MemSink> RawTransferSink<'a, S> {
     fn new(sink: &'a mut S, info: ElementInfo) -> Result<Self, Error> {
