@@ -687,7 +687,7 @@ pub struct RawListInfo {
 // ===========================================================================
 
 /// A byte offset into the raw data of one element.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Add, Sub, AddAssign, SubAssign, From)]
+#[derive(Clone, Copy, PartialEq, Eq, Add, Sub, AddAssign, SubAssign, From)]
 pub struct RawOffset(pub u32);
 
 impl RawOffset {
@@ -716,6 +716,16 @@ impl ops::AddAssign<ScalarLen> for RawOffset {
     }
 }
 
+impl fmt::Debug for RawOffset {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("RawOffset(")?;
+        self.0.fmt(f)?;
+        f.write_str(")")?;
+        Ok(())
+    }
+}
+
+
 /// Length of a PLY scalar value in bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScalarLen {
@@ -733,13 +743,22 @@ impl ScalarLen {
 
 /// Index of a specific property in the ordered list of properties of one
 /// element group. Can be used to index a [`PropVec`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, From, Add, Sub, AddAssign, SubAssign)]
+#[derive(Clone, Copy, PartialEq, Eq, From, Add, Sub, AddAssign, SubAssign)]
 pub struct PropIndex(pub u8);
 
 impl PropIndex {
     #[inline(always)]
     pub fn as_usize(&self) -> usize {
         self.0 as usize
+    }
+}
+
+impl fmt::Debug for PropIndex {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("PropIndex(")?;
+        self.0.fmt(f)?;
+        f.write_str(")")?;
+        Ok(())
     }
 }
 
