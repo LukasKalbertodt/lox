@@ -677,12 +677,14 @@ impl ops::IndexMut<ops::RangeFull> for RawData {
 
 impl ops::Deref for RawData {
     type Target = Vec<u8>;
+    #[inline(always)]
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
 impl ops::DerefMut for RawData {
+    #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }

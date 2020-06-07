@@ -229,6 +229,7 @@ pub struct Span {
 }
 
 impl Span {
+    #[inline(always)]
     pub fn new(lo: usize, hi: usize) -> Self {
         Self { lo, hi }
     }

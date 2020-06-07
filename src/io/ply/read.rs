@@ -775,6 +775,7 @@ macro_rules! impl_element_read_state {
     ($name:ident, $handle:ident) => {
         impl ElementReadState for $name {
             type Handle = $handle;
+            #[inline(always)]
             fn current_handle(&self) -> Self::Handle {
                 self.current_handle
             }
@@ -1723,6 +1724,7 @@ trait PlyInteger {
 macro_rules! impl_ply_integer {
     ($ty:ident) => {
         impl PlyInteger for $ty {
+            #[inline(always)]
             fn as_usize(&self) -> usize {
                 *self as usize
             }
