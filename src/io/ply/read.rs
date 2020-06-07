@@ -695,9 +695,8 @@ impl IdxLayout for ContiguousIdx {
         let idxs = provider.idx();
         let offset = elem.prop_infos[Prop::Layout::first(idxs)].offset;
         Prop::Layout::map(idxs, |_, i| {
-            <Prop::Layout as PropLayout>::Scalar::from_bytes_ne(
-                &elem.data[RawOffset(offset.0 + (i * <Prop::Layout as PropLayout>::Scalar::SIZE) as u32)..]
-            )
+            let offset = offset.0 + (i * <Prop::Layout as PropLayout>::Scalar::SIZE) as u32;
+            <Prop::Layout as PropLayout>::Scalar::from_bytes_ne(&elem.data[RawOffset(offset)..])
         })
     }
 }
