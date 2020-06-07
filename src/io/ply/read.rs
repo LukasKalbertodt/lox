@@ -1299,6 +1299,7 @@ impl_idx_provider!(VertexReadState, NormalProp<T>, normal_idx);
 impl_idx_provider!(VertexReadState, RgbaColorProp, color_idx);
 impl_idx_provider!(FaceReadState, NormalProp<T>, normal_idx);
 impl_idx_provider!(FaceReadState, RgbaColorProp, color_idx);
+impl_idx_provider!(EdgeReadState, RgbaColorProp, color_idx);
 
 // Manual impls for RGB as we want to resuse the 4 element RGBA index.
 impl IdxProvider<RgbColorProp> for VertexReadState {
@@ -1307,6 +1308,11 @@ impl IdxProvider<RgbColorProp> for VertexReadState {
     }
 }
 impl IdxProvider<RgbColorProp> for FaceReadState {
+    fn idx(&self) -> &<<RgbColorProp as PropKind>::Layout as PropLayout>::Idx {
+        (&self.color_idx[..3]).try_into().unwrap()
+    }
+}
+impl IdxProvider<RgbColorProp> for EdgeReadState {
     fn idx(&self) -> &<<RgbColorProp as PropKind>::Layout as PropLayout>::Idx {
         (&self.color_idx[..3]).try_into().unwrap()
     }
@@ -1333,6 +1339,7 @@ macro_rules! impl_element_read_state {
 
 impl_element_read_state!(VertexReadState, VertexHandle);
 impl_element_read_state!(FaceReadState, FaceHandle);
+impl_element_read_state!(EdgeReadState, EdgeHandle);
 
 struct VertexReadState {
     count: usize,
@@ -1344,10 +1351,15 @@ struct VertexReadState {
 }
 struct FaceReadState {
     count: usize,
-    handles: IndexHandleMap<FaceHandle>,
     current_handle: FaceHandle,
     vertex_indices_idx: PropIndex,
     normal_idx: [PropIndex; 3],
+    color_idx: [PropIndex; 4],
+}
+struct EdgeReadState {
+    count: usize,
+    current_handle: EdgeHandle,
+    endpoint_indices_idx: [PropIndex; 2],
     color_idx: [PropIndex; 4],
 }
 
@@ -1389,25 +1401,33 @@ struct ReadState<'a, S: MemSink> {
 
     vertex_state: VertexReadState,
     face_state: FaceReadState,
+    edge_state: EdgeReadState,
 
     // Generic property handler as a list of function pointers.
     vertex_prop_fns: Vec<VertexPropHandler<S>>,
     face_prop_fns: Vec<FacePropHandler<S>>,
+    edge_prop_fns: Vec<EdgePropHandler<S>>,
 
-    /// Function to read the `vertex_indices` property and add the
-    /// face. Returns `Err` if an vertex index is not valid or if the
-    /// sink returns an error from `add_face`.
+    /// Function to read the `vertex_indices` property and add the face. Returns
+    /// `Err` if an vertex index is not valid or if the sink returns an error
+    /// from `add_face`.
     read_face_vertex_indices:
         fn(&mut Self, &RawElement, &RawListInfo) -> Result<FaceHandle, Error>,
 
-    /// This is a temporary buffer for `read_face_vertex_indices` to
-    /// store vertex handles in. It shouldn't be used except inside of
+    /// This is a temporary buffer for `read_face_vertex_indices` to store
+    /// vertex handles in. It shouldn't be used except inside of
     /// `read_face_vertex_indices`.
     vertex_handles_buffer: Vec<VertexHandle>,
+
+    /// Function to read the `vertex1` and `vertex2` properties. Returns the
+    /// edge handle of the edge between the two vertices, or an `Err` if no such
+    /// edge exists.
+    read_edge_endpoint_indices: fn(&mut Self, &RawElement) -> Result<EdgeHandle, Error>,
 }
 
 type VertexPropHandler<S> = fn(&mut S, &RawElement, &VertexReadState);
 type FacePropHandler<S> = fn(&mut S, &RawElement, &FaceReadState);
+type EdgePropHandler<S> = fn(&mut S, &RawElement, &EdgeReadState);
 
 impl<'a, S: MemSink> ReadState<'a, S> {
     fn new(sink: &'a mut S, info: &ElementInfo) -> Result<Self, Error> {
@@ -1508,6 +1528,7 @@ impl<'a, S: MemSink> ReadState<'a, S> {
             }
         }
 
+
         // Prepare handlers and indices for generic vertex properties.
         let mut vertex_prop_fns: Vec<VertexPropHandler<S>> = Vec::new();
         let mut vertex_position_idx = [PropIndex(0); 3];
@@ -1565,6 +1586,20 @@ impl<'a, S: MemSink> ReadState<'a, S> {
             );
         }
 
+        // Prepare handlers and indices for generic edge properties.
+        let mut edge_prop_fns: Vec<EdgePropHandler<S>> = Vec::new();
+        let mut edge_color_idx = [PropIndex(0); 4];
+        if let Some(edge_info) = info.edge.as_ref() {
+            prepare_color_prop!(
+                edge_info.color,
+                prepare_edge_colors,
+                edge_info.count,
+                EdgeReadState,
+                edge_prop_fns,
+                edge_color_idx,
+            );
+        }
+
         // Correctly instantiate the function reading the 'vertex_indices'
         // property which is used to create the faces.
         let (vertex_indices_idx, read_face_vertex_indices)
@@ -1591,6 +1626,32 @@ impl<'a, S: MemSink> ReadState<'a, S> {
             ),
         };
 
+        // Correctly instantiate the function reading the 'vertex1' and
+        // 'vertex2' properties which are used to define an edge.
+        let (endpoint_indices_idx, read_edge_endpoint_indices)
+            = match info.edge.as_ref().map(|e| e.endpoints)
+        {
+            Some(EdgeEndpointsInfo { idx, ty }) => {
+                let fun = match ty {
+                    ScalarType::Char => Self::read_edge_endpoint_indices::<i8>,
+                    ScalarType::UChar => Self::read_edge_endpoint_indices::<u8>,
+                    ScalarType::Short => Self::read_edge_endpoint_indices::<i16>,
+                    ScalarType::UShort => Self::read_edge_endpoint_indices::<u16>,
+                    ScalarType::Int => Self::read_edge_endpoint_indices::<i32>,
+                    ScalarType::UInt => Self::read_edge_endpoint_indices::<u32>,
+
+                    // Checked by `EdgeEndpointsInfo::new`
+                    ScalarType::Float | ScalarType::Double => unreachable!(),
+                };
+
+                (idx, fun)
+            }
+            None => (
+                [PropIndex(0); 2],
+                Self::edge_endpoints_bug as fn(&mut _, &_) -> _,
+            ),
+        };
+
 
         Ok(Self {
             sink,
@@ -1606,18 +1667,25 @@ impl<'a, S: MemSink> ReadState<'a, S> {
             },
             face_state: FaceReadState {
                 count: 0,
-                handles: IndexHandleMap::new(),
                 current_handle: FaceHandle::new(0),
                 vertex_indices_idx,
                 normal_idx: face_normal_idx,
                 color_idx: face_color_idx,
             },
+            edge_state: EdgeReadState {
+                count: 0,
+                current_handle: EdgeHandle::new(0),
+                endpoint_indices_idx,
+                color_idx: edge_color_idx,
+            },
 
             vertex_prop_fns,
             face_prop_fns,
+            edge_prop_fns,
 
             read_face_vertex_indices,
             vertex_handles_buffer: Vec::new(),
+            read_edge_endpoint_indices,
         })
     }
 
@@ -1670,6 +1738,47 @@ impl<'a, S: MemSink> ReadState<'a, S> {
 
         // Add the face to the mesh.
         self.sink.add_face(&self.vertex_handles_buffer)
+    }
+
+    /// Only dummy function that should never be called.
+    fn edge_endpoints_bug(&mut self, _: &RawElement) -> Result<EdgeHandle, Error> {
+        panic!("internal bug in PLY reader: no edge endpoints but edges")
+    }
+
+    /// Reads three values from the raw data at the specified offset,
+    /// interprets them as vertex indices and adds a face to the sink.
+    fn read_edge_endpoint_indices<T: Primitive + FromBytes + PlyInteger>(
+        &mut self,
+        elem: &RawElement,
+    ) -> Result<EdgeHandle, Error> {
+        let get_handle = |index| {
+            self.vertex_state.handles.get(index).ok_or_else(|| {
+                invalid_input!(
+                    "invalid vertex index {} in PLY file: a face's `vertice_indices` \
+                        property refers to that vertex index, but no vertex with such \
+                        a high index exists in the file",
+                    index,
+                )
+            })
+        };
+
+        let [idx0, idx1] = self.edge_state.endpoint_indices_idx;
+        let vi0 = T::from_bytes_ne(&elem.data[elem.prop_infos[idx0].offset..]);
+        let vi1 = T::from_bytes_ne(&elem.data[elem.prop_infos[idx1].offset..]);
+
+        let v0 = get_handle(vi0.as_usize())?;
+        let v1 = get_handle(vi1.as_usize())?;
+
+        // Retrieve edge handle
+        let edge = self.sink.get_edge_between([v0, v1])?;
+        edge.ok_or_else(|| {
+            invalid_input!(
+                "invalid edge: PLY file refers to edge between vertex indices {} and \
+                    {}, but not such edge exists",
+                vi0.as_usize(),
+                vi1.as_usize(),
+            )
+        })
     }
 }
 
@@ -1724,7 +1833,6 @@ impl<S: MemSink> RawSink for ReadState<'_, S> {
 
                 // Add face
                 let fh = (self.read_face_vertex_indices)(self, &elem, &vi_list)?;
-                self.face_state.handles.add(self.face_state.count, fh);
                 self.face_state.count += 1;
                 self.face_state.current_handle = fh;
 
@@ -1734,7 +1842,15 @@ impl<S: MemSink> RawSink for ReadState<'_, S> {
                 }
             }
             CurrentElement::Edge => {
+                // Retrieve edge
+                let eh = (self.read_edge_endpoint_indices)(self, elem)?;
+                self.edge_state.count += 1;
+                self.edge_state.current_handle = eh;
 
+                // Read generic edge properties
+                for f in &self.edge_prop_fns {
+                    f(&mut self.sink, elem, &self.edge_state);
+                }
             }
         }
 
