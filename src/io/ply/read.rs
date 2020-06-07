@@ -530,758 +530,29 @@ impl<R: io::Read> StreamSource for Reader<R> {
         //   properties we want to read (like the position of that property).
         //   This is done directly in this function further below.
         // - Define a `RawSink` that receives the data via `read_raw`
-        //   (this is the `HelperSink`).
+        //   (this is the `RawTransferSink`).
         // - Prepare everything that we can prepare beforehand: offsets into
         //   raw data buffer and function pointer. Function pointers are the
         //   important bit here: We can match over the type of a property and
         //   use the pointer to the function instantiated with that type. Then
         //   the function pointer just needs to be called and the type doesn't
         //   need to be inspected anymore. All these things are stored in the
-        //   `HelperSink`.
-        // - Finally, start reading data via `HelperSink`. We also have a
+        //   `RawTransferSink`.
+        // - Finally, start reading data via `RawTransferSink`. We also have a
         //   function pointer (`elem_handler`) that points to the function
         //   handling the current element (which in turn will call other
         //   function pointers). This is updated on each `element_group_start`
         //   call.
 
-        /// Some info created while sanity checking the header. This is passed
-        /// to `HelperSink` and is further processed there.
-        ///
-        /// For colors: the bool denotes if an alpha channel present. If not,
-        /// the last prop index is garbage.
-        struct PropInfo {
-            vertex_count: hsize,
-            vertex_position: Option<([PropIndex; 3], ScalarType)>,
-            vertex_normal: Option<([PropIndex; 3], ScalarType)>,
-            vertex_color: Option<([PropIndex; 4], bool)>,
 
-            face_count: Option<hsize>,
-            vertex_indices: Option<(PropIndex, ScalarType)>,
-            face_normal: Option<([PropIndex; 3], ScalarType)>,
-            face_color: Option<([PropIndex; 4], bool)>,
 
-            edge_count: Option<hsize>,
-            edge_endpoints: Option<([PropIndex; 2], ScalarType)>,
-            edge_color: Option<([PropIndex; 4], bool)>,
-        }
+        let info = ElementInfo::new(&self.elements)?;
 
-        /// Helper type alias for property handler functions.
-        type FnPropHandler<S> = fn(&mut S, &RawElement);
-
-        struct HelperSink<'a, S: MemSink> {
-            sink: &'a mut S,
-
-            /// This function is called for incoming new raw elements. The
-            /// function pointer is updated every time `element_group_start` is
-            /// called.
-            elem_handler: fn(&mut Self, &RawElement) -> Result<(), Error>,
-
-            // ----- State for the property handlers -----
-            // Not always valid! Reading these handles at the wrong time might
-            // return useless values.
-            curr_vertex_handle: VertexHandle,
-            curr_face_handle: FaceHandle,
-            curr_edge_handle: EdgeHandle,
-            // TODO: we could put the current element here, but we don't want
-            // to clone it and via reference brings lifetime problems...
-
-            // ----- State for vertex handling -----
-            vertex_handles: IndexHandleMap<VertexHandle>,
-            vertex_count: usize,
-
-            /// The position of the x, y and z property in the list of vertex
-            /// properties (usually 0, 1, 2)
-            vertex_position_idx: [PropIndex; 3],
-
-            /// Function to read the x, y, z properties
-            read_vertex_position: FnPropHandler<Self>,
-
-            /// The position of the nx, ny and nz properties in the list of
-            /// vertex properties
-            vertex_normal_idx: [PropIndex; 3],
-
-            /// Function to read the nx, ny, nz properties
-            read_vertex_normal: FnPropHandler<Self>,
-
-            /// The position of the red, green, blue and alpha properties in
-            /// the list of vertex properties (alpha value potentially garbage)
-            vertex_color_idx: [PropIndex; 4],
-
-            /// Function to read the red, green, blue and alpha properties
-            read_vertex_color: FnPropHandler<Self>,
-
-
-            // ----- State for face handling -----
-            face_handles: IndexHandleMap<FaceHandle>,
-            face_count: usize,
-
-            /// The position of the `vertex_indices` property in the list of
-            /// face properties (usually 0)
-            vertex_indices_idx: PropIndex,
-
-            /// Function to read the `vertex_indices` property and add the
-            /// face. Returns `Err` if an vertex index is not valid or if the
-            /// sink returns an error from `add_face`.
-            read_face_vertex_indices:
-                fn(&mut Self, &RawElement, &RawListInfo) -> Result<FaceHandle, Error>,
-
-            /// This is a temporary buffer for `read_face_vertex_indices` to
-            /// store vertex handles in. It shouldn't be used except inside of
-            /// `read_face_vertex_indices`.
-            vertex_handles_buffer: Vec<VertexHandle>,
-
-
-            /// The position of the nx, ny and nz properties in the list of
-            /// face properties
-            face_normal_idx: [PropIndex; 3],
-
-            /// Function to read the nx, ny, nz properties
-            read_face_normal: FnPropHandler<Self>,
-
-            /// The position of the red, green, blue and alpha properties in
-            /// the list of face properties (alpha value potentially garbage)
-            face_color_idx: [PropIndex; 4],
-
-            /// Function to read the red, green, blue and alpha properties
-            read_face_color: FnPropHandler<Self>,
-
-
-            // ----- State for edge handling -----
-            edge_handles: IndexHandleMap<EdgeHandle>,
-            edge_count: usize,
-
-            /// The position of the `vertex1` and `vertex2` properties in the list
-            /// of edge properties (usually 0 and 1).
-            endpoint_indices_idx: [PropIndex; 2],
-
-            /// Function to read the `vertex1` and `vertex2` properties. Returns
-            /// the edge handle of the edge between the two vertices, or an
-            /// `Err` if none such edge exists.
-            read_edge_endpoint_indices: fn(&mut Self, &RawElement) -> Result<EdgeHandle, Error>,
-
-            /// The position of the red, green, blue and alpha properties in
-            /// the list of edge properties (alpha value potentially garbage)
-            edge_color_idx: [PropIndex; 4],
-
-            /// Function to read the red, green, blue and alpha properties.
-            read_edge_color: FnPropHandler<Self>,
-        }
-
-        impl<'a, S: MemSink> HelperSink<'a, S> {
-            fn new(sink: &'a mut S, info: PropInfo) -> Result<Self, Error> {
-                // Calls the `prepare_` function and returns the offset as well
-                // as the function pointer to the function monomorphized with
-                // the correct type.
-                macro_rules! get_offset_and_fptr {
-                    ($info:expr, $fun:ident, $prep_fn:ident, $count:expr $(,)?) => {
-                        match $info {
-                            Some((offset, ty)) => {
-                                let fn_ptr = match ty {
-                                    ScalarType::Char => {
-                                        sink.$prep_fn::<i8>($count)?;
-                                        Self::$fun::<i8>
-                                    },
-                                    ScalarType::UChar => {
-                                        sink.$prep_fn::<u8>($count)?;
-                                        Self::$fun::<u8>
-                                    },
-                                    ScalarType::Short => {
-                                        sink.$prep_fn::<i16>($count)?;
-                                        Self::$fun::<i16>
-                                    },
-                                    ScalarType::UShort => {
-                                        sink.$prep_fn::<u16>($count)?;
-                                        Self::$fun::<u16>
-                                    },
-                                    ScalarType::Int => {
-                                        sink.$prep_fn::<i32>($count)?;
-                                        Self::$fun::<i32>
-                                    },
-                                    ScalarType::UInt => {
-                                        sink.$prep_fn::<u32>($count)?;
-                                        Self::$fun::<u32>
-                                    },
-                                    ScalarType::Float => {
-                                        sink.$prep_fn::<f32>($count)?;
-                                        Self::$fun::<f32>
-                                    },
-                                    ScalarType::Double => {
-                                        sink.$prep_fn::<f64>($count)?;
-                                        Self::$fun::<f64>
-                                    },
-                                };
-
-                                (offset, fn_ptr)
-                            }
-                            None => ([PropIndex(0); 3], Self::noop as FnPropHandler<Self>),
-                        }
-                    }
-                }
-
-                // For property `vertex_indices`
-                let (vertex_indices_idx, read_face_vertex_indices) = match info.vertex_indices {
-                    Some((offset, ty)) => {
-                        let fun = match ty {
-                            ScalarType::Char => Self::read_face_vertex_indices::<i8>,
-                            ScalarType::UChar => Self::read_face_vertex_indices::<u8>,
-                            ScalarType::Short => Self::read_face_vertex_indices::<i16>,
-                            ScalarType::UShort => Self::read_face_vertex_indices::<u16>,
-                            ScalarType::Int => Self::read_face_vertex_indices::<i32>,
-                            ScalarType::UInt => Self::read_face_vertex_indices::<u32>,
-
-                            // We check before that the type is an integer.
-                            ScalarType::Float | ScalarType::Double => unreachable!(),
-                        };
-
-                        (offset, fun)
-                    }
-                    None => (
-                        PropIndex(0),
-                        Self::vertex_indices_bug as fn(&mut _, &_, &_) -> _,
-                    ),
-                };
-
-                // For vertex properties x, y, z.
-                let (vertex_position_idx, read_vertex_position) = get_offset_and_fptr!(
-                    info.vertex_position,
-                    read_vertex_position,
-                    prepare_vertex_positions,
-                    info.vertex_count,
-                );
-
-                // For vertex properties nx, ny, nz.
-                let (vertex_normal_idx, read_vertex_normal) = get_offset_and_fptr!(
-                    info.vertex_normal,
-                    read_vertex_normal,
-                    prepare_vertex_normals,
-                    info.vertex_count,
-                );
-
-                // For vertex properties red, green, blue, [alpha]
-                let (vertex_color_idx, read_vertex_color) = match info.vertex_color {
-                    Some((offset, alpha)) => {
-                        let fun = match alpha {
-                            true => {
-                                sink.prepare_vertex_colors::<[u8; 4]>(info.vertex_count)?;
-                                Self::read_vertex_color::<[u8; 4]> as FnPropHandler<Self>
-                            },
-                            false => {
-                                sink.prepare_vertex_colors::<[u8; 3]>(info.vertex_count)?;
-                                Self::read_vertex_color::<[u8; 3]> as FnPropHandler<Self>
-                            },
-                        };
-                        (offset, fun)
-                    }
-                    None => ([PropIndex(0); 4], Self::noop as FnPropHandler<Self>),
-                };
-
-                // For face properties nx, ny, nz.
-                let (face_normal_idx, read_face_normal) = get_offset_and_fptr!(
-                    info.face_normal,
-                    read_face_normal,
-                    prepare_face_normals,
-                    info.face_count.unwrap(),
-                );
-
-                // For face properties red, green, blue, [alpha]
-                let (face_color_idx, read_face_color) = match info.face_color {
-                    Some((offset, alpha)) => {
-                        let fun = if alpha {
-                            sink.prepare_face_colors::<[u8; 4]>(info.face_count.unwrap())?;
-                            Self::read_face_color::<[u8; 4]> as FnPropHandler<Self>
-                        } else {
-                            sink.prepare_face_colors::<[u8; 3]>(info.face_count.unwrap())?;
-                            Self::read_face_color::<[u8; 3]> as FnPropHandler<Self>
-                        };
-                        (offset, fun)
-                    }
-                    None => ([PropIndex(0); 4], Self::noop as FnPropHandler<Self>),
-                };
-
-                // For property `vertex_indices`
-                let (endpoint_indices_idx, read_edge_endpoint_indices) = match info.edge_endpoints {
-                    Some((offsets, ty)) => {
-                        let fun = match ty {
-                            ScalarType::Char => Self::read_edge_endpoint_indices::<i8>,
-                            ScalarType::UChar => Self::read_edge_endpoint_indices::<u8>,
-                            ScalarType::Short => Self::read_edge_endpoint_indices::<i16>,
-                            ScalarType::UShort => Self::read_edge_endpoint_indices::<u16>,
-                            ScalarType::Int => Self::read_edge_endpoint_indices::<i32>,
-                            ScalarType::UInt => Self::read_edge_endpoint_indices::<u32>,
-
-                            // We check before that the type is an integer.
-                            ScalarType::Float | ScalarType::Double => unreachable!(),
-                        };
-
-                        (offsets, fun)
-                    }
-                    None => (
-                        [PropIndex(0); 2],
-                        Self::edge_endpoints_bug as fn(&mut _, &_) -> _,
-                    ),
-                };
-
-                // For edge properties red, green, blue, [alpha]
-                let (edge_color_idx, read_edge_color) = match info.edge_color {
-                    Some((offset, alpha)) => {
-                        let fun = if alpha {
-                            sink.prepare_edge_colors::<[u8; 4]>(info.edge_count.unwrap())?;
-                            Self::read_edge_color::<[u8; 4]> as FnPropHandler<Self>
-                        } else {
-                            sink.prepare_edge_colors::<[u8; 3]>(info.edge_count.unwrap())?;
-                            Self::read_edge_color::<[u8; 3]> as FnPropHandler<Self>
-                        };
-                        (offset, fun)
-                    }
-                    None => ([PropIndex(0); 4], Self::noop as FnPropHandler<Self>),
-                };
-
-
-                Ok(Self {
-                    sink,
-
-                    // It will be overwritten in `element_group_start`, but if
-                    // `read_raw` is buggy, this function might be called,
-                    // so we will panic in that case.
-                    elem_handler: HelperSink::bug_in_read_raw,
-
-                    // We initialize the handles to dummy values. They are
-                    // overwritten in `handle_vertex` and `handle_face`.
-                    curr_vertex_handle: VertexHandle::from_usize(0),
-                    curr_face_handle: FaceHandle::from_usize(0),
-                    curr_edge_handle: EdgeHandle::from_usize(0),
-
-                    vertex_handles: IndexHandleMap::new(),
-                    vertex_count: 0,
-
-                    vertex_position_idx,
-                    read_vertex_position,
-                    vertex_normal_idx,
-                    read_vertex_normal,
-                    vertex_color_idx,
-                    read_vertex_color,
-
-                    face_handles: IndexHandleMap::new(),
-                    face_count: 0,
-
-                    vertex_indices_idx,
-                    read_face_vertex_indices,
-                    vertex_handles_buffer: Vec::with_capacity(3),
-                    face_normal_idx,
-                    read_face_normal,
-                    face_color_idx,
-                    read_face_color,
-
-                    edge_handles: IndexHandleMap::new(),
-                    edge_count: 0,
-
-                    endpoint_indices_idx,
-                    read_edge_endpoint_indices,
-                    edge_color_idx,
-                    read_edge_color,
-                })
-            }
-
-
-            // ----- Element handler ------------------------------------------
-            /// Initial element handler. Will hopefully never be called.
-            fn bug_in_read_raw(&mut self, _: &RawElement) -> Result<(), Error> {
-                panic!(
-                    "bug in `ply::Reader::read_raw`: `element()` called \
-                        before `element_group_start`"
-                );
-            }
-
-            fn ignore_elem(&mut self, _: &RawElement) -> Result<(), Error> {
-                Ok(())
-            }
-
-            /// Called for each element in the `vertex` group.
-            fn handle_vertex(&mut self, elem: &RawElement) -> Result<(), Error> {
-                // Add vertex
-                let vh = self.sink.add_vertex();
-                self.vertex_handles.add(self.vertex_count, vh);
-                self.vertex_count += 1;
-                self.curr_vertex_handle = vh;
-
-                // Read vertex properties
-                (self.read_vertex_position)(self, elem);
-                (self.read_vertex_normal)(self, elem);
-                (self.read_vertex_color)(self, elem);
-
-                Ok(())
-            }
-
-            /// Called for each element in the `face` group.
-            fn handle_face(&mut self, elem: &RawElement) -> Result<(), Error> {
-                // We checked before that this property is indeed a list
-                let vi_list = elem.decode_list_at(self.vertex_indices_idx).unwrap();
-
-                // Make sure the list is not too short.
-                if vi_list.list_len < 3 {
-                    return Err(Error::new(|| ErrorKind::InvalidInput(format!(
-                        "the face at index {} has only {} vertices, but at least 3 are required \
-                            per face",
-                        self.face_count,
-                        vi_list.list_len,
-                    ))));
-                }
-
-                // Add face
-                let fh = (self.read_face_vertex_indices)(self, &elem, &vi_list)?;
-                self.face_handles.add(self.face_count, fh);
-                self.face_count += 1;
-                self.curr_face_handle = fh;
-
-                // Face properties
-                (self.read_face_normal)(self, elem);
-                (self.read_face_color)(self, elem);
-
-                Ok(())
-            }
-
-            /// Called for each element in the `edge` group.
-            fn handle_edge(&mut self, elem: &RawElement) -> Result<(), Error> {
-                // Add edge
-                let eh = (self.read_edge_endpoint_indices)(self, elem)?;
-                self.edge_handles.add(self.edge_count, eh);
-                self.edge_count += 1;
-                self.curr_edge_handle = eh;
-
-                // Edge properties
-                (self.read_edge_color)(self, elem);
-
-                Ok(())
-            }
-
-            // ----- Vertex property handler ----------------------------------
-            /// Used for all properties that are not in the file: just do
-            /// nothing.
-            fn noop(&mut self, _: &RawElement) {}
-
-            /// Read the x, y and z property and pass the position to the sink.
-            fn read_vertex_position<T: Primitive + FromBytes>(&mut self, elem: &RawElement) {
-                let [x_idx, y_idx, z_idx] = self.vertex_position_idx;
-                let x = T::from_bytes_ne(&elem.data[elem.prop_infos[x_idx].offset..]);
-                let y = T::from_bytes_ne(&elem.data[elem.prop_infos[y_idx].offset..]);
-                let z = T::from_bytes_ne(&elem.data[elem.prop_infos[z_idx].offset..]);
-
-                self.sink.set_vertex_position(
-                    self.curr_vertex_handle,
-                    Point3::new(x, y, z),
-                );
-            }
-
-            /// Read the x, y and z property and pass the position to the sink.
-            fn read_vertex_normal<T: Primitive + FromBytes>(&mut self, elem: &RawElement) {
-                let [x_idx, y_idx, z_idx] = self.vertex_normal_idx;
-                let x = T::from_bytes_ne(&elem.data[elem.prop_infos[x_idx].offset..]);
-                let y = T::from_bytes_ne(&elem.data[elem.prop_infos[y_idx].offset..]);
-                let z = T::from_bytes_ne(&elem.data[elem.prop_infos[z_idx].offset..]);
-
-                self.sink.set_vertex_normal(
-                    self.curr_vertex_handle,
-                    Vector3::new(x, y, z),
-                );
-            }
-
-            fn read_vertex_color<C: ColorLike<Channel = u8>>(&mut self, elem: &RawElement) {
-                let [r_idx, g_idx, b_idx, a_idx] = self.vertex_color_idx;
-                let r = elem.data[elem.prop_infos[r_idx].offset];
-                let g = elem.data[elem.prop_infos[g_idx].offset];
-                let b = elem.data[elem.prop_infos[b_idx].offset];
-
-                if C::HAS_ALPHA {
-                    let a = elem.data[elem.prop_infos[a_idx].offset];
-                    self.sink.set_vertex_color(self.curr_vertex_handle, [r, g, b, a]);
-                } else {
-                    self.sink.set_vertex_color(self.curr_vertex_handle, [r, g, b]);
-                }
-            }
-
-            // ----- face property handler ----------------------------------
-            /// Only dummy function that should never be called.
-            fn vertex_indices_bug(
-                &mut self,
-                _: &RawElement,
-                _: &RawListInfo,
-            ) -> Result<FaceHandle, Error> {
-                panic!("internal bug in PLY reader")
-            }
-
-            /// Reads three values from the raw data at the specified offset,
-            /// interprets them as vertex indices and adds a face to the sink.
-            fn read_face_vertex_indices<T: Primitive + FromBytes + PlyInteger>(
-                &mut self,
-                elem: &RawElement,
-                vi_list: &RawListInfo,
-            ) -> Result<FaceHandle, Error> {
-                // Obtain the relevant raw slice (all the list data).
-                let start = vi_list.data_offset;
-                let end = start + RawOffset(vi_list.list_len * T::SIZE as u32);
-                let data = &elem.data[start..end];
-
-                // Iterate over the list of indices to vertices, convert them
-                // to handles and add the handles to `vertex_handles_buffer`.
-                self.vertex_handles_buffer.clear();
-                for raw in data.chunks(T::SIZE) {
-                    let index = T::from_bytes_ne(raw).as_usize();
-
-                    // TODO: the closure should probably be extracted into an
-                    // `inline(never)` function that is not generic, to tackle
-                    // code bloat.
-                    let handle = self.vertex_handles.get(index).ok_or_else(|| {
-                        Error::new(|| {
-                            let msg = format!(
-                                "invalid vertex index {} in PLY file: a face's `vertice_indices` \
-                                    property refers to that vertex index, but no vertex with such \
-                                    a high index exists in the file",
-                                index,
-                            );
-                            ErrorKind::InvalidInput(msg)
-                        })
-                    })?;
-
-                    // TODO: we can probably improve performance a bit by
-                    // preallocating the vector, setting the len to the list
-                    // len and just write the elements. That way, `push`
-                    // doesn't have to perform a capacity check each time.
-                    // However, this optimization would require `unsafe` code.
-                    self.vertex_handles_buffer.push(handle);
-                }
-
-                // Add the face to the mesh.
-                self.sink.add_face(&self.vertex_handles_buffer)
-            }
-
-            /// Read the x, y and z property and pass the position to the sink.
-            fn read_face_normal<T: Primitive + FromBytes>(&mut self, elem: &RawElement) {
-                let [x_idx, y_idx, z_idx] = self.face_normal_idx;
-                let x = T::from_bytes_ne(&elem.data[elem.prop_infos[x_idx].offset..]);
-                let y = T::from_bytes_ne(&elem.data[elem.prop_infos[y_idx].offset..]);
-                let z = T::from_bytes_ne(&elem.data[elem.prop_infos[z_idx].offset..]);
-
-                self.sink.set_face_normal(
-                    self.curr_face_handle,
-                    Vector3::new(x, y, z),
-                );
-            }
-
-            fn read_face_color<C: ColorLike<Channel = u8>>(&mut self, elem: &RawElement) {
-                let [r_idx, g_idx, b_idx, a_idx] = self.face_color_idx;
-                let r = elem.data[elem.prop_infos[r_idx].offset];
-                let g = elem.data[elem.prop_infos[g_idx].offset];
-                let b = elem.data[elem.prop_infos[b_idx].offset];
-
-                if C::HAS_ALPHA {
-                    let a = elem.data[elem.prop_infos[a_idx].offset];
-                    self.sink.set_face_color(self.curr_face_handle, [r, g, b, a]);
-                } else {
-                    self.sink.set_face_color(self.curr_face_handle, [r, g, b]);
-                }
-            }
-
-
-            // ----- edge property handler ----------------------------------
-            /// Only dummy function that should never be called.
-            fn edge_endpoints_bug(&mut self, _: &RawElement) -> Result<EdgeHandle, Error> {
-                panic!("internal bug in PLY reader: no edge endpoints")
-            }
-
-            /// Reads three values from the raw data at the specified offset,
-            /// interprets them as vertex indices and adds a face to the sink.
-            fn read_edge_endpoint_indices<T: Primitive + FromBytes + PlyInteger>(
-                &mut self,
-                elem: &RawElement,
-            ) -> Result<EdgeHandle, Error> {
-                let get_handle = |index| {
-                    self.vertex_handles.get(index).ok_or_else(|| {
-                        Error::new(|| {
-                            let msg = format!(
-                                "invalid vertex index {} in PLY file: a face's `vertice_indices` \
-                                    property refers to that vertex index, but no vertex with such \
-                                    a high index exists in the file",
-                                index,
-                            );
-                            ErrorKind::InvalidInput(msg)
-                        })
-                    })
-                };
-
-                let [idx0, idx1] = self.endpoint_indices_idx;
-                let vi0 = T::from_bytes_ne(&elem.data[elem.prop_infos[idx0].offset..]);
-                let vi1 = T::from_bytes_ne(&elem.data[elem.prop_infos[idx1].offset..]);
-
-                let v0 = get_handle(vi0.as_usize())?;
-                let v1 = get_handle(vi1.as_usize())?;
-
-                // Retrieve edge handle
-                let edge = self.sink.get_edge_between([v0, v1])?;
-                edge.ok_or_else(|| {
-                    Error::new(|| {
-                        let msg = format!(
-                            "invalid edge: PLY file refers to edge between vertex indices {} and \
-                                {}, but not such edge exists",
-                            vi0.as_usize(),
-                            vi1.as_usize(),
-                        );
-                        ErrorKind::InvalidInput(msg)
-                    })
-                })
-            }
-
-            fn read_edge_color<C: ColorLike<Channel = u8>>(&mut self, elem: &RawElement) {
-                let [r_idx, g_idx, b_idx, a_idx] = self.edge_color_idx;
-                let r = elem.data[elem.prop_infos[r_idx].offset];
-                let g = elem.data[elem.prop_infos[g_idx].offset];
-                let b = elem.data[elem.prop_infos[b_idx].offset];
-
-                if C::HAS_ALPHA {
-                    let a = elem.data[elem.prop_infos[a_idx].offset];
-                    self.sink.set_edge_color(self.curr_edge_handle, [r, g, b, a]);
-                } else {
-                    self.sink.set_edge_color(self.curr_edge_handle, [r, g, b]);
-                }
-            }
-        }
-
-        impl<S: MemSink> RawSink for HelperSink<'_, S> {
-            fn element_group_start(&mut self, def: &ElementDef) -> Result<(), Error> {
-                match &*def.name {
-                    "vertex" => self.elem_handler = Self::handle_vertex,
-                    "face" => self.elem_handler = Self::handle_face,
-                    "edge" => self.elem_handler = Self::handle_edge,
-                    _ => self.elem_handler = Self::ignore_elem,
-                }
-
-                Ok(())
-            }
-
-            fn element(&mut self, elem: &RawElement) -> Result<(), Error> {
-                (self.elem_handler)(self, elem)
-            }
-        }
-
-
-        // ===== Interpret and collect header information (and do checks) =====
-
-        // Make sure the file contains vertices
-        let vertex_pos = self.elements.iter().position(|e| e.name == "vertex").ok_or_else(|| {
-            Error::new(|| ErrorKind::InvalidInput("no 'vertex' elements in PLY file".into()))
-        })?;
-        let vertex_group = &self.elements[vertex_pos];
-
-        let vertex_count = u64_to_hsize(vertex_group.count, "vertices")?;
-        let mut prop_info = PropInfo {
-            vertex_count,
-            vertex_position: vertex_group.check_vec3_prop(["x", "y", "z"], "positions")?,
-            vertex_normal: vertex_group.check_vec3_prop(["nx", "ny", "nz"], "normals")?,
-            vertex_color: vertex_group.check_color_prop()?,
-            face_count: None,
-            vertex_indices: None,
-            face_normal: None,
-            face_color: None,
-            edge_count: None,
-            edge_endpoints: None,
-            edge_color: None,
-        };
-
-        // Check faces
-        if let Some(face_pos) = self.elements.iter().position(|e| e.name == "face") {
-            // Faces can only be in the file after vertices
-            if face_pos < vertex_pos {
-                return Err(Error::new(|| ErrorKind::InvalidInput(
-                    "found 'face' elements before 'vertex' elements (that's not allowed)".into()
-                )));
-            }
-
-            let face_group = &self.elements[face_pos];
-            prop_info.face_count = Some(u64_to_hsize(face_group.count, "faces")?);
-
-            // The property `vertex_indices` is required
-            if let Some(vi_idx) = face_group.prop_pos("vertex_indices") {
-                let vi = &face_group.property_defs[vi_idx];
-                if !vi.ty.is_list() {
-                    return Err(Error::new(|| ErrorKind::InvalidInput(
-                        "'vertex_indices' property has a scalar type (must be a list)".into()
-                    )));
-                }
-
-                if vi.ty.scalar_type().is_floating_point() {
-                    return Err(Error::new(|| ErrorKind::InvalidInput(
-                        "'vertex_indices' list has a floating point element type (only \
-                            integers are allowed)".into()
-                    )));
-                }
-
-                prop_info.vertex_indices = Some((vi_idx, vi.ty.scalar_type()));
-            } else {
-                return Err(Error::new(|| ErrorKind::InvalidInput(
-                    "'face' elements without 'vertex_indices' property".into()
-                )));
-            }
-
-            // Check other face properties
-            prop_info.face_normal = face_group.check_vec3_prop(["nx", "ny", "nz"], "normals")?;
-            prop_info.face_color = face_group.check_color_prop()?;
-        }
-
-        // Check edges
-        if let Some(edge_pos) = self.elements.iter().position(|e| e.name == "edge") {
-            // Edges can only be in the file after vertices and faces.
-            let face_pos = self.elements.iter().position(|e| e.name == "face");
-            if face_pos.is_none() || edge_pos < face_pos.unwrap() {
-                let problem = if face_pos.is_none() { "but no" } else { "before" };
-                let msg = format!(
-                    "found 'edge' elements {} 'face' elements (that's not allowed as \
-                        LOX can't add edges on their own; edges always need to be part of a face)",
-                    problem,
-                );
-                return Err(Error::new(|| ErrorKind::InvalidInput(msg)));
-            }
-
-            let edge_group = &self.elements[edge_pos];
-            prop_info.edge_count = Some(u64_to_hsize(edge_group.count, "edges")?);
-
-            // The properties `vertex1` and `vertex2` are required.
-            let v1_idx = edge_group.prop_pos("vertex1");
-            let v2_idx = edge_group.prop_pos("vertex2");
-            if let (Some(v1_idx), Some(v2_idx)) = (v1_idx, v2_idx) {
-                for &(name, idx) in &[("vertex1", v1_idx), ("vertex2", v2_idx)] {
-                    let def = &edge_group.property_defs[idx];
-                    if def.ty.is_list() {
-                        return Err(Error::new(|| ErrorKind::InvalidInput(
-                            format!("'{}' property has a list type (must be a scalar)", name)
-                        )));
-                    }
-
-                    if def.ty.scalar_type().is_floating_point() {
-                        return Err(Error::new(|| ErrorKind::InvalidInput(
-                            format!("'{}' list has a floating point element type (only \
-                                integers are allowed)", name)
-                        )));
-                    }
-                }
-
-                prop_info.edge_endpoints = Some((
-                    [v1_idx, v2_idx],
-                    edge_group.property_defs[v1_idx].ty.scalar_type(),
-                ));
-            } else {
-                return Err(Error::new(|| ErrorKind::InvalidInput(
-                    "'edge' elements without 'vertex1' and 'vertex2' property".into()
-                )));
-            }
-
-            // Check other edge properties
-            prop_info.edge_color = edge_group.check_color_prop()?;
-        }
-        // ===== Read the data through our helper sink =====
         sink.size_hint(MeshSizeHint {
-            vertex_count: Some(prop_info.vertex_count),
-            face_count: prop_info.face_count,
+            vertex_count: Some(info.vertex.count),
+            face_count: info.face.as_ref().map(|i| i.count),
         });
-        let mut helper_sink = HelperSink::new(sink, prop_info)?;
+        let mut helper_sink = RawTransferSink::new(sink, info)?;
         self.read_raw(&mut helper_sink)
     }
 }
@@ -1324,7 +595,7 @@ struct EdgeInfo {
 }
 
 /// Information about the `vertex_indices` property of the 'face' element.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 struct VertexIndicesInfo {
     ty: ScalarType,
     idx: PropIndex,
@@ -1332,21 +603,21 @@ struct VertexIndicesInfo {
 
 // Information about the `vertex1` and `vertex2` properties defining the two
 // endpoints of an edge.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 struct EdgeEndpointsInfo {
     idx: [PropIndex; 2],
     ty: ScalarType,
 }
 
 /// Information about a 3-element property (position or normal).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 struct Vec3PropInfo {
     ty: ScalarType,
     idx: Vec3PropIndex,
 }
 
 /// Index information about the three single elements of a vec3 like property.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 enum Vec3PropIndex {
     /// All three properties are right next to each other and in the right order
     /// (x, y, z). The `PropIndex` denotes the index of the first (x) property.
@@ -1357,7 +628,7 @@ enum Vec3PropIndex {
 }
 
 /// Information about a color property.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 enum ColorPropInfo {
     /// No alpha value, the rgb properties are right next to each other and in
     /// the right order. The `PropIndex` denotes the index of the r property.
@@ -1614,6 +885,13 @@ impl Vec3PropIndex {
             Self::Separate([x, y, z])
         }
     }
+
+    fn indices(&self) -> [PropIndex; 3] {
+        match *self {
+            Self::Contiguous(x) => [x, PropIndex(x.0 + 1), PropIndex(x.0 + 2)],
+            Self::Separate(all) => all,
+        }
+    }
 }
 
 impl ColorPropInfo {
@@ -1692,6 +970,18 @@ impl ColorPropInfo {
 
         Ok(Some(out))
     }
+
+    // TODO: this neeeds to be removed at some point
+    fn into_dumb(&self) -> ([PropIndex; 4], bool) {
+        match *self {
+            Self::ContiguousRgb(r)
+                => ([r, PropIndex(r.0 + 1), PropIndex(r.0 + 2), PropIndex(0)], false),
+            Self::SeparateRgb([r, g, b]) => ([r, g, b, PropIndex(0)], false),
+            Self::ContiguousRgba(r)
+                => ([r, PropIndex(r.0 + 1), PropIndex(r.0 + 2), PropIndex(r.0 + 3)], true),
+            Self::SeparateRgba(indices) => (indices, true),
+        }
+    }
 }
 
 
@@ -1713,6 +1003,613 @@ fn u64_to_hsize(v: u64, elem: &str) -> Result<hsize, Error> {
         elem,
     ))
 }
+
+
+// ================================================================================================
+// ===== Raw sink for `Reader::transfer_to`
+// ================================================================================================
+
+
+/// Helper type alias for property handler functions.
+type FnPropHandler<S> = fn(&mut S, &RawElement);
+
+/// A raw sink that transfers the raw data to the given `MemSink`. This is the
+/// core of `Reader::transfer_to`.
+struct RawTransferSink<'a, S: MemSink> {
+    sink: &'a mut S,
+
+    /// This function is called for incoming new raw elements. The
+    /// function pointer is updated every time `element_group_start` is
+    /// called.
+    elem_handler: fn(&mut Self, &RawElement) -> Result<(), Error>,
+
+    // ----- State for the property handlers -----
+    // Not always valid! Reading these handles at the wrong time might
+    // return useless values.
+    curr_vertex_handle: VertexHandle,
+    curr_face_handle: FaceHandle,
+    curr_edge_handle: EdgeHandle,
+    // TODO: we could put the current element here, but we don't want
+    // to clone it and via reference brings lifetime problems...
+
+    // ----- State for vertex handling -----
+    vertex_handles: IndexHandleMap<VertexHandle>,
+    vertex_count: usize,
+
+    /// The position of the x, y and z property in the list of vertex
+    /// properties (usually 0, 1, 2)
+    vertex_position_idx: [PropIndex; 3],
+
+    /// Function to read the x, y, z properties
+    read_vertex_position: FnPropHandler<Self>,
+
+    /// The position of the nx, ny and nz properties in the list of
+    /// vertex properties
+    vertex_normal_idx: [PropIndex; 3],
+
+    /// Function to read the nx, ny, nz properties
+    read_vertex_normal: FnPropHandler<Self>,
+
+    /// The position of the red, green, blue and alpha properties in
+    /// the list of vertex properties (alpha value potentially garbage)
+    vertex_color_idx: [PropIndex; 4],
+
+    /// Function to read the red, green, blue and alpha properties
+    read_vertex_color: FnPropHandler<Self>,
+
+
+    // ----- State for face handling -----
+    face_handles: IndexHandleMap<FaceHandle>,
+    face_count: usize,
+
+    /// The position of the `vertex_indices` property in the list of
+    /// face properties (usually 0)
+    vertex_indices_idx: PropIndex,
+
+    /// Function to read the `vertex_indices` property and add the
+    /// face. Returns `Err` if an vertex index is not valid or if the
+    /// sink returns an error from `add_face`.
+    read_face_vertex_indices:
+        fn(&mut Self, &RawElement, &RawListInfo) -> Result<FaceHandle, Error>,
+
+    /// This is a temporary buffer for `read_face_vertex_indices` to
+    /// store vertex handles in. It shouldn't be used except inside of
+    /// `read_face_vertex_indices`.
+    vertex_handles_buffer: Vec<VertexHandle>,
+
+
+    /// The position of the nx, ny and nz properties in the list of
+    /// face properties
+    face_normal_idx: [PropIndex; 3],
+
+    /// Function to read the nx, ny, nz properties
+    read_face_normal: FnPropHandler<Self>,
+
+    /// The position of the red, green, blue and alpha properties in
+    /// the list of face properties (alpha value potentially garbage)
+    face_color_idx: [PropIndex; 4],
+
+    /// Function to read the red, green, blue and alpha properties
+    read_face_color: FnPropHandler<Self>,
+
+
+    // ----- State for edge handling -----
+    edge_handles: IndexHandleMap<EdgeHandle>,
+    edge_count: usize,
+
+    /// The position of the `vertex1` and `vertex2` properties in the list
+    /// of edge properties (usually 0 and 1).
+    endpoint_indices_idx: [PropIndex; 2],
+
+    /// Function to read the `vertex1` and `vertex2` properties. Returns
+    /// the edge handle of the edge between the two vertices, or an
+    /// `Err` if none such edge exists.
+    read_edge_endpoint_indices: fn(&mut Self, &RawElement) -> Result<EdgeHandle, Error>,
+
+    /// The position of the red, green, blue and alpha properties in
+    /// the list of edge properties (alpha value potentially garbage)
+    edge_color_idx: [PropIndex; 4],
+
+    /// Function to read the red, green, blue and alpha properties.
+    read_edge_color: FnPropHandler<Self>,
+}
+
+impl<'a, S: MemSink> RawTransferSink<'a, S> {
+    fn new(sink: &'a mut S, info: ElementInfo) -> Result<Self, Error> {
+        // Calls the `prepare_` function and returns the offset as well
+        // as the function pointer to the function monomorphized with
+        // the correct type.
+        macro_rules! get_offset_and_fptr {
+            ($info:expr, $fun:ident, $prep_fn:ident, $count:expr $(,)?) => {
+                match $info {
+                    Some(Vec3PropInfo { idx, ty }) => {
+                        let fn_ptr = match ty {
+                            ScalarType::Char => {
+                                sink.$prep_fn::<i8>($count)?;
+                                Self::$fun::<i8>
+                            },
+                            ScalarType::UChar => {
+                                sink.$prep_fn::<u8>($count)?;
+                                Self::$fun::<u8>
+                            },
+                            ScalarType::Short => {
+                                sink.$prep_fn::<i16>($count)?;
+                                Self::$fun::<i16>
+                            },
+                            ScalarType::UShort => {
+                                sink.$prep_fn::<u16>($count)?;
+                                Self::$fun::<u16>
+                            },
+                            ScalarType::Int => {
+                                sink.$prep_fn::<i32>($count)?;
+                                Self::$fun::<i32>
+                            },
+                            ScalarType::UInt => {
+                                sink.$prep_fn::<u32>($count)?;
+                                Self::$fun::<u32>
+                            },
+                            ScalarType::Float => {
+                                sink.$prep_fn::<f32>($count)?;
+                                Self::$fun::<f32>
+                            },
+                            ScalarType::Double => {
+                                sink.$prep_fn::<f64>($count)?;
+                                Self::$fun::<f64>
+                            },
+                        };
+
+                        (idx.indices(), fn_ptr)
+                    }
+                    None => ([PropIndex(0); 3], Self::noop as FnPropHandler<Self>),
+                }
+            }
+        }
+
+        // For vertex properties x, y, z.
+        let (vertex_position_idx, read_vertex_position) = get_offset_and_fptr!(
+            info.vertex.position,
+            read_vertex_position,
+            prepare_vertex_positions,
+            info.vertex.count,
+        );
+
+        // For vertex properties nx, ny, nz.
+        let (vertex_normal_idx, read_vertex_normal) = get_offset_and_fptr!(
+            info.vertex.normal,
+            read_vertex_normal,
+            prepare_vertex_normals,
+            info.vertex.count,
+        );
+
+        // For vertex properties red, green, blue, [alpha]
+        let (vertex_color_idx, read_vertex_color) = match info.vertex.color.map(|i| i.into_dumb()) {
+            Some((offset, alpha)) => {
+                let fun = match alpha {
+                    true => {
+                        sink.prepare_vertex_colors::<[u8; 4]>(info.vertex.count)?;
+                        Self::read_vertex_color::<[u8; 4]> as FnPropHandler<Self>
+                    },
+                    false => {
+                        sink.prepare_vertex_colors::<[u8; 3]>(info.vertex.count)?;
+                        Self::read_vertex_color::<[u8; 3]> as FnPropHandler<Self>
+                    },
+                };
+                (offset, fun)
+            }
+            None => ([PropIndex(0); 4], Self::noop as FnPropHandler<Self>),
+        };
+
+
+        // For property `vertex_indices`
+        let (vertex_indices_idx, read_face_vertex_indices) = match info.face.as_ref().map(|f| f.vertex_indices) {
+            Some(VertexIndicesInfo { idx, ty }) => {
+                let fun = match ty {
+                    ScalarType::Char => Self::read_face_vertex_indices::<i8>,
+                    ScalarType::UChar => Self::read_face_vertex_indices::<u8>,
+                    ScalarType::Short => Self::read_face_vertex_indices::<i16>,
+                    ScalarType::UShort => Self::read_face_vertex_indices::<u16>,
+                    ScalarType::Int => Self::read_face_vertex_indices::<i32>,
+                    ScalarType::UInt => Self::read_face_vertex_indices::<u32>,
+
+                    // We check before that the type is an integer.
+                    ScalarType::Float | ScalarType::Double => unreachable!(),
+                };
+
+                (idx, fun)
+            }
+            None => (
+                PropIndex(0),
+                Self::vertex_indices_bug as fn(&mut _, &_, &_) -> _,
+            ),
+        };
+
+        // For face properties nx, ny, nz.
+        let (face_normal_idx, read_face_normal) = get_offset_and_fptr!(
+            info.face.as_ref().and_then(|f| f.normal),
+            read_face_normal,
+            prepare_face_normals,
+            info.face.as_ref().unwrap().count,
+        );
+
+        // For face properties red, green, blue, [alpha]
+        let (face_color_idx, read_face_color) = match info.face.as_ref().and_then(|f| f.color.map(|i| i.into_dumb())) {
+            Some((offset, alpha)) => {
+                let fun = if alpha {
+                    sink.prepare_face_colors::<[u8; 4]>(info.face.as_ref().unwrap().count)?;
+                    Self::read_face_color::<[u8; 4]> as FnPropHandler<Self>
+                } else {
+                    sink.prepare_face_colors::<[u8; 3]>(info.face.as_ref().unwrap().count)?;
+                    Self::read_face_color::<[u8; 3]> as FnPropHandler<Self>
+                };
+                (offset, fun)
+            }
+            None => ([PropIndex(0); 4], Self::noop as FnPropHandler<Self>),
+        };
+
+        // For property `vertex_indices`
+        let (endpoint_indices_idx, read_edge_endpoint_indices) = match info.edge.as_ref().map(|e| e.endpoints) {
+            Some(EdgeEndpointsInfo { idx, ty }) => {
+                let fun = match ty {
+                    ScalarType::Char => Self::read_edge_endpoint_indices::<i8>,
+                    ScalarType::UChar => Self::read_edge_endpoint_indices::<u8>,
+                    ScalarType::Short => Self::read_edge_endpoint_indices::<i16>,
+                    ScalarType::UShort => Self::read_edge_endpoint_indices::<u16>,
+                    ScalarType::Int => Self::read_edge_endpoint_indices::<i32>,
+                    ScalarType::UInt => Self::read_edge_endpoint_indices::<u32>,
+
+                    // We check before that the type is an integer.
+                    ScalarType::Float | ScalarType::Double => unreachable!(),
+                };
+
+                (idx, fun)
+            }
+            None => (
+                [PropIndex(0); 2],
+                Self::edge_endpoints_bug as fn(&mut _, &_) -> _,
+            ),
+        };
+
+        // For edge properties red, green, blue, [alpha]
+        let (edge_color_idx, read_edge_color) = match info.edge.as_ref().and_then(|e| e.color.map(|i| i.into_dumb())) {
+            Some((offset, alpha)) => {
+                let fun = if alpha {
+                    sink.prepare_edge_colors::<[u8; 4]>(info.edge.as_ref().unwrap().count)?;
+                    Self::read_edge_color::<[u8; 4]> as FnPropHandler<Self>
+                } else {
+                    sink.prepare_edge_colors::<[u8; 3]>(info.edge.as_ref().unwrap().count)?;
+                    Self::read_edge_color::<[u8; 3]> as FnPropHandler<Self>
+                };
+                (offset, fun)
+            }
+            None => ([PropIndex(0); 4], Self::noop as FnPropHandler<Self>),
+        };
+
+
+        Ok(Self {
+            sink,
+
+            // It will be overwritten in `element_group_start`, but if
+            // `read_raw` is buggy, this function might be called,
+            // so we will panic in that case.
+            elem_handler: RawTransferSink::bug_in_read_raw,
+
+            // We initialize the handles to dummy values. They are
+            // overwritten in `handle_vertex` and `handle_face`.
+            curr_vertex_handle: VertexHandle::from_usize(0),
+            curr_face_handle: FaceHandle::from_usize(0),
+            curr_edge_handle: EdgeHandle::from_usize(0),
+
+            vertex_handles: IndexHandleMap::new(),
+            vertex_count: 0,
+
+            vertex_position_idx,
+            read_vertex_position,
+            vertex_normal_idx,
+            read_vertex_normal,
+            vertex_color_idx,
+            read_vertex_color,
+
+            face_handles: IndexHandleMap::new(),
+            face_count: 0,
+
+            vertex_indices_idx,
+            read_face_vertex_indices,
+            vertex_handles_buffer: Vec::with_capacity(3),
+            face_normal_idx,
+            read_face_normal,
+            face_color_idx,
+            read_face_color,
+
+            edge_handles: IndexHandleMap::new(),
+            edge_count: 0,
+
+            endpoint_indices_idx,
+            read_edge_endpoint_indices,
+            edge_color_idx,
+            read_edge_color,
+        })
+    }
+
+
+    // ----- Element handler ------------------------------------------
+    /// Initial element handler. Will hopefully never be called.
+    fn bug_in_read_raw(&mut self, _: &RawElement) -> Result<(), Error> {
+        panic!(
+            "bug in `ply::Reader::read_raw`: `element()` called \
+                before `element_group_start`"
+        );
+    }
+
+    fn ignore_elem(&mut self, _: &RawElement) -> Result<(), Error> {
+        Ok(())
+    }
+
+    /// Called for each element in the `vertex` group.
+    fn handle_vertex(&mut self, elem: &RawElement) -> Result<(), Error> {
+        // Add vertex
+        let vh = self.sink.add_vertex();
+        self.vertex_handles.add(self.vertex_count, vh);
+        self.vertex_count += 1;
+        self.curr_vertex_handle = vh;
+
+        // Read vertex properties
+        (self.read_vertex_position)(self, elem);
+        (self.read_vertex_normal)(self, elem);
+        (self.read_vertex_color)(self, elem);
+
+        Ok(())
+    }
+
+    /// Called for each element in the `face` group.
+    fn handle_face(&mut self, elem: &RawElement) -> Result<(), Error> {
+        // We checked before that this property is indeed a list
+        let vi_list = elem.decode_list_at(self.vertex_indices_idx).unwrap();
+
+        // Make sure the list is not too short.
+        if vi_list.list_len < 3 {
+            return Err(Error::new(|| ErrorKind::InvalidInput(format!(
+                "the face at index {} has only {} vertices, but at least 3 are required \
+                    per face",
+                self.face_count,
+                vi_list.list_len,
+            ))));
+        }
+
+        // Add face
+        let fh = (self.read_face_vertex_indices)(self, &elem, &vi_list)?;
+        self.face_handles.add(self.face_count, fh);
+        self.face_count += 1;
+        self.curr_face_handle = fh;
+
+        // Face properties
+        (self.read_face_normal)(self, elem);
+        (self.read_face_color)(self, elem);
+
+        Ok(())
+    }
+
+    /// Called for each element in the `edge` group.
+    fn handle_edge(&mut self, elem: &RawElement) -> Result<(), Error> {
+        // Add edge
+        let eh = (self.read_edge_endpoint_indices)(self, elem)?;
+        self.edge_handles.add(self.edge_count, eh);
+        self.edge_count += 1;
+        self.curr_edge_handle = eh;
+
+        // Edge properties
+        (self.read_edge_color)(self, elem);
+
+        Ok(())
+    }
+
+    // ----- Vertex property handler ----------------------------------
+    /// Used for all properties that are not in the file: just do
+    /// nothing.
+    fn noop(&mut self, _: &RawElement) {}
+
+    /// Read the x, y and z property and pass the position to the sink.
+    fn read_vertex_position<T: Primitive + FromBytes>(&mut self, elem: &RawElement) {
+        let [x_idx, y_idx, z_idx] = self.vertex_position_idx;
+        let x = T::from_bytes_ne(&elem.data[elem.prop_infos[x_idx].offset..]);
+        let y = T::from_bytes_ne(&elem.data[elem.prop_infos[y_idx].offset..]);
+        let z = T::from_bytes_ne(&elem.data[elem.prop_infos[z_idx].offset..]);
+
+        self.sink.set_vertex_position(
+            self.curr_vertex_handle,
+            Point3::new(x, y, z),
+        );
+    }
+
+    /// Read the x, y and z property and pass the position to the sink.
+    fn read_vertex_normal<T: Primitive + FromBytes>(&mut self, elem: &RawElement) {
+        let [x_idx, y_idx, z_idx] = self.vertex_normal_idx;
+        let x = T::from_bytes_ne(&elem.data[elem.prop_infos[x_idx].offset..]);
+        let y = T::from_bytes_ne(&elem.data[elem.prop_infos[y_idx].offset..]);
+        let z = T::from_bytes_ne(&elem.data[elem.prop_infos[z_idx].offset..]);
+
+        self.sink.set_vertex_normal(
+            self.curr_vertex_handle,
+            Vector3::new(x, y, z),
+        );
+    }
+
+    fn read_vertex_color<C: ColorLike<Channel = u8>>(&mut self, elem: &RawElement) {
+        let [r_idx, g_idx, b_idx, a_idx] = self.vertex_color_idx;
+        let r = elem.data[elem.prop_infos[r_idx].offset];
+        let g = elem.data[elem.prop_infos[g_idx].offset];
+        let b = elem.data[elem.prop_infos[b_idx].offset];
+
+        if C::HAS_ALPHA {
+            let a = elem.data[elem.prop_infos[a_idx].offset];
+            self.sink.set_vertex_color(self.curr_vertex_handle, [r, g, b, a]);
+        } else {
+            self.sink.set_vertex_color(self.curr_vertex_handle, [r, g, b]);
+        }
+    }
+
+    // ----- face property handler ----------------------------------
+    /// Only dummy function that should never be called.
+    fn vertex_indices_bug(
+        &mut self,
+        _: &RawElement,
+        _: &RawListInfo,
+    ) -> Result<FaceHandle, Error> {
+        panic!("internal bug in PLY reader")
+    }
+
+    /// Reads three values from the raw data at the specified offset,
+    /// interprets them as vertex indices and adds a face to the sink.
+    fn read_face_vertex_indices<T: Primitive + FromBytes + PlyInteger>(
+        &mut self,
+        elem: &RawElement,
+        vi_list: &RawListInfo,
+    ) -> Result<FaceHandle, Error> {
+        // Obtain the relevant raw slice (all the list data).
+        let start = vi_list.data_offset;
+        let end = start + RawOffset(vi_list.list_len * T::SIZE as u32);
+        let data = &elem.data[start..end];
+
+        // Iterate over the list of indices to vertices, convert them
+        // to handles and add the handles to `vertex_handles_buffer`.
+        self.vertex_handles_buffer.clear();
+        for raw in data.chunks(T::SIZE) {
+            let index = T::from_bytes_ne(raw).as_usize();
+
+            // TODO: the closure should probably be extracted into an
+            // `inline(never)` function that is not generic, to tackle
+            // code bloat.
+            let handle = self.vertex_handles.get(index).ok_or_else(|| {
+                Error::new(|| {
+                    let msg = format!(
+                        "invalid vertex index {} in PLY file: a face's `vertice_indices` \
+                            property refers to that vertex index, but no vertex with such \
+                            a high index exists in the file",
+                        index,
+                    );
+                    ErrorKind::InvalidInput(msg)
+                })
+            })?;
+
+            // TODO: we can probably improve performance a bit by
+            // preallocating the vector, setting the len to the list
+            // len and just write the elements. That way, `push`
+            // doesn't have to perform a capacity check each time.
+            // However, this optimization would require `unsafe` code.
+            self.vertex_handles_buffer.push(handle);
+        }
+
+        // Add the face to the mesh.
+        self.sink.add_face(&self.vertex_handles_buffer)
+    }
+
+    /// Read the x, y and z property and pass the position to the sink.
+    fn read_face_normal<T: Primitive + FromBytes>(&mut self, elem: &RawElement) {
+        let [x_idx, y_idx, z_idx] = self.face_normal_idx;
+        let x = T::from_bytes_ne(&elem.data[elem.prop_infos[x_idx].offset..]);
+        let y = T::from_bytes_ne(&elem.data[elem.prop_infos[y_idx].offset..]);
+        let z = T::from_bytes_ne(&elem.data[elem.prop_infos[z_idx].offset..]);
+
+        self.sink.set_face_normal(
+            self.curr_face_handle,
+            Vector3::new(x, y, z),
+        );
+    }
+
+    fn read_face_color<C: ColorLike<Channel = u8>>(&mut self, elem: &RawElement) {
+        let [r_idx, g_idx, b_idx, a_idx] = self.face_color_idx;
+        let r = elem.data[elem.prop_infos[r_idx].offset];
+        let g = elem.data[elem.prop_infos[g_idx].offset];
+        let b = elem.data[elem.prop_infos[b_idx].offset];
+
+        if C::HAS_ALPHA {
+            let a = elem.data[elem.prop_infos[a_idx].offset];
+            self.sink.set_face_color(self.curr_face_handle, [r, g, b, a]);
+        } else {
+            self.sink.set_face_color(self.curr_face_handle, [r, g, b]);
+        }
+    }
+
+
+    // ----- edge property handler ----------------------------------
+    /// Only dummy function that should never be called.
+    fn edge_endpoints_bug(&mut self, _: &RawElement) -> Result<EdgeHandle, Error> {
+        panic!("internal bug in PLY reader: no edge endpoints")
+    }
+
+    /// Reads three values from the raw data at the specified offset,
+    /// interprets them as vertex indices and adds a face to the sink.
+    fn read_edge_endpoint_indices<T: Primitive + FromBytes + PlyInteger>(
+        &mut self,
+        elem: &RawElement,
+    ) -> Result<EdgeHandle, Error> {
+        let get_handle = |index| {
+            self.vertex_handles.get(index).ok_or_else(|| {
+                Error::new(|| {
+                    let msg = format!(
+                        "invalid vertex index {} in PLY file: a face's `vertice_indices` \
+                            property refers to that vertex index, but no vertex with such \
+                            a high index exists in the file",
+                        index,
+                    );
+                    ErrorKind::InvalidInput(msg)
+                })
+            })
+        };
+
+        let [idx0, idx1] = self.endpoint_indices_idx;
+        let vi0 = T::from_bytes_ne(&elem.data[elem.prop_infos[idx0].offset..]);
+        let vi1 = T::from_bytes_ne(&elem.data[elem.prop_infos[idx1].offset..]);
+
+        let v0 = get_handle(vi0.as_usize())?;
+        let v1 = get_handle(vi1.as_usize())?;
+
+        // Retrieve edge handle
+        let edge = self.sink.get_edge_between([v0, v1])?;
+        edge.ok_or_else(|| {
+            Error::new(|| {
+                let msg = format!(
+                    "invalid edge: PLY file refers to edge between vertex indices {} and \
+                        {}, but not such edge exists",
+                    vi0.as_usize(),
+                    vi1.as_usize(),
+                );
+                ErrorKind::InvalidInput(msg)
+            })
+        })
+    }
+
+    fn read_edge_color<C: ColorLike<Channel = u8>>(&mut self, elem: &RawElement) {
+        let [r_idx, g_idx, b_idx, a_idx] = self.edge_color_idx;
+        let r = elem.data[elem.prop_infos[r_idx].offset];
+        let g = elem.data[elem.prop_infos[g_idx].offset];
+        let b = elem.data[elem.prop_infos[b_idx].offset];
+
+        if C::HAS_ALPHA {
+            let a = elem.data[elem.prop_infos[a_idx].offset];
+            self.sink.set_edge_color(self.curr_edge_handle, [r, g, b, a]);
+        } else {
+            self.sink.set_edge_color(self.curr_edge_handle, [r, g, b]);
+        }
+    }
+}
+
+impl<S: MemSink> RawSink for RawTransferSink<'_, S> {
+    fn element_group_start(&mut self, def: &ElementDef) -> Result<(), Error> {
+        match &*def.name {
+            "vertex" => self.elem_handler = Self::handle_vertex,
+            "face" => self.elem_handler = Self::handle_face,
+            "edge" => self.elem_handler = Self::handle_edge,
+            _ => self.elem_handler = Self::ignore_elem,
+        }
+
+        Ok(())
+    }
+
+    fn element(&mut self, elem: &RawElement) -> Result<(), Error> {
+        (self.elem_handler)(self, elem)
+    }
+}
+
 
 
 // ===========================================================================
