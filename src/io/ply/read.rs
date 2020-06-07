@@ -1184,6 +1184,17 @@ macro_rules! new_prop_kind {
 new_prop_kind!(PositionProp, Vec3Layout, Point3);
 new_prop_kind!(NormalProp, Vec3Layout, Vector3);
 
+enum RgbColorProp {}
+impl PropKind for RgbColorProp {
+    type Layout = Vec3Layout<u8>;
+    type Target = [u8; 3];
+}
+enum RgbaColorProp {}
+impl PropKind for RgbaColorProp {
+    type Layout = Vec4Layout<u8>;
+    type Target = [u8; 4];
+}
+
 /// A prop kind that can be associated with a specific element (through `H`) and
 /// that can be inserted into a `MemSink`.
 trait SinkInserter<H>: PropKind {
@@ -1191,8 +1202,8 @@ trait SinkInserter<H>: PropKind {
 }
 
 macro_rules! impl_sink_inserter {
-    ($name:ident, $handle:ident, $method:ident) => {
-        impl<T: Primitive + FromBytes> SinkInserter<$handle> for $name<T> {
+    ($name:ident $(<$t:ident>)?, $handle:ident, $method:ident) => {
+        impl $(<$t: Primitive + FromBytes>)? SinkInserter<$handle> for $name $(<$t>)? {
             fn insert<S: MemSink>(sink: &mut S, handle: $handle, value: Self::Target) {
                 sink.$method(handle, value);
             }
@@ -1200,9 +1211,15 @@ macro_rules! impl_sink_inserter {
     };
 }
 
-impl_sink_inserter!(PositionProp, VertexHandle, set_vertex_position);
-impl_sink_inserter!(NormalProp, VertexHandle, set_vertex_normal);
-impl_sink_inserter!(NormalProp, FaceHandle, set_face_normal);
+impl_sink_inserter!(PositionProp<T>, VertexHandle, set_vertex_position);
+impl_sink_inserter!(NormalProp<T>, VertexHandle, set_vertex_normal);
+impl_sink_inserter!(NormalProp<T>, FaceHandle, set_face_normal);
+impl_sink_inserter!(RgbColorProp, VertexHandle, set_vertex_color);
+impl_sink_inserter!(RgbaColorProp, VertexHandle, set_vertex_color);
+impl_sink_inserter!(RgbColorProp, FaceHandle, set_face_color);
+impl_sink_inserter!(RgbaColorProp, FaceHandle, set_face_color);
+impl_sink_inserter!(RgbColorProp, EdgeHandle, set_edge_color);
+impl_sink_inserter!(RgbaColorProp, EdgeHandle, set_edge_color);
 
 /// Abstracts over the layout of the values of one property in the file. They
 /// can either be contiguous or separate.
@@ -1268,18 +1285,32 @@ trait IdxProvider<Prop: PropKind> {
 }
 
 macro_rules! impl_idx_provider {
-    ($name:ident, $prop:ident, $field:ident) => {
-        impl<T: Primitive + FromBytes> IdxProvider<$prop<T>> for $name {
-            fn idx(&self) -> &[PropIndex; 3] {
+    ($name:ident, $prop:ident $(<$t:ident>)?, $field:ident) => {
+        impl $(<$t: Primitive + FromBytes>)? IdxProvider<$prop $(<$t>)?> for $name {
+            fn idx(&self) -> &<<$prop $(<$t>)? as PropKind>::Layout as PropLayout>::Idx {
                 &self.$field
             }
         }
     };
 }
 
-impl_idx_provider!(VertexReadState, PositionProp, position_idx);
-impl_idx_provider!(VertexReadState, NormalProp, normal_idx);
-impl_idx_provider!(FaceReadState, NormalProp, normal_idx);
+impl_idx_provider!(VertexReadState, PositionProp<T>, position_idx);
+impl_idx_provider!(VertexReadState, NormalProp<T>, normal_idx);
+impl_idx_provider!(VertexReadState, RgbaColorProp, color_idx);
+impl_idx_provider!(FaceReadState, NormalProp<T>, normal_idx);
+impl_idx_provider!(FaceReadState, RgbaColorProp, color_idx);
+
+// Manual impls for RGB as we want to resuse the 4 element RGBA index.
+impl IdxProvider<RgbColorProp> for VertexReadState {
+    fn idx(&self) -> &<<RgbColorProp as PropKind>::Layout as PropLayout>::Idx {
+        (&self.color_idx[..3]).try_into().unwrap()
+    }
+}
+impl IdxProvider<RgbColorProp> for FaceReadState {
+    fn idx(&self) -> &<<RgbColorProp as PropKind>::Layout as PropLayout>::Idx {
+        (&self.color_idx[..3]).try_into().unwrap()
+    }
+}
 
 
 /// Something that is associated with a specific element (through the `Handle`)
@@ -1309,6 +1340,7 @@ struct VertexReadState {
     current_handle: VertexHandle,
     position_idx: [PropIndex; 3],
     normal_idx: [PropIndex; 3],
+    color_idx: [PropIndex; 4],
 }
 struct FaceReadState {
     count: usize,
@@ -1316,6 +1348,7 @@ struct FaceReadState {
     current_handle: FaceHandle,
     vertex_indices_idx: PropIndex,
     normal_idx: [PropIndex; 3],
+    color_idx: [PropIndex; 4],
 }
 
 /// Super generic property reading function. This function is monomorphized
@@ -1433,10 +1466,53 @@ impl<'a, S: MemSink> ReadState<'a, S> {
             }
         }
 
+        macro_rules! prepare_color_prop {
+            (
+                $info:expr,
+                $prep_fn:ident,
+                $count:expr,
+                $state:ident,
+                $fns_vec:expr,
+                $idx:ident $(,)?
+            ) => {
+                if let Some(info) = $info {
+                    let (fn_ptr, idx) = match info {
+                        ColorPropInfo::ContiguousRgb(ri) => {
+                            sink.$prep_fn::<[u8; 3]>($count)?;
+                            let f = read_prop::<S, $state, RgbColorProp, ContiguousIdx>;
+                            let idx = [ri, PropIndex(0), PropIndex(0), PropIndex(0)];
+                            (f as fn(&mut _, &_, &_), idx)
+                        }
+                        ColorPropInfo::SeparateRgb([ri, gi, bi]) => {
+                            sink.$prep_fn::<[u8; 3]>($count)?;
+                            let f = read_prop::<S, $state, RgbColorProp, SeparateIdx>;
+                            let idx = [ri, gi, bi, PropIndex(0)];
+                            (f as fn(&mut _, &_, &_), idx)
+                        }
+                        ColorPropInfo::ContiguousRgba(ri) => {
+                            sink.$prep_fn::<[u8; 4]>($count)?;
+                            let f = read_prop::<S, $state, RgbaColorProp, ContiguousIdx>;
+                            let idx = [ri, PropIndex(0), PropIndex(0), PropIndex(0)];
+                            (f as fn(&mut _, &_, &_), idx)
+                        }
+                        ColorPropInfo::SeparateRgba(idx) => {
+                            sink.$prep_fn::<[u8; 4]>($count)?;
+                            let f = read_prop::<S, $state, RgbColorProp, SeparateIdx>;
+                            (f as fn(&mut _, &_, &_), idx)
+                        }
+                    };
+
+                    $fns_vec.push(fn_ptr);
+                    $idx = idx;
+                }
+            }
+        }
+
         // Prepare handlers and indices for generic vertex properties.
         let mut vertex_prop_fns: Vec<VertexPropHandler<S>> = Vec::new();
         let mut vertex_position_idx = [PropIndex(0); 3];
         let mut vertex_normal_idx = [PropIndex(0); 3];
+        let mut vertex_color_idx = [PropIndex(0); 4];
 
         prepare_prop!(
             info.vertex.position,
@@ -1456,10 +1532,19 @@ impl<'a, S: MemSink> ReadState<'a, S> {
             vertex_prop_fns,
             vertex_normal_idx,
         );
+        prepare_color_prop!(
+            info.vertex.color,
+            prepare_vertex_colors,
+            info.vertex.count,
+            VertexReadState,
+            vertex_prop_fns,
+            vertex_color_idx,
+        );
 
         // Prepare handlers and indices for generic face properties.
         let mut face_prop_fns: Vec<FacePropHandler<S>> = Vec::new();
         let mut face_normal_idx = [PropIndex(0); 3];
+        let mut face_color_idx = [PropIndex(0); 4];
         if let Some(face_info) = info.face.as_ref() {
             prepare_prop!(
                 face_info.normal,
@@ -1469,6 +1554,14 @@ impl<'a, S: MemSink> ReadState<'a, S> {
                 FaceReadState,
                 face_prop_fns,
                 face_normal_idx,
+            );
+            prepare_color_prop!(
+                face_info.color,
+                prepare_face_colors,
+                face_info.count,
+                FaceReadState,
+                face_prop_fns,
+                face_color_idx,
             );
         }
 
@@ -1509,13 +1602,15 @@ impl<'a, S: MemSink> ReadState<'a, S> {
                 current_handle: VertexHandle::new(0),
                 position_idx: vertex_position_idx,
                 normal_idx: vertex_normal_idx,
+                color_idx: vertex_color_idx,
             },
             face_state: FaceReadState {
                 count: 0,
                 handles: IndexHandleMap::new(),
                 current_handle: FaceHandle::new(0),
-                normal_idx: face_normal_idx,
                 vertex_indices_idx,
+                normal_idx: face_normal_idx,
+                color_idx: face_color_idx,
             },
 
             vertex_prop_fns,
