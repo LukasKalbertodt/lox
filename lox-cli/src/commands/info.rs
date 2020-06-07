@@ -21,6 +21,7 @@ use crate::{
     commands::{guess_file_format, reader_and_encoding},
     ui,
 };
+use ply::info::{ColorPropInfo, Vec3PropInfo};
 
 pub fn run(global_args: &GlobalArgs, args: &InfoArgs) -> Result<(), Error> {
     for filename in &args.files {
@@ -193,12 +194,12 @@ impl Info {
                     name: &str,
                 ) -> Result<ElementInfo, Error> {
                     if let Some(def) = reader.elements().iter().find(|def| def.name == name) {
-                        let position_type = def.check_vec3_prop(["x", "y", "z"], "positions")?
-                            .map(|(_, ty)| ty.to_primitive_type());
-                        let normal_type = def.check_vec3_prop(["nx", "ny", "nz"], "normals")?
-                            .map(|(_, ty)| ty.to_primitive_type());
-                        let color_type = def.check_color_prop()?.map(|(_, alpha)| ColorType {
-                            alpha,
+                        let position_type = Vec3PropInfo::new(&def, ["x", "y", "z"], "positions")?
+                            .map(|info| info.ty.to_primitive_type());
+                        let normal_type = Vec3PropInfo::new(&def, ["nx", "ny", "nz"], "normals")?
+                            .map(|info| info.ty.to_primitive_type());
+                        let color_type = ColorPropInfo::new(&def)?.map(|info| ColorType {
+                            alpha: info.has_alpha(),
                             channel_type: PrimitiveColorChannelType::Uint8,
                         });
 

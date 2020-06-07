@@ -42,14 +42,18 @@
 //! If you need full low-level control, you can use [`Writer::write_raw`] or
 //! [`Reader::read_raw`]. However, this is usually not necessary.
 
-use crate::{
-    io::{
-        FileEncoding,
-        util::IsFormat,
-    },
-};
+use crate::io::{FileEncoding, util::IsFormat};
+
+
+// Helper macro used in modules.
+macro_rules! invalid_input {
+    ($($t:tt)+) => {
+        Error::new(|| ErrorKind::InvalidInput(format!($($t)+)))
+    };
+}
 
 pub mod raw;
+pub mod info;
 mod read;
 mod write;
 
@@ -124,3 +128,8 @@ impl From<Encoding> for FileEncoding {
         }
     }
 }
+
+// The names we accepts for vertex, face and edge elements, respectively.
+const VERTEX_ELEMENT_NAMES: &[&str] = &["vertex", "point"];
+const FACE_ELEMENT_NAMES: &[&str] = &["face"];
+const EDGE_ELEMENT_NAMES: &[&str] = &["edge"];
