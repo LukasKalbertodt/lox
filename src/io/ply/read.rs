@@ -1551,10 +1551,7 @@ fn read_element_binary_native(
                 )?;
                 offset += len_len;
 
-                let data_len = list_data_len(list_len, scalar_len).ok_or_else(|| {
-                    let span = Span::new(offset_before, buf.offset());
-                    ParseError::LookAheadTooBig(Some(span))
-                })?;
+                let data_len = list_data_len(list_len, scalar_len, offset_before, buf.offset())?;
                 RawOffset::from(data_len)
             }
         };
@@ -1596,10 +1593,7 @@ fn read_element_binary_swapped(
 
                 // Calculate the total list length and load the raw data (still
                 // in non-native endianess).
-                let data_len = list_data_len(list_len, scalar_len).ok_or_else(|| {
-                    let span = Span::new(offset_before, buf.offset());
-                    ParseError::LookAheadTooBig(Some(span))
-                })?;
+                let data_len = list_data_len(list_len, scalar_len, offset_before, buf.offset())?;
                 read_bytes_into(buf, data_len as usize, &mut raw_elem.data)?;
 
                 // Swap bytes of list elements
@@ -1616,10 +1610,18 @@ fn read_element_binary_swapped(
     Ok(())
 }
 
-fn list_data_len(list_len: u32, scalar_len: ScalarLen) -> Option<u32> {
+#[inline(always)]
+fn list_data_len(list_len: u32, scalar_len: ScalarLen, lo: usize, hi: usize) -> Result<u32, Error> {
+    #[cold]
+    #[inline(never)]
+    fn err(lo: usize, hi: usize) -> Error {
+        ParseError::LookAheadTooBig(Some(Span::new(lo, hi))).into()
+    }
+
     u32::try_from((list_len as u64) * (scalar_len as u64))
         .ok()
         .filter(|data_len| (*data_len as usize) < MAX_BUFFER_SIZE)
+        .ok_or_else(|| err(lo, hi))
 }
 
 // Reads until the next whitespace or linebreak and tries to parse the string

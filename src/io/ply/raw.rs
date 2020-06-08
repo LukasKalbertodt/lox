@@ -158,6 +158,7 @@ pub enum PropertyType {
 impl PropertyType {
     /// Returns the `len_type` of the list, or `None` if `self` is a scalar
     /// value.
+    #[inline(always)]
     pub fn len_type(&self) -> Option<ListLenType> {
         match self {
             PropertyType::Scalar(_) => None,
@@ -529,6 +530,7 @@ impl RawOffset {
 }
 
 impl From<ScalarLen> for RawOffset {
+    #[inline(always)]
     fn from(src: ScalarLen) -> Self {
         (src.as_u8() as u32).into()
     }
@@ -536,12 +538,14 @@ impl From<ScalarLen> for RawOffset {
 
 impl ops::Add<ScalarLen> for RawOffset {
     type Output = RawOffset;
+    #[inline(always)]
     fn add(self, len: ScalarLen) -> Self::Output {
         (self.0 + len.as_u8() as u32).into()
     }
 }
 
 impl ops::AddAssign<ScalarLen> for RawOffset {
+    #[inline(always)]
     fn add_assign(&mut self, rhs: ScalarLen) {
         *self = *self + rhs;
     }
