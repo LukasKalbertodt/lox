@@ -569,11 +569,21 @@ trait PropLayout {
     /// An array of `Scalar` elements with length N.
     type Out;
 
-    /// Stupid helper function to extract the first index from `Idx`. This could
-    /// be avoided if array would implement `Index`.
-    fn first(idx: &Self::Idx) -> PropIndex;
-    /// Maps the given array `idx` with the function `f`. Calls `f` N times.
-    fn map(idx: &Self::Idx, f: impl FnMut(PropIndex, usize) -> Self::Scalar) -> Self::Out;
+    /// Extracts the property from the raw element, assuming the values are
+    /// stored contiguously and in order. Only the first element of `indices` is
+    /// used.
+    fn extract_contiguous(elem: &RawElement, indices: &Self::Idx) -> Self::Out;
+
+    /// Extracts the property from the raw element by using the given indices.
+    fn extract_separate(elem: &RawElement, indices: &Self::Idx) -> Self::Out;
+}
+
+/// Cold panic function to optimize code size.
+#[cold]
+#[inline(never)]
+fn panic_bug_in_raw_element() -> ! {
+    panic!("PLY reader bug: some offsets in `raw_element.prop_infos` point \
+        outside of `raw_element.data`");
 }
 
 /// A 3 dimensional property.
@@ -582,11 +592,35 @@ impl<T: Primitive + FromBytes> PropLayout for Vec3Layout<T> {
     type Scalar = T;
     type Idx = [PropIndex; 3];
     type Out = [T; 3];
-    fn first(idx: &Self::Idx) -> PropIndex {
-        idx[0]
+
+    fn extract_contiguous(elem: &RawElement, &[idx, ..]: &Self::Idx) -> Self::Out {
+        // This index operation creates a bound check that is not necessary in
+        // theory (if we assume the `RawElement` is internally consistent). But
+        // the performance win we get from removing this bound check is fairly
+        // small and I am not willing to risk unsafety for that.
+        let start = elem.prop_infos[idx].offset.0 as usize;
+        let end = start + 3 * T::SIZE;
+
+        // This check is explicit here to avoid three different bound checks
+        // below. In theory, as above, not a single check would be necessary.
+        if elem.data.len() < end {
+            panic_bug_in_raw_element();
+        }
+
+        let data = &(*elem.data)[start..end];
+        [
+            T::from_bytes_ne(&data[0 * T::SIZE..1 * T::SIZE]),
+            T::from_bytes_ne(&data[1 * T::SIZE..2 * T::SIZE]),
+            T::from_bytes_ne(&data[2 * T::SIZE..3 * T::SIZE]),
+        ]
     }
-    fn map(idx: &Self::Idx, mut f: impl FnMut(PropIndex, usize) -> Self::Scalar) -> Self::Out {
-        [f(idx[0], 0), f(idx[1], 1), f(idx[2], 2)]
+    fn extract_separate(elem: &RawElement, indices: &Self::Idx) -> Self::Out {
+        // This leads to 6 bound checks which are unfortunate. We "in theory"
+        // know that all `indices` are valid and all `offsets` are valid too. It
+        // would be a bug if they weren't. But as this function is probably
+        // called very rarely, it's not worth it introducing unsafe code.
+        let offsets = indices.map(|&i| elem.prop_infos[i].offset.0 as usize);
+        offsets.map(|o| T::from_bytes_ne(&(*elem.data)[o..o + T::SIZE]))
     }
 }
 
@@ -596,11 +630,27 @@ impl<T: Primitive + FromBytes> PropLayout for Vec4Layout<T> {
     type Scalar = T;
     type Idx = [PropIndex; 4];
     type Out = [T; 4];
-    fn first(idx: &Self::Idx) -> PropIndex {
-        idx[0]
+
+    // For comments, see the same methods of `Vec3Layout`.
+    fn extract_contiguous(elem: &RawElement, &[idx, ..]: &Self::Idx) -> Self::Out {
+        let start = elem.prop_infos[idx].offset.0 as usize;
+        let end = start + 4 * T::SIZE;
+
+        if elem.data.len() < end {
+            panic_bug_in_raw_element();
+        }
+
+        let data = &(*elem.data)[start..end];
+        [
+            T::from_bytes_ne(&data[0 * T::SIZE..1 * T::SIZE]),
+            T::from_bytes_ne(&data[1 * T::SIZE..2 * T::SIZE]),
+            T::from_bytes_ne(&data[2 * T::SIZE..3 * T::SIZE]),
+            T::from_bytes_ne(&data[3 * T::SIZE..4 * T::SIZE]),
+        ]
     }
-    fn map(idx: &Self::Idx, mut f: impl FnMut(PropIndex, usize) -> Self::Scalar) -> Self::Out {
-        [f(idx[0], 0), f(idx[1], 1), f(idx[2], 2), f(idx[3], 3)]
+    fn extract_separate(elem: &RawElement, indices: &Self::Idx) -> Self::Out {
+        let offsets = indices.map(|&i| elem.prop_infos[i].offset.0 as usize);
+        offsets.map(|o| T::from_bytes_ne(&(*elem.data)[o..o + T::SIZE]))
     }
 }
 
@@ -690,14 +740,10 @@ impl IdxLayout for ContiguousIdx {
     ) -> <Prop::Layout as PropLayout>::Out
     where
         Prop: PropKind,
-        Provider: IdxProvider<Prop>
+        Provider: IdxProvider<Prop>,
     {
         let idxs = provider.idx();
-        let offset = elem.prop_infos[Prop::Layout::first(idxs)].offset;
-        Prop::Layout::map(idxs, |_, i| {
-            let offset = offset.0 + (i * <Prop::Layout as PropLayout>::Scalar::SIZE) as u32;
-            <Prop::Layout as PropLayout>::Scalar::from_bytes_ne(&elem.data[RawOffset(offset)..])
-        })
+        Prop::Layout::extract_contiguous(elem, idxs)
     }
 }
 
@@ -713,11 +759,8 @@ impl IdxLayout for SeparateIdx {
         Prop: PropKind,
         Provider: IdxProvider<Prop>
     {
-        Prop::Layout::map(provider.idx(), |idx, _| {
-            <Prop::Layout as PropLayout>::Scalar::from_bytes_ne(
-                &elem.data[elem.prop_infos[idx].offset..]
-            )
-        })
+        let idxs = provider.idx();
+        Prop::Layout::extract_separate(elem, idxs)
     }
 }
 
