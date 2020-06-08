@@ -891,16 +891,6 @@ where
     Prop::insert(sink, state.current_handle(), prop_data.into());
 }
 
-/// Part of the reader state.
-#[derive(Debug, Clone, Copy)]
-enum CurrentElement {
-    None,
-    Vertex,
-    Face,
-    Edge,
-    Ignored,
-}
-
 type VertexPropHandler<S> = fn(&mut S, &RawElement, &VertexReadState);
 type FacePropHandler<S> = fn(&mut S, &RawElement, &FaceReadState);
 type EdgePropHandler<S> = fn(&mut S, &RawElement, &EdgeReadState);
@@ -910,8 +900,9 @@ type EdgePropHandler<S> = fn(&mut S, &RawElement, &EdgeReadState);
 struct RawTransferSink<'a, S: MemSink> {
     sink: &'a mut S,
 
-    /// The last element passed via `element_group_start`
-    current_element: CurrentElement,
+    /// The function handling the current element type (the last passed to
+    /// `element_group_start`).
+    handle_element: fn(&mut Self, &RawElement) -> Result<(), Error>,
 
     /// Most of the element specific state.
     vertex_state: VertexReadState,
@@ -1177,7 +1168,7 @@ impl<'a, S: MemSink> RawTransferSink<'a, S> {
 
         Ok(Self {
             sink,
-            current_element: CurrentElement::None,
+            handle_element: Self::element_handler_bug,
 
             vertex_state: VertexReadState {
                 count: 0,
@@ -1210,6 +1201,77 @@ impl<'a, S: MemSink> RawTransferSink<'a, S> {
             read_edge_endpoint_indices,
         })
     }
+
+    // ===== Element handling functions ==========================================================
+    fn ignore_element(&mut self, _: &RawElement) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn element_handler_bug(&mut self, _: &RawElement) -> Result<(), Error> {
+        panic!(
+            "bug in `ply::Reader::read_raw`: `element()` called before `element_group_start()`"
+        );
+    }
+
+    fn handle_vertex(&mut self, elem: &RawElement) -> Result<(), Error> {
+        // Add vertex
+        let vh = self.sink.add_vertex();
+        self.vertex_state.handles.add(self.vertex_state.count, vh);
+        self.vertex_state.count += 1;
+        self.vertex_state.current_handle = vh;
+
+        // Read vertex properties
+        for f in &self.vertex_prop_fns {
+            f(&mut self.sink, elem, &self.vertex_state);
+        }
+
+        Ok(())
+    }
+
+    fn handle_face(&mut self, elem: &RawElement) -> Result<(), Error> {
+        // `VertexIndicesInfo::new` already made sure that this is a
+        // list.
+        let vi_list = elem.decode_list_at(self.face_state.vertex_indices_idx)
+            .expect("bug in PLY reader: 'vertex_indices' not a list?");
+
+        // Make sure the list is not too short.
+        if vi_list.list_len < 3 {
+            return Err(invalid_input!(
+                "the face at index {} has only {} vertices, but at least 3 are required \
+                    per face",
+                self.face_state.count,
+                vi_list.list_len,
+            ));
+        }
+
+        // Add face
+        let fh = (self.read_face_vertex_indices)(self, &elem, &vi_list)?;
+        self.face_state.count += 1;
+        self.face_state.current_handle = fh;
+
+        // Read generic face properties
+        for f in &self.face_prop_fns {
+            f(&mut self.sink, elem, &self.face_state);
+        }
+
+        Ok(())
+    }
+
+    fn handle_edge(&mut self, elem: &RawElement) -> Result<(), Error> {
+        // Retrieve edge
+        let eh = (self.read_edge_endpoint_indices)(self, elem)?;
+        self.edge_state.count += 1;
+        self.edge_state.current_handle = eh;
+
+        // Read generic edge properties
+        for f in &self.edge_prop_fns {
+            f(&mut self.sink, elem, &self.edge_state);
+        }
+
+        Ok(())
+    }
+
+    // ===== Special property reading functions ==================================================
 
     /// Only dummy function that should never be called.
     fn vertex_indices_bug(
@@ -1306,77 +1368,18 @@ impl<'a, S: MemSink> RawTransferSink<'a, S> {
 
 impl<S: MemSink> RawSink for RawTransferSink<'_, S> {
     fn element_group_start(&mut self, def: &ElementDef) -> Result<(), Error> {
-        self.current_element = match &*def.name {
-            "vertex" => CurrentElement::Vertex,
-            "face" => CurrentElement::Face,
-            "edge" => CurrentElement::Edge,
-            _ => CurrentElement::Ignored,
+        self.handle_element = match &*def.name {
+            "vertex" => Self::handle_vertex,
+            "face" => Self::handle_face,
+            "edge" => Self::handle_edge,
+            _ => Self::ignore_element,
         };
 
         Ok(())
     }
 
     fn element(&mut self, elem: &RawElement) -> Result<(), Error> {
-        match self.current_element {
-            CurrentElement::None => {
-                panic!(
-                    "bug in `ply::Reader::read_raw`: `element()` called \
-                        before `element_group_start()`"
-                );
-            }
-            CurrentElement::Ignored => {}
-            CurrentElement::Vertex => {
-                // Add vertex
-                let vh = self.sink.add_vertex();
-                self.vertex_state.handles.add(self.vertex_state.count, vh);
-                self.vertex_state.count += 1;
-                self.vertex_state.current_handle = vh;
-
-                // Read vertex properties
-                for f in &self.vertex_prop_fns {
-                    f(&mut self.sink, elem, &self.vertex_state);
-                }
-            }
-            CurrentElement::Face => {
-                // `VertexIndicesInfo::new` already made sure that this is a
-                // list.
-                let vi_list = elem.decode_list_at(self.face_state.vertex_indices_idx)
-                    .expect("bug in PLY reader: 'vertex_indices' not a list?");
-
-                // Make sure the list is not too short.
-                if vi_list.list_len < 3 {
-                    return Err(invalid_input!(
-                        "the face at index {} has only {} vertices, but at least 3 are required \
-                            per face",
-                        self.face_state.count,
-                        vi_list.list_len,
-                    ));
-                }
-
-                // Add face
-                let fh = (self.read_face_vertex_indices)(self, &elem, &vi_list)?;
-                self.face_state.count += 1;
-                self.face_state.current_handle = fh;
-
-                // Read generic face properties
-                for f in &self.face_prop_fns {
-                    f(&mut self.sink, elem, &self.face_state);
-                }
-            }
-            CurrentElement::Edge => {
-                // Retrieve edge
-                let eh = (self.read_edge_endpoint_indices)(self, elem)?;
-                self.edge_state.count += 1;
-                self.edge_state.current_handle = eh;
-
-                // Read generic edge properties
-                for f in &self.edge_prop_fns {
-                    f(&mut self.sink, elem, &self.edge_state);
-                }
-            }
-        }
-
-        Ok(())
+        (self.handle_element)(self, elem)
     }
 }
 
