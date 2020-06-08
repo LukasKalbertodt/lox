@@ -2,14 +2,15 @@
 //! for the adjacency traits.
 
 use std::{
+    array,
     marker::PhantomData,
 };
 
 use crate::{
     prelude::*,
-    traits::adj::{HandleIterFamily},
+    traits::adj::HandleIterFamily,
     util::{
-        TriList, TriArrayIntoIter, TriArrayExt,
+        TriList, ArrayExt,
         list::TriListIntoIter,
     },
 };
@@ -178,7 +179,7 @@ impl<C: Config> FullAdj for DirectedEdgeMesh<C> {
 #[allow(missing_debug_implementations)]
 pub struct FaceToVertexIterFam(!);
 impl<'a> HandleIterFamily<'a, VertexHandle> for FaceToVertexIterFam {
-    type Iter = TriArrayIntoIter<VertexHandle>;
+    type Iter = array::IntoIter<VertexHandle, 3>;
 }
 
 #[allow(missing_debug_implementations)]

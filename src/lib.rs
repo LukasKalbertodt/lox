@@ -10,6 +10,7 @@
 #![feature(specialization)]
 #![feature(associated_type_defaults)]
 #![feature(associated_type_bounds)]
+#![feature(array_value_iter)]
 
 #![deny(missing_debug_implementations)]
 #![deny(intra_doc_link_resolution_failure)]

@@ -1,6 +1,6 @@
 //! Everything related to the [`SharedVertexMesh`].
 
-use std::fmt;
+use std::{array, fmt};
 
 use crate::{
     prelude::*,
@@ -9,7 +9,6 @@ use crate::{
     mesh::SplitEdgeWithFacesResult,
     traits::marker::{False, TriFaces},
     traits::adj::HandleIterFamily,
-    util::TriArrayIntoIter,
 };
 
 
@@ -197,7 +196,7 @@ impl SupportsMultiBlade for SharedVertexMesh {}
 #[allow(missing_debug_implementations)]
 pub struct FaceToVertexIterFam(!);
 impl<'a> HandleIterFamily<'a, VertexHandle> for FaceToVertexIterFam {
-    type Iter = TriArrayIntoIter<VertexHandle>;
+    type Iter = array::IntoIter<VertexHandle, 3>;
 }
 
 impl fmt::Debug for SharedVertexMesh {

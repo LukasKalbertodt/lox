@@ -1,3 +1,5 @@
+use std::array;
+
 use cgmath::{
     Point3,
     prelude::*,
@@ -14,93 +16,116 @@ pub mod list;
 
 pub use list::{DynList, TriList, DiList};
 
+/// Extension trait, adding `map` to arrays of common sizes.
+pub trait ArrayMapExt<OutT>: ArrayExt {
+    type Out;
 
+    /// Maps each element of the array and returns a new array with the
+    /// results.
+    fn map<F>(self, mapping: F) -> Self::Out
+    where
+        F: FnMut(Self::Item) -> OutT;
+}
 
-/// An extension traits with useful methods for arrays of size 3.
+/// An extension traits with useful methods for arrays of common sizes.
 ///
 /// Ideally, those methods would exist for all arrays, but as Rust doesn't
 /// offer const generics yet, this is impossible. To avoid duplicate code in
 /// several places, it's still useful to have this extension trait for the most
 /// common array length in this library.
-pub trait TriArrayExt {
+pub trait ArrayExt {
     type Item;
+    type IntoIter;
 
-    /// Maps each element of the array and returns a new array with the
-    /// results.
-    fn map<F, OutT>(self, mapping: F) -> [OutT; 3]
-    where
-        F: FnMut(Self::Item) -> OutT;
-
-    fn owned_iter(self) -> TriArrayIntoIter<Self::Item>
-    where
-        Self::Item: Copy;
+    fn owned_iter(self) -> Self::IntoIter;
 }
 
-impl<T> TriArrayExt for [T; 3] {
+impl<T> ArrayExt for [T; 3] {
     type Item = T;
+    type IntoIter = array::IntoIter<T, 3>;
+
+    fn owned_iter(self) -> Self::IntoIter {
+        Self::IntoIter::new(self)
+    }
+}
+impl<T, OutT> ArrayMapExt<OutT> for [T; 3] {
+    type Out = [OutT; 3];
 
     #[inline(always)]
-    fn map<F, OutT>(self, mut mapping: F) -> [OutT; 3]
+    fn map<F>(self, mut mapping: F) -> Self::Out
     where
-        F: FnMut(Self::Item) -> OutT,
+        F: FnMut(Self::Item) -> OutT
     {
         let [a, b, c] = self;
         [mapping(a), mapping(b), mapping(c)]
     }
-
-    fn owned_iter(self) -> TriArrayIntoIter<Self::Item>
-    where
-        Self::Item: Copy
-    {
-        TriArrayIntoIter::new(self)
-    }
 }
 
-impl<'a, T> TriArrayExt for &'a [T; 3] {
+impl<'a, T> ArrayExt for &'a [T; 3] {
     type Item = &'a T;
+    type IntoIter = array::IntoIter<&'a T, 3>;
 
-    fn map<F, OutT>(self, mut mapping: F) -> [OutT; 3]
+    fn owned_iter(self) -> Self::IntoIter {
+        let [a, b, c] = self;
+        Self::IntoIter::new([a, b, c])
+    }
+}
+impl<T, OutT> ArrayMapExt<OutT> for &[T; 3] {
+    type Out = [OutT; 3];
+
+    #[inline(always)]
+    fn map<F>(self, mut mapping: F) -> Self::Out
     where
-        F: FnMut(Self::Item) -> OutT,
+        F: FnMut(Self::Item) -> OutT
     {
         let [a, b, c] = self;
         [mapping(a), mapping(b), mapping(c)]
     }
-
-    fn owned_iter(self) -> TriArrayIntoIter<Self::Item>
-    where
-        Self::Item: Copy
-    {
-        TriArrayIntoIter::new([&self[0], &self[1], &self[2]])
-    }
 }
 
-#[derive(Debug)]
-pub struct TriArrayIntoIter<T: Copy> {
-    arr: [T; 3],
-    pos: usize,
-}
-
-impl<T: Copy> TriArrayIntoIter<T> {
-    fn new(arr: [T; 3]) -> Self {
-        Self {
-            arr,
-            pos: 0,
-        }
-    }
-}
-
-impl<T: Copy> Iterator for TriArrayIntoIter<T> {
+impl<T> ArrayExt for [T; 4] {
     type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.pos >= 3 {
-            return None;
-        }
+    type IntoIter = array::IntoIter<T, 4>;
 
-        self.pos += 1;
-        Some(self.arr[self.pos - 1])
+    fn owned_iter(self) -> Self::IntoIter {
+        Self::IntoIter::new(self)
     }
 }
+impl<T, OutT> ArrayMapExt<OutT> for [T; 4] {
+    type Out = [OutT; 4];
+
+    #[inline(always)]
+    fn map<F>(self, mut mapping: F) -> Self::Out
+    where
+        F: FnMut(Self::Item) -> OutT
+    {
+        let [a, b, c, d] = self;
+        [mapping(a), mapping(b), mapping(c), mapping(d)]
+    }
+}
+
+impl<'a, T: Copy> ArrayExt for &'a [T; 4] {
+    type Item = &'a T;
+    type IntoIter = array::IntoIter<&'a T, 4>;
+
+    fn owned_iter(self) -> Self::IntoIter {
+        let [a, b, c, d] = self;
+        Self::IntoIter::new([a, b, c, d])
+    }
+}
+impl<T: Copy, OutT> ArrayMapExt<OutT> for &[T; 4] {
+    type Out = [OutT; 4];
+
+    #[inline(always)]
+    fn map<F>(self, mut mapping: F) -> Self::Out
+    where
+        F: FnMut(Self::Item) -> OutT
+    {
+        let [a, b, c, d] = self;
+        [mapping(a), mapping(b), mapping(c), mapping(d)]
+    }
+}
+
 
 /// Extension trait to add some useful methods to any type implementing
 /// `Iterator`.
