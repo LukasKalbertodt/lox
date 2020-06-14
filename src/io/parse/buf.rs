@@ -21,6 +21,9 @@ const START_BUFFER_SIZE: usize = 8 * 1024;
 /// OOM, we limit the buffer size.
 pub(crate) const MAX_BUFFER_SIZE: usize = 4 * 1024 * 1024;
 
+// The correctness of some code depends on this.
+static_assertions::const_assert!(MAX_BUFFER_SIZE <= u32::max_value() as usize);
+
 #[derive(Clone)]
 pub(crate) struct Buffer<R: Read> {
     reader: R,

@@ -184,9 +184,9 @@ impl PropertyType {
 /// list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListLenType {
-    UChar,
-    UShort,
-    UInt,
+    UChar = 1,
+    UShort = 2,
+    UInt = 4,
 }
 
 impl ListLenType {
@@ -210,6 +210,7 @@ impl ListLenType {
     }
 
     /// Returns the number of bytes this type occupies.
+    #[inline(always)]
     pub fn len(&self) -> ScalarLen {
         match self {
             ListLenType::UChar => ScalarLen::One,
@@ -571,6 +572,7 @@ pub enum ScalarLen {
 }
 
 impl ScalarLen {
+    #[inline(always)]
     pub fn as_u8(&self) -> u8 {
         *self as u8
     }

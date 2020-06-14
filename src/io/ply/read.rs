@@ -11,14 +11,14 @@
 
 use std::{
     cmp::min,
-    convert::{TryFrom, TryInto},
+    convert::TryInto,
     fs::File,
     io,
     marker::PhantomData,
     path::Path,
 };
 
-use byteorder::{ByteOrder, NativeEndian, WriteBytesExt};
+use byteorder::{ByteOrder, NativeEndian, WriteBytesExt, BigEndian, LittleEndian};
 use cgmath::{Point3, Vector3};
 
 use crate::{
@@ -1422,6 +1422,12 @@ fn read_raw_element_group_binary<R: io::Read>(
         // and, in case of swapped endian, swap the properties.
         let elem_len = offset.as_usize();
 
+        // This is only true of there are no properties. We have this explicit
+        // check here to help the optimizer.
+        if elem_len == 0 {
+            return Ok(());
+        }
+
         // Since we know the length, we don't have to care about
         // vector realloctions. That's why we will create a vector
         // with correct length once and won't change its capacity
@@ -1472,8 +1478,8 @@ fn read_raw_element_group_binary<R: io::Read>(
         // We just store function pointer to the generic element
         // reading function.
         let read_element = match encoding {
-            Encoding::BinaryBigEndian => read_element_bbe::<Buffer<R>>,
-            Encoding::BinaryLittleEndian => read_element_ble::<Buffer<R>>,
+            Encoding::BinaryBigEndian => read_element_binary::<Buffer<R>, BigEndian>,
+            Encoding::BinaryLittleEndian => read_element_binary::<Buffer<R>, LittleEndian>,
             Encoding::Ascii => unreachable!(),
         };
 
@@ -1489,12 +1495,12 @@ fn read_raw_element_group_binary<R: io::Read>(
     Ok(())
 }
 
-// All three `read_element_*` functions have a specific function contract in
-// particular regarding the passed `raw_elem`:
+//`read_element_ascii` and `read_element_binary` have a specific function
+// contract in particular regarding the passed `raw_elem`:
 //
-// - `raw_elem.data` is always cleared when `read_elem` is called. It has to be
-//   filled with the native-endian, packed representation of all property data
-//   (in the same order as the property are specified in the file header).
+// - `raw_elem.data` is always cleared by the caller. It has to be filled with
+//   the native-endian, packed representation of all property data (in the same
+//   order as the property are specified in the file header) by the callee.
 // - The length of the vector `raw_elem.prop_infos` must not be modified.
 //   Furthermore, regarding its elements:
 //     - The `info.offset` values are unspecified when `read_element_*` is
@@ -1506,179 +1512,113 @@ fn read_raw_element_group_binary<R: io::Read>(
 // This is not a very nice API, but this way we can avoid some moving data
 // around in other functions. Gotta go fast.
 
-fn read_element_bbe<P: ParseBuf>(
-    buf: &mut P,
+/// Reads one element with the given endianness from `buf` into `raw_elem`.
+fn read_element_binary<B: ParseBuf, O: ByteOrder>(
+    buf: &mut B,
     index: &[TypeLen],
     raw_elem: &mut RawElement,
 ) -> Result<(), Error> {
-    #[cfg(target_endian = "big")]
-    {
-        read_element_binary_native(buf, index, raw_elem)
-    }
-
-    #[cfg(target_endian = "little")]
-    {
-        read_element_binary_swapped(buf, index, raw_elem)
-    }
-}
-
-fn read_element_ble<P: ParseBuf>(
-    buf: &mut P,
-    index: &[TypeLen],
-    raw_elem: &mut RawElement,
-) -> Result<(), Error> {
-    #[cfg(target_endian = "big")]
-    {
-        read_element_binary_swapped(buf, index, raw_elem)
-    }
-
-    #[cfg(target_endian = "little")]
-    {
-        read_element_binary_native(buf, index, raw_elem)
-    }
-}
-
-/// Reads `count` bytes from `buf` into `out`.
-#[inline(always)]
-fn read_bytes_into(
-    buf: &mut impl ParseBuf,
-    count: usize,
-    out: &mut Vec<u8>,
-) -> Result<(), Error> {
-    buf.with_bytes(count, |b| {
-        out.extend_from_slice(&b.data);
-        Ok(())
-    })
-}
-
-/// Reads the length of a list (as type `ty`) from `buf`. The length is
-/// returned as `u32` and the bytes of the length are appended to `out`.
-///
-/// The `swap` closure is used to swap bytes for non-native endianess. For
-/// native endianess, a no-op closure should be passed.
-fn read_binary_len(
-    buf: &mut impl ParseBuf,
-    ty: ListLenType,
-    out: &mut Vec<u8>,
-    swap: impl FnOnce(&mut [u8]),
-) -> Result<u32, Error> {
-    let offset = out.len();
-    match ty {
-        ListLenType::UChar => buf.with_bytes(1, |b| {
-            out.push(b.data[0]);
-            Ok(b.data[0] as u32)
-        }),
-        ListLenType::UShort => buf.with_bytes(2, |b| {
-            out.extend_from_slice(&b.data);
-            swap(&mut out[offset..]);
-            Ok(NativeEndian::read_u16(&out[offset..]) as u32)
-        }),
-        ListLenType::UInt => buf.with_bytes(4, |b| {
-            out.extend_from_slice(&b.data);
-            swap(&mut out[offset..]);
-            Ok(NativeEndian::read_u32(&out[offset..]) as u32)
-        }),
-    }
-}
-
-/// Reads one element in native endianess from `buf` into `raw_elem`.
-fn read_element_binary_native(
-    buf: &mut impl ParseBuf,
-    index: &[TypeLen],
-    raw_elem: &mut RawElement,
-) -> Result<(), Error> {
-    let mut offset = RawOffset::from(0);
-
     for (prop_info, prop_len) in raw_elem.prop_infos.iter_mut().zip(index) {
-        prop_info.offset = offset;
+        prop_info.offset = RawOffset::from(raw_elem.data.len() as u32);
 
-        // Just calculate the length of this property.
-        let len: RawOffset = match *prop_len {
-            TypeLen::Scalar(len) => len.into(),
-            TypeLen::List { len_len, scalar_len } => {
-                let offset_before = buf.offset();
+        match *prop_len {
+            TypeLen::Scalar(len) => {
+                buf.prepare(len.as_u8() as usize)?;
+                let raw_buf = buf.raw_buf();
 
-                // Read the list lenght. The type of this property is a list
-                // (the index says so), so we can unwrap here.
-                let list_len = read_binary_len(
-                    buf,
-                    prop_info.ty.len_type().unwrap(),
-                    &mut raw_elem.data,
-                    |_| {}, // no byte swapping
-                )?;
-                offset += len_len;
+                match len {
+                    ScalarLen::One => {
+                        raw_elem.data.push(raw_buf[0]);
+                    }
+                    ScalarLen::Two => {
+                        let v = O::read_u16(raw_buf);
+                        raw_elem.data.write_u16::<NativeEndian>(v).unwrap();
+                    }
+                    ScalarLen::Four => {
+                        let v = O::read_u32(raw_buf);
+                        raw_elem.data.write_u32::<NativeEndian>(v).unwrap();
+                    }
+                    ScalarLen::Eight => {
+                        let v = O::read_u64(raw_buf);
+                        raw_elem.data.write_u64::<NativeEndian>(v).unwrap();
+                    }
+                }
 
-                let data_len = list_data_len(list_len, scalar_len, offset_before, buf.offset())?;
-                RawOffset::from(data_len)
+                buf.consume(len.as_u8().into());
+            }
+            TypeLen::List { len_type, scalar_len } => {
+                let len_len = len_type.len().as_u8();
+                buf.prepare(len_len as usize)?;
+                let raw_buf = buf.raw_buf();
+
+                let item_count = match len_type {
+                    ListLenType::UChar => {
+                        raw_elem.data.push(raw_buf[0]);
+                        raw_buf[0] as u32
+                    }
+                    ListLenType::UShort => {
+                        let v = O::read_u16(raw_buf);
+                        raw_elem.data.write_u16::<NativeEndian>(v).unwrap();
+                        v as u32
+                    }
+                    ListLenType::UInt => {
+                        let v = O::read_u32(raw_buf);
+                        raw_elem.data.write_u32::<NativeEndian>(v).unwrap();
+                        v
+                    }
+                };
+
+                let item_len = (item_count as u64) * (scalar_len.as_u8() as u64) ;
+                let total_len = item_len + len_len as u64;
+
+                // After this check, we can also cast the value into `usize` and
+                // `u32` no problem as `MAX_BUFFER_SIZE` is guaranteed to fit
+                // into `u32`.
+                if total_len >= MAX_BUFFER_SIZE as u64 {
+                    #[cold]
+                    #[inline(never)]
+                    fn lookahead_err(lo: usize, len: usize) -> Error {
+                        ParseError::LookAheadTooBig(Some(Span::new(lo, lo + len))).into()
+                    }
+
+                    return Err(lookahead_err(buf.offset(), len_len as usize));
+                }
+
+
+                // raw_elem.data.reserve(item_count as usize * scalar_len.as_u8() as usize);
+                buf.prepare(total_len as usize)?;
+                let item_data = &buf.raw_buf()[len_len as usize..][..item_len as usize];
+                match scalar_len {
+                    ScalarLen::One => {
+                        raw_elem.data.extend_from_slice(&item_data);
+                    }
+                    ScalarLen::Two => {
+                        for chunk in item_data.chunks_exact(2) {
+                            let v = O::read_u16(chunk);
+                            raw_elem.data.write_u16::<NativeEndian>(v).unwrap();
+                        }
+                    }
+                    ScalarLen::Four => {
+                        for chunk in item_data.chunks_exact(4) {
+                            let v = O::read_u32(chunk);
+                            raw_elem.data.write_u32::<NativeEndian>(v).unwrap();
+                        }
+                    }
+                    ScalarLen::Eight => {
+                        for chunk in item_data.chunks_exact(8) {
+                            let v = O::read_u64(chunk);
+                            raw_elem.data.write_u64::<NativeEndian>(v).unwrap();
+                        }
+                    }
+                }
+
+                buf.consume(total_len as usize);
             }
         };
 
-        read_bytes_into(buf, len.as_usize(), &mut raw_elem.data)?;
-        offset += len;
     }
 
     Ok(())
-}
-
-/// Reads one element in non-native endianess from `buf` into `raw_elem`.
-fn read_element_binary_swapped(
-    buf: &mut impl ParseBuf,
-    index: &[TypeLen],
-    raw_elem: &mut RawElement,
-) -> Result<(), Error> {
-    for (prop_info, prop_len) in raw_elem.prop_infos.iter_mut().zip(index) {
-        // Starting offset of the data we are about to push
-        prop_info.offset = RawOffset::from(raw_elem.data.len() as u32);
-        let mut start = prop_info.offset;
-
-        match *prop_len {
-            TypeLen::Scalar(size) => {
-                read_bytes_into(buf, size.as_u8().into(), &mut raw_elem.data)?;
-                raw_elem.data[start..].reverse();
-            }
-            TypeLen::List { len_len, scalar_len } => {
-                let offset_before = buf.offset();
-
-                // Read the list lenght. The type of this property is a list
-                // (the index says so), so we can unwrap here.
-                let list_len = read_binary_len(
-                    buf,
-                    prop_info.ty.len_type().unwrap(),
-                    &mut raw_elem.data,
-                    |s| s.reverse(),
-                )?;
-
-                // Calculate the total list length and load the raw data (still
-                // in non-native endianess).
-                let data_len = list_data_len(list_len, scalar_len, offset_before, buf.offset())?;
-                read_bytes_into(buf, data_len as usize, &mut raw_elem.data)?;
-
-                // Swap bytes of list elements
-                start += len_len;
-                for _ in 0..list_len {
-                    let end = start + scalar_len;
-                    raw_elem.data[start..end].reverse();
-                    start = end;
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-#[inline(always)]
-fn list_data_len(list_len: u32, scalar_len: ScalarLen, lo: usize, hi: usize) -> Result<u32, Error> {
-    #[cold]
-    #[inline(never)]
-    fn err(lo: usize, hi: usize) -> Error {
-        ParseError::LookAheadTooBig(Some(Span::new(lo, hi))).into()
-    }
-
-    u32::try_from((list_len as u64) * (scalar_len as u64))
-        .ok()
-        .filter(|data_len| (*data_len as usize) < MAX_BUFFER_SIZE)
-        .ok_or_else(|| err(lo, hi))
 }
 
 // Reads until the next whitespace or linebreak and tries to parse the string
@@ -1785,7 +1725,7 @@ fn read_ascii_value(
 enum TypeLen {
     Scalar(ScalarLen),
     List {
-        len_len: ScalarLen,
+        len_type: ListLenType,
         scalar_len: ScalarLen,
     },
 }
@@ -1798,7 +1738,7 @@ fn get_type_lens(element_def: &ElementDef) -> Vec<TypeLen> {
             match def.ty {
                 PropertyType::Scalar(ty) => TypeLen::Scalar(ty.len()),
                 PropertyType::List { len_type, scalar_type } => TypeLen::List {
-                    len_len: len_type.len(),
+                    len_type,
                     scalar_len: scalar_type.len(),
                 }
             }
