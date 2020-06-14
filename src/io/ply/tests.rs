@@ -456,9 +456,38 @@ fn check_half_cube_with_normals(m: &AnyMesh) {
         f1 => Vector3::new(0.042, 0.052, 1.062),
         f2 => Vector3::new(0.043, 0.053, 1.063),
     ]);
+
+    assert!(m.vertex_normals.is_none());
+    assert!(m.vertex_colors.is_none());
+    assert!(m.face_colors.is_none());
+    assert!(m.edge_colors.is_none());
 }
 
+fn check_no_faces(m: &AnyMesh) {
+    let vh = VertexHandle::new;
+    let (v0, v1, v2, v3) = (vh(0), vh(1), vh(2), vh(3));
 
+    // Mesh and connectivity
+    assert_eq!(m.mesh.num_vertices(), 4);
+    assert_eq!(m.mesh.num_faces(), 0);
+
+    assert_eq!(m.mesh.vertex_handles().collect::<Vec<_>>(), [v0, v1, v2, v3]);
+    assert_eq!(m.mesh.face_handles().collect::<Vec<_>>(), []);
+
+    // Vertex position
+    assert_any_prop!(m.vertex_positions, AnyPointMap::Float32, [
+        v0 => Point3::new(0.1, 0.2, 0.3),
+        v1 => Point3::new(1.1, 1.2, 1.3),
+        v2 => Point3::new(2.1, 2.2, 2.3),
+        v3 => Point3::new(3.1, 3.2, 3.3),
+    ]);
+
+    assert!(m.vertex_normals.is_none());
+    assert!(m.vertex_colors.is_none());
+    assert!(m.face_normals.is_none());
+    assert!(m.face_colors.is_none());
+    assert!(m.edge_colors.is_none());
+}
 fn to_mem(config: Config, mesh: &impl MemSource) -> Result<Vec<u8>, Error> {
     let mut v = Vec::new();
     config.into_writer(&mut v).transfer_from(mesh)?;
@@ -584,6 +613,37 @@ fn write_mesh_with_removed_elements() -> Result<(), Error> {
     Ok(())
 }
 
+macro_rules! write_no_faces {
+    ($encoding:ident) => {
+        paste::item! {
+            #[test]
+            fn [<write_no_faces_ $encoding>]() -> Result<(), Error> {
+                let (mesh, vertex_positions) = mesh! {
+                    type: SharedVertexMesh,
+                    vertices: [
+                        v0: (Point3::new(0.1, 0.2, 0.3)),
+                        v1: (Point3::new(1.1, 1.2, 1.3)),
+                        v2: (Point3::new(2.1, 2.2, 2.3)),
+                        v3: (Point3::new(3.1, 3.2, 3.3)),
+                    ],
+                    faces: [],
+                };
+
+                let mesh = MiniMesh { mesh, vertex_positions };
+
+                let res = to_mem(encoding_config!($encoding), &mesh)?;
+                assert_eq_file!(
+                    &res,
+                    concat!("no_faces_", stringify!($encoding), ".ply")
+                );
+
+                Ok(())
+            }
+        }
+    };
+}
+
+gen_for_encodings!(write_no_faces);
 
 // ===========================================================================
 // ===== Reading
@@ -722,6 +782,7 @@ macro_rules! read_any {
 
 gen_for_encodings!(read_any, three_tris_many_props);
 gen_for_encodings!(read_any, half_cube_with_normals);
+gen_for_encodings!(read_any, no_faces);
 
 
 // TODO: read tests where the mesh hands out strange handles
