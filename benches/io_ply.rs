@@ -57,11 +57,11 @@ impl AllEncodings {
 // ===============================================================================================
 
 /// Measures body reading of `three_tris_all_props` files via `RawSink`.
-fn read_three_tris_all_props_raw(c: &mut Criterion) {
+fn read_three_tris_many_props_raw(c: &mut Criterion) {
     const FILES: AllEncodings = AllEncodings {
-        ble: include_bytes!("../src/io/ply/test_files/three_tris_all_props_ble.ply"),
-        bbe: include_bytes!("../src/io/ply/test_files/three_tris_all_props_bbe.ply"),
-        ascii: include_bytes!("../src/io/ply/test_files/three_tris_all_props_ascii.ply"),
+        ble: include_bytes!("../src/io/ply/test_files/three_tris_many_props_ble.ply"),
+        bbe: include_bytes!("../src/io/ply/test_files/three_tris_many_props_bbe.ply"),
+        ascii: include_bytes!("../src/io/ply/test_files/three_tris_many_props_ascii.ply"),
     };
 
     c.bench_function_over_inputs(
@@ -378,7 +378,7 @@ fn write_sphere_hl(c: &mut Criterion) {
 
 
 criterion_group!(benches,
-    read_three_tris_all_props_raw,
+    read_three_tris_many_props_raw,
     read_sphere_raw,
     read_sphere_hl,
     write_sphere_raw,
