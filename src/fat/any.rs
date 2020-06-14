@@ -177,6 +177,13 @@ macro_rules! gen_vec3_any_map {
                     $name::Float64(map) => insert!(map, to_f64),
                 }
             }
+
+            /// A alias for `primitive_type` for use in macros generic over
+            /// vector any maps and color any maps.
+            #[allow(unused)]
+            pub(crate) fn ty(&self) -> impl std::fmt::Debug {
+                self.primitive_type()
+            }
         }
     }
 }
@@ -390,5 +397,12 @@ impl<H: Handle> AnyColorMap<H> {
             AnyColorMap::RgbaFloat32(map) => insert!(map, 4),
             AnyColorMap::RgbaFloat64(map) => insert!(map, 4),
         }
+    }
+
+    /// A alias for `color_type` for use in macros generic over vector any maps
+    /// and color any maps.
+    #[allow(unused)]
+    pub(crate) fn ty(&self) -> impl std::fmt::Debug {
+        self.color_type()
     }
 }

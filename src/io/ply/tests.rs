@@ -8,7 +8,7 @@ use crate::{
         HalfEdgeMesh, SharedVertexMesh,
         half_edge::PolyConfig,
     },
-    fat::MiniMesh,
+    fat::{MiniMesh, AnyMesh, any::{AnyPointMap, AnyVectorMap, AnyColorMap}},
     io::IsFormat,
     map::DenseMap,
 };
@@ -196,7 +196,7 @@ fn three_tris_all_props() -> FullMesh {
     FullMesh { mesh, vertex_positions, vertex_normals, vertex_colors, face_normals, face_colors }
 }
 
-fn check_three_tris_all_props(m: &FullMesh) {
+fn check_three_tris_all_props(m: &AnyMesh) {
     let vh = VertexHandle::new;
     let fh = FaceHandle::new;
     let (v0, v1, v2, v3, v4) = (vh(0), vh(1), vh(2), vh(3), vh(4));
@@ -209,42 +209,44 @@ fn check_three_tris_all_props(m: &FullMesh) {
     assert_eq!(m.mesh.vertex_handles().collect::<Vec<_>>(), [v0, v1, v2, v3, v4]);
     assert_eq!(m.mesh.face_handles().collect::<Vec<_>>(), [f0, f1, f2]);
 
-    assert_eq!(m.mesh.vertices_around_triangle(f0), [v0, v2, v4]);
-    assert_eq!(m.mesh.vertices_around_triangle(f1), [v0, v4, v1]);
-    assert_eq!(m.mesh.vertices_around_triangle(f2), [v2, v3, v4]);
+    assert_rotated_eq!(m.mesh.vertices_around_face(f0).collect::<Vec<_>>(), [v0, v2, v4]);
+    assert_rotated_eq!(m.mesh.vertices_around_face(f1).collect::<Vec<_>>(), [v0, v4, v1]);
+    assert_rotated_eq!(m.mesh.vertices_around_face(f2).collect::<Vec<_>>(), [v2, v3, v4]);
 
     // Vertex props
-    assert_eq!(m.vertex_positions.num_elements(), 5);
-    assert_eq!(m.vertex_positions.get_ref(v0), Some(&Point3::new(0.011, 0.021, 0.031)));
-    assert_eq!(m.vertex_positions.get_ref(v1), Some(&Point3::new(0.012, 1.022, 0.032)));
-    assert_eq!(m.vertex_positions.get_ref(v2), Some(&Point3::new(1.013, 0.023, 0.033)));
-    assert_eq!(m.vertex_positions.get_ref(v3), Some(&Point3::new(1.014, 1.024, 0.034)));
-    assert_eq!(m.vertex_positions.get_ref(v4), Some(&Point3::new(0.515, 0.525, 0.035)));
-
-    assert_eq!(m.vertex_normals.num_elements(), 5);
-    assert_eq!(m.vertex_normals.get_ref(v0), Some(&Vector3::new(0.011, 0.021, 1.031)));
-    assert_eq!(m.vertex_normals.get_ref(v1), Some(&Vector3::new(0.012, 0.022, 1.032)));
-    assert_eq!(m.vertex_normals.get_ref(v2), Some(&Vector3::new(0.013, 0.023, 1.033)));
-    assert_eq!(m.vertex_normals.get_ref(v3), Some(&Vector3::new(0.014, 0.024, 1.034)));
-    assert_eq!(m.vertex_normals.get_ref(v4), Some(&Vector3::new(0.015, 0.025, 1.035)));
-
-    assert_eq!(m.vertex_colors.num_elements(), 5);
-    assert_eq!(m.vertex_colors.get_ref(v0), Some(&[0, 101, 202]));
-    assert_eq!(m.vertex_colors.get_ref(v1), Some(&[3, 104, 205]));
-    assert_eq!(m.vertex_colors.get_ref(v2), Some(&[6, 107, 208]));
-    assert_eq!(m.vertex_colors.get_ref(v3), Some(&[9, 110, 211]));
-    assert_eq!(m.vertex_colors.get_ref(v4), Some(&[12, 113, 214]));
+    assert_any_prop!(m.vertex_positions, AnyPointMap::Float64, [
+        v0 => Point3::new(0.011, 0.021, 0.031),
+        v1 => Point3::new(0.012, 1.022, 0.032),
+        v2 => Point3::new(1.013, 0.023, 0.033),
+        v3 => Point3::new(1.014, 1.024, 0.034),
+        v4 => Point3::new(0.515, 0.525, 0.035),
+    ]);
+    assert_any_prop!(m.vertex_normals, AnyVectorMap::Float32, [
+        v0 => Vector3::new(0.011, 0.021, 1.031),
+        v1 => Vector3::new(0.012, 0.022, 1.032),
+        v2 => Vector3::new(0.013, 0.023, 1.033),
+        v3 => Vector3::new(0.014, 0.024, 1.034),
+        v4 => Vector3::new(0.015, 0.025, 1.035),
+    ]);
+    assert_any_prop!(m.vertex_colors, AnyColorMap::RgbUint8, [
+        v0 => [0, 101, 202],
+        v1 => [3, 104, 205],
+        v2 => [6, 107, 208],
+        v3 => [9, 110, 211],
+        v4 => [12, 113, 214],
+    ]);
 
     // Face props
-    assert_eq!(m.face_normals.num_elements(), 3);
-    assert_eq!(m.face_normals.get_ref(f0), Some(&Vector3::new(0.041, 0.051, 1.061)));
-    assert_eq!(m.face_normals.get_ref(f1), Some(&Vector3::new(0.042, 0.052, 1.062)));
-    assert_eq!(m.face_normals.get_ref(f2), Some(&Vector3::new(0.043, 0.053, 1.063)));
-
-    assert_eq!(m.face_colors.num_elements(), 3);
-    assert_eq!(m.face_colors.get_ref(f0), Some(&[15, 116, 217, 224]));
-    assert_eq!(m.face_colors.get_ref(f1), Some(&[18, 119, 220, 225]));
-    assert_eq!(m.face_colors.get_ref(f2), Some(&[21, 122, 223, 226]));
+    assert_any_prop!(m.face_normals, AnyVectorMap::Float32, [
+        f0 => Vector3::new(0.041, 0.051, 1.061),
+        f1 => Vector3::new(0.042, 0.052, 1.062),
+        f2 => Vector3::new(0.043, 0.053, 1.063),
+    ]);
+    assert_any_prop!(m.face_colors, AnyColorMap::RgbaUint8, [
+        f0 => [15, 116, 217, 224],
+        f1 => [18, 119, 220, 225],
+        f2 => [21, 122, 223, 226],
+    ]);
 }
 
 #[test]
@@ -269,7 +271,7 @@ fn write_three_tris_all_props_bbe() -> Result<(), Error> {
 }
 
 #[derive(Empty, MemSink, MemSource, Debug)]
-struct NormalsMesh {
+struct MeshVpFn {
     #[lox(core_mesh)]
     mesh: HalfEdgeMesh<PolyConfig>,
 
@@ -331,20 +333,22 @@ fn check_half_cube_with_normals(m: &NormalsMesh) {
     assert_rotated_eq!(m.mesh.vertices_around_face(f2).collect::<Vec<_>>(), [v3, v5, v6, v1]);
 
     // Vertex position
-    assert_eq!(m.vertex_positions.num_elements(), 7);
-    assert_eq!(m.vertex_positions.get_ref(v0), Some(&Point3::new(0.011, 1.021, 1.031)));
-    assert_eq!(m.vertex_positions.get_ref(v1), Some(&Point3::new(1.012, 1.022, 1.032)));
-    assert_eq!(m.vertex_positions.get_ref(v2), Some(&Point3::new(0.013, 1.023, 0.033)));
-    assert_eq!(m.vertex_positions.get_ref(v3), Some(&Point3::new(1.014, 1.024, 0.034)));
-    assert_eq!(m.vertex_positions.get_ref(v4), Some(&Point3::new(0.015, 0.025, 0.035)));
-    assert_eq!(m.vertex_positions.get_ref(v5), Some(&Point3::new(1.016, 0.026, 0.036)));
-    assert_eq!(m.vertex_positions.get_ref(v6), Some(&Point3::new(1.017, 0.027, 1.037)));
+    assert_any_prop!(m.vertex_positions, AnyPointMap::Float64, [
+        v0 => Point3::new(0.011, 1.021, 1.031),
+        v1 => Point3::new(1.012, 1.022, 1.032),
+        v2 => Point3::new(0.013, 1.023, 0.033),
+        v3 => Point3::new(1.014, 1.024, 0.034),
+        v4 => Point3::new(0.015, 0.025, 0.035),
+        v5 => Point3::new(1.016, 0.026, 0.036),
+        v6 => Point3::new(1.017, 0.027, 1.037),
+    ]);
 
     // Face normals
-    assert_eq!(m.face_normals.num_elements(), 3);
-    assert_eq!(m.face_normals.get_ref(f0), Some(&Vector3::new(0.041, 0.051, 1.061)));
-    assert_eq!(m.face_normals.get_ref(f1), Some(&Vector3::new(0.042, 0.052, 1.062)));
-    assert_eq!(m.face_normals.get_ref(f2), Some(&Vector3::new(0.043, 0.053, 1.063)));
+    assert_any_prop!(m.face_normals, AnyVectorMap::Float32, [
+        f0 => Vector3::new(0.041, 0.051, 1.061),
+        f1 => Vector3::new(0.042, 0.052, 1.062),
+        f2 => Vector3::new(0.043, 0.053, 1.063),
+    ]);
 }
 
 #[test]
@@ -677,7 +681,7 @@ fn read_triangle_with_extra_props_mini_mesh() -> Result<(), Error> {
 #[test]
 fn read_three_tris_all_props_ascii() -> Result<(), Error> {
     let input = include_test_file!("three_tris_all_props_ascii.ply");
-    let m = FullMesh::create_from(Reader::new(input)?)?;
+    let m = AnyMesh::create_from(Reader::new(input)?)?;
     check_three_tris_all_props(&m);
     Ok(())
 }
@@ -685,7 +689,7 @@ fn read_three_tris_all_props_ascii() -> Result<(), Error> {
 #[test]
 fn read_three_tris_all_props_ble() -> Result<(), Error> {
     let input = include_test_file!("three_tris_all_props_ble.ply");
-    let m = FullMesh::create_from(Reader::new(input)?)?;
+    let m = AnyMesh::create_from(Reader::new(input)?)?;
     check_three_tris_all_props(&m);
     Ok(())
 }
@@ -693,7 +697,7 @@ fn read_three_tris_all_props_ble() -> Result<(), Error> {
 #[test]
 fn read_three_tris_all_props_bbe() -> Result<(), Error> {
     let input = include_test_file!("three_tris_all_props_bbe.ply");
-    let m = FullMesh::create_from(Reader::new(input)?)?;
+    let m = AnyMesh::create_from(Reader::new(input)?)?;
     check_three_tris_all_props(&m);
     Ok(())
 }
@@ -701,7 +705,7 @@ fn read_three_tris_all_props_bbe() -> Result<(), Error> {
 #[test]
 fn read_half_cube_with_normals_ascii() -> Result<(), Error> {
     let input = include_test_file!("half_cube_with_normals_ascii.ply");
-    let m = NormalsMesh::create_from(Reader::new(input)?)?;
+    let m = AnyMesh::create_from(Reader::new(input)?)?;
     check_half_cube_with_normals(&m);
     Ok(())
 }
@@ -709,7 +713,7 @@ fn read_half_cube_with_normals_ascii() -> Result<(), Error> {
 #[test]
 fn read_half_cube_with_normals_ble() -> Result<(), Error> {
     let input = include_test_file!("half_cube_with_normals_ble.ply");
-    let m = NormalsMesh::create_from(Reader::new(input)?)?;
+    let m = AnyMesh::create_from(Reader::new(input)?)?;
     check_half_cube_with_normals(&m);
     Ok(())
 }
@@ -717,7 +721,7 @@ fn read_half_cube_with_normals_ble() -> Result<(), Error> {
 #[test]
 fn read_half_cube_with_normals_bbe() -> Result<(), Error> {
     let input = include_test_file!("half_cube_with_normals_bbe.ply");
-    let m = NormalsMesh::create_from(Reader::new(input)?)?;
+    let m = AnyMesh::create_from(Reader::new(input)?)?;
     check_half_cube_with_normals(&m);
     Ok(())
 }

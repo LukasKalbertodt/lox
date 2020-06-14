@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use crate::prelude::*;
 
 #[cfg(feature = "io")]
 pub(crate) fn file_failure(actual: &[u8], expected: &[u8], filename: &str) {
@@ -154,4 +155,66 @@ pub(crate) fn cmp_rotated<T: Debug + PartialEq + Clone>(
     }
 
     Ok(())
+}
+
+macro_rules! assert_any_prop {
+    ($map:expr, $variant:path, [
+        $($handle:expr => $value:expr),* $(,)?
+    ]) => {
+        match &$map {
+            None => {
+                panic!("assert_any_prop failed: given map `{}` is `None`", stringify!($map));
+            }
+            Some($variant(map)) => {
+                crate::test_utils::assert_any_prop(map, &[$(
+                    ($handle, $value),
+                )*]);
+            }
+            Some(map) => {
+                panic!(
+                    "assert_any_prop failed: map expected to be {}, but is {:?}",
+                    stringify!($variant),
+                    map.ty(),
+                );
+            }
+        }
+    };
+}
+
+pub(crate) fn assert_any_prop<M, H, V>(map: &M, checks: &[(H, V)])
+where
+    H: Handle,
+    V: Debug + PartialEq,
+    M: PropStore<H, Target = V>
+{
+    if map.num_props() as usize != checks.len() {
+        panic!(
+            "assert_any_prop failed: map is supposed to have {} values, but has {}",
+            checks.len(),
+            map.num_props(),
+        );
+    }
+
+    for (handle, expected) in checks {
+        let actual = map.get_ref(*handle);
+        match actual {
+            None => {
+                panic!(
+                    "assert_any_prop failed: prop for handle {:?} should be {:?}, but there \
+                        is no prop associated with that handle",
+                    handle,
+                    expected,
+                );
+            }
+            Some(actual) if actual != expected => {
+                panic!(
+                    "assert_any_prop failed: prop for handle {:?} should be {:?}, but is {:?}",
+                    handle,
+                    expected,
+                    actual,
+                );
+            }
+            _ => {}
+        }
+    }
 }
