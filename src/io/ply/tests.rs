@@ -785,4 +785,50 @@ gen_for_encodings!(read_any, half_cube_with_normals);
 gen_for_encodings!(read_any, no_faces);
 
 
+fn check_unusual_order(m: &AnyMesh) {
+    let vh = VertexHandle::new;
+    let fh = FaceHandle::new;
+    let (v0, v1, v2, v3) = (vh(0), vh(1), vh(2), vh(3));
+    let (f0, f1) = (fh(0), fh(1));
+
+    // Mesh and connectivity
+    assert_eq!(m.mesh.num_vertices(), 4);
+    assert_eq!(m.mesh.num_faces(), 2);
+
+    assert_eq!(m.mesh.vertex_handles().collect::<Vec<_>>(), [v0, v1, v2, v3]);
+    assert_eq!(m.mesh.face_handles().collect::<Vec<_>>(), [f0, f1]);
+
+    assert_rotated_eq!(m.mesh.vertices_around_face(f0).collect::<Vec<_>>(), [v0, v1, v2]);
+    assert_rotated_eq!(m.mesh.vertices_around_face(f1).collect::<Vec<_>>(), [v0, v2, v3]);
+
+    // Vertex props
+    assert_any_prop!(m.vertex_positions, AnyPointMap::Float32, [
+        v0 => Point3::new(0.1, 0.2, 0.3),
+        v1 => Point3::new(1.1, 1.2, 1.3),
+        v2 => Point3::new(2.1, 2.2, 2.3),
+        v3 => Point3::new(3.1, 3.2, 3.3),
+    ]);
+    assert_any_prop!(m.vertex_colors, AnyColorMap::RgbUint8, [
+        v0 => [101, 102, 103],
+        v1 => [111, 112, 113],
+        v2 => [121, 122, 123],
+        v3 => [131, 132, 133],
+    ]);
+
+    // Face props
+    assert_any_prop!(m.face_normals, AnyVectorMap::Float64, [
+        f0 => Vector3::new(90.1, 90.2, 90.3),
+        f1 => Vector3::new(91.1, 91.2, 91.3),
+    ]);
+
+    assert!(m.vertex_normals.is_none());
+    assert!(m.face_colors.is_none());
+    assert!(m.edge_colors.is_none());
+}
+
+gen_for_encodings!(read_any, unusual_order);
+
+
 // TODO: read tests where the mesh hands out strange handles
+// TODO: reading edge colors
+// TODO: check faulty ply errors somehow
