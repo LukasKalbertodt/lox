@@ -33,7 +33,7 @@ fn test_is_file_start() {
 }
 
 // ===========================================================================
-// ===== Writing
+// ===== Test mesh definitions
 // ===========================================================================
 
 fn triangle_mesh() -> MiniMesh<SharedVertexMesh> {
@@ -51,360 +51,6 @@ fn triangle_mesh() -> MiniMesh<SharedVertexMesh> {
 
     MiniMesh { mesh, vertex_positions }
 }
-
-fn to_mem(config: Config, mesh: &impl MemSource) -> Result<Vec<u8>, Error> {
-    let mut v = Vec::new();
-    config.into_writer(&mut v).transfer_from(mesh)?;
-    Ok(v)
-}
-
-#[test]
-fn write_triangle_ascii() -> Result<(), Error> {
-    let res = to_mem(Config::ascii(), &triangle_mesh())?;
-    assert_eq_file!(&res, "triangle_ascii.ply");
-    Ok(())
-}
-
-#[test]
-fn write_triangle_bbe() -> Result<(), Error> {
-    let res = to_mem(Config::new(Encoding::BinaryBigEndian), &triangle_mesh())?;
-    assert_eq_file!(&res, "triangle_bbe.ply");
-    Ok(())
-}
-
-#[test]
-fn write_triangle_ble() -> Result<(), Error> {
-    let res = to_mem(Config::new(Encoding::BinaryLittleEndian), &triangle_mesh())?;
-    assert_eq_file!(&res, "triangle_ble.ply");
-    Ok(())
-}
-
-
-#[test]
-fn write_triangle_with_comments_ascii() -> Result<(), Error> {
-    let config = Config::ascii()
-        .add_comment("My name is Tom")
-        .add_comment("Yes we can have multiple comments :)")
-        .add_comment(
-            "Comments appear in the file in the same order as they are added with `add_comment`"
-        );
-    let res = to_mem(config, &triangle_mesh())?;
-    assert_eq_file!(&res, "triangle_with_comments_ascii.ply");
-    Ok(())
-}
-
-#[test]
-fn write_triangle_with_comments_bbe() -> Result<(), Error> {
-    let config = Config::new(Encoding::BinaryBigEndian)
-        .add_comment("My name is Tom")
-        .add_comment("Yes we can have multiple comments :)")
-        .add_comment(
-            "Comments appear in the file in the same order as they are added with `add_comment`"
-        );
-    let res = to_mem(config, &triangle_mesh())?;
-    assert_eq_file!(&res, "triangle_with_comments_bbe.ply");
-    Ok(())
-}
-
-#[test]
-fn write_triangle_with_comments_ble() -> Result<(), Error> {
-    let config = Config::new(Encoding::BinaryLittleEndian)
-        .add_comment("My name is Tom")
-        .add_comment("Yes we can have multiple comments :)")
-        .add_comment(
-            "Comments appear in the file in the same order as they are added with `add_comment`"
-        );
-    let res = to_mem(config, &triangle_mesh())?;
-    assert_eq_file!(&res, "triangle_with_comments_ble.ply");
-    Ok(())
-}
-
-#[derive(Empty, MemSink, MemSource, Debug)]
-struct FullMesh {
-    #[lox(core_mesh)]
-    mesh: SharedVertexMesh,
-
-    #[lox(vertex_position)]
-    vertex_positions: DenseMap<VertexHandle, Point3<f64>>,
-
-    #[lox(vertex_normal)]
-    vertex_normals: DenseMap<VertexHandle, Vector3<f32>>,
-
-    #[lox(vertex_color)]
-    vertex_colors: DenseMap<VertexHandle, [u8; 3]>,
-
-    #[lox(face_normal)]
-    face_normals: DenseMap<FaceHandle, Vector3<f32>>,
-
-    #[lox(face_color)]
-    face_colors: DenseMap<FaceHandle, [u8; 4]>,
-}
-
-fn three_tris_all_props() -> FullMesh {
-    //
-    //    (1)       (3)
-    //     | \     / |
-    //     |  \   /  |
-    //     |   (4)   |
-    //     |  /   \  |
-    //     | /     \ |
-    //    (0)-------(2)
-    //
-    let (
-        mesh,
-        vertex_positions,
-        vertex_normals,
-        vertex_colors,
-        face_normals,
-        face_colors
-    ) = mesh! {
-        type: SharedVertexMesh,
-        vertices: [
-            v0: (
-                Point3::new(0.011, 0.021, 0.031),
-                Vector3::new(0.011, 0.021, 1.031),
-                [0, 101, 202],
-            ),
-            v1: (
-                Point3::new(0.012, 1.022, 0.032),
-                Vector3::new(0.012, 0.022, 1.032),
-                [3, 104, 205]
-            ),
-            v2: (
-                Point3::new(1.013, 0.023, 0.033),
-                Vector3::new(0.013, 0.023, 1.033),
-                [6, 107, 208]
-            ),
-            v3: (
-                Point3::new(1.014, 1.024, 0.034),
-                Vector3::new(0.014, 0.024, 1.034),
-                [9, 110, 211]
-            ),
-            v4: (
-                Point3::new(0.515, 0.525, 0.035),
-                Vector3::new(0.015, 0.025, 1.035),
-                [12, 113, 214]
-            ),
-        ],
-        faces: [
-            [v0, v2, v4]: (Vector3::new(0.041, 0.051, 1.061), [15, 116, 217, 224]),
-            [v0, v4, v1]: (Vector3::new(0.042, 0.052, 1.062), [18, 119, 220, 225]),
-            [v2, v3, v4]: (Vector3::new(0.043, 0.053, 1.063), [21, 122, 223, 226]),
-        ],
-    };
-
-    FullMesh { mesh, vertex_positions, vertex_normals, vertex_colors, face_normals, face_colors }
-}
-
-fn check_three_tris_all_props(m: &AnyMesh) {
-    let vh = VertexHandle::new;
-    let fh = FaceHandle::new;
-    let (v0, v1, v2, v3, v4) = (vh(0), vh(1), vh(2), vh(3), vh(4));
-    let (f0, f1, f2) = (fh(0), fh(1), fh(2));
-
-    // Mesh and connectivity
-    assert_eq!(m.mesh.num_vertices(), 5);
-    assert_eq!(m.mesh.num_faces(), 3);
-
-    assert_eq!(m.mesh.vertex_handles().collect::<Vec<_>>(), [v0, v1, v2, v3, v4]);
-    assert_eq!(m.mesh.face_handles().collect::<Vec<_>>(), [f0, f1, f2]);
-
-    assert_rotated_eq!(m.mesh.vertices_around_face(f0).collect::<Vec<_>>(), [v0, v2, v4]);
-    assert_rotated_eq!(m.mesh.vertices_around_face(f1).collect::<Vec<_>>(), [v0, v4, v1]);
-    assert_rotated_eq!(m.mesh.vertices_around_face(f2).collect::<Vec<_>>(), [v2, v3, v4]);
-
-    // Vertex props
-    assert_any_prop!(m.vertex_positions, AnyPointMap::Float64, [
-        v0 => Point3::new(0.011, 0.021, 0.031),
-        v1 => Point3::new(0.012, 1.022, 0.032),
-        v2 => Point3::new(1.013, 0.023, 0.033),
-        v3 => Point3::new(1.014, 1.024, 0.034),
-        v4 => Point3::new(0.515, 0.525, 0.035),
-    ]);
-    assert_any_prop!(m.vertex_normals, AnyVectorMap::Float32, [
-        v0 => Vector3::new(0.011, 0.021, 1.031),
-        v1 => Vector3::new(0.012, 0.022, 1.032),
-        v2 => Vector3::new(0.013, 0.023, 1.033),
-        v3 => Vector3::new(0.014, 0.024, 1.034),
-        v4 => Vector3::new(0.015, 0.025, 1.035),
-    ]);
-    assert_any_prop!(m.vertex_colors, AnyColorMap::RgbUint8, [
-        v0 => [0, 101, 202],
-        v1 => [3, 104, 205],
-        v2 => [6, 107, 208],
-        v3 => [9, 110, 211],
-        v4 => [12, 113, 214],
-    ]);
-
-    // Face props
-    assert_any_prop!(m.face_normals, AnyVectorMap::Float32, [
-        f0 => Vector3::new(0.041, 0.051, 1.061),
-        f1 => Vector3::new(0.042, 0.052, 1.062),
-        f2 => Vector3::new(0.043, 0.053, 1.063),
-    ]);
-    assert_any_prop!(m.face_colors, AnyColorMap::RgbaUint8, [
-        f0 => [15, 116, 217, 224],
-        f1 => [18, 119, 220, 225],
-        f2 => [21, 122, 223, 226],
-    ]);
-}
-
-#[test]
-fn write_three_tris_all_props_ascii() -> Result<(), Error> {
-    let res = to_mem(Config::ascii(), &three_tris_all_props())?;
-    assert_eq_file!(&res, "three_tris_all_props_ascii.ply");
-    Ok(())
-}
-
-#[test]
-fn write_three_tris_all_props_ble() -> Result<(), Error> {
-    let res = to_mem(Config::new(Encoding::BinaryLittleEndian), &three_tris_all_props())?;
-    assert_eq_file!(&res, "three_tris_all_props_ble.ply");
-    Ok(())
-}
-
-#[test]
-fn write_three_tris_all_props_bbe() -> Result<(), Error> {
-    let res = to_mem(Config::new(Encoding::BinaryBigEndian), &three_tris_all_props())?;
-    assert_eq_file!(&res, "three_tris_all_props_bbe.ply");
-    Ok(())
-}
-
-#[derive(Empty, MemSink, MemSource, Debug)]
-struct MeshVpFn {
-    #[lox(core_mesh)]
-    mesh: HalfEdgeMesh<PolyConfig>,
-
-    #[lox(vertex_position)]
-    vertex_positions: DenseMap<VertexHandle, Point3<f64>>,
-
-    #[lox(face_normal)]
-    face_normals: DenseMap<FaceHandle, Vector3<f32>>,
-}
-
-fn half_cube_with_normals() -> NormalsMesh {
-    //
-    //    (0) ----- (1)
-    //     |         |
-    //     |         |
-    //     |         |
-    //    (2) ----- (3) ----- (1)
-    //     |         |         |
-    //     |         |         |
-    //     |         |         |
-    //    (4) ----- (5) ----- (6)
-    //
-    let (mesh, vertex_positions, face_normals) = mesh! {
-        type: HalfEdgeMesh<PolyConfig>,
-        vertices: [
-            v0: (Point3::new(0.011, 1.021, 1.031)),
-            v1: (Point3::new(1.012, 1.022, 1.032)),
-            v2: (Point3::new(0.013, 1.023, 0.033)),
-            v3: (Point3::new(1.014, 1.024, 0.034)),
-            v4: (Point3::new(0.015, 0.025, 0.035)),
-            v5: (Point3::new(1.016, 0.026, 0.036)),
-            v6: (Point3::new(1.017, 0.027, 1.037)),
-        ],
-        faces: [
-            [v0, v2, v3, v1]: (Vector3::new(0.041, 0.051, 1.061)),
-            [v2, v4, v5, v3]: (Vector3::new(0.042, 0.052, 1.062)),
-            [v3, v5, v6, v1]: (Vector3::new(0.043, 0.053, 1.063)),
-        ],
-    };
-
-    NormalsMesh { mesh, vertex_positions, face_normals }
-}
-
-fn check_half_cube_with_normals(m: &NormalsMesh) {
-    let vh = VertexHandle::new;
-    let fh = FaceHandle::new;
-    let (v0, v1, v2, v3, v4, v5, v6) = (vh(0), vh(1), vh(2), vh(3), vh(4), vh(5), vh(6));
-    let (f0, f1, f2) = (fh(0), fh(1), fh(2));
-
-    // Mesh and connectivity
-    assert_eq!(m.mesh.num_vertices(), 7);
-    assert_eq!(m.mesh.num_faces(), 3);
-
-    assert_eq!(m.mesh.vertex_handles().collect::<Vec<_>>(), [v0, v1, v2, v3, v4, v5, v6]);
-    assert_eq!(m.mesh.face_handles().collect::<Vec<_>>(), [f0, f1, f2]);
-
-    assert_rotated_eq!(m.mesh.vertices_around_face(f0).collect::<Vec<_>>(), [v0, v2, v3, v1]);
-    assert_rotated_eq!(m.mesh.vertices_around_face(f1).collect::<Vec<_>>(), [v2, v4, v5, v3]);
-    assert_rotated_eq!(m.mesh.vertices_around_face(f2).collect::<Vec<_>>(), [v3, v5, v6, v1]);
-
-    // Vertex position
-    assert_any_prop!(m.vertex_positions, AnyPointMap::Float64, [
-        v0 => Point3::new(0.011, 1.021, 1.031),
-        v1 => Point3::new(1.012, 1.022, 1.032),
-        v2 => Point3::new(0.013, 1.023, 0.033),
-        v3 => Point3::new(1.014, 1.024, 0.034),
-        v4 => Point3::new(0.015, 0.025, 0.035),
-        v5 => Point3::new(1.016, 0.026, 0.036),
-        v6 => Point3::new(1.017, 0.027, 1.037),
-    ]);
-
-    // Face normals
-    assert_any_prop!(m.face_normals, AnyVectorMap::Float32, [
-        f0 => Vector3::new(0.041, 0.051, 1.061),
-        f1 => Vector3::new(0.042, 0.052, 1.062),
-        f2 => Vector3::new(0.043, 0.053, 1.063),
-    ]);
-}
-
-#[test]
-fn write_half_cube_with_normals_ascii() -> Result<(), Error> {
-    let res = to_mem(Config::ascii(), &half_cube_with_normals())?;
-    assert_eq_file!(&res, "half_cube_with_normals_ascii.ply");
-    Ok(())
-}
-
-#[test]
-fn write_half_cube_with_normals_ble() -> Result<(), Error> {
-    let res = to_mem(Config::new(Encoding::BinaryLittleEndian), &half_cube_with_normals())?;
-    assert_eq_file!(&res, "half_cube_with_normals_ble.ply");
-    Ok(())
-}
-
-#[test]
-fn write_half_cube_with_normals_bbe() -> Result<(), Error> {
-    let res = to_mem(Config::new(Encoding::BinaryBigEndian), &half_cube_with_normals())?;
-    assert_eq_file!(&res, "half_cube_with_normals_bbe.ply");
-    Ok(())
-}
-
-#[test]
-fn write_mesh_with_removed_elements() -> Result<(), Error> {
-    let (mut mesh, mut vertex_positions) = mesh! {
-        type: SharedVertexMesh,
-        vertices: [
-            v0: (Point3::new(0.1f32, 0.2, 0.3)),
-            v1: (Point3::new(1.1f32, 1.2, 1.3)),
-            v2: (Point3::new(2.1f32, 2.2, 2.3)),
-            v3: (Point3::new(3.1f32, 3.2, 3.3)),
-            v4: (Point3::new(4.1f32, 4.2, 4.3)),
-        ],
-        faces: [
-            [v0, v1, v3],
-            [v0, v3, v4],
-            [v3, v1, v4],
-        ],
-    };
-
-    mesh.remove_isolated_vertex(VertexHandle::new(2));
-    vertex_positions.remove(VertexHandle::new(2));
-    mesh.remove_face(FaceHandle::new(1));
-
-    let mesh = MiniMesh { mesh, vertex_positions };
-
-    let res = to_mem(Config::new(Encoding::Ascii), &mesh)?;
-    assert_eq_file!(&res, "mesh_with_removed_elements.ply");
-    Ok(())
-}
-
-
-// ===========================================================================
-// ===== Reading
-// ===========================================================================
 
 fn check_triangle(res: &RawStorage) {
     let groups = &res.element_groups;
@@ -452,58 +98,6 @@ fn check_triangle(res: &RawStorage) {
         g1.elements[0].iter().collect::<Vec<_>>(),
         &[Property::UIntList(vec![0, 1, 2].into())],
     );
-}
-
-#[test]
-fn read_raw_triangle_bbe() -> Result<(), Error> {
-    let input = include_test_file!("triangle_bbe.ply");
-    let res = Reader::new(input)?.into_raw_storage()?;
-
-    check_triangle(&res);
-
-    Ok(())
-}
-
-#[test]
-fn read_raw_triangle_ble() -> Result<(), Error> {
-    let input = include_test_file!("triangle_ble.ply");
-    let res = Reader::new(input)?.into_raw_storage()?;
-
-    check_triangle(&res);
-
-    Ok(())
-}
-
-#[test]
-fn read_raw_triangle_ascii() -> Result<(), Error> {
-    let input = include_test_file!("triangle_ascii.ply");
-    let res = Reader::new(input)?.into_raw_storage()?;
-
-    check_triangle(&res);
-
-    Ok(())
-}
-
-/// We only need one test here (instead of one for ble, bbe and ascii) since
-/// the raw data was already checked above (in the `raw` tests).
-#[test]
-fn read_triangle() -> Result<(), Error> {
-    let input = include_test_file!("triangle_ble.ply");
-    let m = MiniMesh::<SharedVertexMesh>::create_from(Reader::new(input)?)?;
-
-    // Check the mesh and properties
-    let vh = VertexHandle::new;
-    let fh = FaceHandle::new;
-
-    assert_eq!(m.mesh.num_vertices(), 3);
-    assert_eq!(m.mesh.num_faces(), 1);
-    assert_eq!(m.mesh.vertices_around_triangle(fh(0)), [vh(0), vh(1), vh(2)]);
-
-    assert_eq!(m.vertex_positions.get_ref(vh(0)), Some(&Point3::new(0.0, 0.0, 0.0)));
-    assert_eq!(m.vertex_positions.get_ref(vh(1)), Some(&Point3::new(3.0, 5.0, 8.0)));
-    assert_eq!(m.vertex_positions.get_ref(vh(2)), Some(&Point3::new(1.942, 152.99, 0.007)));
-
-    Ok(())
 }
 
 fn check_triangle_extra_props(res: &RawStorage) {
@@ -624,6 +218,425 @@ fn check_triangle_extra_props(res: &RawStorage) {
     ]);
 }
 
+
+#[derive(Empty, MemSink, MemSource, Debug)]
+struct MeshVpVnVcFnFc {
+    #[lox(core_mesh)]
+    mesh: SharedVertexMesh,
+
+    #[lox(vertex_position)]
+    vertex_positions: DenseMap<VertexHandle, Point3<f64>>,
+
+    #[lox(vertex_normal)]
+    vertex_normals: DenseMap<VertexHandle, Vector3<f32>>,
+
+    #[lox(vertex_color)]
+    vertex_colors: DenseMap<VertexHandle, [u8; 3]>,
+
+    #[lox(face_normal)]
+    face_normals: DenseMap<FaceHandle, Vector3<f32>>,
+
+    #[lox(face_color)]
+    face_colors: DenseMap<FaceHandle, [u8; 4]>,
+}
+
+fn three_tris_many_props() -> MeshVpVnVcFnFc {
+    //
+    //    (1)       (3)
+    //     | \     / |
+    //     |  \   /  |
+    //     |   (4)   |
+    //     |  /   \  |
+    //     | /     \ |
+    //    (0)-------(2)
+    //
+    let (
+        mesh,
+        vertex_positions,
+        vertex_normals,
+        vertex_colors,
+        face_normals,
+        face_colors
+    ) = mesh! {
+        type: SharedVertexMesh,
+        vertices: [
+            v0: (
+                Point3::new(0.011, 0.021, 0.031),
+                Vector3::new(0.011, 0.021, 1.031),
+                [0, 101, 202],
+            ),
+            v1: (
+                Point3::new(0.012, 1.022, 0.032),
+                Vector3::new(0.012, 0.022, 1.032),
+                [3, 104, 205]
+            ),
+            v2: (
+                Point3::new(1.013, 0.023, 0.033),
+                Vector3::new(0.013, 0.023, 1.033),
+                [6, 107, 208]
+            ),
+            v3: (
+                Point3::new(1.014, 1.024, 0.034),
+                Vector3::new(0.014, 0.024, 1.034),
+                [9, 110, 211]
+            ),
+            v4: (
+                Point3::new(0.515, 0.525, 0.035),
+                Vector3::new(0.015, 0.025, 1.035),
+                [12, 113, 214]
+            ),
+        ],
+        faces: [
+            [v0, v2, v4]: (Vector3::new(0.041, 0.051, 1.061), [15, 116, 217, 224]),
+            [v0, v4, v1]: (Vector3::new(0.042, 0.052, 1.062), [18, 119, 220, 225]),
+            [v2, v3, v4]: (Vector3::new(0.043, 0.053, 1.063), [21, 122, 223, 226]),
+        ],
+    };
+
+    MeshVpVnVcFnFc {
+        mesh, vertex_positions, vertex_normals, vertex_colors, face_normals, face_colors
+    }
+}
+
+fn check_three_tris_many_props(m: &AnyMesh) {
+    let vh = VertexHandle::new;
+    let fh = FaceHandle::new;
+    let (v0, v1, v2, v3, v4) = (vh(0), vh(1), vh(2), vh(3), vh(4));
+    let (f0, f1, f2) = (fh(0), fh(1), fh(2));
+
+    // Mesh and connectivity
+    assert_eq!(m.mesh.num_vertices(), 5);
+    assert_eq!(m.mesh.num_faces(), 3);
+
+    assert_eq!(m.mesh.vertex_handles().collect::<Vec<_>>(), [v0, v1, v2, v3, v4]);
+    assert_eq!(m.mesh.face_handles().collect::<Vec<_>>(), [f0, f1, f2]);
+
+    assert_rotated_eq!(m.mesh.vertices_around_face(f0).collect::<Vec<_>>(), [v0, v2, v4]);
+    assert_rotated_eq!(m.mesh.vertices_around_face(f1).collect::<Vec<_>>(), [v0, v4, v1]);
+    assert_rotated_eq!(m.mesh.vertices_around_face(f2).collect::<Vec<_>>(), [v2, v3, v4]);
+
+    // Vertex props
+    assert_any_prop!(m.vertex_positions, AnyPointMap::Float64, [
+        v0 => Point3::new(0.011, 0.021, 0.031),
+        v1 => Point3::new(0.012, 1.022, 0.032),
+        v2 => Point3::new(1.013, 0.023, 0.033),
+        v3 => Point3::new(1.014, 1.024, 0.034),
+        v4 => Point3::new(0.515, 0.525, 0.035),
+    ]);
+    assert_any_prop!(m.vertex_normals, AnyVectorMap::Float32, [
+        v0 => Vector3::new(0.011, 0.021, 1.031),
+        v1 => Vector3::new(0.012, 0.022, 1.032),
+        v2 => Vector3::new(0.013, 0.023, 1.033),
+        v3 => Vector3::new(0.014, 0.024, 1.034),
+        v4 => Vector3::new(0.015, 0.025, 1.035),
+    ]);
+    assert_any_prop!(m.vertex_colors, AnyColorMap::RgbUint8, [
+        v0 => [0, 101, 202],
+        v1 => [3, 104, 205],
+        v2 => [6, 107, 208],
+        v3 => [9, 110, 211],
+        v4 => [12, 113, 214],
+    ]);
+
+    // Face props
+    assert_any_prop!(m.face_normals, AnyVectorMap::Float32, [
+        f0 => Vector3::new(0.041, 0.051, 1.061),
+        f1 => Vector3::new(0.042, 0.052, 1.062),
+        f2 => Vector3::new(0.043, 0.053, 1.063),
+    ]);
+    assert_any_prop!(m.face_colors, AnyColorMap::RgbaUint8, [
+        f0 => [15, 116, 217, 224],
+        f1 => [18, 119, 220, 225],
+        f2 => [21, 122, 223, 226],
+    ]);
+}
+
+
+#[derive(Empty, MemSink, MemSource, Debug)]
+struct MeshVpFn {
+    #[lox(core_mesh)]
+    mesh: HalfEdgeMesh<PolyConfig>,
+
+    #[lox(vertex_position)]
+    vertex_positions: DenseMap<VertexHandle, Point3<f64>>,
+
+    #[lox(face_normal)]
+    face_normals: DenseMap<FaceHandle, Vector3<f32>>,
+}
+
+fn half_cube_with_normals() -> MeshVpFn {
+    //
+    //    (0) ----- (1)
+    //     |         |
+    //     |         |
+    //     |         |
+    //    (2) ----- (3) ----- (1)
+    //     |         |         |
+    //     |         |         |
+    //     |         |         |
+    //    (4) ----- (5) ----- (6)
+    //
+    let (mesh, vertex_positions, face_normals) = mesh! {
+        type: HalfEdgeMesh<PolyConfig>,
+        vertices: [
+            v0: (Point3::new(0.011, 1.021, 1.031)),
+            v1: (Point3::new(1.012, 1.022, 1.032)),
+            v2: (Point3::new(0.013, 1.023, 0.033)),
+            v3: (Point3::new(1.014, 1.024, 0.034)),
+            v4: (Point3::new(0.015, 0.025, 0.035)),
+            v5: (Point3::new(1.016, 0.026, 0.036)),
+            v6: (Point3::new(1.017, 0.027, 1.037)),
+        ],
+        faces: [
+            [v0, v2, v3, v1]: (Vector3::new(0.041, 0.051, 1.061)),
+            [v2, v4, v5, v3]: (Vector3::new(0.042, 0.052, 1.062)),
+            [v3, v5, v6, v1]: (Vector3::new(0.043, 0.053, 1.063)),
+        ],
+    };
+
+    MeshVpFn { mesh, vertex_positions, face_normals }
+}
+
+fn check_half_cube_with_normals(m: &AnyMesh) {
+    let vh = VertexHandle::new;
+    let fh = FaceHandle::new;
+    let (v0, v1, v2, v3, v4, v5, v6) = (vh(0), vh(1), vh(2), vh(3), vh(4), vh(5), vh(6));
+    let (f0, f1, f2) = (fh(0), fh(1), fh(2));
+
+    // Mesh and connectivity
+    assert_eq!(m.mesh.num_vertices(), 7);
+    assert_eq!(m.mesh.num_faces(), 3);
+
+    assert_eq!(m.mesh.vertex_handles().collect::<Vec<_>>(), [v0, v1, v2, v3, v4, v5, v6]);
+    assert_eq!(m.mesh.face_handles().collect::<Vec<_>>(), [f0, f1, f2]);
+
+    assert_rotated_eq!(m.mesh.vertices_around_face(f0).collect::<Vec<_>>(), [v0, v2, v3, v1]);
+    assert_rotated_eq!(m.mesh.vertices_around_face(f1).collect::<Vec<_>>(), [v2, v4, v5, v3]);
+    assert_rotated_eq!(m.mesh.vertices_around_face(f2).collect::<Vec<_>>(), [v3, v5, v6, v1]);
+
+    // Vertex position
+    assert_any_prop!(m.vertex_positions, AnyPointMap::Float64, [
+        v0 => Point3::new(0.011, 1.021, 1.031),
+        v1 => Point3::new(1.012, 1.022, 1.032),
+        v2 => Point3::new(0.013, 1.023, 0.033),
+        v3 => Point3::new(1.014, 1.024, 0.034),
+        v4 => Point3::new(0.015, 0.025, 0.035),
+        v5 => Point3::new(1.016, 0.026, 0.036),
+        v6 => Point3::new(1.017, 0.027, 1.037),
+    ]);
+
+    // Face normals
+    assert_any_prop!(m.face_normals, AnyVectorMap::Float32, [
+        f0 => Vector3::new(0.041, 0.051, 1.061),
+        f1 => Vector3::new(0.042, 0.052, 1.062),
+        f2 => Vector3::new(0.043, 0.053, 1.063),
+    ]);
+}
+
+
+fn to_mem(config: Config, mesh: &impl MemSource) -> Result<Vec<u8>, Error> {
+    let mut v = Vec::new();
+    config.into_writer(&mut v).transfer_from(mesh)?;
+    Ok(v)
+}
+
+
+// ===========================================================================
+// ===== Writing
+// ===========================================================================
+
+#[test]
+fn write_triangle_ascii() -> Result<(), Error> {
+    let res = to_mem(Config::ascii(), &triangle_mesh())?;
+    assert_eq_file!(&res, "triangle_ascii.ply");
+    Ok(())
+}
+
+#[test]
+fn write_triangle_bbe() -> Result<(), Error> {
+    let res = to_mem(Config::new(Encoding::BinaryBigEndian), &triangle_mesh())?;
+    assert_eq_file!(&res, "triangle_bbe.ply");
+    Ok(())
+}
+
+#[test]
+fn write_triangle_ble() -> Result<(), Error> {
+    let res = to_mem(Config::new(Encoding::BinaryLittleEndian), &triangle_mesh())?;
+    assert_eq_file!(&res, "triangle_ble.ply");
+    Ok(())
+}
+
+
+#[test]
+fn write_triangle_with_comments_ascii() -> Result<(), Error> {
+    let config = Config::ascii()
+        .add_comment("My name is Tom")
+        .add_comment("Yes we can have multiple comments :)")
+        .add_comment(
+            "Comments appear in the file in the same order as they are added with `add_comment`"
+        );
+    let res = to_mem(config, &triangle_mesh())?;
+    assert_eq_file!(&res, "triangle_with_comments_ascii.ply");
+    Ok(())
+}
+
+#[test]
+fn write_triangle_with_comments_bbe() -> Result<(), Error> {
+    let config = Config::new(Encoding::BinaryBigEndian)
+        .add_comment("My name is Tom")
+        .add_comment("Yes we can have multiple comments :)")
+        .add_comment(
+            "Comments appear in the file in the same order as they are added with `add_comment`"
+        );
+    let res = to_mem(config, &triangle_mesh())?;
+    assert_eq_file!(&res, "triangle_with_comments_bbe.ply");
+    Ok(())
+}
+
+#[test]
+fn write_triangle_with_comments_ble() -> Result<(), Error> {
+    let config = Config::new(Encoding::BinaryLittleEndian)
+        .add_comment("My name is Tom")
+        .add_comment("Yes we can have multiple comments :)")
+        .add_comment(
+            "Comments appear in the file in the same order as they are added with `add_comment`"
+        );
+    let res = to_mem(config, &triangle_mesh())?;
+    assert_eq_file!(&res, "triangle_with_comments_ble.ply");
+    Ok(())
+}
+
+
+#[test]
+fn write_three_tris_many_props_ascii() -> Result<(), Error> {
+    let res = to_mem(Config::ascii(), &three_tris_many_props())?;
+    assert_eq_file!(&res, "three_tris_many_props_ascii.ply");
+    Ok(())
+}
+
+#[test]
+fn write_three_tris_many_props_ble() -> Result<(), Error> {
+    let res = to_mem(Config::new(Encoding::BinaryLittleEndian), &three_tris_many_props())?;
+    assert_eq_file!(&res, "three_tris_many_props_ble.ply");
+    Ok(())
+}
+
+#[test]
+fn write_three_tris_many_props_bbe() -> Result<(), Error> {
+    let res = to_mem(Config::new(Encoding::BinaryBigEndian), &three_tris_many_props())?;
+    assert_eq_file!(&res, "three_tris_many_props_bbe.ply");
+    Ok(())
+}
+
+
+#[test]
+fn write_half_cube_with_normals_ascii() -> Result<(), Error> {
+    let res = to_mem(Config::ascii(), &half_cube_with_normals())?;
+    assert_eq_file!(&res, "half_cube_with_normals_ascii.ply");
+    Ok(())
+}
+
+#[test]
+fn write_half_cube_with_normals_ble() -> Result<(), Error> {
+    let res = to_mem(Config::new(Encoding::BinaryLittleEndian), &half_cube_with_normals())?;
+    assert_eq_file!(&res, "half_cube_with_normals_ble.ply");
+    Ok(())
+}
+
+#[test]
+fn write_half_cube_with_normals_bbe() -> Result<(), Error> {
+    let res = to_mem(Config::new(Encoding::BinaryBigEndian), &half_cube_with_normals())?;
+    assert_eq_file!(&res, "half_cube_with_normals_bbe.ply");
+    Ok(())
+}
+
+#[test]
+fn write_mesh_with_removed_elements() -> Result<(), Error> {
+    let (mut mesh, mut vertex_positions) = mesh! {
+        type: SharedVertexMesh,
+        vertices: [
+            v0: (Point3::new(0.1f32, 0.2, 0.3)),
+            v1: (Point3::new(1.1f32, 1.2, 1.3)),
+            v2: (Point3::new(2.1f32, 2.2, 2.3)),
+            v3: (Point3::new(3.1f32, 3.2, 3.3)),
+            v4: (Point3::new(4.1f32, 4.2, 4.3)),
+        ],
+        faces: [
+            [v0, v1, v3],
+            [v0, v3, v4],
+            [v3, v1, v4],
+        ],
+    };
+
+    mesh.remove_isolated_vertex(VertexHandle::new(2));
+    vertex_positions.remove(VertexHandle::new(2));
+    mesh.remove_face(FaceHandle::new(1));
+
+    let mesh = MiniMesh { mesh, vertex_positions };
+
+    let res = to_mem(Config::new(Encoding::Ascii), &mesh)?;
+    assert_eq_file!(&res, "mesh_with_removed_elements.ply");
+    Ok(())
+}
+
+
+// ===========================================================================
+// ===== Reading
+// ===========================================================================
+
+#[test]
+fn read_raw_triangle_bbe() -> Result<(), Error> {
+    let input = include_test_file!("triangle_bbe.ply");
+    let res = Reader::new(input)?.into_raw_storage()?;
+
+    check_triangle(&res);
+
+    Ok(())
+}
+
+#[test]
+fn read_raw_triangle_ble() -> Result<(), Error> {
+    let input = include_test_file!("triangle_ble.ply");
+    let res = Reader::new(input)?.into_raw_storage()?;
+
+    check_triangle(&res);
+
+    Ok(())
+}
+
+#[test]
+fn read_raw_triangle_ascii() -> Result<(), Error> {
+    let input = include_test_file!("triangle_ascii.ply");
+    let res = Reader::new(input)?.into_raw_storage()?;
+
+    check_triangle(&res);
+
+    Ok(())
+}
+
+/// We only need one test here (instead of one for ble, bbe and ascii) since
+/// the raw data was already checked above (in the `raw` tests).
+#[test]
+fn read_triangle() -> Result<(), Error> {
+    let input = include_test_file!("triangle_ble.ply");
+    let m = MiniMesh::<SharedVertexMesh>::create_from(Reader::new(input)?)?;
+
+    // Check the mesh and properties
+    let vh = VertexHandle::new;
+    let fh = FaceHandle::new;
+
+    assert_eq!(m.mesh.num_vertices(), 3);
+    assert_eq!(m.mesh.num_faces(), 1);
+    assert_eq!(m.mesh.vertices_around_triangle(fh(0)), [vh(0), vh(1), vh(2)]);
+
+    assert_eq!(m.vertex_positions.get_ref(vh(0)), Some(&Point3::new(0.0, 0.0, 0.0)));
+    assert_eq!(m.vertex_positions.get_ref(vh(1)), Some(&Point3::new(3.0, 5.0, 8.0)));
+    assert_eq!(m.vertex_positions.get_ref(vh(2)), Some(&Point3::new(1.942, 152.99, 0.007)));
+
+    Ok(())
+}
+
+
 #[test]
 fn read_raw_triangle_with_extra_props_bbe() -> Result<(), Error> {
     let input = include_test_file!("triangle_with_extra_props_bbe.ply");
@@ -679,26 +692,26 @@ fn read_triangle_with_extra_props_mini_mesh() -> Result<(), Error> {
 }
 
 #[test]
-fn read_three_tris_all_props_ascii() -> Result<(), Error> {
-    let input = include_test_file!("three_tris_all_props_ascii.ply");
+fn read_three_tris_many_props_ascii() -> Result<(), Error> {
+    let input = include_test_file!("three_tris_many_props_ascii.ply");
     let m = AnyMesh::create_from(Reader::new(input)?)?;
-    check_three_tris_all_props(&m);
+    check_three_tris_many_props(&m);
     Ok(())
 }
 
 #[test]
-fn read_three_tris_all_props_ble() -> Result<(), Error> {
-    let input = include_test_file!("three_tris_all_props_ble.ply");
+fn read_three_tris_many_props_ble() -> Result<(), Error> {
+    let input = include_test_file!("three_tris_many_props_ble.ply");
     let m = AnyMesh::create_from(Reader::new(input)?)?;
-    check_three_tris_all_props(&m);
+    check_three_tris_many_props(&m);
     Ok(())
 }
 
 #[test]
-fn read_three_tris_all_props_bbe() -> Result<(), Error> {
-    let input = include_test_file!("three_tris_all_props_bbe.ply");
+fn read_three_tris_many_props_bbe() -> Result<(), Error> {
+    let input = include_test_file!("three_tris_many_props_bbe.ply");
     let m = AnyMesh::create_from(Reader::new(input)?)?;
-    check_three_tris_all_props(&m);
+    check_three_tris_many_props(&m);
     Ok(())
 }
 
