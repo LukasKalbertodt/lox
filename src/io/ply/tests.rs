@@ -610,6 +610,34 @@ macro_rules! read_raw_triangle {
 gen_for_encodings!(read_raw_triangle);
 
 
+macro_rules! read_raw_triangle_with_comments {
+    ($encoding:ident) => {
+        paste::item! {
+            #[test]
+            fn [<read_raw_triangle_with_comments_ $encoding>]() -> Result<(), Error> {
+                let input = include_test_file!(
+                    concat!("triangle_with_comments_", stringify!($encoding), ".ply")
+                );
+                let reader = Reader::new(input)?;
+                assert_eq!(reader.comments(), [
+                    "My name is Tom",
+                    "Yes we can have multiple comments :)",
+                    "Comments appear in the file in the same order as they are \
+                        added with `add_comment`",
+                ]);
+
+                let res = reader.into_raw_storage()?;
+                check_triangle(&res);
+
+                Ok(())
+            }
+        }
+    };
+}
+
+gen_for_encodings!(read_raw_triangle_with_comments);
+
+
 /// We only need one test here (instead of one for ble, bbe and ascii) since
 /// the raw data was already checked above (in the `raw` tests).
 #[test]
