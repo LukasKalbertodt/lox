@@ -44,7 +44,11 @@ jobs:
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('cache-fingerprint') }}
     - name: Build
-      run: cargo build --all
+      run: cargo build --all --lib --bins
+    - name: Build Examples
+      run: cargo build --examples
+    - name: Build Benchmarks
+      run: cargo build --benches
     - name: Run tests (default features)
       run: cargo test --all
     - name: Run tests ('large-handle' feature)
