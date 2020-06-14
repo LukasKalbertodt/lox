@@ -35,6 +35,7 @@ stable-vec = "0.4"
 [dev-dependencies]
 color-backtrace = "0.4.2"
 criterion = { version = "0.3", features = ["real_blackbox"] }
+paste = "0.1"
 
 
 # ----- Benchmarks -----------------------------------------------------------

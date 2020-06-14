@@ -18,7 +18,7 @@ use super::{
 };
 
 // ===========================================================================
-// ===== Utilities
+// ===== Test Utilities
 // ===========================================================================
 #[test]
 fn test_is_file_start() {
@@ -31,6 +31,31 @@ fn test_is_file_start() {
     assert_eq!(is_file_start(b"ply\ncomment"), IsFormat::Probably);
     assert_eq!(is_file_start(b"ply\nformat"), IsFormat::Probably);
 }
+
+
+// ===========================================================================
+// ===== Helper macros to avoid code duplication
+// ===========================================================================
+
+/// This abstract macro takes the name of another macro and invokes it three
+/// times, with the identifiers `ascii`, `ble` and `bbe` as first argument.
+///
+/// It also accepts arbitarily any other args that are forwarded to the
+/// `generator` macro.
+macro_rules! gen_for_encodings {
+    ($generator:ident $(, $args:ident)*) => {
+        $generator!(ascii $(, $args)*);
+        $generator!(ble $(, $args)*);
+        $generator!(bbe $(, $args)*);
+    };
+}
+
+macro_rules! encoding_config {
+    (ascii) => { Config::ascii() };
+    (ble) => { Config::new(Encoding::BinaryLittleEndian) };
+    (bbe) => { Config::new(Encoding::BinaryBigEndian) };
+}
+
 
 // ===========================================================================
 // ===== Test mesh definitions
@@ -445,110 +470,90 @@ fn to_mem(config: Config, mesh: &impl MemSource) -> Result<Vec<u8>, Error> {
 // ===== Writing
 // ===========================================================================
 
-#[test]
-fn write_triangle_ascii() -> Result<(), Error> {
-    let res = to_mem(Config::ascii(), &triangle_mesh())?;
-    assert_eq_file!(&res, "triangle_ascii.ply");
-    Ok(())
+macro_rules! write_triangle {
+    ($encoding:ident) => {
+        paste::item! {
+            #[test]
+            fn [<write_triangle_ $encoding>]() -> Result<(), Error> {
+                let res = to_mem(encoding_config!($encoding), &triangle_mesh())?;
+                assert_eq_file!(
+                    &res,
+                    concat!("triangle_", stringify!($encoding), ".ply")
+                );
+
+                Ok(())
+            }
+        }
+    };
 }
 
-#[test]
-fn write_triangle_bbe() -> Result<(), Error> {
-    let res = to_mem(Config::new(Encoding::BinaryBigEndian), &triangle_mesh())?;
-    assert_eq_file!(&res, "triangle_bbe.ply");
-    Ok(())
+gen_for_encodings!(write_triangle);
+
+
+macro_rules! write_triangle_with_comments {
+    ($encoding:ident) => {
+        paste::item! {
+            #[test]
+            fn [<write_triangle_with_comments_ $encoding>]() -> Result<(), Error> {
+                let config = encoding_config!($encoding)
+                    .add_comment("My name is Tom")
+                    .add_comment("Yes we can have multiple comments :)")
+                    .add_comment(
+                        "Comments appear in the file in the same order as they \
+                            are added with `add_comment`"
+                    );
+                let res = to_mem(config, &triangle_mesh())?;
+                assert_eq_file!(
+                    &res,
+                    concat!("triangle_with_comments_", stringify!($encoding), ".ply")
+                );
+
+                Ok(())
+            }
+        }
+    };
 }
 
-#[test]
-fn write_triangle_ble() -> Result<(), Error> {
-    let res = to_mem(Config::new(Encoding::BinaryLittleEndian), &triangle_mesh())?;
-    assert_eq_file!(&res, "triangle_ble.ply");
-    Ok(())
+gen_for_encodings!(write_triangle_with_comments);
+
+
+macro_rules! write_three_tris_many_props {
+    ($encoding:ident) => {
+        paste::item! {
+            #[test]
+            fn [<write_three_tris_many_props_ $encoding>]() -> Result<(), Error> {
+                let res = to_mem(encoding_config!($encoding), &three_tris_many_props())?;
+                assert_eq_file!(
+                    &res,
+                    concat!("three_tris_many_props_", stringify!($encoding), ".ply")
+                );
+                Ok(())
+            }
+        }
+    };
 }
 
+gen_for_encodings!(write_three_tris_many_props);
 
-#[test]
-fn write_triangle_with_comments_ascii() -> Result<(), Error> {
-    let config = Config::ascii()
-        .add_comment("My name is Tom")
-        .add_comment("Yes we can have multiple comments :)")
-        .add_comment(
-            "Comments appear in the file in the same order as they are added with `add_comment`"
-        );
-    let res = to_mem(config, &triangle_mesh())?;
-    assert_eq_file!(&res, "triangle_with_comments_ascii.ply");
-    Ok(())
+
+macro_rules! write_half_cube_with_normals {
+    ($encoding:ident) => {
+        paste::item! {
+            #[test]
+            fn [<write_half_cube_with_normals_ $encoding>]() -> Result<(), Error> {
+                let res = to_mem(encoding_config!($encoding), &half_cube_with_normals())?;
+                assert_eq_file!(
+                    &res,
+                    concat!("half_cube_with_normals_", stringify!($encoding), ".ply")
+                );
+                Ok(())
+            }
+        }
+    };
 }
 
-#[test]
-fn write_triangle_with_comments_bbe() -> Result<(), Error> {
-    let config = Config::new(Encoding::BinaryBigEndian)
-        .add_comment("My name is Tom")
-        .add_comment("Yes we can have multiple comments :)")
-        .add_comment(
-            "Comments appear in the file in the same order as they are added with `add_comment`"
-        );
-    let res = to_mem(config, &triangle_mesh())?;
-    assert_eq_file!(&res, "triangle_with_comments_bbe.ply");
-    Ok(())
-}
+gen_for_encodings!(write_half_cube_with_normals);
 
-#[test]
-fn write_triangle_with_comments_ble() -> Result<(), Error> {
-    let config = Config::new(Encoding::BinaryLittleEndian)
-        .add_comment("My name is Tom")
-        .add_comment("Yes we can have multiple comments :)")
-        .add_comment(
-            "Comments appear in the file in the same order as they are added with `add_comment`"
-        );
-    let res = to_mem(config, &triangle_mesh())?;
-    assert_eq_file!(&res, "triangle_with_comments_ble.ply");
-    Ok(())
-}
-
-
-#[test]
-fn write_three_tris_many_props_ascii() -> Result<(), Error> {
-    let res = to_mem(Config::ascii(), &three_tris_many_props())?;
-    assert_eq_file!(&res, "three_tris_many_props_ascii.ply");
-    Ok(())
-}
-
-#[test]
-fn write_three_tris_many_props_ble() -> Result<(), Error> {
-    let res = to_mem(Config::new(Encoding::BinaryLittleEndian), &three_tris_many_props())?;
-    assert_eq_file!(&res, "three_tris_many_props_ble.ply");
-    Ok(())
-}
-
-#[test]
-fn write_three_tris_many_props_bbe() -> Result<(), Error> {
-    let res = to_mem(Config::new(Encoding::BinaryBigEndian), &three_tris_many_props())?;
-    assert_eq_file!(&res, "three_tris_many_props_bbe.ply");
-    Ok(())
-}
-
-
-#[test]
-fn write_half_cube_with_normals_ascii() -> Result<(), Error> {
-    let res = to_mem(Config::ascii(), &half_cube_with_normals())?;
-    assert_eq_file!(&res, "half_cube_with_normals_ascii.ply");
-    Ok(())
-}
-
-#[test]
-fn write_half_cube_with_normals_ble() -> Result<(), Error> {
-    let res = to_mem(Config::new(Encoding::BinaryLittleEndian), &half_cube_with_normals())?;
-    assert_eq_file!(&res, "half_cube_with_normals_ble.ply");
-    Ok(())
-}
-
-#[test]
-fn write_half_cube_with_normals_bbe() -> Result<(), Error> {
-    let res = to_mem(Config::new(Encoding::BinaryBigEndian), &half_cube_with_normals())?;
-    assert_eq_file!(&res, "half_cube_with_normals_bbe.ply");
-    Ok(())
-}
 
 #[test]
 fn write_mesh_with_removed_elements() -> Result<(), Error> {
@@ -584,35 +589,26 @@ fn write_mesh_with_removed_elements() -> Result<(), Error> {
 // ===== Reading
 // ===========================================================================
 
-#[test]
-fn read_raw_triangle_bbe() -> Result<(), Error> {
-    let input = include_test_file!("triangle_bbe.ply");
-    let res = Reader::new(input)?.into_raw_storage()?;
+macro_rules! read_raw_triangle {
+    ($encoding:ident) => {
+        paste::item! {
+            #[test]
+            fn [<read_raw_triangle_ $encoding>]() -> Result<(), Error> {
+                let input = include_test_file!(
+                    concat!("triangle_", stringify!($encoding), ".ply")
+                );
+                let res = Reader::new(input)?.into_raw_storage()?;
 
-    check_triangle(&res);
+                check_triangle(&res);
 
-    Ok(())
+                Ok(())
+            }
+        }
+    };
 }
 
-#[test]
-fn read_raw_triangle_ble() -> Result<(), Error> {
-    let input = include_test_file!("triangle_ble.ply");
-    let res = Reader::new(input)?.into_raw_storage()?;
+gen_for_encodings!(read_raw_triangle);
 
-    check_triangle(&res);
-
-    Ok(())
-}
-
-#[test]
-fn read_raw_triangle_ascii() -> Result<(), Error> {
-    let input = include_test_file!("triangle_ascii.ply");
-    let res = Reader::new(input)?.into_raw_storage()?;
-
-    check_triangle(&res);
-
-    Ok(())
-}
 
 /// We only need one test here (instead of one for ble, bbe and ascii) since
 /// the raw data was already checked above (in the `raw` tests).
@@ -636,38 +632,25 @@ fn read_triangle() -> Result<(), Error> {
     Ok(())
 }
 
+macro_rules! read_raw_triangle_with_extra_props {
+    ($encoding:ident) => {
+        paste::item! {
+            #[test]
+            fn [<read_raw_triangle_with_extra_props_ $encoding>]() -> Result<(), Error> {
+                let input = include_test_file!(
+                    concat!("triangle_with_extra_props_", stringify!($encoding), ".ply")
+                );
+                let res = Reader::new(input)?.into_raw_storage()?;
 
-#[test]
-fn read_raw_triangle_with_extra_props_bbe() -> Result<(), Error> {
-    let input = include_test_file!("triangle_with_extra_props_bbe.ply");
-    let res = Reader::new(input)?.into_raw_storage()?;
+                check_triangle_extra_props(&res);
 
-    check_triangle_extra_props(&res);
-
-    Ok(())
+                Ok(())
+            }
+        }
+    };
 }
 
-
-#[test]
-fn read_raw_triangle_with_extra_props_ble() -> Result<(), Error> {
-    let input = include_test_file!("triangle_with_extra_props_ble.ply");
-    let res = Reader::new(input)?.into_raw_storage()?;
-
-    check_triangle_extra_props(&res);
-
-    Ok(())
-}
-
-
-#[test]
-fn read_raw_triangle_with_extra_props_ascii() -> Result<(), Error> {
-    let input = include_test_file!("triangle_with_extra_props_ascii.ply");
-    let res = Reader::new(input)?.into_raw_storage()?;
-
-    check_triangle_extra_props(&res);
-
-    Ok(())
-}
+gen_for_encodings!(read_raw_triangle_with_extra_props);
 
 /// We only need one test here (instead of one for ble, bbe and ascii) since
 /// the raw data was already checked above (in the `raw` tests).
@@ -691,52 +674,26 @@ fn read_triangle_with_extra_props_mini_mesh() -> Result<(), Error> {
     Ok(())
 }
 
-#[test]
-fn read_three_tris_many_props_ascii() -> Result<(), Error> {
-    let input = include_test_file!("three_tris_many_props_ascii.ply");
-    let m = AnyMesh::create_from(Reader::new(input)?)?;
-    check_three_tris_many_props(&m);
-    Ok(())
+
+/// Test cases that read into an `AnyMesh`.
+macro_rules! read_any {
+    ($encoding:ident, $stem:ident) => {
+        paste::item! {
+            #[test]
+            fn [<read_ $stem _ $encoding>] () -> Result<(), Error> {
+                let input = include_test_file!(
+                    concat!(stringify!($stem), "_", stringify!($encoding), ".ply")
+                );
+                let m = AnyMesh::create_from(Reader::new(input)?)?;
+                [<check_ $stem>](&m);
+                Ok(())
+            }
+        }
+    };
 }
 
-#[test]
-fn read_three_tris_many_props_ble() -> Result<(), Error> {
-    let input = include_test_file!("three_tris_many_props_ble.ply");
-    let m = AnyMesh::create_from(Reader::new(input)?)?;
-    check_three_tris_many_props(&m);
-    Ok(())
-}
+gen_for_encodings!(read_any, three_tris_many_props);
+gen_for_encodings!(read_any, half_cube_with_normals);
 
-#[test]
-fn read_three_tris_many_props_bbe() -> Result<(), Error> {
-    let input = include_test_file!("three_tris_many_props_bbe.ply");
-    let m = AnyMesh::create_from(Reader::new(input)?)?;
-    check_three_tris_many_props(&m);
-    Ok(())
-}
-
-#[test]
-fn read_half_cube_with_normals_ascii() -> Result<(), Error> {
-    let input = include_test_file!("half_cube_with_normals_ascii.ply");
-    let m = AnyMesh::create_from(Reader::new(input)?)?;
-    check_half_cube_with_normals(&m);
-    Ok(())
-}
-
-#[test]
-fn read_half_cube_with_normals_ble() -> Result<(), Error> {
-    let input = include_test_file!("half_cube_with_normals_ble.ply");
-    let m = AnyMesh::create_from(Reader::new(input)?)?;
-    check_half_cube_with_normals(&m);
-    Ok(())
-}
-
-#[test]
-fn read_half_cube_with_normals_bbe() -> Result<(), Error> {
-    let input = include_test_file!("half_cube_with_normals_bbe.ply");
-    let m = AnyMesh::create_from(Reader::new(input)?)?;
-    check_half_cube_with_normals(&m);
-    Ok(())
-}
 
 // TODO: read tests where the mesh hands out strange handles
