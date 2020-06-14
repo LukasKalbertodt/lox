@@ -1434,19 +1434,34 @@ fn read_raw_element_group_binary<R: io::Read>(
             swaps.clear();
         }
 
-        for _ in 0..element_def.count {
-            // Just read the raw data from the buffer.
+        let mut elements_left = element_def.count;
+        while elements_left > 0 {
+            // Make sure the parse buffer has at least enough bytes for one
+            // single element.
             buf.prepare(elem_len)?;
-            elem.data.copy_from_slice(&buf.raw_buf()[..elem_len]);
-            buf.consume(elem_len);
 
-            // Swap bytes (if necessary)
-            for &(a, b) in &swaps {
-                elem.data.swap(a as usize, b as usize);
+            // However, the `prepare` call will read a lot more data most of the
+            // time. We will use all that data before calling `prepare` again.
+            let elements_in_buf = buf.raw_buf().len() / elem_len;
+            for chunk in buf.raw_buf().chunks_exact(elem_len).take(elements_left as usize) {
+                // Copy data over to `RawElement`. TODO: this is not
+                // particularly nice. Maybe we can change `RawElement` to borrow
+                // a slice?
+                elem.data.copy_from_slice(chunk);
+
+                // Swap bytes (if necessary)
+                for &(a, b) in &swaps {
+                    elem.data.swap(a as usize, b as usize);
+                }
+
+                // Send raw element to the sink.
+                sink.element(&elem)?;
             }
 
-            // Send read properties to the sink.
-            sink.element(&elem)?;
+            // Tell the parse buffer we consumed that many bytes.
+            let elements_read = std::cmp::min(elements_left, elements_in_buf as u64);
+            buf.consume(elements_read as usize * elem_len);
+            elements_left -= elements_read;
         }
     } else {
         // Our element contains lists, so we have to calculate the
