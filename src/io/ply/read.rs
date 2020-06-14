@@ -392,123 +392,28 @@ impl<R: io::Read> Reader<R> {
             };
 
             if self.encoding == Encoding::Ascii {
-                // For ASCII, we don't really optimize a bunch. Knowing the
-                // offsets of all properties wouldn't help here, because that
-                // would still have a variable length in ASCII encoding. We use
-                // `read_element_ascii` which parses the values and calculates
-                // the offsets at the same time.
-                for _ in 0..element_def.count {
-                    elem.data.clear();
-                    read_element_ascii(buf, &index, &mut elem)?;
-
-                    // Send read properties to the sink.
-                    sink.element(&elem)?;
-                }
+                read_raw_element_group_ascii(
+                    buf,
+                    element_def,
+                    &mut elem,
+                    &index,
+                    sink,
+                )?;
             } else {
-                // Try to calculate all offsets already. This will only work if
-                // there are no lists properties. If they aren't, we can
-                // optimize some stuff.
-                //
-                // While we're doing this, we can also create a swap table in
-                // case we need to swap bytes afterwards. We could do this
-                // later, but doing it here is convenient and doesn't hurt a
-                // lot.
-                let mut len_known = true;
-                let mut offset = RawOffset::from(0);
-                let mut swaps = Vec::new();
-                for (prop_info, type_len) in elem.prop_infos.iter_mut().zip(&index) {
-                    prop_info.offset = offset;
-
-                    match type_len {
-                        TypeLen::Scalar(len) => {
-                            // Populate swap table
-                            let idx = offset.0;
-                            match *len {
-                                ScalarLen::One => {}
-                                ScalarLen::Two => {
-                                    swaps.push((idx + 0, idx + 1));
-                                }
-                                ScalarLen::Four => {
-                                    swaps.push((idx + 0, idx + 3));
-                                    swaps.push((idx + 1, idx + 2));
-                                }
-                                ScalarLen::Eight => {
-                                    swaps.push((idx + 0, idx + 7));
-                                    swaps.push((idx + 1, idx + 6));
-                                    swaps.push((idx + 2, idx + 5));
-                                    swaps.push((idx + 3, idx + 4));
-                                }
-                            }
-
-                            // Bump offset
-                            offset += *len;
-                        }
-                        TypeLen::List { .. } => {
-                            len_known = false;
-                            break;
-                        }
-                    }
-                }
-
-                if len_known {
-                    // We know the length of one element and have calculated
-                    // all offsets! Now we just need to read the actual data
-                    // and, in case of swapped endian, swap the properties.
-                    let elem_len = offset.as_usize();
-
-                    // Since we know the length, we don't have to care about
-                    // vector reallactions. That's why we will create a vector
-                    // with correct length once and won't change its capacity
-                    // or len afterwards. We just overwrite the data.
-                    elem.data = vec![0; elem_len].into();
-
-                    // If the encoding has native endianess, we don't need to
-                    // swap anything.
-                    if self.encoding == Encoding::binary_native() {
-                        swaps.clear();
-                    }
-
-                    for _ in 0..element_def.count {
-                        // Just read the raw data from the buffer.
-                        buf.prepare(elem_len)?;
-                        elem.data.copy_from_slice(&buf.raw_buf()[..elem_len]);
-                        buf.consume(elem_len);
-
-                        // Swap bytes (if necessary)
-                        for &(a, b) in &swaps {
-                            elem.data.swap(a as usize, b as usize);
-                        }
-
-                        // Send read properties to the sink.
-                        sink.element(&elem)?;
-                    }
-                } else {
-                    // Our element contains lists, so we have to calculate the
-                    // offsets for every element.
-                    //
-                    // TODO: maybe skip the last element?
-                    //
-                    // We just store function pointer to the generic element
-                    // reading function.
-                    let read_element = match self.encoding {
-                        Encoding::BinaryBigEndian => read_element_bbe::<Buffer<R>>,
-                        Encoding::BinaryLittleEndian => read_element_ble::<Buffer<R>>,
-                        Encoding::Ascii => unreachable!(),
-                    };
-
-                    for _ in 0..element_def.count {
-                        elem.data.clear();
-                        read_element(buf, &index, &mut elem)?;
-
-                        // Send read properties to the sink.
-                        sink.element(&elem)?;
-                    }
-                }
+                read_raw_element_group_binary(
+                    buf,
+                    element_def,
+                    &mut elem,
+                    &index,
+                    self.encoding,
+                    sink,
+                )?;
             }
         }
 
         Ok(())
     }
+
 }
 
 impl<R: io::Read> StreamSource for Reader<R> {
@@ -1431,6 +1336,143 @@ impl<S: MemSink> RawSink for RawTransferSink<'_, S> {
 // ===========================================================================
 // ===== Body parsing: `read_element_*` implementations
 // ===========================================================================
+
+
+#[inline(never)]
+fn read_raw_element_group_ascii<R: io::Read>(
+    buf: &mut Buffer<R>,
+    element_def: &ElementDef,
+    elem: &mut RawElement,
+    index: &[TypeLen],
+    sink: &mut impl RawSink,
+) -> Result<(), Error> {
+    // For ASCII, we don't really optimize a bunch. Knowing the
+    // offsets of all properties wouldn't help here, because that
+    // would still have a variable length in ASCII encoding. We use
+    // `read_element_ascii` which parses the values and calculates
+    // the offsets at the same time.
+    for _ in 0..element_def.count {
+        elem.data.clear();
+        read_element_ascii(buf, index, elem)?;
+
+        // Send read properties to the sink.
+        sink.element(&elem)?;
+    }
+
+    Ok(())
+}
+
+#[inline(never)]
+fn read_raw_element_group_binary<R: io::Read>(
+    buf: &mut Buffer<R>,
+    element_def: &ElementDef,
+    elem: &mut RawElement,
+    index: &[TypeLen],
+    encoding: Encoding,
+    sink: &mut impl RawSink,
+) -> Result<(), Error> {
+    // Try to calculate all offsets already. This will only work if
+    // there are no lists properties. If they aren't, we can
+    // optimize some stuff.
+    //
+    // While we're doing this, we can also create a swap table in
+    // case we need to swap bytes afterwards. We could do this
+    // later, but doing it here is convenient and doesn't hurt a
+    // lot.
+    let mut len_known = true;
+    let mut offset = RawOffset::from(0);
+    let mut swaps = Vec::new();
+    for (prop_info, type_len) in elem.prop_infos.iter_mut().zip(index) {
+        prop_info.offset = offset;
+
+        match type_len {
+            TypeLen::Scalar(len) => {
+                // Populate swap table
+                let idx = offset.0;
+                match *len {
+                    ScalarLen::One => {}
+                    ScalarLen::Two => {
+                        swaps.push((idx + 0, idx + 1));
+                    }
+                    ScalarLen::Four => {
+                        swaps.push((idx + 0, idx + 3));
+                        swaps.push((idx + 1, idx + 2));
+                    }
+                    ScalarLen::Eight => {
+                        swaps.push((idx + 0, idx + 7));
+                        swaps.push((idx + 1, idx + 6));
+                        swaps.push((idx + 2, idx + 5));
+                        swaps.push((idx + 3, idx + 4));
+                    }
+                }
+
+                // Bump offset
+                offset += *len;
+            }
+            TypeLen::List { .. } => {
+                len_known = false;
+                break;
+            }
+        }
+    }
+
+    if len_known {
+        // We know the length of one element and have calculated
+        // all offsets! Now we just need to read the actual data
+        // and, in case of swapped endian, swap the properties.
+        let elem_len = offset.as_usize();
+
+        // Since we know the length, we don't have to care about
+        // vector realloctions. That's why we will create a vector
+        // with correct length once and won't change its capacity
+        // or len afterwards. We just overwrite the data.
+        elem.data = vec![0; elem_len].into();
+
+        // If the encoding has native endianess, we don't need to
+        // swap anything.
+        if encoding == Encoding::binary_native() {
+            swaps.clear();
+        }
+
+        for _ in 0..element_def.count {
+            // Just read the raw data from the buffer.
+            buf.prepare(elem_len)?;
+            elem.data.copy_from_slice(&buf.raw_buf()[..elem_len]);
+            buf.consume(elem_len);
+
+            // Swap bytes (if necessary)
+            for &(a, b) in &swaps {
+                elem.data.swap(a as usize, b as usize);
+            }
+
+            // Send read properties to the sink.
+            sink.element(&elem)?;
+        }
+    } else {
+        // Our element contains lists, so we have to calculate the
+        // offsets for every element.
+        //
+        // TODO: maybe skip the last element?
+        //
+        // We just store function pointer to the generic element
+        // reading function.
+        let read_element = match encoding {
+            Encoding::BinaryBigEndian => read_element_bbe::<Buffer<R>>,
+            Encoding::BinaryLittleEndian => read_element_ble::<Buffer<R>>,
+            Encoding::Ascii => unreachable!(),
+        };
+
+        for _ in 0..element_def.count {
+            elem.data.clear();
+            read_element(buf, &index, elem)?;
+
+            // Send read properties to the sink.
+            sink.element(&elem)?;
+        }
+    }
+
+    Ok(())
+}
 
 // All three `read_element_*` functions have a specific function contract in
 // particular regarding the passed `raw_elem`:
