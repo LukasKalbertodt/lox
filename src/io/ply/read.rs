@@ -1425,6 +1425,12 @@ fn read_raw_element_group_binary<R: io::Read>(
         // This is only true of there are no properties. We have this explicit
         // check here to help the optimizer.
         if elem_len == 0 {
+            // We need to call `element` for each element anyway. We can just
+            // pass the empty `elem`.
+            for _ in 0..element_def.count {
+                sink.element(&elem)?;
+            }
+
             return Ok(());
         }
 
