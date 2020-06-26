@@ -158,8 +158,6 @@ fn check_triangle_extra_props(res: &RawStorage) {
     assert_eq!(g0.def.property_defs[PropIndex(7)].ty, PropertyType::Scalar(ScalarType::UShort));
 
     // ===== VERTEX 0 =====
-    println!("{:?}", g0.elements[0].data);
-    println!("{:#?}", g0.elements[0].prop_infos);
     assert_eq!(g0.elements[0].prop_infos[PropIndex(0)].offset, RawOffset(0));
     assert_eq!(g0.elements[0].prop_infos[PropIndex(1)].offset, RawOffset(4));
     assert_eq!(g0.elements[0].prop_infos[PropIndex(2)].offset, RawOffset(8));
@@ -827,6 +825,33 @@ fn check_unusual_order(m: &AnyMesh) {
 }
 
 gen_for_encodings!(read_any, unusual_order);
+
+
+fn check_no_vertex_props(m: &AnyMesh) {
+    let vh = VertexHandle::new;
+    let fh = FaceHandle::new;
+    let (v0, v1, v2, v3) = (vh(0), vh(1), vh(2), vh(3));
+    let (f0, f1) = (fh(0), fh(1));
+
+    // Mesh and connectivity
+    assert_eq!(m.mesh.num_vertices(), 4);
+    assert_eq!(m.mesh.num_faces(), 2);
+
+    assert_eq!(m.mesh.vertex_handles().collect::<Vec<_>>(), [v0, v1, v2, v3]);
+    assert_eq!(m.mesh.face_handles().collect::<Vec<_>>(), [f0, f1]);
+
+    assert_rotated_eq!(m.mesh.vertices_around_face(f0).collect::<Vec<_>>(), [v0, v1, v2]);
+    assert_rotated_eq!(m.mesh.vertices_around_face(f1).collect::<Vec<_>>(), [v0, v2, v3]);
+
+    assert!(m.vertex_positions.is_none());
+    assert!(m.vertex_normals.is_none());
+    assert!(m.vertex_colors.is_none());
+    assert!(m.face_normals.is_none());
+    assert!(m.face_colors.is_none());
+    assert!(m.edge_colors.is_none());
+}
+
+gen_for_encodings!(read_any, no_vertex_props);
 
 
 // TODO: read tests where the mesh hands out strange handles
