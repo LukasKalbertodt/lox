@@ -14,7 +14,7 @@ use super::{
     EDGE_ELEMENT_NAMES,
     FACE_ELEMENT_NAMES,
     VERTEX_ELEMENT_NAMES,
-    raw::{ElementDef, PropertyType, PropIndex, ScalarType},
+    raw::{ElementDef, PropertyType, PropIndex, ScalarType, ListLenType},
 };
 
 
@@ -56,7 +56,8 @@ pub struct EdgeInfo {
 /// Information about the `vertex_indices` property of the 'face' element.
 #[derive(Debug, Clone, Copy)]
 pub struct VertexIndicesInfo {
-    pub ty: ScalarType,
+    pub scalar_ty: ScalarType,
+    pub len_ty: ListLenType,
     pub idx: PropIndex,
 }
 
@@ -196,11 +197,14 @@ impl VertexIndicesInfo {
         };
 
         let vi = &group.property_defs[vi_idx];
-        if !vi.ty.is_list() {
-            return Err(
-                invalid_input!("'vertex_indices' property has a scalar type (must be a list)")
-            );
-        }
+        let (len_ty, scalar_ty) = match vi.ty {
+            PropertyType::List { len_type, scalar_type } => (len_type, scalar_type),
+            _ => {
+                return Err(
+                    invalid_input!("'vertex_indices' property has a scalar type (must be a list)")
+                );
+            }
+        };
 
         if vi.ty.scalar_type().is_floating_point() {
             return Err(invalid_input!(
@@ -210,7 +214,8 @@ impl VertexIndicesInfo {
         }
 
         Ok(Self {
-            ty: vi.ty.scalar_type(),
+            scalar_ty,
+            len_ty,
             idx: vi_idx,
         })
     }

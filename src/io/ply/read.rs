@@ -42,7 +42,7 @@ use super::{
     },
     raw::{
         ElementDef, PropertyDef, PropertyType, PropIndex, RawElement,
-        ScalarType, RawStorage, RawSink, RawListInfo,
+        ScalarType, RawStorage, RawSink,
         ListLenType, RawOffset, RawPropertyInfo,
         ScalarLen,
     },
@@ -705,6 +705,35 @@ impl IdxProvider<RgbColorProp> for EdgeReadState {
     }
 }
 
+trait ListLen {
+    const SIZE: u8;
+    fn read(src: &[u8]) -> u32;
+}
+impl ListLen for u8 {
+    const SIZE: u8 = 1;
+
+    #[inline(always)]
+    fn read(src: &[u8]) -> u32 {
+        src[0] as u32
+    }
+}
+impl ListLen for u16 {
+    const SIZE: u8 = 2;
+
+    #[inline(always)]
+    fn read(src: &[u8]) -> u32 {
+        u16::from_ne_bytes(src.try_into().unwrap()) as u32
+    }
+}
+impl ListLen for u32 {
+    const SIZE: u8 = 4;
+
+    #[inline(always)]
+    fn read(src: &[u8]) -> u32 {
+        u32::from_ne_bytes(src.try_into().unwrap())
+    }
+}
+
 
 /// Something that is associated with a specific element (through the `Handle`)
 /// and can provide the handle of the currently handled element.
@@ -827,7 +856,7 @@ struct RawTransferSink<'a, S: MemSink> {
     /// `Err` if an vertex index is not valid or if the sink returns an error
     /// from `add_face`.
     read_face_vertex_indices:
-        fn(&mut Self, &RawElement, &RawListInfo) -> Result<FaceHandle, Error>,
+        fn(&mut Self, &RawElement, (u32, RawOffset)) -> Result<FaceHandle, Error>,
 
     /// This is a temporary buffer for `read_face_vertex_indices` to store
     /// vertex handles in. It shouldn't be used except inside of
@@ -997,8 +1026,8 @@ impl<'a, S: MemSink> RawTransferSink<'a, S> {
         let (vertex_indices_idx, read_face_vertex_indices)
             = match info.face.as_ref().map(|f| f.vertex_indices)
         {
-            Some(VertexIndicesInfo { idx, ty }) => {
-                let fun = match ty {
+            Some(VertexIndicesInfo { idx, scalar_ty, .. }) => {
+                let fun = match scalar_ty {
                     ScalarType::Char => Self::read_face_vertex_indices::<i8>,
                     ScalarType::UChar => Self::read_face_vertex_indices::<u8>,
                     ScalarType::Short => Self::read_face_vertex_indices::<i16>,
@@ -1014,7 +1043,7 @@ impl<'a, S: MemSink> RawTransferSink<'a, S> {
             }
             None => (
                 PropIndex(0),
-                Self::vertex_indices_bug as fn(&mut _, &_, &_) -> _,
+                Self::vertex_indices_bug as fn(&mut _, &_, _) -> _,
             ),
         };
 
@@ -1139,27 +1168,30 @@ impl<'a, S: MemSink> RawTransferSink<'a, S> {
         Ok(())
     }
 
-    fn handle_face<HasNormal: Bool, HasColor: Bool>(
+    fn handle_face<Len: ListLen, HasNormal: Bool, HasColor: Bool>(
         &mut self,
         elem: &RawElement,
     ) -> Result<(), Error> {
-        // `VertexIndicesInfo::new` already made sure that this is a
-        // list.
-        let vi_list = elem.decode_list_at(self.face_state.vertex_indices_idx)
-            .expect("bug in PLY reader: 'vertex_indices' not a list?");
+        // `VertexIndicesInfo::new` already made sure that this is a list.
+        let vi_offset = elem.prop_infos[self.face_state.vertex_indices_idx].offset;
+        let list_len = Len::read(&(*elem.data)[vi_offset.0 as usize..vi_offset.0 as usize + Len::SIZE as usize]);
+        let data_offset = vi_offset + RawOffset(Len::SIZE as u32);
+
+        // let vi_list = elem.decode_list_at(self.face_state.vertex_indices_idx)
+        //     .expect("bug in PLY reader: 'vertex_indices' not a list?");
 
         // Make sure the list is not too short.
-        if vi_list.list_len < 3 {
+        if list_len < 3 {
             return Err(invalid_input!(
                 "the face at index {} has only {} vertices, but at least 3 are required \
                     per face",
                 self.face_state.count,
-                vi_list.list_len,
+                list_len,
             ));
         }
 
         // Add face
-        let fh = (self.read_face_vertex_indices)(self, &elem, &vi_list)?;
+        let fh = (self.read_face_vertex_indices)(self, &elem, (list_len, data_offset))?;
         self.face_state.count += 1;
         self.face_state.current_handle = fh;
 
@@ -1194,7 +1226,7 @@ impl<'a, S: MemSink> RawTransferSink<'a, S> {
     fn vertex_indices_bug(
         &mut self,
         _: &RawElement,
-        _: &RawListInfo,
+        _: (u32, RawOffset),
     ) -> Result<FaceHandle, Error> {
         panic!("internal bug in PLY reader: 'vertex_indices' handler called but no faces")
     }
@@ -1204,11 +1236,11 @@ impl<'a, S: MemSink> RawTransferSink<'a, S> {
     fn read_face_vertex_indices<T: Primitive + FromBytes + PlyInteger>(
         &mut self,
         elem: &RawElement,
-        vi_list: &RawListInfo,
+        (list_len, data_offset): (u32, RawOffset),
     ) -> Result<FaceHandle, Error> {
         // Obtain the relevant raw slice (all the list data).
-        let start = vi_list.data_offset;
-        let end = start + RawOffset(vi_list.list_len * T::SIZE as u32);
+        let start = data_offset;
+        let end = start + RawOffset(list_len * T::SIZE as u32);
         let data = &elem.data[start..end];
 
         // Iterate over the list of indices to vertices, convert them
@@ -1301,11 +1333,19 @@ impl<S: MemSink> RawSink for RawTransferSink<'_, S> {
             }
             "face" => {
                 let info = self.info.face.as_ref().unwrap();
-                match (info.normal.is_some(), info.color.is_some()) {
-                    (false, false) => Self::handle_face::<False, False>,
-                    (false, true ) => Self::handle_face::<False, True >,
-                    (true , false) => Self::handle_face::<True , False>,
-                    (true , true ) => Self::handle_face::<True , True >,
+                match (info.vertex_indices.len_ty, info.normal.is_some(), info.color.is_some()) {
+                    (ListLenType::UChar,  false, false) => Self::handle_face::<u8,  False, False>,
+                    (ListLenType::UChar,  false, true ) => Self::handle_face::<u8,  False, True >,
+                    (ListLenType::UChar,  true , false) => Self::handle_face::<u8,  True , False>,
+                    (ListLenType::UChar,  true , true ) => Self::handle_face::<u8,  True , True >,
+                    (ListLenType::UShort, false, false) => Self::handle_face::<u16, False, False>,
+                    (ListLenType::UShort, false, true ) => Self::handle_face::<u16, False, True >,
+                    (ListLenType::UShort, true , false) => Self::handle_face::<u16, True , False>,
+                    (ListLenType::UShort, true , true ) => Self::handle_face::<u16, True , True >,
+                    (ListLenType::UInt,   false, false) => Self::handle_face::<u32, False, False>,
+                    (ListLenType::UInt,   false, true ) => Self::handle_face::<u32, False, True >,
+                    (ListLenType::UInt,   true , false) => Self::handle_face::<u32, True , False>,
+                    (ListLenType::UInt,   true , true ) => Self::handle_face::<u32, True , True >,
                 }
             }
             "edge" => {
