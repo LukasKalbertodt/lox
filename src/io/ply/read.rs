@@ -1174,7 +1174,11 @@ impl<'a, S: MemSink> RawTransferSink<'a, S> {
     ) -> Result<(), Error> {
         // `VertexIndicesInfo::new` already made sure that this is a list.
         let vi_offset = elem.prop_infos[self.face_state.vertex_indices_idx].offset;
-        let list_len = Len::read(&(*elem.data)[vi_offset.0 as usize..vi_offset.0 as usize + Len::SIZE as usize]);
+        let len_data = {
+            let start = vi_offset.0 as usize;
+            &(*elem.data)[start..start + Len::SIZE as usize]
+        };
+        let list_len = Len::read(len_data);
         let data_offset = vi_offset + RawOffset(Len::SIZE as u32);
 
         // let vi_list = elem.decode_list_at(self.face_state.vertex_indices_idx)
