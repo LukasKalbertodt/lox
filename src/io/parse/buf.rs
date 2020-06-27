@@ -213,13 +213,20 @@ impl<R: Read> Read for Buffer<R> {
 
 impl<R: Read> ParseBuf for Buffer<R> {
     fn prepare(&mut self, num_bytes: usize) -> Result<(), Error> {
-        if self.len() < num_bytes {
-            let diff = num_bytes - self.len();
-            let bytes_read = self.fill_buf_by(diff)?;
+        #[cold]
+        #[inline(never)]
+        fn fill(_self: &mut Buffer<impl Read>, diff: usize) -> Result<(), Error> {
+            let bytes_read = _self.fill_buf_by(diff)?;
 
             if bytes_read < diff {
-                return Err(ParseError::UnexpectedEof(self.offset() + self.len()).into());
+                return Err(ParseError::UnexpectedEof(_self.offset() + _self.len()).into());
             }
+
+            Ok(())
+        }
+
+        if self.len() < num_bytes {
+            return fill(self, num_bytes - self.len());
         }
 
         Ok(())
