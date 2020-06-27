@@ -1238,35 +1238,29 @@ impl<'a, S: MemSink> RawTransferSink<'a, S> {
         elem: &RawElement,
         (list_len, data_offset): (u32, RawOffset),
     ) -> Result<FaceHandle, Error> {
+        #[cold]
+        #[inline(never)]
+        fn index_err(index: usize) -> Error {
+            invalid_input!(
+                "invalid vertex index {} in PLY file: a face's `vertice_indices` \
+                    property refers to that vertex index, but no vertex with such \
+                    a high index exists in the file",
+                index,
+            )
+        }
+
         // Obtain the relevant raw slice (all the list data).
-        let start = data_offset;
-        let end = start + RawOffset(list_len * T::SIZE as u32);
-        let data = &elem.data[start..end];
+        let start = data_offset.0 as usize;
+        let end = start + (list_len as usize * T::SIZE as usize);
+        let data = &(*elem.data)[start..end];
 
         // Iterate over the list of indices to vertices, convert them
         // to handles and add the handles to `vertex_handles_buffer`.
-        self.vertex_handles_buffer.clear();
-        for raw in data.chunks(T::SIZE) {
+        self.vertex_handles_buffer.resize(list_len as usize, VertexHandle::new(0));
+        for (raw, handle) in data.chunks_exact(T::SIZE).zip(&mut self.vertex_handles_buffer) {
             let index = T::from_bytes_ne(raw).as_usize();
-
-            // TODO: the closure should probably be extracted into an
-            // `inline(never)` function that is not generic, to tackle
-            // code bloat.
-            let handle = self.vertex_state.handles.get(index).ok_or_else(|| {
-                invalid_input!(
-                    "invalid vertex index {} in PLY file: a face's `vertice_indices` \
-                        property refers to that vertex index, but no vertex with such \
-                        a high index exists in the file",
-                    index,
-                )
-            })?;
-
-            // TODO: we can probably improve performance a bit by
-            // preallocating the vector, setting the len to the list
-            // len and just write the elements. That way, `push`
-            // doesn't have to perform a capacity check each time.
-            // However, this optimization would require `unsafe` code.
-            self.vertex_handles_buffer.push(handle);
+            *handle = self.vertex_state.handles.get(index)
+                .ok_or_else(|| index_err(index))?;
         }
 
         // Add the face to the mesh.
