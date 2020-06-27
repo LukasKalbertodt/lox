@@ -564,6 +564,7 @@ impl fmt::Debug for RawOffset {
 
 /// Length of a PLY scalar value in bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum ScalarLen {
     One = 1,
     Two = 2,
