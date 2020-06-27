@@ -15,6 +15,9 @@
 #![deny(missing_debug_implementations)]
 #![deny(intra_doc_link_resolution_failure)]
 
+// TODO: specialization now warns, but min_specialization is not yet ready to be used here
+#![allow(incomplete_features)]
+
 
 pub extern crate cgmath;
 
