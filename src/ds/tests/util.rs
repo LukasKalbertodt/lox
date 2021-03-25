@@ -1119,7 +1119,7 @@ macro_rules! test_helper {
         macro_rules! __inner_helper {
             ($needle $needle) => { $body };
             ($needle $head) => { test_helper!(@if $needle in [$($tail),*] => $body) }
-        };
+        }
 
         __inner_helper!($needle $head)
     }};
