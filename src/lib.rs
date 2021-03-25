@@ -13,7 +13,7 @@
 #![feature(array_value_iter)]
 
 #![deny(missing_debug_implementations)]
-#![deny(intra_doc_link_resolution_failure)]
+#![deny(rustdoc::broken_intra_doc_links)]
 
 // TODO: specialization now warns, but min_specialization is not yet ready to be used here
 #![allow(incomplete_features)]
