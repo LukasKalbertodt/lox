@@ -10,7 +10,6 @@
 #![feature(specialization)]
 #![feature(associated_type_defaults)]
 #![feature(associated_type_bounds)]
-#![feature(array_value_iter)]
 #![feature(array_map)]
 #![feature(array_methods)]
 
