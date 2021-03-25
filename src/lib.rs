@@ -11,6 +11,8 @@
 #![feature(associated_type_defaults)]
 #![feature(associated_type_bounds)]
 #![feature(array_value_iter)]
+#![feature(array_map)]
+#![feature(array_methods)]
 
 #![deny(missing_debug_implementations)]
 #![deny(rustdoc::broken_intra_doc_links)]

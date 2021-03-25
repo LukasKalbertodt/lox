@@ -16,16 +16,6 @@ pub mod list;
 
 pub use list::{DynList, TriList, DiList};
 
-/// Extension trait, adding `map` to arrays of common sizes.
-pub trait ArrayMapExt<OutT>: ArrayExt {
-    type Out;
-
-    /// Maps each element of the array and returns a new array with the
-    /// results.
-    fn map<F>(self, mapping: F) -> Self::Out
-    where
-        F: FnMut(Self::Item) -> OutT;
-}
 
 /// An extension traits with useful methods for arrays of common sizes.
 ///
@@ -48,18 +38,6 @@ impl<T> ArrayExt for [T; 3] {
         Self::IntoIter::new(self)
     }
 }
-impl<T, OutT> ArrayMapExt<OutT> for [T; 3] {
-    type Out = [OutT; 3];
-
-    #[inline(always)]
-    fn map<F>(self, mut mapping: F) -> Self::Out
-    where
-        F: FnMut(Self::Item) -> OutT
-    {
-        let [a, b, c] = self;
-        [mapping(a), mapping(b), mapping(c)]
-    }
-}
 
 impl<'a, T> ArrayExt for &'a [T; 3] {
     type Item = &'a T;
@@ -68,18 +46,6 @@ impl<'a, T> ArrayExt for &'a [T; 3] {
     fn owned_iter(self) -> Self::IntoIter {
         let [a, b, c] = self;
         Self::IntoIter::new([a, b, c])
-    }
-}
-impl<T, OutT> ArrayMapExt<OutT> for &[T; 3] {
-    type Out = [OutT; 3];
-
-    #[inline(always)]
-    fn map<F>(self, mut mapping: F) -> Self::Out
-    where
-        F: FnMut(Self::Item) -> OutT
-    {
-        let [a, b, c] = self;
-        [mapping(a), mapping(b), mapping(c)]
     }
 }
 
@@ -91,18 +57,6 @@ impl<T> ArrayExt for [T; 4] {
         Self::IntoIter::new(self)
     }
 }
-impl<T, OutT> ArrayMapExt<OutT> for [T; 4] {
-    type Out = [OutT; 4];
-
-    #[inline(always)]
-    fn map<F>(self, mut mapping: F) -> Self::Out
-    where
-        F: FnMut(Self::Item) -> OutT
-    {
-        let [a, b, c, d] = self;
-        [mapping(a), mapping(b), mapping(c), mapping(d)]
-    }
-}
 
 impl<'a, T: Copy> ArrayExt for &'a [T; 4] {
     type Item = &'a T;
@@ -111,18 +65,6 @@ impl<'a, T: Copy> ArrayExt for &'a [T; 4] {
     fn owned_iter(self) -> Self::IntoIter {
         let [a, b, c, d] = self;
         Self::IntoIter::new([a, b, c, d])
-    }
-}
-impl<T: Copy, OutT> ArrayMapExt<OutT> for &[T; 4] {
-    type Out = [OutT; 4];
-
-    #[inline(always)]
-    fn map<F>(self, mut mapping: F) -> Self::Out
-    where
-        F: FnMut(Self::Item) -> OutT
-    {
-        let [a, b, c, d] = self;
-        [mapping(a), mapping(b), mapping(c), mapping(d)]
     }
 }
 

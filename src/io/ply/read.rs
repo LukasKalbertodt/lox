@@ -519,7 +519,7 @@ impl<T: Primitive + FromBytes> PropLayout for Vec3Layout<T> {
         // know that all `indices` are valid and all `offsets` are valid too. It
         // would be a bug if they weren't. But as this function is probably
         // called very rarely, it's not worth it introducing unsafe code.
-        let offsets = indices.map(|&i| elem.prop_infos[i].offset.0 as usize);
+        let offsets = indices.each_ref().map(|&i| elem.prop_infos[i].offset.0 as usize);
         offsets.map(|o| T::from_bytes_ne(&(*elem.data)[o..o + T::SIZE]))
     }
 }
@@ -549,7 +549,7 @@ impl<T: Primitive + FromBytes> PropLayout for Vec4Layout<T> {
         ]
     }
     fn extract_separate(elem: &RawElement, indices: &Self::Idx) -> Self::Out {
-        let offsets = indices.map(|&i| elem.prop_infos[i].offset.0 as usize);
+        let offsets = indices.each_ref().map(|&i| elem.prop_infos[i].offset.0 as usize);
         offsets.map(|o| T::from_bytes_ne(&(*elem.data)[o..o + T::SIZE]))
     }
 }

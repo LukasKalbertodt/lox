@@ -1,5 +1,7 @@
 //! Measures PLY IO read (parse) and write speeds.
 
+#![feature(array_map)]
+
 use std::io::Cursor;
 use criterion::{
     criterion_group, criterion_main, black_box, BatchSize, Criterion,
