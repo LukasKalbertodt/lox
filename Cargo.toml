@@ -19,7 +19,7 @@ large-handle = []
 io = []
 
 [dependencies]
-ahash = "0.3.5"
+ahash = "0.7"
 boolinator = "2.4"
 byteorder = "1.2"
 cgmath = "0.18"
