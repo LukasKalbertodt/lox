@@ -1279,6 +1279,7 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         assert!(
             self.vertices[v].outgoing.is_none(),
             "{:?} is not isolated but was passed to `remove_isolated_vertex",
+            v,
         );
 
         self.vertices.remove(v);

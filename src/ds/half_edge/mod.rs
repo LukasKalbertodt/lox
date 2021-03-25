@@ -561,7 +561,7 @@ impl<C: Config> HalfEdgeMesh<C> {
             // already. This would mean that we would create a non-manifold
             // edge.
             if let Some(he) = he {
-                assert!(self[he].face.is_none(), NON_MANIFOLD_EDGE_ERR);
+                assert!(self[he].face.is_none(), "{}", NON_MANIFOLD_EDGE_ERR);
             }
 
             // This `unsafe` is here because the `next` (and `prev`) field is
@@ -1287,6 +1287,7 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         assert!(
             self.vertices[v].outgoing.is_none(),
             "{:?} is not isolated but was passed to `remove_isolated_vertex",
+            v,
         );
 
         self.vertices.remove(v);
