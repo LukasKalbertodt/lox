@@ -4,11 +4,7 @@
 
 #![feature(trivial_bounds)]
 #![feature(never_type)]
-#![feature(doc_cfg)]
-#![feature(proc_macro_hygiene)]
-#![feature(try_blocks)]
 #![feature(specialization)]
-#![feature(associated_type_defaults)]
 #![feature(associated_type_bounds)]
 #![feature(array_map)]
 #![feature(array_methods)]
