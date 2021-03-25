@@ -1,8 +1,8 @@
 use std::{
     env,
+    error::Error,
     path::Path,
 };
-use failure::Error;
 
 use lox::{
     prelude::*,
@@ -16,7 +16,7 @@ use lox::{
 
 type MyMesh = MiniMesh<SharedVertexMesh>;
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), Box<dyn Error>> {
     color_backtrace::install();
 
     // Quick and dirty CLI argument parsing (not lox related)
@@ -43,7 +43,7 @@ fn write_sphere(
     bounding_sphere: &algo::bounding::BoundingSphere<Point3<f32>>,
     input_file: &str,
     name: &str,
-) -> Result<(), Error> {
+) -> Result<(), Box<dyn Error>> {
     // Write the bounding sphere into file
     let mesh_out = MyMesh::create_from(Sphere {
         radius: bounding_sphere.radius.into(),

@@ -1,5 +1,4 @@
-use std::env;
-use failure::Error;
+use std::{env, error::Error};
 
 use lox::{
     algo,
@@ -13,7 +12,7 @@ use lox::{
 
 type MyMesh = MiniMesh<HalfEdgeMesh<TriConfig>>;
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), Box<dyn Error>> {
     color_backtrace::install();
 
     // Quick and dirty CLI argument parsing (not lox related)

@@ -1,5 +1,5 @@
+use std::error::Error;
 use cgmath::{Point3, Vector3};
-use failure::Error;
 
 use crate::{
     mesh, MemSource, MemSink,
@@ -486,7 +486,7 @@ fn check_no_faces(m: &AnyMesh) {
     assert!(m.face_colors.is_none());
     assert!(m.edge_colors.is_none());
 }
-fn to_mem(config: Config, mesh: &impl MemSource) -> Result<Vec<u8>, Error> {
+fn to_mem(config: Config, mesh: &impl MemSource) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut v = Vec::new();
     config.into_writer(&mut v).transfer_from(mesh)?;
     Ok(v)
@@ -501,7 +501,7 @@ macro_rules! write_triangle {
     ($encoding:ident) => {
         paste::item! {
             #[test]
-            fn [<write_triangle_ $encoding>]() -> Result<(), Error> {
+            fn [<write_triangle_ $encoding>]() -> Result<(), Box<dyn Error>> {
                 let res = to_mem(encoding_config!($encoding), &triangle_mesh())?;
                 assert_eq_file!(
                     &res,
@@ -521,7 +521,7 @@ macro_rules! write_triangle_with_comments {
     ($encoding:ident) => {
         paste::item! {
             #[test]
-            fn [<write_triangle_with_comments_ $encoding>]() -> Result<(), Error> {
+            fn [<write_triangle_with_comments_ $encoding>]() -> Result<(), Box<dyn Error>> {
                 let config = encoding_config!($encoding)
                     .add_comment("My name is Tom")
                     .add_comment("Yes we can have multiple comments :)")
@@ -548,7 +548,7 @@ macro_rules! write_three_tris_many_props {
     ($encoding:ident) => {
         paste::item! {
             #[test]
-            fn [<write_three_tris_many_props_ $encoding>]() -> Result<(), Error> {
+            fn [<write_three_tris_many_props_ $encoding>]() -> Result<(), Box<dyn Error>> {
                 let res = to_mem(encoding_config!($encoding), &three_tris_many_props())?;
                 assert_eq_file!(
                     &res,
@@ -567,7 +567,7 @@ macro_rules! write_half_cube_with_normals {
     ($encoding:ident) => {
         paste::item! {
             #[test]
-            fn [<write_half_cube_with_normals_ $encoding>]() -> Result<(), Error> {
+            fn [<write_half_cube_with_normals_ $encoding>]() -> Result<(), Box<dyn Error>> {
                 let res = to_mem(encoding_config!($encoding), &half_cube_with_normals())?;
                 assert_eq_file!(
                     &res,
@@ -583,7 +583,7 @@ gen_for_encodings!(write_half_cube_with_normals);
 
 
 #[test]
-fn write_mesh_with_removed_elements() -> Result<(), Error> {
+fn write_mesh_with_removed_elements() -> Result<(), Box<dyn Error>> {
     let (mut mesh, mut vertex_positions) = mesh! {
         type: SharedVertexMesh,
         vertices: [
@@ -615,7 +615,7 @@ macro_rules! write_no_faces {
     ($encoding:ident) => {
         paste::item! {
             #[test]
-            fn [<write_no_faces_ $encoding>]() -> Result<(), Error> {
+            fn [<write_no_faces_ $encoding>]() -> Result<(), Box<dyn Error>> {
                 let (mesh, vertex_positions) = mesh! {
                     type: SharedVertexMesh,
                     vertices: [
@@ -651,7 +651,7 @@ macro_rules! read_raw_triangle {
     ($encoding:ident) => {
         paste::item! {
             #[test]
-            fn [<read_raw_triangle_ $encoding>]() -> Result<(), Error> {
+            fn [<read_raw_triangle_ $encoding>]() -> Result<(), Box<dyn Error>> {
                 let input = include_test_file!(
                     concat!("triangle_", stringify!($encoding), ".ply")
                 );
@@ -672,7 +672,7 @@ macro_rules! read_raw_triangle_with_comments {
     ($encoding:ident) => {
         paste::item! {
             #[test]
-            fn [<read_raw_triangle_with_comments_ $encoding>]() -> Result<(), Error> {
+            fn [<read_raw_triangle_with_comments_ $encoding>]() -> Result<(), Box<dyn Error>> {
                 let input = include_test_file!(
                     concat!("triangle_with_comments_", stringify!($encoding), ".ply")
                 );
@@ -699,7 +699,7 @@ gen_for_encodings!(read_raw_triangle_with_comments);
 /// We only need one test here (instead of one for ble, bbe and ascii) since
 /// the raw data was already checked above (in the `raw` tests).
 #[test]
-fn read_triangle() -> Result<(), Error> {
+fn read_triangle() -> Result<(), Box<dyn Error>> {
     let input = include_test_file!("triangle_ble.ply");
     let m = MiniMesh::<SharedVertexMesh>::create_from(Reader::new(input)?)?;
 
@@ -722,7 +722,7 @@ macro_rules! read_raw_triangle_with_extra_props {
     ($encoding:ident) => {
         paste::item! {
             #[test]
-            fn [<read_raw_triangle_with_extra_props_ $encoding>]() -> Result<(), Error> {
+            fn [<read_raw_triangle_with_extra_props_ $encoding>]() -> Result<(), Box<dyn Error>> {
                 let input = include_test_file!(
                     concat!("triangle_with_extra_props_", stringify!($encoding), ".ply")
                 );
@@ -741,7 +741,7 @@ gen_for_encodings!(read_raw_triangle_with_extra_props);
 /// We only need one test here (instead of one for ble, bbe and ascii) since
 /// the raw data was already checked above (in the `raw` tests).
 #[test]
-fn read_triangle_with_extra_props_mini_mesh() -> Result<(), Error> {
+fn read_triangle_with_extra_props_mini_mesh() -> Result<(), Box<dyn Error>> {
     let input = include_test_file!("triangle_with_extra_props_ble.ply");
     let m = MiniMesh::<SharedVertexMesh>::create_from(Reader::new(input)?)?;
 
@@ -766,7 +766,7 @@ macro_rules! read_any {
     ($encoding:ident, $stem:ident) => {
         paste::item! {
             #[test]
-            fn [<read_ $stem _ $encoding>] () -> Result<(), Error> {
+            fn [<read_ $stem _ $encoding>] () -> Result<(), Box<dyn Error>> {
                 let input = include_test_file!(
                     concat!(stringify!($stem), "_", stringify!($encoding), ".ply")
                 );

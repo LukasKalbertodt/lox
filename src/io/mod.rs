@@ -155,6 +155,7 @@
 //   things. Should be `pub(super)`.
 
 use std::{
+    backtrace::Backtrace,
     convert::TryInto,
     fmt,
     fs::File,
@@ -162,9 +163,7 @@ use std::{
     path::Path,
 };
 
-use failure::Backtrace;
 use cgmath::{Point3, Vector3};
-use failure::Fail;
 
 use crate::{
     handle::{VertexHandle, EdgeHandle, FaceHandle, hsize},
@@ -698,7 +697,7 @@ impl Error {
     pub fn new(kind: impl FnOnce() -> ErrorKind) -> Self {
         Self(Box::new(ErrorImpl {
             kind: kind(),
-            backtrace: Backtrace::new(),
+            backtrace: Backtrace::capture(),
         }))
     }
 
@@ -708,6 +707,19 @@ impl Error {
     }
 }
 
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.0.kind {
+            ErrorKind::Io(e) => Some(e),
+            ErrorKind::Parse(e) => Some(e),
+            _ => None,
+        }
+    }
+
+    fn backtrace(&self) -> Option<&Backtrace> {
+        Some(&self.0.backtrace)
+    }
+}
 
 impl From<io::Error> for Error {
     fn from(src: io::Error) -> Self {
@@ -724,16 +736,6 @@ impl From<ParseError> for Error {
 impl From<ErrorKind> for Error {
     fn from(src: ErrorKind) -> Self {
         Self::new(|| src)
-    }
-}
-
-impl Fail for Error {
-    fn name(&self) -> Option<&str> {
-        Some("io::Error")
-    }
-
-    fn backtrace(&self) -> Option<&Backtrace> {
-        Some(&self.0.backtrace)
     }
 }
 
@@ -758,7 +760,7 @@ impl fmt::Debug for Error {
 ///
 /// This type shouldn't be returned directly, but always via [`Error`] as it is
 /// more efficient and also stores a backtrace.
-#[derive(Debug, Fail)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
     /// An underlying IO error.

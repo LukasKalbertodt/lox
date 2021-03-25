@@ -23,7 +23,6 @@ ahash = "0.7"
 byteorder = "1.2"
 cgmath = "0.18"
 derive_more = "0.99"
-failure = "0.1.2"
 fxhash = "0.2"
 lox-macros = { path = "lox-macros" }
 num-traits = "0.2"

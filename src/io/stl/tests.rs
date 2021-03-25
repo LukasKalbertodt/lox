@@ -1,5 +1,5 @@
+use std::error::Error;
 use cgmath::Point3;
-use failure::Error;
 
 use crate as lox;
 use crate::{
@@ -59,7 +59,7 @@ fn check_flat_data(res: &RawStorage) {
 
 
 #[test]
-fn read_flat_ascii() -> Result<(), Error> {
+fn read_flat_ascii() -> Result<(), Box<dyn Error>> {
     let input = include_test_file!("flat_ascii.stl");
     let res = Reader::new(input)?.into_raw_storage()?;
 
@@ -70,7 +70,7 @@ fn read_flat_ascii() -> Result<(), Error> {
 }
 
 #[test]
-fn read_flat_binary() -> Result<(), Error> {
+fn read_flat_binary() -> Result<(), Box<dyn Error>> {
     let input = include_test_file!("flat_binary.stl");
     let res = Reader::new(input)?.into_raw_storage()?;
 
@@ -108,7 +108,7 @@ fn check_cube_data(res: &RawStorage) {
 }
 
 #[test]
-fn read_cube_ascii() -> Result<(), Error> {
+fn read_cube_ascii() -> Result<(), Box<dyn Error>> {
     let input = include_test_file!("cube_ascii.stl");
     let res = Reader::new(input)?.into_raw_storage()?;
 
@@ -119,7 +119,7 @@ fn read_cube_ascii() -> Result<(), Error> {
 }
 
 #[test]
-fn read_cube_binary() -> Result<(), Error> {
+fn read_cube_binary() -> Result<(), Box<dyn Error>> {
     let input = include_test_file!("cube_binary.stl");
     let res = Reader::new(input)?.into_raw_storage()?;
 
@@ -154,14 +154,14 @@ fn triangle_mesh() -> (
     }
 }
 
-fn to_mem(config: Config, src: &impl MemSource) -> Result<Vec<u8>, Error> {
+fn to_mem(config: Config, src: &impl MemSource) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut out = Vec::new();
     config.into_writer(&mut out).transfer_from(src)?;
     Ok(out)
 }
 
 #[test]
-fn write_triangle_ascii() -> Result<(), Error> {
+fn write_triangle_ascii() -> Result<(), Box<dyn Error>> {
     let (mesh, vertex_positions, face_normals) = triangle_mesh();
     let m = MiniMesh { mesh, vertex_positions };
 
@@ -175,7 +175,7 @@ fn write_triangle_ascii() -> Result<(), Error> {
 }
 
 #[test]
-fn write_triangle_binary() -> Result<(), Error> {
+fn write_triangle_binary() -> Result<(), Box<dyn Error>> {
     let (mesh, vertex_positions, face_normals) = triangle_mesh();
     let m = MiniMesh { mesh, vertex_positions };
 

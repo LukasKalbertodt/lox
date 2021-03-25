@@ -12,6 +12,7 @@
 #![feature(associated_type_bounds)]
 #![feature(array_map)]
 #![feature(array_methods)]
+#![feature(backtrace)]
 
 #![deny(missing_debug_implementations)]
 #![deny(rustdoc::broken_intra_doc_links)]

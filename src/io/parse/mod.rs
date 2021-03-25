@@ -9,8 +9,6 @@ use std::{
     io,
 };
 
-use failure::Fail;
-
 use crate::{
     io::{
         Error,
@@ -249,7 +247,7 @@ impl fmt::Display for Span {
 }
 
 /// Things that can go wrong when parsing.
-#[derive(Debug, Fail)]
+#[derive(Debug)]
 pub enum ParseError {
     /// Data was expected, but EOF was encountered at the given offset.
     UnexpectedEof(usize),
@@ -277,6 +275,8 @@ pub enum ParseError {
     /// A custom error message with an attached span.
     Custom(String, Span)
 }
+
+impl std::error::Error for ParseError {}
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
