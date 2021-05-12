@@ -11,7 +11,7 @@ use crate::{
 
 
 #[derive(StructOpt, Debug)]
-#[structopt(raw(setting = "structopt::clap::AppSettings::VersionlessSubcommands"))]
+#[structopt(setting(structopt::clap::AppSettings::VersionlessSubcommands))]
 pub struct Args {
     #[structopt(flatten)]
     pub global: GlobalArgs,
@@ -28,14 +28,12 @@ pub struct GlobalArgs {
 #[derive(StructOpt, Debug)]
 pub enum Command {
     /// Print information about a mesh file.
-    #[structopt(name = "info")]
     Info {
         #[structopt(flatten)]
         args: InfoArgs,
     },
 
     /// Converts a mesh from one file format into another one.
-    #[structopt(name = "convert")]
     Convert {
         #[structopt(flatten)]
         args: ConvertArgs,
@@ -46,18 +44,15 @@ pub enum Command {
 pub struct ConvertArgs {
     /// Explicitly specify the source file format (otherwise it's guessed from
     /// the extension and file header). Valid values: ply, stl.
-    #[structopt(
-        long = "--source-format",
-        parse(try_from_str = "parse_file_format"),
-    )]
+    #[structopt(long, parse(try_from_str = parse_file_format))]
     pub source_format: Option<FileFormat>,
 
     /// Explicitly specify the target file format (otherwise it's guessed from
     /// the extension). Valid values: ply, stl.
     #[structopt(
         short = "-f",
-        long = "--target-format",
-        parse(try_from_str = "parse_file_format"),
+        long,
+        parse(try_from_str = parse_file_format),
     )]
     pub target_format: Option<FileFormat>,
 
@@ -66,7 +61,7 @@ pub struct ConvertArgs {
     /// 'ascii'.
     #[structopt(
         short = "-e",
-        long = "--target-encoding",
+        long,
         default_value = "binary",
     )]
     pub target_encoding: EncodingRequest,
@@ -79,37 +74,27 @@ pub struct ConvertArgs {
     pub target: String,
 
     /// If set, information about the source mesh won't be printed
-    #[structopt(
-        long = "--no-info",
-    )]
+    #[structopt(long)]
     pub no_info: bool,
 
     /// If set, face normals from the source mesh won't be written in the
     /// target mesh.
-    #[structopt(
-        long = "--without-fnormals",
-    )]
+    #[structopt(long)]
     pub without_fnormals: bool,
 
     /// If set, vertex normals from the source mesh won't be written in the
     /// target mesh.
-    #[structopt(
-        long = "--without-vnormals",
-    )]
+    #[structopt(long)]
     pub without_vnormals: bool,
 
     /// If set, face colors from the source mesh won't be written in the
     /// target mesh.
-    #[structopt(
-        long = "--without-fcolors",
-    )]
+    #[structopt(long)]
     pub without_fcolors: bool,
 
     /// If set, vertex colors from the source mesh won't be written in the
     /// target mesh.
-    #[structopt(
-        long = "--without-vcolors",
-    )]
+    #[structopt(long)]
     pub without_vcolors: bool,
 
     // TODO: --calc-fnormals
@@ -121,8 +106,8 @@ pub struct InfoArgs {
     /// Explicitly specify the source file format (otherwise it's guessed from
     /// the extension and file header). Valid values: ply, stl.
     #[structopt(
-        long = "--source-format",
-        parse(try_from_str = "parse_file_format"),
+        long,
+        parse(try_from_str = parse_file_format),
     )]
     pub source_format: Option<FileFormat>,
 
@@ -134,7 +119,7 @@ pub struct InfoArgs {
     /// `--header-only` nor `--read-body` is specified, the body will only be
     /// read if the header does not contain all information.
     #[structopt(
-        long = "--header-only",
+        long,
         conflicts_with = "--read-body"
     )]
     pub header_only: bool,
@@ -143,17 +128,15 @@ pub struct InfoArgs {
     /// even if the header already contains all relevant information. This has
     /// the advantage that the file completely inspected and any error is
     /// detected.
-    #[structopt(
-        long = "--read-body",
-    )]
+    #[structopt(long)]
     pub read_body: bool,
 
     /// If specified, the mesh is analyzed for additional properties (Is the
     /// mesh closed?, Bounding box of all vertice, ...). This requires reading
     /// the file body, so this implies `--read-body`.
     #[structopt(
-        short = "-a",
-        long = "--analyze",
+        short,
+        long,
         conflicts_with = "--header-only"
     )]
     pub analyze: bool,
