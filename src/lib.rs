@@ -213,7 +213,7 @@ pub use lox_macros::Empty;
 ///       [`Vec3Like`][crate::prop::Vec3Like].
 ///     - For `*_color`: `T::Target` must implement
 ///       [`ColorLike`][crate::prop::ColorLike] and `T::Target::Channel` must
-///       implement [`Primitive`].
+///       implement [`Primitive`][io::Primitive].
 #[cfg(feature= "io")]
 pub use lox_macros::MemSink;
 
@@ -258,13 +258,13 @@ pub use lox_macros::MemSink;
 ///   handle type). Additionally:
 ///     - For `vertex_position`: `T::Target` must implement
 ///       [`Pos3Like`][crate::prop::Pos3Like] and `T::Target::Scalar` must
-///       implement [`Primitive`].
+///       implement [`Primitive`][io::Primitive].
 ///     - For `*_normal`: `T::Target` must implement
 ///       [`Vec3Like`][crate::prop::Vec3Like] and `T::Target::Scalar` must
-///       implement [`Primitive`].
+///       implement [`Primitive`][io::Primitive].
 ///     - For `*_color`: `T::Target` must implement
 ///       [`ColorLike`][crate::prop::ColorLike] and `T::Target::Channel` must
-///       implement [`Primitive`].
+///       implement [`Primitive`][io::Primitive].
 #[cfg(feature= "io")]
 pub use lox_macros::MemSource;
 
