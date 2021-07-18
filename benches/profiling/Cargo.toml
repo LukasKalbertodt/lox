@@ -6,4 +6,4 @@ edition = "2018"
 
 [dependencies]
 lox = { path = "../.." }
-criterion = { version = "0.2", features = ["real_blackbox"] }
+criterion = { version = "0.3.4", features = ["real_blackbox"] }
