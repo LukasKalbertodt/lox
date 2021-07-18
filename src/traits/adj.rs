@@ -185,9 +185,10 @@ pub trait EdgeAdj: FullAdj + EdgeMesh {
 /// the sqrt3 algorithm). Once `impl Trait` in traits and/or GATs land, we can
 /// have the same speed but without all this noisy nonsense.
 ///
-/// To understand how this workaround works, please see my [blog
-/// post](http://tiny.cc/streaming-iterator-gats) on that topic. It's the
-/// workaround 2 from that post.
+/// To understand how this workaround works, please see my [blog post] on that
+/// topic. It's the workaround 2 from that post.
+///
+/// [blog post]: https://lukaskalbertodt.github.io/2018/08/03/solving-the-generalized-streaming-iterator-problem-without-gats.html
 pub trait HandleIterFamily<'a, H: Handle> {
     type Iter: Iterator<Item = H>;
 }
