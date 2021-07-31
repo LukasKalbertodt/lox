@@ -6,7 +6,6 @@
 #![feature(never_type)]
 #![feature(specialization)]
 #![feature(associated_type_bounds)]
-#![feature(array_map)]
 #![feature(array_methods)]
 #![feature(backtrace)]
 
