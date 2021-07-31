@@ -1,4 +1,4 @@
-use std::array;
+use std::{any::TypeId, array};
 
 use cgmath::{
     Point3,
@@ -140,19 +140,7 @@ impl MeshSizeHint {
 /// equality is tricky. In particular because this function is implemented
 /// using specialization which has known soundness holes regarding lifetimes.
 pub fn are_same_type<T: 'static, U: 'static>() -> bool {
-    trait SameType {
-        const ANSWER: bool;
-    }
-
-    impl<T: 'static, U: 'static> SameType for (T, U) {
-        default const ANSWER: bool = false;
-    }
-
-    impl<T: 'static> SameType for (T, T) {
-        const ANSWER: bool = true;
-    }
-
-    <(T, U) as SameType>::ANSWER
+    TypeId::of::<T>() == TypeId::of::<U>()
 }
 
 /// Returns the exact input if both given types `I` and `O` are the same type,
