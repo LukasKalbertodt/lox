@@ -64,9 +64,9 @@ fn read_three_tris_many_props_raw(c: &mut Criterion) {
         ascii: include_bytes!("../src/io/ply/test_files/three_tris_many_props_ascii.ply"),
     };
 
-    c.bench_function_over_inputs(
-        "read_ply_three_tris_all_props_raw",
-        |b, encoding| {
+    let mut group = c.benchmark_group("read_ply_three_tris_all_props_raw");
+    for encoding in ["ble", "bbe", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
             let reader = Reader::new(Cursor::new(FILES.get_for(encoding))).unwrap();
             let mut sink = NullRawSink;
 
@@ -75,16 +75,16 @@ fn read_three_tris_many_props_raw(c: &mut Criterion) {
                 |r| r.read_raw(&mut sink),
                 BatchSize::SmallInput,
             )
-        },
-        vec!["ble", "bbe", "ascii"],
-    );
+        });
+    }
+    group.finish();
 }
 
 /// Measures body reading of `three_tris_all_props` files via `RawSink`.
 fn read_sphere_raw(c: &mut Criterion) {
-    c.bench_function_over_inputs(
-        "ply_read_sphere_raw",
-        |b, encoding| {
+    let mut group = c.benchmark_group("ply_read_sphere_raw");
+    for encoding in ["ble", "bbe", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 ble: include_bytes!("../tests/files/ply/sphere_ble.ply"),
                 bbe: include_bytes!("../tests/files/ply/sphere_bbe.ply"),
@@ -98,14 +98,14 @@ fn read_sphere_raw(c: &mut Criterion) {
                 || reader.clone(),
                 |r| r.read_raw(&mut sink),
                 BatchSize::SmallInput,
-            )
-        },
-        vec!["ble", "bbe", "ascii"],
-    );
+            );
+        });
+    }
+    group.finish();
 
-    c.bench_function_over_inputs(
-        "ply_read_sphere_vnormals_raw",
-        |b, encoding| {
+    let mut group = c.benchmark_group("ply_read_sphere_vnormals_raw");
+    for encoding in ["ble", "bbe", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 ble: include_bytes!("../tests/files/ply/sphere_vnormals_ble.ply"),
                 bbe: include_bytes!("../tests/files/ply/sphere_vnormals_bbe.ply"),
@@ -119,17 +119,17 @@ fn read_sphere_raw(c: &mut Criterion) {
                 || reader.clone(),
                 |r| r.read_raw(&mut sink),
                 BatchSize::SmallInput,
-            )
-        },
-        vec!["ble", "bbe", "ascii"],
-    );
+            );
+        });
+    }
+    group.finish();
 }
 
 /// Measures body reading of `three_tris_all_props` files via `RawSink`.
 fn read_sphere_hl(c: &mut Criterion) {
-    c.bench_function_over_inputs(
-        "ply_read_sphere_hl",
-        |b, encoding| {
+    let mut group = c.benchmark_group("ply_read_sphere_hl");
+    for encoding in ["ble", "bbe", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 ble: include_bytes!("../tests/files/ply/sphere_ble.ply"),
                 bbe: include_bytes!("../tests/files/ply/sphere_bbe.ply"),
@@ -146,14 +146,14 @@ fn read_sphere_hl(c: &mut Criterion) {
                     out
                 },
                 BatchSize::SmallInput,
-            )
-        },
-        vec!["ble", "bbe", "ascii"],
-    );
+            );
+        });
+    }
+    group.finish();
 
-    c.bench_function_over_inputs(
-        "ply_read_sphere_ignore_vnormals_hl",
-        |b, encoding| {
+    let mut group = c.benchmark_group("ply_read_sphere_ignore_vnormals_hl");
+    for encoding in ["ble", "bbe", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 ble: include_bytes!("../tests/files/ply/sphere_vnormals_ble.ply"),
                 bbe: include_bytes!("../tests/files/ply/sphere_vnormals_bbe.ply"),
@@ -170,14 +170,14 @@ fn read_sphere_hl(c: &mut Criterion) {
                     out
                 },
                 BatchSize::SmallInput,
-            )
-        },
-        vec!["ble", "bbe", "ascii"],
-    );
+            );
+        });
+    }
+    group.finish();
 
-    c.bench_function_over_inputs(
-        "ply_read_sphere_vnormals_hl",
-        |b, encoding| {
+    let mut group = c.benchmark_group("ply_read_sphere_vnormals_hl");
+    for encoding in ["ble", "bbe", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 ble: include_bytes!("../tests/files/ply/sphere_vnormals_ble.ply"),
                 bbe: include_bytes!("../tests/files/ply/sphere_vnormals_bbe.ply"),
@@ -194,19 +194,19 @@ fn read_sphere_hl(c: &mut Criterion) {
                     out
                 },
                 BatchSize::SmallInput,
-            )
-        },
-        vec!["ble", "bbe", "ascii"],
-    );
+            );
+        });
+    }
+    group.finish();
 }
 
 /// Measures body reading of `three_tris_all_props` files via `RawSink`.
 fn write_sphere_raw(c: &mut Criterion) {
     // Writing only vertex positions
-    c.bench_function_over_inputs(
-        "ply_write_sphere_raw",
-        |b, encoding| {
-            let config = match *encoding {
+    let mut group = c.benchmark_group("ply_write_sphere_raw");
+    for encoding in ["ble", "bbe", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
+            let config = match encoding {
                 "ble" => Config::new(Encoding::BinaryLittleEndian),
                 "bbe" => Config::new(Encoding::BinaryBigEndian),
                 "ascii" => Config::ascii(),
@@ -254,16 +254,16 @@ fn write_sphere_raw(c: &mut Criterion) {
                 let _ = black_box(res);
                 black_box(&out);
                 out.clear();
-            })
-        },
-        vec!["ble", "bbe", "ascii"],
-    );
+            });
+        });
+    }
+    group.finish();
 
     // Writing vertex positions and normals
-    c.bench_function_over_inputs(
-        "ply_write_sphere_vnormals_raw",
-        |b, encoding| {
-            let config = match *encoding {
+    let mut group = c.benchmark_group("ply_write_sphere_vnormals_raw");
+    for encoding in ["ble", "bbe", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
+            let config = match encoding {
                 "ble" => Config::new(Encoding::BinaryLittleEndian),
                 "bbe" => Config::new(Encoding::BinaryBigEndian),
                 "ascii" => Config::ascii(),
@@ -311,20 +311,20 @@ fn write_sphere_raw(c: &mut Criterion) {
                 let _ = black_box(res);
                 black_box(&out);
                 out.clear();
-            })
-        },
-        vec!["ble", "bbe", "ascii"],
-    );
+            });
+        });
+    }
+    group.finish();
 }
 
 /// Measures body reading of `three_tris_all_props` files via `RawSink`.
 fn write_sphere_hl(c: &mut Criterion) {
     // Writing only vertex positions
-    c.bench_function_over_inputs(
-        "ply_write_sphere_hl",
-        |b, encoding| {
+    let mut group = c.benchmark_group("ply_write_sphere_hl");
+    for encoding in ["ble", "bbe", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
             let sphere = util::io::sphere();
-            let config = match *encoding {
+            let config = match encoding {
                 "ble" => Config::new(Encoding::BinaryLittleEndian),
                 "bbe" => Config::new(Encoding::BinaryBigEndian),
                 "ascii" => Config::ascii(),
@@ -342,17 +342,17 @@ fn write_sphere_hl(c: &mut Criterion) {
                 let _ = black_box(res);
                 black_box(&out);
                 out.clear();
-            })
-        },
-        vec!["ble", "bbe", "ascii"],
-    );
+            });
+        });
+    }
+    group.finish();
 
     // Writing vertex positions and normals
-    c.bench_function_over_inputs(
-        "ply_write_sphere_vnormals_hl",
-        |b, encoding| {
+    let mut group = c.benchmark_group("ply_write_sphere_vnormals_hl");
+    for encoding in ["ble", "bbe", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
             let sphere = util::io::sphere_vnormals();
-            let config = match *encoding {
+            let config = match encoding {
                 "ble" => Config::new(Encoding::BinaryLittleEndian),
                 "bbe" => Config::new(Encoding::BinaryBigEndian),
                 "ascii" => Config::ascii(),
@@ -370,10 +370,10 @@ fn write_sphere_hl(c: &mut Criterion) {
                 let _ = black_box(res);
                 black_box(&out);
                 out.clear();
-            })
-        },
-        vec!["ble", "bbe", "ascii"],
-    );
+            });
+        });
+    }
+    group.finish();
 }
 
 

@@ -47,9 +47,9 @@ impl AllEncodings {
 // ===============================================================================================
 
 fn read_sphere_raw(c: &mut Criterion) {
-    c.bench_function_over_inputs(
-        "stl_read_sphere_raw",
-        |b, encoding| {
+    let mut group = c.benchmark_group("stl_read_sphere_raw");
+    for encoding in ["binary", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 binary: include_bytes!("../tests/files/stl/sphere_binary.stl"),
                 ascii: include_bytes!("../tests/files/stl/sphere_ascii.stl"),
@@ -61,16 +61,16 @@ fn read_sphere_raw(c: &mut Criterion) {
                 || reader.clone(),
                 |r| r.read_raw(|tri| { black_box(tri); Ok(()) }),
                 BatchSize::SmallInput,
-            )
-        },
-        vec!["binary", "ascii"],
-    );
+            );
+        });
+    }
+    group.finish();
 }
 
 fn read_sphere_hl(c: &mut Criterion) {
-    c.bench_function_over_inputs(
-        "stl_read_sphere_ignore_fnormals_hl",
-        |b, encoding| {
+    let mut group = c.benchmark_group("stl_read_sphere_ignore_fnormals_hl");
+    for encoding in ["binary", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 binary: include_bytes!("../tests/files/stl/sphere_binary.stl"),
                 ascii: include_bytes!("../tests/files/stl/sphere_ascii.stl"),
@@ -86,14 +86,14 @@ fn read_sphere_hl(c: &mut Criterion) {
                     out
                 },
                 BatchSize::SmallInput,
-            )
-        },
-        vec!["binary", "ascii"],
-    );
+            );
+        });
+    }
+    group.finish();
 
-    c.bench_function_over_inputs(
-        "stl_sphere_fnormals_hl",
-        |b, encoding| {
+    let mut group = c.benchmark_group("stl_sphere_fnormals_hl");
+    for encoding in ["binary", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
             const FILES: AllEncodings = AllEncodings {
                 binary: include_bytes!("../tests/files/stl/sphere_binary.stl"),
                 ascii: include_bytes!("../tests/files/stl/sphere_ascii.stl"),
@@ -109,18 +109,18 @@ fn read_sphere_hl(c: &mut Criterion) {
                     out
                 },
                 BatchSize::SmallInput,
-            )
-        },
-        vec!["binary", "ascii"],
-    );
+            );
+        });
+    }
+    group.finish();
 }
 
 fn write_sphere_raw(c: &mut Criterion) {
-    c.bench_function_over_inputs(
-        "stl_write_sphere_raw",
-        |b, encoding| {
+    let mut group = c.benchmark_group("stl_write_sphere_raw");
+    for encoding in ["binary", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
             let triangles = util::io::stl::raw_sphere();
-            let config = match *encoding {
+            let config = match encoding {
                 "binary" => Config::binary(),
                 "ascii" => Config::ascii(),
                 _ => panic!("bug: wrong encoding in benchmark"),
@@ -138,18 +138,18 @@ fn write_sphere_raw(c: &mut Criterion) {
                 let _ = black_box(res);
                 black_box(&out);
                 out.clear();
-            })
-        },
-        vec!["binary", "ascii"],
-    );
+            });
+        });
+    }
+    group.finish();
 }
 
 fn write_sphere_hl(c: &mut Criterion) {
-    c.bench_function_over_inputs(
-        "stl_write_sphere_hl",
-        |b, encoding| {
+    let mut group = c.benchmark_group("stl_write_sphere_hl");
+    for encoding in ["binary", "ascii"] {
+        group.bench_with_input(encoding, encoding, |b, encoding| {
             let sphere = util::io::sphere();
-            let config = match *encoding {
+            let config = match encoding {
                 "binary" => Config::binary(),
                 "ascii" => Config::ascii(),
                 _ => panic!("bug: wrong encoding in benchmark"),
@@ -165,10 +165,10 @@ fn write_sphere_hl(c: &mut Criterion) {
                 let _ = black_box(res);
                 black_box(&out);
                 out.clear();
-            })
-        },
-        vec!["binary", "ascii"],
-    );
+            });
+        });
+    }
+    group.finish();
 }
 
 
