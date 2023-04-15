@@ -8,7 +8,6 @@ use crate::{
     map::DenseMap,
     mesh::SplitEdgeWithFacesResult,
     traits::marker::{False, TriFaces},
-    traits::adj::HandleIterFamily,
 };
 
 
@@ -182,22 +181,14 @@ impl BasicAdj for SharedVertexMesh {
         self.faces[face]
     }
 
-    type VerticesAroundFaceIterFamily = FaceToVertexIterFam;
+    type VerticesAroundFaceIter<'s> = array::IntoIter<VertexHandle, 3>;
 
-    fn vertices_around_face(&self, face: FaceHandle)
-        -> <Self::VerticesAroundFaceIterFamily as HandleIterFamily<'_, VertexHandle>>::Iter
-    {
+    fn vertices_around_face(&self, face: FaceHandle) -> Self::VerticesAroundFaceIter<'_> {
         self.vertices_around_triangle(face).into_iter()
     }
 }
 
 impl SupportsMultiBlade for SharedVertexMesh {}
-
-#[allow(missing_debug_implementations)]
-pub struct FaceToVertexIterFam(!);
-impl<'a> HandleIterFamily<'a, VertexHandle> for FaceToVertexIterFam {
-    type Iter = array::IntoIter<VertexHandle, 3>;
-}
 
 impl fmt::Debug for SharedVertexMesh {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

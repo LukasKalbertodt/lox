@@ -1,14 +1,10 @@
 //! Contains internal circulators, all kinds of iterators and implementations
 //! for the adjacency traits.
 
-use std::{
-    array,
-    marker::PhantomData,
-};
+use std::array;
 
 use crate::{
     prelude::*,
-    traits::adj::HandleIterFamily,
     util::{TriList, list::TriListIntoIter},
 };
 use super::{
@@ -87,11 +83,9 @@ impl<C: Config> BasicAdj for DirectedEdgeMesh<C> {
         [*self[a].target, *self[b].target, *self[c].target]
     }
 
-    type VerticesAroundFaceIterFamily = FaceToVertexIterFam;
+    type VerticesAroundFaceIter<'s> = array::IntoIter<VertexHandle, 3>;
 
-    fn vertices_around_face(&self, face: FaceHandle)
-        -> <Self::VerticesAroundFaceIterFamily as HandleIterFamily<'_, VertexHandle>>::Iter
-    {
+    fn vertices_around_face(&self, face: FaceHandle) -> Self::VerticesAroundFaceIter<'_> {
         self.vertices_around_triangle(face).into_iter()
     }
 }
@@ -109,29 +103,20 @@ impl<C: Config> FullAdj for DirectedEdgeMesh<C> {
     }
 
 
-    type FacesAroundFaceIterFamily = FaceToFaceIterFam;
-
-    fn faces_around_face(&self, face: FaceHandle)
-        -> <Self::FacesAroundFaceIterFamily as HandleIterFamily<'_, FaceHandle>>::Iter
-    {
+    type FacesAroundFaceIter<'s> = TriListIntoIter<FaceHandle>;
+    fn faces_around_face(&self, face: FaceHandle) -> Self::FacesAroundFaceIter<'_> {
         self.faces_around_triangle(face).into_iter()
     }
 
 
-    type FacesAroundVertexIterFamily = VertexToFaceIterFam<C>;
-
-    fn faces_around_vertex(&self, vh: VertexHandle)
-        -> <Self::FacesAroundVertexIterFamily as HandleIterFamily<'_, FaceHandle>>::Iter
-    {
+    type FacesAroundVertexIter<'s> = VertexToFaceIter<'s, C>;
+    fn faces_around_vertex(&self, vh: VertexHandle) -> Self::FacesAroundVertexIter<'_> {
         VertexToFaceIter(self.circulate_around_vertex(self.check_vertex(vh)))
     }
 
 
-    type VerticesAroundVertexIterFamily = VertexToVertexIterFam<C>;
-
-    fn vertices_around_vertex(&self, vh: VertexHandle)
-        -> <Self::VerticesAroundVertexIterFamily as HandleIterFamily<'_, VertexHandle>>::Iter
-    {
+    type VerticesAroundVertexIter<'s> = VertexToVertexIter<'s, C>;
+    fn vertices_around_vertex(&self, vh: VertexHandle) -> Self::VerticesAroundVertexIter<'_> {
         VertexToVertexIter::from_center(self, vh)
     }
 
@@ -173,24 +158,6 @@ impl<C: Config> FullAdj for DirectedEdgeMesh<C> {
 // ===== Iterators used by public interfaces
 // ===============================================================================================
 
-#[allow(missing_debug_implementations)]
-pub struct FaceToVertexIterFam(!);
-impl<'a> HandleIterFamily<'a, VertexHandle> for FaceToVertexIterFam {
-    type Iter = array::IntoIter<VertexHandle, 3>;
-}
-
-#[allow(missing_debug_implementations)]
-pub struct FaceToFaceIterFam(!);
-impl<'a> HandleIterFamily<'a, FaceHandle> for FaceToFaceIterFam {
-    type Iter = TriListIntoIter<FaceHandle>;
-}
-
-#[allow(missing_debug_implementations)]
-pub struct VertexToFaceIterFam<C: Config>(!, PhantomData<C>);
-impl<'a, C: Config> HandleIterFamily<'a, FaceHandle> for VertexToFaceIterFam<C> {
-    type Iter = VertexToFaceIter<'a, C>;
-}
-
 /// Iterator over all faces of a vertex. Is returned by `faces_around_vertex`.
 #[derive(Debug)]
 pub struct VertexToFaceIter<'a, C: Config>(CwVertexCirculator<'a, C>);
@@ -201,12 +168,6 @@ impl<C: Config> Iterator for VertexToFaceIter<'_, C> {
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(|outgoing| outgoing.face())
     }
-}
-
-#[allow(missing_debug_implementations)]
-pub struct VertexToVertexIterFam<C: Config>(!, PhantomData<C>);
-impl<'a, C: Config> HandleIterFamily<'a, VertexHandle> for VertexToVertexIterFam<C> {
-    type Iter = VertexToVertexIter<'a, C>;
 }
 
 /// Iterator over all neighbor vertices of a vertex. Is returned by

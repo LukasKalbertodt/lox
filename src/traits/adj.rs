@@ -9,7 +9,7 @@
 // - define some collection traits (`FullConnectivity`) or so
 
 use crate::{
-    handle::{Handle, EdgeHandle, FaceHandle, VertexHandle},
+    handle::{EdgeHandle, FaceHandle, VertexHandle},
     util::{DiList, TriList},
 };
 use super::{TriMesh, Mesh, EdgeMesh};
@@ -27,15 +27,14 @@ pub trait BasicAdj: Mesh {
     where
         Self: TriMesh;
 
-    type VerticesAroundFaceIterFamily: for<'a> HandleIterFamily<'a, VertexHandle>;
+    type VerticesAroundFaceIter<'s>: Iterator<Item = VertexHandle> where Self: 's;
 
     /// Returns the vertices around the given face in front-face CCW order.
     ///
     /// If you are dealing with a triangular mesh, rather use
     /// [`vertices_around_triangle`][BasicAdj::vertices_around_triangle]
     /// instead as it's usually faster.
-    fn vertices_around_face(&self, face: FaceHandle)
-        -> <Self::VerticesAroundFaceIterFamily as HandleIterFamily<'_, VertexHandle>>::Iter;
+    fn vertices_around_face(&self, face: FaceHandle) -> Self::VerticesAroundFaceIter<'_>;
 
     /// Checks whether the given vertex is adjacent to the given face.
     fn is_vertex_around_face(&self, vertex: VertexHandle, face: FaceHandle) -> bool {
@@ -61,7 +60,7 @@ pub trait FullAdj: BasicAdj {
     where
         Self: TriMesh;
 
-    type FacesAroundFaceIterFamily: for<'a> HandleIterFamily<'a, FaceHandle>;
+    type FacesAroundFaceIter<'s>: Iterator<Item = FaceHandle> where Self: 's;
 
     /// Returns the faces around the given face in front-face CCW order.
     ///
@@ -71,24 +70,21 @@ pub trait FullAdj: BasicAdj {
     ///
     /// TODO: explain that there can be duplicates in neighbor faces. We are
     /// basically iterating over edges and returning their other face.
-    fn faces_around_face(&self, face: FaceHandle)
-        -> <Self::FacesAroundFaceIterFamily as HandleIterFamily<'_, FaceHandle>>::Iter;
+    fn faces_around_face(&self, face: FaceHandle) -> Self::FacesAroundFaceIter<'_>;
 
-    type FacesAroundVertexIterFamily: for<'a> HandleIterFamily<'a, FaceHandle>;
-
-    /// Returns a list of all faces adjacent to the given vertex.
-    ///
-    /// The faces are listed in front-face CW (clockwise) order.
-    fn faces_around_vertex(&self, vertex: VertexHandle)
-        -> <Self::FacesAroundVertexIterFamily as HandleIterFamily<'_, FaceHandle>>::Iter;
-
-    type VerticesAroundVertexIterFamily: for<'a> HandleIterFamily<'a, VertexHandle>;
+    type FacesAroundVertexIter<'s>: Iterator<Item = FaceHandle> where Self: 's;
 
     /// Returns a list of all faces adjacent to the given vertex.
     ///
     /// The faces are listed in front-face CW (clockwise) order.
-    fn vertices_around_vertex(&self, vertex: VertexHandle)
-        -> <Self::VerticesAroundVertexIterFamily as HandleIterFamily<'_, VertexHandle>>::Iter;
+    fn faces_around_vertex(&self, vertex: VertexHandle) -> Self::FacesAroundVertexIter<'_>;
+
+    type VerticesAroundVertexIter<'s>: Iterator<Item = VertexHandle> where Self: 's;
+
+    /// Returns a list of all faces adjacent to the given vertex.
+    ///
+    /// The faces are listed in front-face CW (clockwise) order.
+    fn vertices_around_vertex(&self, vertex: VertexHandle) -> Self::VerticesAroundVertexIter<'_>;
 
 
     /// Checks if the given face lies on a boundary. A face is a boundary face
@@ -146,13 +142,12 @@ pub trait EdgeAdj: FullAdj + EdgeMesh {
     fn faces_of_edge(&self, edge: EdgeHandle) -> DiList<FaceHandle>;
     // TODO
 
-    type EdgesAroundVertexIterFamily: for<'a> HandleIterFamily<'a, EdgeHandle>;
-    fn edges_around_vertex(&self, vertex: VertexHandle)
-        -> <Self::EdgesAroundVertexIterFamily as HandleIterFamily<'_, EdgeHandle>>::Iter;
+    type EdgesAroundVertexIter<'s>: Iterator<Item = EdgeHandle> where Self: 's;
+    fn edges_around_vertex(&self, vertex: VertexHandle) -> Self::EdgesAroundVertexIter<'_>;
 
-    type EdgesAroundFaceIterFamily: for<'a> HandleIterFamily<'a, EdgeHandle>;
-    fn edges_around_face(&self, face: FaceHandle)
-        -> <Self::EdgesAroundFaceIterFamily as HandleIterFamily<'_, EdgeHandle>>::Iter;
+    type EdgesAroundFaceIter<'s>: Iterator<Item = EdgeHandle> where Self: 's;
+    fn edges_around_face(&self, face: FaceHandle) -> Self::EdgesAroundFaceIter<'_>;
+
     fn edges_around_triangle(&self, face: FaceHandle) -> [EdgeHandle; 3]
     where
         Self: TriMesh;
@@ -167,28 +162,4 @@ pub trait EdgeAdj: FullAdj + EdgeMesh {
         self.edges_around_vertex(a)
             .find(|&e| self.endpoints_of_edge(e).contains(&b))
     }
-}
-
-/// Abstracts over families of iterators over handles.
-///
-/// This is just part of a workaround. The problem: in these adjacency traits,
-/// we need to return iterators. But obviously, every mesh should be able to
-/// return its own iterator implementation. But, the iterator type is dependent
-/// on the `self` lifetime. Since `impl Trait` doesn't work in traits yet and
-/// since GATs haven't landed yet, we only have two possibilities:
-/// - Use `Box<dyn Iterator + '_>`: one allocation and each `next()´ call is
-///   virtual
-/// - This ugly hack
-///
-/// The `Box` version was implemented before for its simplicity. However, by
-/// using the ugly hack instead, we improve performance notably (around 20% in
-/// the sqrt3 algorithm). Once `impl Trait` in traits and/or GATs land, we can
-/// have the same speed but without all this noisy nonsense.
-///
-/// To understand how this workaround works, please see my [blog post] on
-/// that topic. It's the workaround 2 from that post.
-///
-/// [blog post]: https://git.io/JB6gX
-pub trait HandleIterFamily<'a, H: Handle> {
-    type Iter: Iterator<Item = H>;
 }
