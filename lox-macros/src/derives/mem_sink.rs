@@ -259,7 +259,7 @@ fn gen_prop_code(
         );
         let elem = quote! {
             lox::prop::#trait_name::map_scalar(&position, |s| {
-                lox::util::downcast_as(s).unwrap_or_else(|| panic!(#err_msg, N::TY))
+                *<dyn std::any::Any>::downcast_ref(&s).unwrap_or_else(|| panic!(#err_msg, N::TY))
             })
         };
 
@@ -376,7 +376,7 @@ fn gen_color_prop_code(
         );
         let value = quote! {
             lox::prop::ColorLike::map_channel(&color, |c| {
-                c.downcast_as().unwrap_or_else(|| panic!(#err_msg, C::TY))
+                *<dyn std::any::Any>::downcast_ref(&c).unwrap_or_else(|| panic!(#err_msg, C::TY))
             })
         };
 

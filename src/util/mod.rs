@@ -91,36 +91,6 @@ pub fn are_same_type<T: 'static, U: 'static>() -> bool {
     TypeId::of::<T>() == TypeId::of::<U>()
 }
 
-/// Returns the exact input if both given types `I` and `O` are the same type,
-/// `None` otherwise.
-///
-/// This function makes only sense in generic contexts where you want to get a
-/// specific type from a generic one.
-///
-/// The types are required to be `'static` because comparing lifetimes for
-/// equality is tricky. In particular because this function is implemented
-/// using specialization which has known soundness holes regarding lifetimes.
-pub fn downcast_as<I: 'static, O: 'static>(input: I) -> Option<O> {
-    trait DowncastAs<O> {
-        fn downcast_as(self) -> Option<O>;
-    }
-
-    impl<I: 'static, O: 'static> DowncastAs<O> for I {
-        default fn downcast_as(self) -> Option<O> {
-            None
-        }
-    }
-
-    impl<T: 'static> DowncastAs<T> for T {
-        default fn downcast_as(self) -> Option<T> {
-            Some(self)
-        }
-    }
-
-    DowncastAs::<O>::downcast_as(input)
-}
-
-
 
 #[cfg(test)]
 mod tests {
@@ -136,16 +106,5 @@ mod tests {
         assert!(!are_same_type::<u32, i32>());
         assert!(!are_same_type::<u32, String>());
         assert!(!are_same_type::<bool, String>());
-    }
-
-    #[test]
-    fn test_downcast_as() {
-        assert_eq!(downcast_as::<_, i32>(0i32), Some(0i32));
-        assert_eq!(downcast_as::<_, String>("hi".to_string()), Some("hi".to_string()));
-        assert_eq!(downcast_as::<_, bool>(true), Some(true));
-
-        assert_eq!(downcast_as::<_, u32>(0i32), None);
-        assert_eq!(downcast_as::<_, Option<u32>>("hi".to_string()), None);
-        assert_eq!(downcast_as::<_, u8>(true), None);
     }
 }

@@ -1,6 +1,8 @@
 //! Dynamically typed property maps (for all IO primitive types). Mainly used
 //! for [`AnyMesh`][super::AnyMesh].
 
+use std::any::Any;
+
 use cgmath::{Point3, Vector3};
 
 use crate::{
@@ -9,7 +11,6 @@ use crate::{
     handle::hsize,
     map::DenseMap,
     io::{ColorType, Primitive, PrimitiveType, PrimitiveColorChannelType},
-    util::downcast_as,
 };
 
 
@@ -81,7 +82,7 @@ macro_rules! gen_vec3_any_map {
                 macro_rules! get {
                     ($map:ident) => {{
                         $map.get(handle).map(|p| {
-                            p.map(|s| downcast_as(s).unwrap())
+                            p.map(|s| *<dyn Any>::downcast_ref(&s).unwrap())
                         })
                     }}
                 }
@@ -148,7 +149,7 @@ macro_rules! gen_vec3_any_map {
 
                 macro_rules! insert {
                     ($map:ident, $convert:ident) => {{
-                        $map.insert(handle, prop.map(|s| downcast_as(s).unwrap()));
+                        $map.insert(handle, prop.map(|s| *<dyn Any>::downcast_ref(&s).unwrap()));
                     }}
                 }
 
@@ -302,7 +303,7 @@ impl<H: Handle> AnyColorMap<H> {
         macro_rules! get {
             ($map:ident, $n:expr) => {{
                 $map.get(handle).map(|c| {
-                    ColorLike::convert(&downcast_as::<_, [C::Channel; $n]>(*c).unwrap())
+                    ColorLike::convert(<dyn Any>::downcast_ref::<[C::Channel; $n]>(&*c).unwrap())
                 })
             }}
         }
@@ -371,7 +372,7 @@ impl<H: Handle> AnyColorMap<H> {
     {
         macro_rules! insert {
             ($map:ident, $n:expr) => {{
-                let value = downcast_as::<_, _>(ColorLike::convert::<[_; $n]>(&prop)).unwrap();
+                let value = *<dyn Any>::downcast_ref(&ColorLike::convert::<[_; $n]>(&prop)).unwrap();
                 $map.insert(handle, value);
             }}
         }

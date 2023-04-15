@@ -150,7 +150,8 @@ fn gen_prop_code(
                     lox::prop::#trait_name::map_scalar(&*p, |s| {
                         // A few lines above we checked that the cast is indeed
                         // possible. If this fails, there is a bug in lox.
-                        lox::util::downcast_as(s).expect("internal bug in `lox::cast` module")
+                        *<dyn std::any::Any>::downcast_ref(&s)
+                            .expect("internal bug in `lox::cast` module")
                     })
                 })
             )
@@ -252,7 +253,8 @@ fn gen_color_prop_code(
                     lox::prop::ColorLike::map_channel(&*color, |c| {
                         // A few lines above we checked that the cast is indeed
                         // possible. If this fails, there is a bug in lox.
-                        lox::util::downcast_as(c).expect("internal bug in `lox::cast` module")
+                        *<dyn std::any::Any>::downcast_ref(&c)
+                            .expect("internal bug in `lox::cast` module")
                     })
                 })
             )
