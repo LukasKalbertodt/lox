@@ -116,6 +116,7 @@ impl SpannedCastMode {
 /// The field used as the core mesh.
 #[derive(Debug)]
 pub(crate) struct CoreMeshField {
+    #[allow(dead_code)]
     pub(crate) span: Span,
     pub(crate) name: Ident,
     pub(crate) ty: Type,
@@ -127,6 +128,7 @@ pub(crate) struct ColorPropField {
     /// If `cast = ` is specified, this is `true` for `cast = "rounding"` and
     /// `false` for `cast = "none"`.
     pub(crate) allow_cast: Option<bool>,
+    #[allow(dead_code)]
     pub(crate) span: Span,
     pub(crate) name: Ident,
     pub(crate) ty: Type,
@@ -137,6 +139,7 @@ pub(crate) struct ColorPropField {
 #[derive(Debug)]
 pub(crate) struct PropField {
     pub(crate) cast_mode: Option<SpannedCastMode>,
+    #[allow(dead_code)]
     pub(crate) span: Span,
     pub(crate) name: Ident,
     pub(crate) ty: Type,
