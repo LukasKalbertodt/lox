@@ -219,7 +219,6 @@ pub(crate) struct Vertex {
 }
 
 /// Data stored per half edge.
-#[derive(Copy)]
 struct HalfEdge<C: Config> {
     /// The adjacent face, if one exists.
     face: Opt<Checked<FaceHandle>>,
