@@ -8,7 +8,7 @@ use crate::{
     handle::{hsize, Handle},
     traits::Empty,
 };
-use super::{boo, PropMap, PropStore, PropStoreMut};
+use super::{PropMap, PropStore, PropStoreMut, Value};
 
 
 /// A property map using a hashmap to store the properties.
@@ -48,9 +48,9 @@ impl<H: Handle + Hash, T> SparseMap<H, T> {
 
 impl<H: Handle + Hash, T> PropMap<H> for SparseMap<H, T> {
     type Target = T;
-    type Marker = boo::Borrowed;
+    type Ret<'s> = &'s Self::Target where Self::Target: 's;
 
-    fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target, Self::Marker>> {
+    fn get(&self, handle: H) -> Option<Value<Self::Ret<'_>, Self::Target>> {
         self.get_ref(handle).map(Into::into)
     }
 

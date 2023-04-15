@@ -2,7 +2,7 @@
 
 
 use std::{
-    ops,
+    ops, marker::PhantomData, fmt, borrow::Borrow,
 };
 
 use crate::{
@@ -17,7 +17,6 @@ mod tests;
 
 pub mod adaptors;
 pub mod aliases;
-pub mod boo;
 mod dense;
 mod fn_map;
 pub mod set;
@@ -36,12 +35,20 @@ pub use self::{
 
 
 
+
 /// A mapping from a handle to some data (property).
 ///
 /// This is a bare minimal trait representing all types that can map a handle
 /// to optional data, called property. The returned property can be owned or
 /// borrowed from `self`.
 ///
+/// The abstraction over 'owned' and 'borrowed' is not easy and is more verbose
+/// than I'd like. Ideally, this trait would have one `type Target<'s>` and the
+/// `get` method would return `Option<Self::Target<'_>>`. However, that's far
+/// from ideal in practice. To solve this, the returned value is wrapped in
+/// [`Value`] which is a very thin wrapper, that also implements `Deref`. Also,
+/// for several reasons, there are two associated types: [`Self::Target`] and
+/// [`Self::Ret`].
 ///
 /// # Completeness
 ///
@@ -64,15 +71,26 @@ pub use self::{
 ///
 /// - Example how to use `PropMap`s
 /// - Example how to implement `PropMap`
-/// - Explain strange `boo` thingies
 /// - Trait alias
 pub trait PropMap<H: Handle> {
+    /// The owned prop type that this map maps to.
+    ///
+    /// This is basically what [`Self::get`] returns, but without any borrows of
+    /// `self`. For example, `SparseMap<H, T>` sets this to `T`, but its `get`
+    /// method returns `&T`. `Ret` is set to `&T` then.
+    ///
+    /// This is the associated type that should be used for trait bounds, i.e.
+    /// if you have a prop map but need to constraint the prop type. Example:
+    /// `M: FacePropMap, M::Target: fmt::Display`.
     type Target;
-    type Marker: boo::Marker;
+
+    /// Return type of [`Self::get`]: either `Self::Target` or `&Self::Target`.
+    type Ret<'s>: Borrow<Self::Target> where Self: 's;
 
     /// Returns the property associated with `handle` or `None` if no such
-    /// property exists.
-    fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target, Self::Marker>>;
+    /// property exists. For technical reasons, the returned value is wrapped
+    /// in [`Value`].
+    fn get(&self, handle: H) -> Option<Value<Self::Ret<'_>, Self::Target>>;
 
     /// Returns `true` if there is a property associated with `handle`, `false`
     /// otherwise.
@@ -85,7 +103,7 @@ pub trait PropMap<H: Handle> {
     ///
     /// This method only works when the given closure returns a new property by
     /// value. If you want to instead borrow from the old property, use
-    /// [`PropMap::map_ref`] instead.
+    /// TODO.
     ///
     /// This adaptor doesn't change for which handles a value is present. So
     /// `contains_handle` always returns the same result as on the original
@@ -162,7 +180,7 @@ pub trait PropMap<H: Handle> {
     fn map_value<F, TargetT>(&self, f: F) -> adaptors::Mapper<'_, Self, F>
     where
         Self: Sized,
-        F: Fn(boo::Wrap<'_, Self::Target, Self::Marker>) -> TargetT,
+        F: Fn(Value<Self::Ret<'_>, Self::Target>) -> TargetT,
     {
         adaptors::Mapper {
             inner: self,
@@ -170,49 +188,49 @@ pub trait PropMap<H: Handle> {
         }
     }
 
-    /// Creates a new prop map that applies the given function to each element
-    /// of the original map. Similar to [`PropMap::map_value`].
-    ///
-    /// The closure given to this function has to borrow from the original
-    /// property. If you want to return an owned value instead, use
-    /// [`PropMap::map_value`]. Otherwise, this method works exactly like
-    /// `map_value`.
-    ///
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use lox::{
-    ///     FaceHandle,
-    ///     prelude::*,
-    ///     map::SparseMap,
-    /// };
-    ///
-    /// // Just shortcuts for later
-    /// let f0 = FaceHandle::from_usize(0);
-    /// let f1 = FaceHandle::from_usize(1);
-    ///
-    /// // Create a sparse map and insert two values
-    /// let mut orig = SparseMap::new();
-    /// orig.insert(f0, ["a".to_string(), "b".to_string()]);
-    /// orig.insert(f1, ["x".to_string(), "y".to_string()]);
-    ///
-    /// // Map the value by taking the first element.
-    /// let mapped = orig.map_ref(|s| &s[0]);
-    ///
-    /// assert_eq!(mapped.get(f0).map(|v| v.into_inner().as_str()), Some("a"));
-    /// assert_eq!(mapped.get(f1).map(|v| v.into_inner().as_str()), Some("x"));
-    /// ```
-    fn map_ref<F, TargetT>(&self, f: F) -> adaptors::RefMapper<'_, Self, F>
-    where
-        Self: Sized + PropMap<H, Marker = boo::Borrowed>,
-        F: Fn(&Self::Target) -> &TargetT,
-    {
-        adaptors::RefMapper {
-            inner: self,
-            mapper: f,
-        }
-    }
+    // /// Creates a new prop map that applies the given function to each element
+    // /// of the original map. Similar to [`PropMap::map_value`].
+    // ///
+    // /// The closure given to this function has to borrow from the original
+    // /// property. If you want to return an owned value instead, use
+    // /// [`PropMap::map_value`]. Otherwise, this method works exactly like
+    // /// `map_value`.
+    // ///
+    // ///
+    // /// # Example
+    // ///
+    // /// ```
+    // /// use lox::{
+    // ///     FaceHandle,
+    // ///     prelude::*,
+    // ///     map::SparseMap,
+    // /// };
+    // ///
+    // /// // Just shortcuts for later
+    // /// let f0 = FaceHandle::from_usize(0);
+    // /// let f1 = FaceHandle::from_usize(1);
+    // ///
+    // /// // Create a sparse map and insert two values
+    // /// let mut orig = SparseMap::new();
+    // /// orig.insert(f0, ["a".to_string(), "b".to_string()]);
+    // /// orig.insert(f1, ["x".to_string(), "y".to_string()]);
+    // ///
+    // /// // Map the value by taking the first element.
+    // /// let mapped = orig.map_ref(|s| &s[0]);
+    // ///
+    // /// assert_eq!(mapped.get(f0).map(|v| v.into_inner().as_str()), Some("a"));
+    // /// assert_eq!(mapped.get(f1).map(|v| v.into_inner().as_str()), Some("x"));
+    // /// ```
+    // fn map_ref<F, TargetT>(&self, f: F) -> adaptors::RefMapper<'_, Self, F>
+    // where
+    //     Self: Sized + PropMap<H, Marker = boo::Borrowed>,
+    //     F: Fn(&Self::Target) -> &TargetT,
+    // {
+    //     adaptors::RefMapper {
+    //         inner: self,
+    //         mapper: f,
+    //     }
+    // }
 }
 
 
@@ -352,3 +370,41 @@ impl<'map, H, T> Iterator for ValuesMut<'map, H, T> {
         self.0.next().map(|(_, v)| v)
     }
 }
+
+
+/// Wrapper for the value returned by [`PropMap::get`].
+pub struct Value<R, T>(R, PhantomData<T>);
+
+impl<R: Borrow<T>, T> From<R> for Value<R, T> {
+    fn from(value: R) -> Self {
+        Self(value, PhantomData)
+    }
+}
+
+impl<R: Borrow<T>, T> Value<R, T> {
+    pub fn into_inner(self) -> R {
+        self.0
+    }
+}
+
+impl<R: Borrow<T>, T> ops::Deref for Value<R, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.borrow()
+    }
+}
+
+impl<R: Borrow<T>, T: fmt::Debug> fmt::Debug for Value<R, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.borrow().fmt(f)
+    }
+}
+
+impl<R: Borrow<T>, T: PartialEq> PartialEq for Value<R, T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.borrow().eq(&other.0.borrow())
+    }
+}
+
+impl<R: Borrow<T>, T: Eq> Eq for Value<R, T> {}

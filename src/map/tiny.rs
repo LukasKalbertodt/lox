@@ -10,10 +10,7 @@ use crate::{
     handle::{hsize, Handle},
     traits::Empty,
 };
-use super::{
-    PropMap, PropStore, PropStoreMut,
-    boo,
-};
+use super::{PropMap, PropStore, PropStoreMut, Value};
 
 
 /// A property map optimized to hold very few elements.
@@ -53,9 +50,9 @@ impl<H: Handle, T> TinyMap<H, T> {
 
 impl<H: Handle, T> PropMap<H> for TinyMap<H, T> {
     type Target = T;
-    type Marker = boo::Borrowed;
+    type Ret<'s> = &'s Self::Target where Self::Target: 's;
 
-    fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target, Self::Marker>> {
+    fn get(&self, handle: H) -> Option<Value<Self::Ret<'_>, Self::Target>> {
         self.get_ref(handle).map(Into::into)
     }
 }

@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::handle::Handle;
-use super::{boo, PropMap};
+use super::{PropMap, Value};
 
 
 /// A map that always returns the same value for all handles (always `Some()`).
@@ -23,9 +23,9 @@ pub struct ConstMap<T>(pub T);
 
 impl<T, H: Handle> PropMap<H> for ConstMap<T> {
     type Target = T;
-    type Marker = boo::Borrowed;
+    type Ret<'s> = &'s Self::Target where Self::Target: 's;
 
-    fn get(&self, _: H) -> Option<boo::Wrap<'_, Self::Target, Self::Marker>> {
+    fn get(&self, _: H) -> Option<Value<Self::Ret<'_>, Self::Target>> {
         Some((&self.0).into())
     }
 }
@@ -61,9 +61,9 @@ impl<T> EmptyMap<T> {
 
 impl<T, H: Handle> PropMap<H> for EmptyMap<T> {
     type Target = T;
-    type Marker = boo::Owned;
+    type Ret<'s> = Self::Target where T: 's;
 
-    fn get(&self, _: H) -> Option<boo::Wrap<'_, Self::Target, Self::Marker>> {
+    fn get(&self, _: H) -> Option<Value<Self::Ret<'_>, Self::Target>> {
         None
     }
 }

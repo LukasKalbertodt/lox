@@ -1,5 +1,5 @@
 use crate::handle::Handle;
-use super::{boo, PropMap};
+use super::{PropMap, Value};
 
 
 /// A simple wrapper for property maps defined by functions (usually closures).
@@ -46,9 +46,9 @@ where
     F: Fn(H) -> Option<OutT>,
 {
     type Target = OutT;
-    type Marker = boo::Owned;
+    type Ret<'s> = Self::Target where F: 's;
 
-    fn get(&self, handle: H) -> Option<boo::Wrap<'_, Self::Target, Self::Marker>> {
+    fn get(&self, handle: H) -> Option<Value<Self::Ret<'_>, Self::Target>> {
         (self.0)(handle).map(Into::into)
     }
 }
