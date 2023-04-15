@@ -1,26 +1,3 @@
-
-// ===============================================================================================
-// ===== DynList
-// ===============================================================================================
-
-/// A list with a dynamic length (semantically equivalent to `Vec<_>`).
-///
-/// Several methods of mesh traits need to return a list of handles where the
-/// length is not statically known (e.g. faces around a vertex). We don't want
-/// to return `Vec<_>` from all those methods, because that would always
-/// require an allocation. So we have this more abstract construct. It is
-/// basically an iterator with some helper functions.
-///
-/// This way, you can decide how you want to work with the list of handles you
-/// receive. Either use this as an iterator in a `for` loop, or convert it to a
-/// `Vec<_>` with [`IteratorExt::into_vec`][super::IteratorExt::into_vec], or
-/// use the visitor pattern by using [`Iterator::for_each`].
-///
-/// *Note*: this is only a workaround until GATs have landed. Then, all those
-/// methods returning `DynList` now will basically return `impl Iterator`.
-pub type DynList<'a, T> = Box<dyn Iterator<Item = T> + 'a>;
-
-
 // ===============================================================================================
 // ===== TriList
 // ===============================================================================================

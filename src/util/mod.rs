@@ -14,7 +14,7 @@ use crate::{
 
 pub mod list;
 
-pub use list::{DynList, TriList, DiList};
+pub use list::{TriList, DiList};
 
 
 /// Extension trait to add some useful methods to any type implementing
