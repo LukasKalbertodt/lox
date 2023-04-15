@@ -81,7 +81,7 @@ impl<R: io::Read> Reader<R, UnifyVertices> {
         // First, we have to find out the encoding of this file. Since STL is a
         // pretty bad format, there is no clear indicator for the encoding.
         // There are only certain hints in one or the other direction. We
-        // consider four data points:
+        // consider three data points:
         //
         // - Starts with "solid"? (`starts_with_solid`)
         //     - No => binary (or corrupted)
@@ -94,7 +94,7 @@ impl<R: io::Read> Reader<R, UnifyVertices> {
         //     - `Mismatch` => ASCII (or corrupted)
         //     - `Match` => Could be both (though, ASCII is very unlikely)
         //
-        // First, we check all of these four things. One problem: the latter
+        // First, we check all of these three things. One problem: the latter
         // two points can only be checked if `R` is also `io::Seek`. To get
         // that information we use the `SeekHelper` trait.
 
