@@ -705,6 +705,10 @@ impl Error {
     pub fn kind(&self) -> &ErrorKind {
         &self.0.kind
     }
+
+    pub fn backtrace(&self) -> Option<&Backtrace> {
+        Some(&self.0.backtrace)
+    }
 }
 
 impl std::error::Error for Error {
@@ -714,10 +718,6 @@ impl std::error::Error for Error {
             ErrorKind::Parse(e) => Some(e),
             _ => None,
         }
-    }
-
-    fn backtrace(&self) -> Option<&Backtrace> {
-        Some(&self.0.backtrace)
     }
 }
 
