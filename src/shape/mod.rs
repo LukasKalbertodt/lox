@@ -146,7 +146,6 @@ impl Default for Square {
     }
 }
 
-
 impl StreamSource for Square {
     fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error> {
         assert!(
@@ -491,6 +490,83 @@ impl StreamSource for Sphere {
                 last_latitude_points[(i + 1) % num_longs],
                 last_latitude_points[i],
             ])?;
+        }
+
+        Ok(())
+    }
+}
+
+macro_rules! add_vertex {
+    ($sink:ident, $pos:expr) => {{
+        let v = $sink.add_vertex();
+        $sink.set_vertex_position(v, $pos);
+        v
+    }};
+}
+
+/// A regular icosahedron, one of the five platonic solids, consisting of 20
+/// triangular faces (30 edges, 12 vertices).
+#[derive(Debug, Clone, Copy)]
+pub struct Icosahedron {
+    /// The center (centroid of vertices) point of the Icosahedron. *Default*:
+    /// `[0, 0, 0]`.
+    pub center: Point3<f64>,
+
+    /// The outer "radius" (distance between vertices and center) *Default*:
+    /// 1.0.
+    pub radius: f64,
+}
+
+impl Default for Icosahedron {
+    fn default() -> Self {
+        Self {
+            center: Point3::origin(),
+            radius: 1.0,
+        }
+    }
+}
+
+impl StreamSource for Icosahedron {
+    fn transfer_to<S: MemSink>(self, sink: &mut S) -> Result<(), Error> {
+        // Prepare the sink
+        let vertex_count = 12;
+        let face_count = 20;
+
+        sink.size_hint(MeshSizeHint {
+            vertex_count: Some(vertex_count),
+            face_count: Some(face_count),
+        });
+
+        sink.prepare_vertex_positions::<f64>(vertex_count)?;
+
+        // Add vertices
+        const J: f64 = 0.525731112119133606;
+        const K: f64 = 0.850650808352039932;
+
+        let vertices = [
+            add_vertex!(sink, self.center + Vector3::new(0.0, J,   K  )),
+            add_vertex!(sink, self.center + Vector3::new(K,   0.0, J  )),
+            add_vertex!(sink, self.center + Vector3::new(J,   K,   0.0)),
+            add_vertex!(sink, self.center + Vector3::new(0.0, -J,  K  )),
+            add_vertex!(sink, self.center + Vector3::new(J,   -K,  0.0)),
+            add_vertex!(sink, self.center + Vector3::new(0.0, -J,  -K )),
+            add_vertex!(sink, self.center + Vector3::new(-K,  0.0, -J )),
+            add_vertex!(sink, self.center + Vector3::new(0.0, J,   -K )),
+            add_vertex!(sink, self.center + Vector3::new(-J,  K,   0.0)),
+            add_vertex!(sink, self.center + Vector3::new(K,   0.0, -J )),
+            add_vertex!(sink, self.center + Vector3::new(-K,  0.0, J  )),
+            add_vertex!(sink, self.center + Vector3::new(-J,  -K,  0.0)),
+        ];
+
+        // Add faces
+        let faces = [
+            [1, 2, 0], [1, 0, 3], [4, 1, 3], [6, 7, 5], [0, 2, 8],
+            [2, 7, 8], [7, 6, 8], [1, 4, 9], [5, 7, 9], [2, 1, 9],
+            [7, 2, 9], [4, 5, 9], [3, 0, 10], [0, 8, 10], [8, 6, 10],
+            [4, 3, 11], [3, 10, 11], [6, 5, 11], [5, 4, 11], [10, 6, 11],
+        ];
+        for face in faces {
+            sink.add_triangle(face.map(|i| vertices[i]))?;
         }
 
         Ok(())
