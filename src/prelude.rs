@@ -19,7 +19,7 @@ pub use crate::{
         adj::{BasicAdj, FullAdj, EdgeAdj},
         marker::{SupportsMultiBlade},
     },
-    util::{IteratorExt, ArrayExt, DynList},
+    util::{IteratorExt, DynList},
 };
 
 #[cfg(feature = "io")]

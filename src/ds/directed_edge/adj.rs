@@ -9,10 +9,7 @@ use std::{
 use crate::{
     prelude::*,
     traits::adj::HandleIterFamily,
-    util::{
-        TriList, ArrayExt,
-        list::TriListIntoIter,
-    },
+    util::{TriList, list::TriListIntoIter},
 };
 use super::{
     Config, DirectedEdgeMesh, Checked, HalfEdgeHandle, Twin,
@@ -95,7 +92,7 @@ impl<C: Config> BasicAdj for DirectedEdgeMesh<C> {
     fn vertices_around_face(&self, face: FaceHandle)
         -> <Self::VerticesAroundFaceIterFamily as HandleIterFamily<'_, VertexHandle>>::Iter
     {
-        self.vertices_around_triangle(face).owned_iter()
+        self.vertices_around_triangle(face).into_iter()
     }
 }
 

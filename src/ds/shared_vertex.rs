@@ -187,7 +187,7 @@ impl BasicAdj for SharedVertexMesh {
     fn vertices_around_face(&self, face: FaceHandle)
         -> <Self::VerticesAroundFaceIterFamily as HandleIterFamily<'_, VertexHandle>>::Iter
     {
-        self.vertices_around_triangle(face).owned_iter()
+        self.vertices_around_triangle(face).into_iter()
     }
 }
 

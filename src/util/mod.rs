@@ -1,4 +1,4 @@
-use std::{any::TypeId, array};
+use std::any::TypeId;
 
 use cgmath::{
     Point3,
@@ -15,58 +15,6 @@ use crate::{
 pub mod list;
 
 pub use list::{DynList, TriList, DiList};
-
-
-/// An extension traits with useful methods for arrays of common sizes.
-///
-/// Ideally, those methods would exist for all arrays, but as Rust doesn't
-/// offer const generics yet, this is impossible. To avoid duplicate code in
-/// several places, it's still useful to have this extension trait for the most
-/// common array length in this library.
-pub trait ArrayExt {
-    type Item;
-    type IntoIter;
-
-    fn owned_iter(self) -> Self::IntoIter;
-}
-
-impl<T> ArrayExt for [T; 3] {
-    type Item = T;
-    type IntoIter = array::IntoIter<T, 3>;
-
-    fn owned_iter(self) -> Self::IntoIter {
-        Self::IntoIter::new(self)
-    }
-}
-
-impl<'a, T> ArrayExt for &'a [T; 3] {
-    type Item = &'a T;
-    type IntoIter = array::IntoIter<&'a T, 3>;
-
-    fn owned_iter(self) -> Self::IntoIter {
-        let [a, b, c] = self;
-        Self::IntoIter::new([a, b, c])
-    }
-}
-
-impl<T> ArrayExt for [T; 4] {
-    type Item = T;
-    type IntoIter = array::IntoIter<T, 4>;
-
-    fn owned_iter(self) -> Self::IntoIter {
-        Self::IntoIter::new(self)
-    }
-}
-
-impl<'a, T: Copy> ArrayExt for &'a [T; 4] {
-    type Item = &'a T;
-    type IntoIter = array::IntoIter<&'a T, 4>;
-
-    fn owned_iter(self) -> Self::IntoIter {
-        let [a, b, c, d] = self;
-        Self::IntoIter::new([a, b, c, d])
-    }
-}
 
 
 /// Extension trait to add some useful methods to any type implementing
