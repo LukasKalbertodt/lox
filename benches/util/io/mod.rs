@@ -4,7 +4,7 @@ use lox::{
     prelude::*,
     VertexHandle, FaceHandle,
     cgmath::{Point3, Vector3},
-    ds::SharedVertexMesh,
+    core::SharedVertexMesh,
     fat::MiniMesh,
     handle::hsize,
     map::DenseMap,

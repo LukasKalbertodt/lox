@@ -1,4 +1,4 @@
-use crate::ds::{StoreField, OmitField, half_edge::*};
+use crate::core::{StoreField, OmitField, half_edge::*};
 
 mod tri {
     use super::*;

@@ -19,7 +19,7 @@ use crate::{
 #[allow(unused_macros)]
 macro_rules! assert_eq_set {
     ($left:expr, $right:expr $(,)?) => {
-        crate::ds::tests::util::assert_eq_set_fn(
+        crate::core::tests::util::assert_eq_set_fn(
             $left,
             $right,
             stringify!($left),
@@ -945,7 +945,7 @@ macro_rules! check_mesh {
         edges: $edge_checks:tt $(,)?
     }) => {{
         #[allow(unused_imports)] // Because of conditional code
-        use crate::ds::tests::util::{
+        use crate::core::tests::util::{
             MeshCheck, EdgeInfo, ElementCheck, ElementInfo, NeighborCheck, Symbols, SymbolHelper,
         };
 

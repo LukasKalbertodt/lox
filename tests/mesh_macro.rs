@@ -5,7 +5,7 @@
 use lox::{
     mesh,
     prelude::*,
-    ds::SharedVertexMesh,
+    core::SharedVertexMesh,
 };
 
 
@@ -122,12 +122,12 @@ fn check_vertices_of_face_are_unique(mesh: &(impl BasicAdj + TriMesh)) {
 
 mod inner {
     pub(crate) fn make_mesh() -> (
-        lox::ds::SharedVertexMesh,
+        lox::core::SharedVertexMesh,
         lox::map::DenseMap<lox::VertexHandle, char>,
         lox::map::DenseMap<lox::FaceHandle, u32>,
     ) {
         lox::mesh! {
-            type: lox::ds::SharedVertexMesh,
+            type: lox::core::SharedVertexMesh,
             vertices: [
                 v0: ('x'),
                 v1: ('y'),
@@ -159,7 +159,7 @@ fn rectangle_multi_props_inner_mod() {
 #[test]
 fn poly_faces() {
     use lox::{
-        ds::{HalfEdgeMesh, half_edge::PolyConfig},
+        core::{HalfEdgeMesh, half_edge::PolyConfig},
     };
 
     let mesh = mesh! {

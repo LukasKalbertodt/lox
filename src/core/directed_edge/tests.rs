@@ -1,4 +1,4 @@
-use crate::ds::{StoreField, OmitField};
+use crate::core::{StoreField, OmitField};
 use super::*;
 
 mod minimal {

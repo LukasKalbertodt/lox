@@ -23,7 +23,7 @@ mod test_utils;
 
 pub mod algo;
 pub mod cast;
-pub mod ds;
+pub mod core;
 // #[cfg(feature = "io")]
 // pub mod fat;
 pub mod handle;
@@ -103,7 +103,7 @@ pub use lox_macros::Empty;
 // /// use lox::{
 // ///     MemSink, VertexHandle,
 // ///     cgmath::Point3,
-// ///     ds::HalfEdgeMesh,
+// ///     core::HalfEdgeMesh,
 // ///     map::DenseMap,
 // /// };
 // ///
@@ -168,7 +168,7 @@ pub use lox_macros::Empty;
 // /// # use lox::{
 // /// #     MemSink, VertexHandle,
 // /// #     cgmath::{Point3, Vector3},
-// /// #     ds::HalfEdgeMesh,
+// /// #     core::HalfEdgeMesh,
 // /// #     map::DenseMap,
 // /// # };
 // /// #
@@ -220,7 +220,7 @@ pub use lox_macros::Empty;
 // /// use lox::{
 // ///     MemSource, VertexHandle,
 // ///     cgmath::Point3,
-// ///     ds::SharedVertexMesh,
+// ///     core::SharedVertexMesh,
 // ///     map::DenseMap,
 // /// };
 // ///
@@ -281,7 +281,7 @@ pub use lox_macros::Empty;
 /// use lox::{
 ///     mesh,
 ///     prelude::*,
-///     ds::SharedVertexMesh,
+///     core::SharedVertexMesh,
 /// };
 ///
 ///
@@ -324,7 +324,7 @@ pub use lox_macros::Empty;
 /// #![feature(proc_macro_hygiene)]
 /// use lox::{
 ///     mesh,
-///     ds::SharedVertexMesh,
+///     core::SharedVertexMesh,
 /// };
 ///
 ///
@@ -357,7 +357,7 @@ pub use lox_macros::Empty;
 /// #![feature(proc_macro_hygiene)]
 /// use lox::{
 ///     mesh,
-///     ds::SharedVertexMesh,
+///     core::SharedVertexMesh,
 /// };
 ///
 ///

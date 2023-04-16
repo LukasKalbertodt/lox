@@ -104,7 +104,7 @@ impl<'a, MeshT: 'a + FullAdj> VertexRef<'a, MeshT> {
     /// use lox::{
     ///     prelude::*,
     ///     refs::{FaceRef, VertexRef},
-    ///     ds::HalfEdgeMesh,
+    ///     core::HalfEdgeMesh,
     /// };
     ///
     /// //    (A)---(D)
@@ -139,7 +139,7 @@ impl<'a, MeshT: 'a + FullAdj> VertexRef<'a, MeshT> {
     /// use lox::{
     ///     mesh,
     ///     prelude::*,
-    ///     ds::HalfEdgeMesh,
+    ///     core::HalfEdgeMesh,
     ///     map::DenseMap,
     /// };
     ///

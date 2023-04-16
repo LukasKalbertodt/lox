@@ -1,7 +1,7 @@
 #![feature(proc_macro_hygiene)]
 
 use lox::{
-    ds::SharedVertexMesh,
+    core::SharedVertexMesh,
     mesh,
 };
 

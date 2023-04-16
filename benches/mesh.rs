@@ -10,7 +10,7 @@ use lox::{
         Point3, Vector3,
         prelude::*,
     },
-    ds::{
+    core::{
         DirectedEdgeMesh, HalfEdgeMesh, SharedVertexMesh,
         half_edge::TriConfig,
     },

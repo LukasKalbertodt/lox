@@ -19,10 +19,10 @@ fn unnamed() {
     struct UnnamedEmpty();
 
     #[derive(lox::Empty)]
-    struct UnnamedSingle(lox::ds::SharedVertexMesh);
+    struct UnnamedSingle(lox::core::SharedVertexMesh);
 
     #[derive(lox::Empty)]
-    struct UnnamedTwo(lox::ds::SharedVertexMesh, lox::map::DenseMap<lox::FaceHandle, u32>);
+    struct UnnamedTwo(lox::core::SharedVertexMesh, lox::map::DenseMap<lox::FaceHandle, u32>);
 
 
     let _ = <UnnamedEmpty as lox::traits::Empty>::empty();
@@ -40,12 +40,12 @@ fn named() {
 
     #[derive(lox::Empty)]
     struct NamedSingle {
-        mesh: lox::ds::SharedVertexMesh,
+        mesh: lox::core::SharedVertexMesh,
     }
 
     #[derive(lox::Empty)]
     struct NamedTwo {
-        mesh: lox::ds::SharedVertexMesh,
+        mesh: lox::core::SharedVertexMesh,
         stuff: lox::map::DenseMap<lox::FaceHandle, u32>,
     }
 
