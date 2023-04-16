@@ -1,12 +1,7 @@
 use std::any::TypeId;
-
-use cgmath::{
-    Point3,
-    prelude::*,
-};
+use lina::Point3;
 
 use crate::{
-    cast,
     handle::hsize,
     prop::Pos3Like,
 };
@@ -24,18 +19,11 @@ pub trait IteratorExt: Sized + Iterator {
         self.collect()
     }
 
-    fn centroid(mut self) -> Option<Self::Item>
+    fn centroid(self) -> Option<Self::Item>
     where
         Self::Item: Pos3Like,
     {
-        self.next().map(|first| {
-            let first = first.to_point3().to_vec();
-            let (count, total_displacement) = self.fold((1, first), |(count, sum), p| {
-                (count + 1, sum + p.to_point3().to_vec())
-            });
-
-            Point3::from_vec(total_displacement / cast::lossy(count)).convert()
-        })
+        Point3::centroid(self.map(|item| item.to_point3())).map(|p| p.convert())
     }
 }
 

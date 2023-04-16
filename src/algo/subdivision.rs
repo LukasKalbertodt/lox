@@ -2,10 +2,7 @@ use std::{
     collections::HashMap,
 };
 
-use cgmath::{
-    Point3,
-    prelude::*
-};
+use lina::Point3;
 
 use crate::{
     prelude::*,

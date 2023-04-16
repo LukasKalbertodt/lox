@@ -1,4 +1,4 @@
-use cgmath::{Point3, Vector3};
+use lina::{Point3, Vec3};
 
 use crate::{
     cast,
@@ -8,7 +8,7 @@ use crate::{
 /// Types that can be interpreted to represent some kind of 3D position.
 ///
 /// This type is implemented for strongly typed "position"-types, like
-/// `cgmath::Point3`, as well as for generic "weaker" types such as tuples
+/// `lina::Point3`, as well as for generic "weaker" types such as tuples
 /// `(T, T, T)` and arrays `[T; 3]`. However, to avoid logic errors, you should
 /// try to use strong types to represent points in 3D space instead of simple
 /// tuples.
@@ -92,7 +92,7 @@ impl<T: PrimitiveNum> Pos3Like for [T; 3] {
 /// vector.
 ///
 /// This type is implemented for strongly typed "vector"-types, like
-/// `cgmath::Vector3`, as well as for generic "weaker" types such as tuples
+/// `lina::Vec3`, as well as for generic "weaker" types such as tuples
 /// `(T, T, T)` and arrays `[T; 3]`. However, to avoid logic errors, you should
 /// try to use strong types to represent direction vectors instead of simple
 /// tuples.
@@ -133,13 +133,13 @@ pub trait Vec3Like: Copy {
         )
     }
 
-    fn to_vector3(&self) -> Vector3<Self::Scalar> {
+    fn to_vec3(&self) -> Vec3<Self::Scalar> {
         self.convert()
     }
 }
 
 
-impl<T: PrimitiveNum> Vec3Like for Vector3<T> {
+impl<T: PrimitiveNum> Vec3Like for Vec3<T> {
     type Scalar = T;
     fn from_coords(x: Self::Scalar, y: Self::Scalar, z: Self::Scalar) -> Self {
         Self::new(x, y, z)

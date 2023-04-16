@@ -21,9 +21,9 @@ io = []
 [dependencies]
 ahash = "0.7"
 byteorder = "1.2"
-cgmath = "0.18"
 derive_more = "0.99"
 fxhash = "0.2"
+lina = "0.1.3"
 lox-macros = { path = "lox-macros" }
 num-traits = "0.2"
 optional = "0.5"

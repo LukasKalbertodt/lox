@@ -15,7 +15,7 @@
 #![allow(incomplete_features)]
 
 
-pub extern crate cgmath;
+pub extern crate lina;
 
 // This is done for proc macros from `lox-macros`. These use paths starting
 // with `lox`. This makes sense for all crates using `lox` as dependency. But

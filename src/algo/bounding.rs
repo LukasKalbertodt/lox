@@ -1,9 +1,6 @@
 use std::fmt;
 
-use cgmath::{
-    prelude::*,
-    Point3,
-};
+use lina::Point3;
 
 use crate::{
     math::PrimitiveFloat,
@@ -39,7 +36,7 @@ where
         let mut out = origin;
 
         for p in positions.clone().map(|p| p.to_point3()) {
-            let dist = p.distance2(origin);
+            let dist = p.distance2_from(origin);
             if dist > max {
                 max = dist;
                 out = p;
@@ -56,13 +53,13 @@ where
     let z = furthest_away_from(y);
 
     // The center is the midpoint between y and z.
-    let center = Point3::centroid(&[y, z]);
-    let mut radius = y.distance(center);
+    let center = Point3::centroid([y, z]).unwrap();
+    let mut radius = y.distance_from(center);
 
     // If any point lies outside the sphere, we grow the sphere to include it.
     // The center stays the same.
     for p in positions {
-        let dist = p.to_point3().distance(center);
+        let dist = p.to_point3().distance_from(center);
         if dist > radius {
             radius = dist;
         }
@@ -93,7 +90,7 @@ where
     let bounding_box = BoundingBox::around(positions.clone());
     let center = bounding_box.center();
     let radius = positions
-        .map(|p| p.to_point3().distance(center))
+        .map(|p| p.to_point3().distance_from(center))
         .max_by(|a, b| a.partial_cmp(b).unwrap())
         .unwrap();
 

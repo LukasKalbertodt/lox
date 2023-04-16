@@ -7,7 +7,7 @@
 //! properties, including vertex positions, are not stored in these core
 //! meshes. In order to store adjacency information, you have to use [property
 //! maps][crate::map]. There are also a few so called *fat meshes* defined in
-//! [the `fat` module][crate::fat] which store a core mesh plus additional
+//! the `fat` module (TODO) which store a core mesh plus additional
 //! properties.
 //!
 //!

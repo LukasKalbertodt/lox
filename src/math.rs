@@ -1,12 +1,7 @@
 //! Abstractions over numerical types and vector-like types.
 
 
-use std::{
-    fmt::Debug,
-};
-
-use cgmath::BaseFloat;
-use num_traits::{Float, FloatConst, Num, NumAssign, NumCast};
+use num_traits::{Float, FloatConst, NumAssign, NumCast};
 
 use crate::{
     cast::{self, CastFrom, CastInto, Fidelity},
@@ -17,16 +12,13 @@ use crate::{
 ///
 /// This trait is automatically implemented for all types that satisfy the
 /// super-trait constraints.
-///
-/// Note that this is very similar to `cgmath::BaseNum`. Right now, the only
-/// difference is the additional `'static` bound and the `PrimitiveCast` bound.
 pub trait PrimitiveNum:
-    'static + Copy + Debug + Num + PartialOrd + NumAssign + NumCast + PrimitiveCast<cast::Lossy>
+    'static + lina::Scalar + PartialOrd + NumAssign + NumCast + PrimitiveCast<cast::Lossy>
 {}
 
 impl<T> PrimitiveNum for T
 where
-    T: 'static + Copy + Debug + Num + PartialOrd + NumAssign + NumCast + PrimitiveCast<cast::Lossy>,
+    T: 'static + lina::Scalar + PartialOrd + NumAssign + NumCast + PrimitiveCast<cast::Lossy>,
 {}
 
 /// Primitive floating point types: `f32` and `f64`.
@@ -37,7 +29,7 @@ pub trait PrimitiveFloat:
     PrimitiveNum
         + Float
         + FloatConst
-        + BaseFloat
+        + lina::Float
         + CastFrom<f32, Fidelity = cast::Lossless>
         + CastFrom<u8, Fidelity = cast::Lossless>
         + CastFrom<i8, Fidelity = cast::Lossless>
@@ -55,7 +47,7 @@ where
     T: PrimitiveNum
         + Float
         + FloatConst
-        + BaseFloat
+        + lina::Float
         + CastFrom<f32, Fidelity = cast::Lossless>
         + CastFrom<u8, Fidelity = cast::Lossless>
         + CastFrom<i8, Fidelity = cast::Lossless>

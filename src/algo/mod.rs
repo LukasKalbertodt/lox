@@ -1,4 +1,3 @@
-use cgmath::prelude::*;
 
 use crate::{
     prelude::*,
@@ -190,7 +189,7 @@ where
                     .to_point3()
             };
 
-            let distance_to_neighbor = pos_of(current.handle).distance(pos_of(nh));
+            let distance_to_neighbor = pos_of(current.handle).distance_from(pos_of(nh));
             let new_distance = current.distance + distance_to_neighbor;
 
             if new_distance < vertex_data[nh].distance {
