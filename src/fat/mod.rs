@@ -10,7 +10,7 @@
 //!
 //! This library is designed so that users can very easily create their own fat
 //! mesh types that store exactly the properties they need. Just define a struct
-//! and derive [`Empty`][crate::traits::Empty], [`MemSink`][crate::io::MemSink]
+//! and derive [`Empty`][crate::util::Empty], [`MemSink`][crate::io::MemSink]
 //! and [`MemSource`][crate::io::MemSource] for it. However, there are some very
 //! common requirements (e.g. "just `f32` vertex positions"), so that it's worth
 //! offering some very common fat mesh types here.

@@ -99,8 +99,9 @@ impl MeshInput {
             // with uniform paths, that would lead to a ambiguity error.
             use std::convert::Into;
             use lox::{
-                traits::{MeshMut, Empty},
+                core::MeshMut,
                 map::{PropStoreMut, DenseMap},
+                util::Empty,
             };
 
             let mut mesh = <#mesh_type as Empty>::empty();

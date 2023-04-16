@@ -10,16 +10,14 @@
 //! Now you have all important traits in scope.
 
 pub use crate::{
-    Empty,
     handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
     map::{PropMap, PropStore, PropStoreMut},
     prop::{ColorLike, Pos3Like, Vec3Like},
-    traits::{
-        Empty, Mesh, MeshMut, TriMesh, PolyMesh, EdgeMesh,
-        adj::{BasicAdj, FullAdj, EdgeAdj},
-        marker::{SupportsMultiBlade},
+    core::{
+        Mesh, MeshMut, TriMesh, PolyMesh, EdgeMesh,
+        BasicAdj, FullAdj, EdgeAdj, SupportsMultiBlade,
     },
-    util::IteratorExt,
+    util::{Empty, IteratorExt},
 };
 
 // #[cfg(feature = "io")]

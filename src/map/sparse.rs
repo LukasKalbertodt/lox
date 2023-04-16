@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     handle::{hsize, Handle},
-    traits::Empty,
+    util::Empty,
 };
 use super::{PropMap, PropStore, PropStoreMut, Value};
 

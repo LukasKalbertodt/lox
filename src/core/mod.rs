@@ -90,15 +90,47 @@ pub mod directed_edge;
 // mod face_delegate;
 pub mod half_edge;
 mod shared_vertex;
+mod traits;
 mod util;
+
+use crate::sealed::Sealed;
 
 pub use self::{
     directed_edge::DirectedEdgeMesh,
     // face_delegate::FaceDelegateMesh,
     half_edge::HalfEdgeMesh,
     shared_vertex::SharedVertexMesh,
+    traits::{
+        Mesh, MeshMut, BasicAdj, FullAdj, EdgeAdj, EdgeMesh, Orientable,
+        NonOrientable, SupportsMultiBlade, PolyMesh, TriMesh,
+    },
     util::{OptionalField, StoreField, OmitField},
 };
 
 pub(crate) use self::checked::Checked;
 
+
+/// A kind of faces a mesh data structure can store. Either [`TriFaces`] or
+/// [`PolyFaces`].
+///
+/// This is a sealed trait, meaning you cannot implement it for your own types.
+/// This library provides exactly two types that implement this trait.
+pub trait FaceKind: Sealed {
+    const ONLY_TRIANGLES: bool;
+}
+
+/// Only triangular faces are supported.
+#[allow(missing_debug_implementations)]
+pub enum TriFaces {}
+impl Sealed for TriFaces {}
+impl FaceKind for TriFaces {
+    const ONLY_TRIANGLES: bool = true;
+}
+
+/// Arbitrary polygons are allowed as faces.
+#[allow(missing_debug_implementations)]
+pub enum PolyFaces {}
+impl Sealed for PolyFaces {}
+impl FaceKind for PolyFaces {
+    const ONLY_TRIANGLES: bool = false;
+}

@@ -108,7 +108,7 @@
 //!
 
 use crate::{
-    sealed::Sealed, traits::marker::{Bool, True, False},
+    sealed::Sealed, util::{Bool, True, False},
 };
 
 

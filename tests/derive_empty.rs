@@ -6,28 +6,28 @@
 
 #[test]
 fn unit_like() {
-    #[derive(lox::Empty)]
+    #[derive(lox::util::Empty)]
     struct UnitLike;
 
-    let _ = <UnitLike as lox::traits::Empty>::empty();
+    let _ = <UnitLike as lox::util::Empty>::empty();
 }
 
 
 #[test]
 fn unnamed() {
-    #[derive(lox::Empty)]
+    #[derive(lox::util::Empty)]
     struct UnnamedEmpty();
 
-    #[derive(lox::Empty)]
+    #[derive(lox::util::Empty)]
     struct UnnamedSingle(lox::core::SharedVertexMesh);
 
-    #[derive(lox::Empty)]
+    #[derive(lox::util::Empty)]
     struct UnnamedTwo(lox::core::SharedVertexMesh, lox::map::DenseMap<lox::FaceHandle, u32>);
 
 
-    let _ = <UnnamedEmpty as lox::traits::Empty>::empty();
-    let _ = <UnnamedSingle as lox::traits::Empty>::empty();
-    let _ = <UnnamedTwo as lox::traits::Empty>::empty();
+    let _ = <UnnamedEmpty as lox::util::Empty>::empty();
+    let _ = <UnnamedSingle as lox::util::Empty>::empty();
+    let _ = <UnnamedTwo as lox::util::Empty>::empty();
 }
 
 
@@ -35,22 +35,22 @@ fn unnamed() {
 fn named() {
     #![allow(dead_code)]
 
-    #[derive(lox::Empty)]
+    #[derive(lox::util::Empty)]
     struct NamedEmpty {}
 
-    #[derive(lox::Empty)]
+    #[derive(lox::util::Empty)]
     struct NamedSingle {
         mesh: lox::core::SharedVertexMesh,
     }
 
-    #[derive(lox::Empty)]
+    #[derive(lox::util::Empty)]
     struct NamedTwo {
         mesh: lox::core::SharedVertexMesh,
         stuff: lox::map::DenseMap<lox::FaceHandle, u32>,
     }
 
 
-    let _ = <NamedEmpty as lox::traits::Empty>::empty();
-    let _ = <NamedSingle as lox::traits::Empty>::empty();
-    let _ = <NamedTwo as lox::traits::Empty>::empty();
+    let _ = <NamedEmpty as lox::util::Empty>::empty();
+    let _ = <NamedSingle as lox::util::Empty>::empty();
+    let _ = <NamedTwo as lox::util::Empty>::empty();
 }

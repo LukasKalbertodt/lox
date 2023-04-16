@@ -16,7 +16,7 @@ use stable_vec::{
 
 use crate::{
     handle::{hsize, Handle},
-    traits::Empty,
+    util::Empty,
 };
 use super::{PropMap, PropStore, PropStoreMut, Value};
 

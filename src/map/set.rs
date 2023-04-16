@@ -9,9 +9,8 @@ use std::{
 };
 
 use crate::{
-    Empty,
     handle::{hsize, Handle},
-    traits::Empty,
+    util::Empty,
 };
 use super::{
     DenseMap, Handles, PropMap, PropStore, PropStoreMut, SparseMap, TinyMap

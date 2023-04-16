@@ -7,8 +7,9 @@ use crate::{
     handle::hsize,
     map::DenseMap,
     mesh::SplitEdgeWithFacesResult,
-    traits::marker::{False, TriFaces},
+    util::False,
 };
+use super::TriFaces;
 
 
 /// One of the simplest and the most used data structure for representing

@@ -1,41 +1,13 @@
-use std::{
-    fmt,
-    marker::PhantomData,
-};
+use std::fmt;
 
 use crate::{
     handle::{Handle, hsize, FaceHandle, VertexHandle, EdgeHandle},
     mesh::{ElementRefIter, HandleIter, HandleIterMut, SplitEdgeWithFacesResult},
     refs::ElementRef,
+    util::{Bool, Empty, True, False, TriList, DiList},
 };
-use self::{
-    marker::{Bool, FaceKind, False, TriFaces, PolyFaces, True},
-};
+use super::{FaceKind, TriFaces, PolyFaces};
 
-pub mod marker;
-pub mod adj;
-
-
-
-
-/// Types that have a notion of “being empty” and can create such an empty
-/// instance.
-///
-/// This is very similar to `Default` from the standard library, but makes it
-/// explicit that the returned instance is *empty* and not just any default
-/// instance.
-///
-/// This trait is implemented for several standard types.
-///
-///
-/// # Deriving
-///
-/// This trait can automatically be derived. See [the derive
-/// macro](../derive.Empty.html) for more information on that.
-pub trait Empty {
-    /// Returns an empty value of this type.
-    fn empty() -> Self;
-}
 
 /// Some kind of polygon mesh.
 ///
@@ -329,7 +301,7 @@ pub trait MeshMut: Mesh {
     ///
     /// ```
     /// # //TODO: make it run
-    /// use lox::traits::MeshMut;
+    /// use lox::core::MeshMut;
     ///
     /// fn add_two_vertices(mesh: &mut impl MeshMut) {
     ///     let a = mesh.add_vertex();
@@ -404,7 +376,7 @@ pub trait MeshMut: Mesh {
     ///
     /// ```
     /// # //TODO: make it run
-    /// use lox::traits::MeshMut;
+    /// use lox::core::MeshMut;
     ///
     /// fn add_two_vertices(mesh: &mut impl MeshMut) {
     ///     mesh.add_vertex();
@@ -420,7 +392,7 @@ pub trait MeshMut: Mesh {
     ///
     /// ```
     /// # //TODO: make it run
-    /// use lox::traits::{TriMesh, MeshMut};
+    /// use lox::core::{TriMesh, MeshMut};
     ///
     /// fn add_two_vertices(mesh: &mut (impl TriMesh + MeshMut)) {
     ///     let a = mesh.add_vertex();
@@ -552,68 +524,159 @@ pub trait NonOrientable: Mesh {}
 
 impl<M: Mesh<Orientable = False>> NonOrientable for M {}
 
+/// Marker trait for meshes that support multi fan-blade vertices
+/// (technically not 2-manifold).
+///
+/// TODO: more explanation and image.
+pub trait SupportsMultiBlade: MeshMut {}
 
 
-// ===========================================================================
-// ===== Implementations
-// ===========================================================================
-macro_rules! impl_empty_via_default {
-    ($( { $($impl_header:tt)+ } ,)*) => {
-        $(
-            $($impl_header)* {
-                fn empty() -> Self {
-                    Self::default()
-                }
-            }
-        )*
+/// Meshes with *O*(1) face-to-vertex adjacency information.
+///
+/// This is the most important type of connectivity information since it's
+/// needed for most kinds of rendering and for writing to files (since most
+/// files are a simple *shared vertex mesh*). Almost all mesh data structures
+/// (all of the ones in this library) offer this kind of information.
+pub trait BasicAdj: Mesh {
+    /// Returns the vertices of the given triangular face in front-face CCW
+    /// order.
+    fn vertices_around_triangle(&self, face: FaceHandle) -> [VertexHandle; 3]
+    where
+        Self: TriMesh;
+
+    type VerticesAroundFaceIter<'s>: Iterator<Item = VertexHandle> where Self: 's;
+
+    /// Returns the vertices around the given face in front-face CCW order.
+    ///
+    /// If you are dealing with a triangular mesh, rather use
+    /// [`vertices_around_triangle`][BasicAdj::vertices_around_triangle]
+    /// instead as it's usually faster.
+    fn vertices_around_face(&self, face: FaceHandle) -> Self::VerticesAroundFaceIter<'_>;
+
+    /// Checks whether the given vertex is adjacent to the given face.
+    fn is_vertex_around_face(&self, vertex: VertexHandle, face: FaceHandle) -> bool {
+        self.vertices_around_face(face).any(|v| v == vertex)
     }
 }
 
-impl_empty_via_default!(
-    { impl Empty for () },
-    { impl<T: ?Sized> Empty for PhantomData<T> },
-    { impl<T> Empty for Option<T> },
-    { impl Empty for String },
-    { impl<T> Empty for Vec<T> },
-    { impl<T: Ord> Empty for std::collections::BTreeSet<T> },
-    { impl<T: Eq + std::hash::Hash> Empty for std::collections::HashSet<T> },
-    { impl<T> Empty for std::collections::LinkedList<T> },
-    { impl<T> Empty for std::collections::VecDeque<T> },
-    { impl<K: Ord, V> Empty for std::collections::BTreeMap<K, V> },
-    { impl<K: Eq + std::hash::Hash, V> Empty for std::collections::HashMap<K, V> },
-);
+/// Meshes with full *O*(1) adjacency information between vertices and faces.
+///
+/// This includes:
+/// - Face to vertex (from [`BasicAdj`])
+/// - Face to face
+/// - Vertex to vertex
+/// - Vertex to face
+/// - Is a vertex/face on the boundary?
+pub trait FullAdj: BasicAdj {
+    /// Returns the faces around the given triangular face in front-face CCW
+    /// order.
+    ///
+    /// TODO: explain that there can be duplicates in neighbor faces. We are
+    /// basically iterating over edges and returning their other face.
+    fn faces_around_triangle(&self, face: FaceHandle) -> TriList<FaceHandle>
+    where
+        Self: TriMesh;
 
-impl<T: Empty> Empty for Box<T> {
-    fn empty() -> Self {
-        Box::new(T::empty())
+    type FacesAroundFaceIter<'s>: Iterator<Item = FaceHandle> where Self: 's;
+
+    /// Returns the faces around the given face in front-face CCW order.
+    ///
+    /// If you are dealing with a triangular mesh, rather use
+    /// [`faces_around_triangle`][FullAdj::faces_around_triangle] instead as
+    /// it's usually faster.
+    ///
+    /// TODO: explain that there can be duplicates in neighbor faces. We are
+    /// basically iterating over edges and returning their other face.
+    fn faces_around_face(&self, face: FaceHandle) -> Self::FacesAroundFaceIter<'_>;
+
+    type FacesAroundVertexIter<'s>: Iterator<Item = FaceHandle> where Self: 's;
+
+    /// Returns a list of all faces adjacent to the given vertex.
+    ///
+    /// The faces are listed in front-face CW (clockwise) order.
+    fn faces_around_vertex(&self, vertex: VertexHandle) -> Self::FacesAroundVertexIter<'_>;
+
+    type VerticesAroundVertexIter<'s>: Iterator<Item = VertexHandle> where Self: 's;
+
+    /// Returns a list of all faces adjacent to the given vertex.
+    ///
+    /// The faces are listed in front-face CW (clockwise) order.
+    fn vertices_around_vertex(&self, vertex: VertexHandle) -> Self::VerticesAroundVertexIter<'_>;
+
+
+    /// Checks if the given face lies on a boundary. A face is a boundary face
+    /// if the number of adjacent faces does not match the number of adjacent
+    /// vertices.
+    ///
+    /// *Note to implementors*: you should usually overwrite this method, as
+    /// the default implementation is fairly slow.
+    fn is_boundary_face(&self, face: FaceHandle) -> bool {
+        self.faces_around_face(face).count() != self.vertices_around_face(face).count()
+    }
+
+    /// Checks if the given vertex lies on a boundary. A vertex is a boundary
+    /// vertex if the number of adjacent faces does not match the number of
+    /// adjacent vertices *or* if it is an isolated vertex.
+    ///
+    /// *Note to implementors*: you should usually overwrite this method, as
+    /// the default implementation is fairly slow.
+    fn is_boundary_vertex(&self, vertex: VertexHandle) -> bool {
+        self.faces_around_vertex(vertex).count() != self.vertices_around_vertex(vertex).count()
+            || self.is_isolated_vertex(vertex)
+    }
+
+    /// Checks if the given vertex is isolated, meaning that it has no adjacent
+    /// faces, edges or vertices.
+    fn is_isolated_vertex(&self, vertex: VertexHandle) -> bool {
+        self.vertices_around_vertex(vertex).next().is_none()
+    }
+
+    /// Checks whether the two given faces share an edge (are "adjacent" to one
+    /// another).
+    fn are_faces_adjacent(&self, a: FaceHandle, b: FaceHandle) -> bool {
+        self.faces_around_face(a).any(|f| f == b)
+    }
+
+    /// Checks whether the two given faces share an edge (are "adjacent" to one
+    /// another).
+    fn are_vertices_adjacent(&self, a: VertexHandle, b: VertexHandle) -> bool {
+        self.vertices_around_vertex(a).any(|v| v == b)
     }
 }
 
-impl<A: Empty> Empty for (A,) {
-    fn empty() -> Self { (A::empty(),) }
-}
-impl<A: Empty, B: Empty> Empty for (A, B) {
-    fn empty() -> Self { (A::empty(), B::empty()) }
-}
-impl<A: Empty, B: Empty, C: Empty> Empty for (A, B, C) {
-    fn empty() -> Self { (A::empty(), B::empty(), C::empty()) }
-}
-impl<A: Empty, B: Empty, C: Empty, D: Empty> Empty for (A, B, C, D) {
-    fn empty() -> Self { (A::empty(), B::empty(), C::empty(), D::empty()) }
-}
+/// Meshes with full *O*(1) adjacency information between vertices, faces *and*
+/// edges.
+///
+/// This includes:
+/// - Full vertex/face adjecency information (via [`FullAdj`])
+/// - Edge to Vertex
+/// - Edge to Face
+/// - Vertex to Edge
+/// - Face to Edge
+pub trait EdgeAdj: FullAdj + EdgeMesh {
+    // Most not change! Always same order for one given edge.
+    fn endpoints_of_edge(&self, edge: EdgeHandle) -> [VertexHandle; 2];
+    fn faces_of_edge(&self, edge: EdgeHandle) -> DiList<FaceHandle>;
+    // TODO
 
-impl<T: Empty> Empty for [T; 0] {
-    fn empty() -> Self { [] }
-}
-impl<T: Empty> Empty for [T; 1] {
-    fn empty() -> Self { [T::empty()] }
-}
-impl<T: Empty> Empty for [T; 2] {
-    fn empty() -> Self { [T::empty(), T::empty()] }
-}
-impl<T: Empty> Empty for [T; 3] {
-    fn empty() -> Self { [T::empty(), T::empty(), T::empty()] }
-}
-impl<T: Empty> Empty for [T; 4] {
-    fn empty() -> Self { [T::empty(), T::empty(), T::empty(), T::empty()] }
+    type EdgesAroundVertexIter<'s>: Iterator<Item = EdgeHandle> where Self: 's;
+    fn edges_around_vertex(&self, vertex: VertexHandle) -> Self::EdgesAroundVertexIter<'_>;
+
+    type EdgesAroundFaceIter<'s>: Iterator<Item = EdgeHandle> where Self: 's;
+    fn edges_around_face(&self, face: FaceHandle) -> Self::EdgesAroundFaceIter<'_>;
+
+    fn edges_around_triangle(&self, face: FaceHandle) -> [EdgeHandle; 3]
+    where
+        Self: TriMesh;
+
+    fn is_boundary_edge(&self, edge: EdgeHandle) -> bool {
+        self.faces_of_edge(edge).len() != 2
+    }
+
+    // TODO: remove `_vertices` from the name? For faces, there can be multiple
+    // shared edges.
+    fn edge_between_vertices(&self, a: VertexHandle, b: VertexHandle) -> Option<EdgeHandle> {
+        self.edges_around_vertex(a)
+            .find(|&e| self.endpoints_of_edge(e).contains(&b))
+    }
 }

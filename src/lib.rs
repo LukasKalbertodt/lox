@@ -33,7 +33,6 @@ pub mod map;
 pub mod math;
 pub mod mesh;
 pub mod prop;
-pub mod traits;
 pub mod prelude;
 pub mod refs;
 // #[cfg(feature = "io")]
@@ -68,28 +67,6 @@ pub(crate) mod sealed {
 // ===========================================================================
 // ===== Macros
 // ===========================================================================
-
-/// Derive macro for the [`Empty` trait][traits::Empty].
-///
-/// ```
-/// use lox::Empty; // this imports the custom-derive and not the trait!
-///
-/// #[derive(Empty)]
-/// struct MyStruct {
-///     a: Vec<u32>,        // => `vec![]`
-///     b: Option<String>,  // => `None`
-///     c: (),              // => `()`
-/// }
-/// ```
-///
-/// This can only be derived for structs. All struct fields need to implement
-/// `Empty` in order for the derive to work. If your struct has generic
-/// parameters, they won't be bounded with `Empty` in the generated impl block.
-/// This is useful most of the time, because things like `Vec<T>` and
-/// `Option<T>` don't require `T: Empty` to implement `Empty`. But this means
-/// that you sometimes have to add a global `Empty` bound to your parameter or
-/// implement `Empty` manually.
-pub use lox_macros::Empty;
 
 // /// Derive macro for [the `MemSink` trait][io::MemSink].
 // ///

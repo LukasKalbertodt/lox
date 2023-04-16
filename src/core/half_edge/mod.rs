@@ -26,9 +26,9 @@ use crate::{
     handle::{hsize, Handle},
     map::{DenseMap, set::DenseSet},
     mesh::SplitEdgeWithFacesResult,
-    traits::marker::{TriFaces, FaceKind, PolyFaces, True},
+    util::True,
 };
-use super::{Checked, OptionalField, StoreField, util::FieldStorage};
+use super::{Checked, OptionalField, StoreField, util::FieldStorage, TriFaces, FaceKind, PolyFaces};
 use self::adj::{CwVertexCirculator, FaceCirculator};
 
 

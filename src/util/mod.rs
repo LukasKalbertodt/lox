@@ -3,13 +3,15 @@ use lina::Point3;
 
 use crate::{
     handle::hsize,
-    prop::Pos3Like,
+    prop::Pos3Like, sealed::Sealed,
 };
 
 
 pub mod list;
+mod empty;
 
 pub use list::{TriList, DiList};
+pub use empty::Empty;
 
 
 /// Extension trait to add some useful methods to any type implementing
@@ -78,6 +80,30 @@ impl MeshSizeHint {
 pub fn are_same_type<T: 'static, U: 'static>() -> bool {
     TypeId::of::<T>() == TypeId::of::<U>()
 }
+
+/// Type level boolean. Only implemented by [`True`] and [`False`].
+///
+/// Once const generics land, this is not necessary anymore.
+pub trait Bool: Sealed {
+    const VALUE: bool;
+}
+
+/// Type level `true` boolean value.
+#[allow(missing_debug_implementations)]
+pub enum True {}
+impl Sealed for True {}
+impl Bool for True {
+    const VALUE: bool = true;
+}
+
+/// Type level `false` boolean value.
+#[allow(missing_debug_implementations)]
+pub enum False {}
+impl Sealed for False {}
+impl Bool for False {
+    const VALUE: bool = false;
+}
+
 
 
 #[cfg(test)]
