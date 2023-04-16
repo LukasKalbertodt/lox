@@ -9,7 +9,7 @@ use cgmath::{Point3, Vector3};
 use stable_vec::StableVec;
 
 use crate::{
-    cast::{try_cast, is_cast_possible, CastRigor},
+    cast::{try_cast, is_cast_possible, Fidelity},
     handle::{hsize, Handle, VertexHandle, FaceHandle, EdgeHandle},
     io::{ColorType, Error, ErrorKind, MemSource, PrimitiveType, Primitive, PropKind},
     map::{PropMap, PropStoreMut, DenseMap},
@@ -144,7 +144,7 @@ pub trait MemSourceExt {
         vertex_positions: &'a M,
     ) -> SourceWithVertexPositions<'a, Self, M, R>
     where
-        R: CastRigor,
+        R: Fidelity,
         M: PropMap<VertexHandle, Target: Pos3Like<Scalar: Primitive>>,
     {
         SourceWithVertexPositions {
@@ -164,7 +164,7 @@ pub trait MemSourceExt {
         vertex_normals: &'a M,
     ) -> SourceWithVertexNormals<'a, Self, M, R>
     where
-        R: CastRigor,
+        R: Fidelity,
         M: PropMap<VertexHandle, Target: Vec3Like<Scalar: Primitive>>,
     {
         SourceWithVertexNormals {
@@ -202,7 +202,7 @@ pub trait MemSourceExt {
         face_normals: &'a M,
     ) -> SourceWithFaceNormals<'a, Self, M, R>
     where
-        R: CastRigor,
+        R: Fidelity,
         M: PropMap<FaceHandle, Target: Vec3Like<Scalar: Primitive>>,
     {
         SourceWithFaceNormals {
@@ -299,13 +299,13 @@ macro_rules! old_impl_items {
 
 /// `MemSource` adaptor. See [`MemSourceExt::with_vertex_positions`].
 #[derive(Copy, Clone, Debug)]
-pub struct SourceWithVertexPositions<'a, S: ?Sized, M, R: CastRigor> {
+pub struct SourceWithVertexPositions<'a, S: ?Sized, M, R: Fidelity> {
     original: &'a S,
     vertex_positions: &'a M,
     _dummy: PhantomData<R>,
 }
 
-impl<S: ?Sized, M, R: CastRigor> MemSource for SourceWithVertexPositions<'_, S, M, R>
+impl<S: ?Sized, M, R: Fidelity> MemSource for SourceWithVertexPositions<'_, S, M, R>
 where
     S: MemSource,
     M: PropMap<VertexHandle, Target: Pos3Like<Scalar: Primitive>>,
@@ -338,13 +338,13 @@ where
 
 /// `MemSource` adaptor. See [`MemSourceExt::with_vertex_normals`].
 #[derive(Copy, Clone, Debug)]
-pub struct SourceWithVertexNormals<'a, S: ?Sized, M, R: CastRigor> {
+pub struct SourceWithVertexNormals<'a, S: ?Sized, M, R: Fidelity> {
     original: &'a S,
     vertex_normals: &'a M,
     _dummy: PhantomData<R>,
 }
 
-impl<S: ?Sized, M, R: CastRigor> MemSource for SourceWithVertexNormals<'_, S, M, R>
+impl<S: ?Sized, M, R: Fidelity> MemSource for SourceWithVertexNormals<'_, S, M, R>
 where
     S: MemSource,
     M: PropMap<VertexHandle, Target: Vec3Like<Scalar: Primitive>>,
@@ -409,13 +409,13 @@ where
 
 /// `MemSource` adaptor. See [`MemSourceExt::with_face_normals`].
 #[derive(Copy, Clone, Debug)]
-pub struct SourceWithFaceNormals<'a, S: ?Sized, M, R: CastRigor> {
+pub struct SourceWithFaceNormals<'a, S: ?Sized, M, R: Fidelity> {
     original: &'a S,
     face_normals: &'a M,
     _dummy: PhantomData<R>,
 }
 
-impl<S: ?Sized, M, R: CastRigor> MemSource for SourceWithFaceNormals<'_, S, M, R>
+impl<S: ?Sized, M, R: Fidelity> MemSource for SourceWithFaceNormals<'_, S, M, R>
 where
     S: MemSource,
     M: PropMap<FaceHandle, Target: Vec3Like<Scalar: Primitive>>,

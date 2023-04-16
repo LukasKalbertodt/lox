@@ -69,7 +69,7 @@ where
         fn alpha_for(valence: hsize) -> ScalarT {
             (
                 lit!(4.0) - lit!(2.0) * (
-                    lit!(2.0) * ScalarT::PI() / cast::rounding::<_, ScalarT>(valence)
+                    lit!(2.0) * ScalarT::PI() / cast::lossy::<_, ScalarT>(valence)
                 ).cos()
             ) / lit!(9.0)
         }
