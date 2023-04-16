@@ -4,7 +4,6 @@
 
 #![feature(trivial_bounds)]
 #![feature(associated_type_bounds)]
-#![feature(array_methods)]
 
 #![deny(missing_debug_implementations)]
 #![deny(rustdoc::broken_intra_doc_links)]
