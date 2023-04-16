@@ -3,7 +3,6 @@
 //! **TODO**: Everything.
 
 #![feature(trivial_bounds)]
-#![feature(never_type)]
 #![feature(associated_type_bounds)]
 #![feature(array_methods)]
 
