@@ -22,11 +22,11 @@ pub use crate::{
     util::IteratorExt,
 };
 
-#[cfg(feature = "io")]
-pub use crate::{
-    MemSink, MemSource,
-    io::{
-        StreamSource, StreamSink, MemSource, MemSink, DynStreamSource, DynStreamSink,
-        util::{MemSourceExt},
-    },
-};
+// #[cfg(feature = "io")]
+// pub use crate::{
+//     MemSink, MemSource,
+//     io::{
+//         StreamSource, StreamSink, MemSource, MemSink, DynStreamSource, DynStreamSink,
+//         util::{MemSourceExt},
+//     },
+// };

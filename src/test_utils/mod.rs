@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
-#[cfg(feature = "io")]
-#[macro_use]
-pub(crate) mod io;
+// #[cfg(feature = "io")]
+// #[macro_use]
+// pub(crate) mod io;
 
 
 macro_rules! assert_eq {

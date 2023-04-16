@@ -5,8 +5,6 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use syn::DeriveInput;
 
-use crate::derives::input::Input;
-
 
 #[macro_use]
 mod util;
@@ -37,22 +35,22 @@ pub fn derive_empty(input: TokenStream) -> TokenStream {
 }
 
 
-// See main crate (`lox`) for documentation.
-#[proc_macro_derive(MemSink, attributes(lox))]
-pub fn derive_mem_sink(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as DeriveInput);
-    Input::from_syn(&input, "MemSink")
-        .map(|i| derives::mem_sink::gen_impl(&i))
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
-}
+// // See main crate (`lox`) for documentation.
+// #[proc_macro_derive(MemSink, attributes(lox))]
+// pub fn derive_mem_sink(input: TokenStream) -> TokenStream {
+//     let input = syn::parse_macro_input!(input as DeriveInput);
+//     Input::from_syn(&input, "MemSink")
+//         .map(|i| derives::mem_sink::gen_impl(&i))
+//         .unwrap_or_else(|e| e.to_compile_error())
+//         .into()
+// }
 
-// See main crate (`lox`) for documentation.
-#[proc_macro_derive(MemSource, attributes(lox))]
-pub fn derive_mem_source(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as DeriveInput);
-    Input::from_syn(&input, "MemSource")
-        .map(|i| derives::mem_source::gen_impl(&i))
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
-}
+// // See main crate (`lox`) for documentation.
+// #[proc_macro_derive(MemSource, attributes(lox))]
+// pub fn derive_mem_source(input: TokenStream) -> TokenStream {
+//     let input = syn::parse_macro_input!(input as DeriveInput);
+//     Input::from_syn(&input, "MemSource")
+//         .map(|i| derives::mem_source::gen_impl(&i))
+//         .unwrap_or_else(|e| e.to_compile_error())
+//         .into()
+// }
