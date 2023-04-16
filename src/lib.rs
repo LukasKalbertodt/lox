@@ -8,7 +8,9 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 
 
+// Reexport crates which are publicly used in this crate.
 pub extern crate lina;
+pub extern crate leer;
 
 // This is done for proc macros from `lox-macros`. These use paths starting
 // with `lox`. This makes sense for all crates using `lox` as dependency. But

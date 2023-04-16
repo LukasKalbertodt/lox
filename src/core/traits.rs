@@ -1,10 +1,11 @@
 use std::fmt;
 
+use leer::Empty;
 use crate::{
     handle::{Handle, hsize, FaceHandle, VertexHandle, EdgeHandle},
     mesh::{ElementRefIter, HandleIter, HandleIterMut, SplitEdgeWithFacesResult},
     refs::ElementRef,
-    util::{Bool, Empty, True, False, TriList, DiList},
+    util::{Bool, True, False, TriList, DiList},
 };
 use super::{FaceKind, TriFaces, PolyFaces};
 

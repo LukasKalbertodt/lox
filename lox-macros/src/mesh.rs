@@ -101,7 +101,7 @@ impl MeshInput {
             use lox::{
                 core::MeshMut,
                 map::{PropStoreMut, DenseMap},
-                util::Empty,
+                leer::Empty,
             };
 
             let mut mesh = <#mesh_type as Empty>::empty();

@@ -3,13 +3,12 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use syn::DeriveInput;
 
 
 #[macro_use]
 mod util;
 
-mod derives;
+// mod derives;
 mod mesh;
 
 
@@ -23,17 +22,6 @@ pub fn mesh(input: TokenStream) -> TokenStream {
         Err(e) => e.to_compile_error().into(),
     }
 }
-
-
-// See main crate (`lox`) for documentation.
-#[proc_macro_derive(Empty)]
-pub fn derive_empty(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as DeriveInput);
-    derives::derive_empty(&input)
-        .unwrap_or_else(|e| e.to_compile_error())
-        .into()
-}
-
 
 // // See main crate (`lox`) for documentation.
 // #[proc_macro_derive(MemSink, attributes(lox))]

@@ -8,10 +8,8 @@ use crate::{
 
 
 pub mod list;
-mod empty;
 
 pub use list::{TriList, DiList};
-pub use empty::Empty;
 
 
 /// Extension trait to add some useful methods to any type implementing

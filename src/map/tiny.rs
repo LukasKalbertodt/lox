@@ -8,7 +8,7 @@ use smallvec::SmallVec;
 
 use crate::{
     handle::{hsize, Handle},
-    util::Empty,
+    prelude::*,
 };
 use super::{PropMap, PropStore, PropStoreMut, Value};
 

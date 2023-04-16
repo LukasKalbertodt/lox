@@ -9,6 +9,7 @@
 //!
 //! Now you have all important traits in scope.
 
+pub use leer::Empty;
 pub use crate::{
     handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
     map::{PropMap, PropStore, PropStoreMut},
@@ -17,7 +18,7 @@ pub use crate::{
         Mesh, MeshMut, TriMesh, PolyMesh, EdgeMesh,
         BasicAdj, FullAdj, EdgeAdj, SupportsMultiBlade,
     },
-    util::{Empty, IteratorExt},
+    util::IteratorExt,
 };
 
 // #[cfg(feature = "io")]

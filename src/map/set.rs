@@ -10,7 +10,7 @@ use std::{
 
 use crate::{
     handle::{hsize, Handle},
-    util::Empty,
+    prelude::*,
 };
 use super::{
     DenseMap, Handles, PropMap, PropStore, PropStoreMut, SparseMap, TinyMap
