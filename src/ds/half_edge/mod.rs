@@ -26,9 +26,9 @@ use crate::{
     handle::{hsize, Handle},
     map::{DenseMap, set::DenseSet},
     mesh::SplitEdgeWithFacesResult,
-    traits::marker::{Bool, TriFaces, FaceKind, PolyFaces, True},
+    traits::marker::{TriFaces, FaceKind, PolyFaces, True},
 };
-use super::{Checked, TypeOpt};
+use super::{Checked, OptionalField, StoreField, util::FieldStorage};
 use self::adj::{CwVertexCirculator, FaceCirculator};
 
 
@@ -67,7 +67,7 @@ pub trait Config: 'static {
 
     /// Specifies whether a `prev` handle is stored per half edge. This makes
     /// some operations faster, but increases memory consumption.
-    type StorePrev: Bool;
+    type PrevEdge: OptionalField;
 
     // TODO:
     // - allow multi fan blades?
@@ -79,14 +79,14 @@ pub trait Config: 'static {
 pub enum PolyConfig {}
 impl Config for PolyConfig {
     type FaceKind = PolyFaces;
-    type StorePrev = True;
+    type PrevEdge = StoreField;
 }
 
 #[allow(missing_debug_implementations)]
 pub enum TriConfig {}
 impl Config for TriConfig {
     type FaceKind = TriFaces;
-    type StorePrev = True;
+    type PrevEdge = StoreField;
 }
 
 
@@ -233,7 +233,7 @@ struct HalfEdge<C: Config> {
     /// The previous half edge around the face or hole this half edge is
     /// adjacent to (counter clock wise). This is only stored when the
     /// configuration `C` says so.
-    prev: TypeOpt<Checked<HalfEdgeHandle>, C::StorePrev>,
+    prev: <C::PrevEdge as OptionalField>::Storage<Checked<HalfEdgeHandle>>,
 }
 
 impl<C: Config> Copy for HalfEdge<C> {}

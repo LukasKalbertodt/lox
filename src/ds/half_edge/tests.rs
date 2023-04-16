@@ -1,12 +1,12 @@
-use crate::traits::marker::{False, True};
+use crate::ds::{StoreField, OmitField, half_edge::*};
 
 mod tri {
-    use super::{*, super::*};
+    use super::*;
 
     pub enum Conf {}
     impl Config for Conf {
         type FaceKind = TriFaces;
-        type StorePrev = False;
+        type PrevEdge = OmitField;
     }
 
     gen_mesh_tests!(HalfEdgeMesh::<Conf>: [
@@ -21,12 +21,12 @@ mod tri {
 }
 
 mod poly {
-    use super::{*, super::*};
+    use super::*;
 
     pub enum Conf {}
     impl Config for Conf {
         type FaceKind = PolyFaces;
-        type StorePrev = False;
+        type PrevEdge = OmitField;
     }
 
     gen_mesh_tests!(HalfEdgeMesh::<Conf>: [
@@ -41,12 +41,12 @@ mod poly {
 }
 
 mod tri_with_prev {
-    use super::{*, super::*};
+    use super::*;
 
     pub enum Conf {}
     impl Config for Conf {
         type FaceKind = TriFaces;
-        type StorePrev = True;
+        type PrevEdge = StoreField;
     }
 
     gen_mesh_tests!(HalfEdgeMesh::<Conf>: [
@@ -61,12 +61,12 @@ mod tri_with_prev {
 }
 
 mod poly_with_prev {
-    use super::{*, super::*};
+    use super::*;
 
     pub enum Conf {}
     impl Config for Conf {
         type FaceKind = PolyFaces;
-        type StorePrev = True;
+        type PrevEdge = StoreField;
     }
 
     gen_mesh_tests!(HalfEdgeMesh::<Conf>: [

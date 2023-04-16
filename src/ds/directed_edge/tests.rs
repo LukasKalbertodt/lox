@@ -1,4 +1,4 @@
-use crate::traits::marker::{False, True};
+use crate::ds::{StoreField, OmitField};
 use super::*;
 
 mod minimal {
@@ -6,8 +6,8 @@ mod minimal {
 
     enum Conf {}
     impl Config for Conf {
-        type StoreNext = False;
-        type StorePrev = False;
+        type NextEdge = OmitField;
+        type PrevEdge = OmitField;
     }
 
     gen_mesh_tests!(DirectedEdgeMesh::<Conf>: [
@@ -24,8 +24,8 @@ mod with_next_prev {
 
     enum Conf {}
     impl Config for Conf {
-        type StoreNext = True;
-        type StorePrev = True;
+        type NextEdge = StoreField;
+        type PrevEdge = StoreField;
     }
 
     gen_mesh_tests!(DirectedEdgeMesh::<Conf>: [

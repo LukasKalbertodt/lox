@@ -24,9 +24,9 @@ use crate::{
     handle::{hsize, Handle},
     map::{DenseMap, set::DenseSet},
     mesh::SplitEdgeWithFacesResult,
-    traits::marker::{Bool, False, TriFaces, True},
+    traits::marker::{TriFaces, True},
 };
-use super::{Checked, TypeOpt};
+use super::{Checked, OptionalField, OmitField, util::FieldStorage};
 use self::adj::{CwVertexCirculator, CwVertexCirculatorState};
 
 
@@ -55,14 +55,14 @@ pub trait Config: 'static {
     /// calculation.
     ///
     /// TODO: check in benchmarks!
-    type StoreNext: Bool;
+    type NextEdge: OptionalField;
 
     /// Specifies whether a `prev` handle is stored per directed edge. This is
     /// usually not necessary as the handle can be obtained by a simple
     /// calculation.
     ///
     /// TODO: check in benchmarks!
-    type StorePrev: Bool;
+    type PrevEdge: OptionalField;
 
     // TODO:
     // - allow multi fan blades?
@@ -73,8 +73,8 @@ pub trait Config: 'static {
 #[allow(missing_debug_implementations)]
 pub enum DefaultConfig {}
 impl Config for DefaultConfig {
-    type StoreNext = False;
-    type StorePrev = False;
+    type NextEdge = OmitField;
+    type PrevEdge = OmitField;
 }
 
 
@@ -289,12 +289,12 @@ pub(crate) struct HalfEdge<C: Config> {
     /// Points to the next half edge around the face. This is always equal to
     /// `(self_id / 3) * 3 + (self_id + 1) % 3` where `self_id` is the id of
     /// the handle of this half edge.
-    next: TypeOpt<Checked<HalfEdgeHandle>, C::StoreNext>,
+    next: <C::NextEdge as OptionalField>::Storage<Checked<HalfEdgeHandle>>,
 
     /// Points to the previous half edge around the face. This is always equal
     /// to `(self_id / 3) * 3 + (self_id + 2) % 3` where `self_id` is the id of
     /// the handle of this half edge.
-    prev: TypeOpt<Checked<HalfEdgeHandle>, C::StorePrev>,
+    prev: <C::PrevEdge as OptionalField>::Storage<Checked<HalfEdgeHandle>>,
 }
 
 impl<C: Config> HalfEdge<C> {

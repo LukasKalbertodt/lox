@@ -4,15 +4,11 @@
 
 #![feature(trivial_bounds)]
 #![feature(never_type)]
-#![feature(specialization)]
 #![feature(associated_type_bounds)]
 #![feature(array_methods)]
 
 #![deny(missing_debug_implementations)]
 #![deny(rustdoc::broken_intra_doc_links)]
-
-// TODO: specialization now warns, but min_specialization is not yet ready to be used here
-#![allow(incomplete_features)]
 
 
 pub extern crate lina;
