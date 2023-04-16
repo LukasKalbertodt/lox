@@ -2,7 +2,6 @@
 //!
 //! **TODO**: Everything.
 
-#![feature(trivial_bounds)]
 #![feature(associated_type_bounds)]
 
 #![deny(missing_debug_implementations)]

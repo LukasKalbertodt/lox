@@ -71,24 +71,15 @@ impl Mesh for SharedVertexMesh {
         self.faces.contains_handle(face)
     }
 
-    fn num_edges(&self) -> hsize
-    where
-        Self: EdgeMesh
-    {
+    fn num_edges(&self) -> hsize {
         unreachable!()
     }
 
-    fn next_edge_handle_from(&self, _: EdgeHandle) -> Option<EdgeHandle>
-    where
-        Self: EdgeMesh
-    {
+    fn next_edge_handle_from(&self, _: EdgeHandle) -> Option<EdgeHandle> {
         unreachable!()
     }
 
-    fn last_edge_handle(&self) -> Option<EdgeHandle>
-    where
-        Self: EdgeMesh
-    {
+    fn last_edge_handle(&self) -> Option<EdgeHandle> {
         unreachable!()
     }
 
@@ -154,24 +145,15 @@ impl MeshMut for SharedVertexMesh {
         center
     }
 
-    fn add_face(&mut self, _: &[VertexHandle]) -> FaceHandle
-    where
-        Self: PolyMesh
-    {
+    fn add_face(&mut self, _: &[VertexHandle]) -> FaceHandle {
         unreachable!()
     }
 
-    fn flip_edge(&mut self, _: EdgeHandle)
-    where
-        Self: EdgeMesh + TriMesh
-    {
+    fn flip_edge(&mut self, _: EdgeHandle) {
         unreachable!()
     }
 
-    fn split_edge_with_faces(&mut self, _: EdgeHandle) -> SplitEdgeWithFacesResult
-    where
-        Self: EdgeMesh + TriMesh
-    {
+    fn split_edge_with_faces(&mut self, _: EdgeHandle) -> SplitEdgeWithFacesResult {
         unreachable!()
     }
 }
