@@ -2,7 +2,7 @@
 use crate::{
     VertexRef,
     prelude::*,
-    map::{DenseMap, VertexPropMap, set::DenseSet},
+    map::{DenseMap, set::DenseSet},
     util::{PrimitiveFloat, Pos3Like},
 };
 
@@ -17,7 +17,7 @@ pub fn smooth_simple<MeshT, MapT>(
 ) -> DenseMap<VertexHandle, MapT::Target>
 where
     MeshT: FullAdj,
-    MapT: VertexPropMap,
+    MapT: PropMap<VertexHandle>,
     MapT::Target: Pos3Like,
 {
     // Helper function to get the position of a vertex.
@@ -99,7 +99,7 @@ pub fn dijkstra<MeshT, MapT, ScalarT>(
 ) -> DenseMap<VertexHandle, DijsktraVertexData<ScalarT>>
 where
     MeshT: FullAdj,
-    MapT: VertexPropMap,
+    MapT: PropMap<VertexHandle>,
     MapT::Target: Pos3Like<Scalar = ScalarT>,
     ScalarT: PrimitiveFloat,
 {

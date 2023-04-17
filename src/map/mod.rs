@@ -16,7 +16,6 @@ use crate::{
 mod tests;
 
 pub mod adaptors;
-pub mod aliases;
 mod dense;
 mod fn_map;
 pub mod set;
@@ -26,7 +25,6 @@ mod tiny;
 mod util;
 
 pub use self::{
-    aliases::*,
     fn_map::FnMap,
     sparse::SparseMap,
     special_maps::{ConstMap, EmptyMap},
@@ -84,7 +82,7 @@ pub trait PropMap<H: Handle> {
     ///
     /// This is the associated type that should be used for trait bounds, i.e.
     /// if you have a prop map but need to constraint the prop type. Example:
-    /// `M: FacePropMap, M::Target: fmt::Display`.
+    /// `M: PropMap<FaceHandle>, M::Target: fmt::Display`.
     type Target;
 
     /// Return type of [`Self::get`]: either `Self::Target` or `&Self::Target`.
