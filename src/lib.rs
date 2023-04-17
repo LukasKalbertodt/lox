@@ -35,7 +35,7 @@ pub mod math;
 pub mod mesh;
 pub mod prop;
 pub mod prelude;
-pub mod refs;
+mod refs;
 // #[cfg(feature = "io")]
 // pub mod shape;
 pub mod util;
@@ -43,6 +43,7 @@ pub mod util;
 use std::fmt;
 
 
+pub use refs::{ElementRef, EdgeRef, FaceRef, VertexRef};
 
 
 // ===========================================================================

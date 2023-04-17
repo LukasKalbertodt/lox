@@ -102,8 +102,8 @@ impl<'a, MeshT: 'a + FullAdj> VertexRef<'a, MeshT> {
     ///
     /// ```
     /// use lox::{
+    ///     FaceRef, VertexRef,
     ///     prelude::*,
-    ///     refs::{FaceRef, VertexRef},
     ///     core::HalfEdgeMesh,
     /// };
     ///
