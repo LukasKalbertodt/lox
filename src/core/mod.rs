@@ -102,7 +102,6 @@ mod util;
 
 pub use self::{
     directed_edge::DirectedEdgeMesh,
-    // face_delegate::FaceDelegateMesh,
     half_edge::HalfEdgeMesh,
     shared_vertex::SharedVertexMesh,
     traits::{
