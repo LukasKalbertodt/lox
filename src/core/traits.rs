@@ -2,12 +2,13 @@ use std::fmt;
 
 use leer::Empty;
 use crate::{
-    Handle, hsize, FaceHandle, VertexHandle, EdgeHandle,
-    mesh::{ElementRefIter, HandleIter, HandleIterMut, SplitEdgeWithFacesResult},
-    refs::ElementRef,
+    Handle, hsize, FaceHandle, VertexHandle, EdgeHandle, ElementRef,
     util::{Bool, True, False, TriList, DiList},
 };
-use super::{FaceKind, TriFaces, PolyFaces};
+use super::{
+    FaceKind, TriFaces, PolyFaces,
+    ElementRefIter, HandleIter, HandleIterMut, SplitEdgeWithFacesResult,
+};
 
 
 /// Some kind of polygon mesh.

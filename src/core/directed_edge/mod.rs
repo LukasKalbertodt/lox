@@ -23,10 +23,12 @@ use crate::{
     hsize,
     prelude::*,
     map::{DenseMap, set::DenseSet},
-    mesh::SplitEdgeWithFacesResult,
     util::True,
 };
-use super::{Checked, OptionalField, OmitField, TriFaces, util::FieldStorage};
+use super::{
+    Checked, OptionalField, OmitField, TriFaces, SplitEdgeWithFacesResult,
+    util::FieldStorage,
+};
 use self::adj::{CwVertexCirculator, CwVertexCirculatorState};
 
 

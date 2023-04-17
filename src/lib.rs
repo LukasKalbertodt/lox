@@ -32,7 +32,6 @@ pub mod core;
 // pub mod io;
 pub mod map;
 pub mod math;
-pub mod mesh;
 pub mod prop;
 pub mod prelude;
 mod refs;

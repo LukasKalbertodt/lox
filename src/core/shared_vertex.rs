@@ -6,10 +6,9 @@ use crate::{
     hsize,
     prelude::*,
     map::DenseMap,
-    mesh::SplitEdgeWithFacesResult,
     util::False,
 };
-use super::TriFaces;
+use super::{TriFaces, SplitEdgeWithFacesResult};
 
 
 /// One of the simplest and the most used data structure for representing
