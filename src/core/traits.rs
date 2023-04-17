@@ -1,9 +1,10 @@
 use std::fmt;
 
 use leer::Empty;
+use typebool::{Bool, False, True};
 use crate::{
     Handle, hsize, FaceHandle, VertexHandle, EdgeHandle, ElementRef,
-    util::{Bool, True, False, TriList, DiList},
+    util::{TriList, DiList},
 };
 use super::{
     FaceKind, TriFaces, PolyFaces,

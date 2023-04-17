@@ -20,12 +20,12 @@ use std::{
 };
 
 use optional::Optioned as Opt;
+use typebool::True;
 
 use crate::{
     hsize,
     prelude::*,
     map::{DenseMap, set::DenseSet},
-    util::True,
 };
 use super::{
     Checked, OptionalField, StoreField, TriFaces, FaceKind, PolyFaces, SplitEdgeWithFacesResult,

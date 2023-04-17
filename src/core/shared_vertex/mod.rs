@@ -2,11 +2,12 @@
 
 use std::{array, fmt};
 
+use typebool::False;
+
 use crate::{
     hsize,
     prelude::*,
     map::DenseMap,
-    util::False,
 };
 use super::{TriFaces, SplitEdgeWithFacesResult};
 

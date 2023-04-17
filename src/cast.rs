@@ -107,9 +107,9 @@
 //! (unsigned integers, signed integers and floating point types).
 //!
 
-use crate::{
-    sealed::Sealed, util::{Bool, True, False},
-};
+use typebool::{Bool, True, False};
+
+use crate::sealed::Sealed;
 
 
 // ===========================================================================

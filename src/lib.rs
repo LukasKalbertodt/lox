@@ -11,6 +11,7 @@
 // Reexport crates which are publicly used in this crate.
 pub extern crate lina;
 pub extern crate leer;
+pub extern crate typebool;
 
 // This is done for proc macros from `lox-macros`. These use paths starting
 // with `lox`. This makes sense for all crates using `lox` as dependency. But
@@ -23,17 +24,18 @@ extern crate self as lox;
 #[macro_use]
 mod test_utils;
 
-pub mod algo;
-pub mod cast;
-pub mod core;
 // #[cfg(feature = "io")]
 // pub mod fat;
 // #[cfg(feature = "io")]
 // pub mod io;
-pub mod map;
-pub mod prelude;
 // #[cfg(feature = "io")]
 // pub mod shape;
+
+pub mod algo;
+pub mod cast;
+pub mod core;
+pub mod map;
+pub mod prelude;
 pub mod util;
 
 mod refs;

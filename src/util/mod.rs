@@ -2,10 +2,7 @@
 
 use lina::Point3;
 
-use crate::{
-    hsize,
-    sealed::Sealed,
-};
+use crate::hsize;
 
 
 mod list;
@@ -56,32 +53,4 @@ impl HSizeExt for hsize {
     fn next(self) -> Self {
         self + 1
     }
-}
-
-
-// ===========================================================================
-// ===== Type level bool
-// ===========================================================================
-
-/// Type level boolean. Only implemented by [`True`] and [`False`].
-///
-/// Once const generics land, this is not necessary anymore.
-pub trait Bool: Sealed {
-    const VALUE: bool;
-}
-
-/// Type level `true` boolean value.
-#[allow(missing_debug_implementations)]
-pub enum True {}
-impl Sealed for True {}
-impl Bool for True {
-    const VALUE: bool = true;
-}
-
-/// Type level `false` boolean value.
-#[allow(missing_debug_implementations)]
-pub enum False {}
-impl Sealed for False {}
-impl Bool for False {
-    const VALUE: bool = false;
 }
