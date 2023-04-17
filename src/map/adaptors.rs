@@ -13,7 +13,8 @@ pub struct Mapper<'m, M, F> {
 impl<'m, H, M, F, TargetT> PropMap<H> for Mapper<'m, M, F>
 where
     H: Handle,
-    M: PropMap<H, Target: 'm>,
+    M: PropMap<H>,
+    M::Target: 'm,
     F: Fn(Value<M::Ret<'m>, M::Target>) -> TargetT,
 {
     type Target = TargetT;

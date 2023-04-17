@@ -22,7 +22,8 @@ pub struct BoundingSphere<P: Pos3Like> {
 /// Graphics gems 1 (1990): 301-303.
 pub fn ritter_sphere<I, ScalarT>(positions: I) -> BoundingSphere<I::Item>
 where
-    I: Iterator<Item: Pos3Like<Scalar = ScalarT>> + Clone,
+    I: Iterator + Clone,
+    I::Item: Pos3Like<Scalar = ScalarT>,
     ScalarT: PrimitiveFloat,
 {
     assert!(positions.clone().next().is_some(), "point set must not be empty");
@@ -77,7 +78,8 @@ where
 /// The given points must not be empty or else this function panics.
 pub fn fast_sphere<I, ScalarT>(positions: I) -> BoundingSphere<I::Item>
 where
-    I: Iterator<Item: Pos3Like<Scalar = ScalarT>> +  Clone,
+    I: Iterator +  Clone,
+    I::Item: Pos3Like<Scalar = ScalarT>,
     ScalarT: PrimitiveFloat,
 {
     assert!(positions.clone().next().is_some(), "point set must not be empty");
@@ -119,7 +121,8 @@ impl<F: PrimitiveFloat> BoundingBox<F> {
     /// [`BoundingBox::new`]).
     pub fn around<I>(iter: I) -> Self
     where
-        I: IntoIterator<Item: Pos3Like<Scalar = F>>,
+        I: IntoIterator,
+        I::Item: Pos3Like<Scalar = F>
     {
         let mut out = Self::new();
         for pos in iter {
