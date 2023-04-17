@@ -236,9 +236,6 @@ pub(crate) mod sealed {
 /// reexported from `lox-macros`. See [#58700][i58700] and [#58696][i58696] for
 /// more information.)
 ///
-/// **Note about unstable features**: this proc macro needs to be invoked in
-/// expression context, which is still unstable. So your crate needs to enable
-/// the `proc_macro_hygiene` feature for this to work.
 ///
 /// [i58700]: https://github.com/rust-lang/rust/issues/58700
 /// [i58696]: https://github.com/rust-lang/rust/issues/58696
@@ -248,7 +245,6 @@ pub(crate) mod sealed {
 /// Here we create two triangles:
 ///
 /// ```
-/// #![feature(proc_macro_hygiene)]
 /// use lox::{
 ///     mesh,
 ///     prelude::*,
@@ -292,7 +288,6 @@ pub(crate) mod sealed {
 /// parenthesis (`()`) or just omit the colon and the parenthesis:
 ///
 /// ```
-/// #![feature(proc_macro_hygiene)]
 /// use lox::{
 ///     mesh,
 ///     core::SharedVertexMesh,
@@ -325,7 +320,6 @@ pub(crate) mod sealed {
 /// syntax when you haven't yet decided how your mesh should look like.
 ///
 /// ```
-/// #![feature(proc_macro_hygiene)]
 /// use lox::{
 ///     mesh,
 ///     core::SharedVertexMesh,

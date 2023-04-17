@@ -1,7 +1,5 @@
 //! Tests related to the `mesh!` macro.
 
-#![feature(proc_macro_hygiene)]
-
 use lox::{
     mesh, FaceHandle,
     prelude::*,

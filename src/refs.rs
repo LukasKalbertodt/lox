@@ -135,7 +135,6 @@ impl<'a, MeshT: 'a + FullAdj> VertexRef<'a, MeshT> {
     /// Another example:
     ///
     /// ```
-    /// #![feature(proc_macro_hygiene)]
     /// use lox::{
     ///     mesh,
     ///     prelude::*,

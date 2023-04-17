@@ -1,5 +1,3 @@
-#![feature(proc_macro_hygiene)]
-
 use lox::{
     core::SharedVertexMesh,
     mesh,
