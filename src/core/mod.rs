@@ -92,11 +92,11 @@ use crate::{
 #[macro_use]
 mod tests;
 
-mod checked;
 pub mod directed_edge;
-// mod face_delegate;
 pub mod half_edge;
-mod shared_vertex;
+pub mod shared_vertex;
+
+mod checked;
 mod traits;
 mod util;
 

@@ -34,10 +34,11 @@ pub mod map;
 pub mod math;
 pub mod prop;
 pub mod prelude;
-mod refs;
 // #[cfg(feature = "io")]
 // pub mod shape;
 pub mod util;
+
+mod refs;
 
 use std::fmt;
 
