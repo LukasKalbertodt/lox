@@ -1,10 +1,30 @@
 //! Utilities to make parsing easier.
 
+// use std::fmt;
 use proc_macro2::{Ident, Spacing};
 use syn::{
+    // Error,
     parse::{self, ParseBuffer},
+    // spanned::Spanned,
 };
 
+// macro_rules! bail {
+//     ($span:expr, $fmt:literal $($tail:tt)*) => {
+//         return Err(Error::new($span, format!($fmt $($tail)*)))
+//     }
+// }
+
+
+// pub(crate) fn struct_fields(
+//     input: &syn::DeriveInput,
+//     error_msg: impl fmt::Display,
+// ) -> Result<&syn::Fields, syn::Error> {
+//     if let syn::Data::Struct(s) = &input.data {
+//         Ok(&s.fields)
+//     } else {
+//         Err(Error::new(input.span(), error_msg))
+//     }
+// }
 
 /// Adds a few methods to `ParseBuffer` to parse specific tokens.
 pub(crate) trait ParseBufferExt {
