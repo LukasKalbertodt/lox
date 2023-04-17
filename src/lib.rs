@@ -44,13 +44,6 @@ pub mod util;
 pub use crate::handle::{EdgeHandle, FaceHandle, VertexHandle};
 
 
-/// The three basic elements in a polygon mesh.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MeshElement {
-    Edge,
-    Face,
-    Vertex,
-}
 
 // ===========================================================================
 // ===== `Sealed` trait
