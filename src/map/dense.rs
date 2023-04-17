@@ -15,7 +15,7 @@ use stable_vec::{
 };
 
 use crate::{
-    handle::{hsize, Handle},
+    hsize,
     prelude::*,
 };
 use super::{PropMap, PropStore, PropStoreMut, Value};
@@ -59,8 +59,7 @@ use super::{PropMap, PropStore, PropStoreMut, Value};
 ///
 /// ```
 /// use lox::{
-///     FaceHandle,
-///     handle::Handle,
+///     FaceHandle, Handle,
 ///     map::{PropStore, PropStoreMut, DenseMap},
 /// };
 ///

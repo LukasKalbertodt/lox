@@ -2,7 +2,7 @@ use std::any::TypeId;
 use lina::Point3;
 
 use crate::{
-    handle::hsize,
+    hsize,
     prop::Pos3Like, sealed::Sealed,
 };
 
@@ -28,6 +28,24 @@ pub trait IteratorExt: Sized + Iterator {
 }
 
 impl<I: Iterator> IteratorExt for I {}
+
+
+/// Extension trait to add a few useful methods to `hsize`.
+pub trait HSizeExt {
+    /// Returns a new index.
+    ///
+    /// When the index space has been exhausted and there is no new index, this
+    /// function either panics or returns an old index. In debug mode, this
+    /// function is guaranteed to panic in this case.
+    fn next(self) -> Self;
+}
+
+impl HSizeExt for hsize {
+    #[inline(always)]
+    fn next(self) -> Self {
+        self + 1
+    }
+}
 
 
 /// Represents potentially partial information about the number of elements in

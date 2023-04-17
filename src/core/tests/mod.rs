@@ -40,7 +40,7 @@ macro_rules! gen_mesh_tests {
         #[allow(unused_imports)]
         use crate::{
             prelude::*,
-            handle::{Handle, HSizeExt},
+            util::HSizeExt,
             test_utils::cmp_rotated,
         };
 

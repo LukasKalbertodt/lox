@@ -3,8 +3,8 @@
 use std::{array, fmt};
 
 use crate::{
+    hsize,
     prelude::*,
-    handle::hsize,
     map::DenseMap,
     mesh::SplitEdgeWithFacesResult,
     util::False,

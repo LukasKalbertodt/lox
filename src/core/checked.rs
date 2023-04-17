@@ -4,9 +4,7 @@
 
 use std::{fmt, ops};
 
-use crate::{
-    handle::{Handle, hsize},
-};
+use crate::{Handle, hsize};
 
 
 /// A wrapper for handles to signal that they point to an existing element. Can

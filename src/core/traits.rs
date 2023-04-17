@@ -2,7 +2,7 @@ use std::fmt;
 
 use leer::Empty;
 use crate::{
-    handle::{Handle, hsize, FaceHandle, VertexHandle, EdgeHandle},
+    Handle, hsize, FaceHandle, VertexHandle, EdgeHandle,
     mesh::{ElementRefIter, HandleIter, HandleIterMut, SplitEdgeWithFacesResult},
     refs::ElementRef,
     util::{Bool, True, False, TriList, DiList},

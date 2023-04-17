@@ -22,8 +22,8 @@ use std::{
 use optional::Optioned as Opt;
 
 use crate::{
+    hsize,
     prelude::*,
-    handle::{hsize, Handle},
     map::{DenseMap, set::DenseSet},
     mesh::SplitEdgeWithFacesResult,
     util::True,

@@ -11,7 +11,7 @@
 
 pub use leer::Empty;
 pub use crate::{
-    handle::{EdgeHandle, FaceHandle, Handle, VertexHandle},
+    EdgeHandle, FaceHandle, Handle, VertexHandle,
     map::{PropMap, PropStore, PropStoreMut},
     prop::{ColorLike, Pos3Like, Vec3Like},
     core::{

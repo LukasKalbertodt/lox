@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::{
-    handle::{hsize, Handle},
+    hsize,
     prelude::*,
 };
 use super::{

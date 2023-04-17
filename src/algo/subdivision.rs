@@ -6,8 +6,7 @@ use lina::Point3;
 
 use crate::{
     prelude::*,
-    cast,
-    handle::hsize,
+    cast, hsize,
     map::{DenseMap, SparseMap, set::DenseSet},
     math::PrimitiveFloat,
     prop::Pos3Like,

@@ -1,9 +1,7 @@
 //! Trait aliases for property maps and stores with the three important
 //! elements as handle (edge, face, vertex).
 
-use crate::{
-    handle::{FaceHandle, EdgeHandle, VertexHandle},
-};
+use crate::{FaceHandle, EdgeHandle, VertexHandle};
 use super::{
     PropMap, PropStore, PropStoreMut,
 };

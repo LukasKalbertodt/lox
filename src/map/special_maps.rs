@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::handle::Handle;
+use crate::Handle;
 use super::{PropMap, Value};
 
 

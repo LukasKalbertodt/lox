@@ -1,4 +1,4 @@
-use crate::handle::Handle;
+use crate::Handle;
 use super::{PropMap, Value};
 
 
@@ -16,7 +16,7 @@ use super::{PropMap, Value};
 ///
 /// ```
 /// use lox::{
-///     handle::{Handle, VertexHandle},
+///     Handle, VertexHandle,
 ///     map::{FnMap, PropMap},
 /// };
 ///

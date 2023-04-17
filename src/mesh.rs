@@ -1,5 +1,6 @@
 use crate::{
-    handle::{hsize, Handle, HSizeExt, EdgeHandle, FaceHandle, VertexHandle},
+    hsize, Handle, EdgeHandle, FaceHandle, VertexHandle,
+    util::HSizeExt,
     core::{EdgeMesh, Mesh},
     refs::ElementRef,
 };

@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     prelude::*,
-    handle::hsize,
+    hsize,
     test_utils::cmp_rotated,
 };
 
