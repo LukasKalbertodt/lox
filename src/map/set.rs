@@ -57,7 +57,7 @@ impl<H: Handle, M: Empty + PropStore<H, Target = ()>> Set<H, M> {
 
     /// Returns an iterator over all handles in this set. The order of the
     /// handles is not specified.
-    pub fn handles(&self) -> Handles<'_, H, ()> {
+    pub fn handles(&self) -> Handles<M::Iter<'_>> {
         self.map.handles()
     }
 

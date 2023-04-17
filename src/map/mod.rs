@@ -23,6 +23,7 @@ pub mod set;
 mod sparse;
 mod special_maps;
 mod tiny;
+mod util;
 
 pub use self::{
     aliases::*,
@@ -34,7 +35,9 @@ pub use self::{
 };
 
 
-
+// ===========================================================================
+// ===== Main traits
+// ===========================================================================
 
 /// A mapping from a handle to some data (property).
 ///
@@ -224,21 +227,24 @@ pub trait PropStore<H: Handle>:
     /// Returns the number of properties stored in this map.
     fn num_props(&self) -> hsize;
 
+    /// Type returned by `iter`.
+    type Iter<'s>: Iterator<Item = (H, &'s Self::Output)> where Self: 's;
+
     /// Returns an iterator over immutable references to the values and their
     /// associated handles. The order of this iterator is not specified.
     ///
     /// TODO: improve with GATs
-    fn iter(&self) -> Box<dyn Iterator<Item = (H, &Self::Output)> + '_>;
+    fn iter(&self) -> Self::Iter<'_>;
 
     /// Returns an iterator over all handles that have a value associated with
     /// them. The order of the handles is not specified.
-    fn handles(&self) -> Handles<'_, H, Self::Output> {
+    fn handles(&self) -> Handles<Self::Iter<'_>> {
         Handles(self.iter())
     }
 
     /// Returns an iterator over immutable references to the values. The order
     /// of the handles is not specified.
-    fn values(&self) -> Values<'_, H, Self::Output> {
+    fn values(&self) -> Values<Self::Iter<'_>> {
         Values(self.iter())
     }
 
@@ -274,15 +280,17 @@ pub trait PropStoreMut<H: Handle>: Empty + PropStore<H> + ops::IndexMut<H> {
     /// Reserves memory for at least `additional` new properties.
     fn reserve(&mut self, additional: hsize);
 
+    type IterMut<'s>: Iterator<Item = (H, &'s mut Self::Output)> where Self: 's;
+
     /// Returns an iterator over mutable references to the values and their
     /// associated handles. The order of this iterator is not specified.
     ///
     /// TODO: improve with GATs
-    fn iter_mut(&mut self) -> Box<dyn Iterator<Item = (H, &mut Self::Output)> + '_>;
+    fn iter_mut(&mut self) -> Self::IterMut<'_>;
 
     /// Returns an iterator over mutable references to the values. The order of
     /// the handles is not specified.
-    fn values_mut(&mut self) -> ValuesMut<'_, H, Self::Output> {
+    fn values_mut(&mut self) -> ValuesMut<Self::IterMut<'_>> {
         ValuesMut(self.iter_mut())
     }
 
@@ -297,10 +305,14 @@ pub trait PropStoreMut<H: Handle>: Empty + PropStore<H> + ops::IndexMut<H> {
 }
 
 
-#[allow(missing_debug_implementations)] // TODO
-pub struct Handles<'map, H, T>(Box<dyn Iterator<Item = (H, &'map T)> + 'map>);
+// ===========================================================================
+// ===== Iterators
+// ===========================================================================
 
-impl<'map, H, T> Iterator for Handles<'map, H, T> {
+#[allow(missing_debug_implementations)] // TODO
+pub struct Handles<I>(I);
+
+impl<'map, H, T: 'map, I: Iterator<Item = (H, &'map T)>> Iterator for Handles<I> {
     type Item = H;
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(|(h, _)| h)
@@ -308,9 +320,9 @@ impl<'map, H, T> Iterator for Handles<'map, H, T> {
 }
 
 #[allow(missing_debug_implementations)] // TODO
-pub struct Values<'map, H, T>(Box<dyn Iterator<Item = (H, &'map T)> + 'map>);
+pub struct Values<I>(I);
 
-impl<'map, H, T> Iterator for Values<'map, H, T> {
+impl<'map, H, T: 'map, I: Iterator<Item = (H, &'map T)>> Iterator for Values<I> {
     type Item = &'map T;
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(|(_, v)| v)
@@ -318,15 +330,19 @@ impl<'map, H, T> Iterator for Values<'map, H, T> {
 }
 
 #[allow(missing_debug_implementations)] // TODO
-pub struct ValuesMut<'map, H, T>(Box<dyn Iterator<Item = (H, &'map mut T)> + 'map>);
+pub struct ValuesMut<I>(I);
 
-impl<'map, H, T> Iterator for ValuesMut<'map, H, T> {
+impl<'map, H, T: 'map, I: Iterator<Item = (H, &'map mut T)>> Iterator for ValuesMut<I> {
     type Item = &'map mut T;
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(|(_, v)| v)
     }
 }
 
+
+// ===========================================================================
+// ===== `Value` helper
+// ===========================================================================
 
 /// Wrapper for the value returned by [`PropMap::get`].
 pub struct Value<R, T>(R, PhantomData<T>);

@@ -10,7 +10,7 @@ use crate::{
     hsize,
     prelude::*,
 };
-use super::{PropMap, PropStore, PropStoreMut, Value};
+use super::{PropMap, PropStore, PropStoreMut, Value, util::gen_mapped_iter};
 
 
 /// A property map optimized to hold very few elements.
@@ -78,8 +78,9 @@ impl<H: Handle, T> PropStore<H> for TinyMap<H, T> {
         self.vec.len() as hsize
     }
 
-    fn iter(&self) -> Box<dyn Iterator<Item = (H, &Self::Output)> + '_> {
-        Box::new(self.vec.iter().map(|(handle, v)| (*handle, v)))
+    type Iter<'s> = Iter<'s, H, T> where Self: 's;
+    fn iter(&self) -> Self::Iter<'_> {
+        Iter(self.vec.iter())
     }
 }
 
@@ -131,8 +132,9 @@ impl<H: Handle, T> PropStoreMut<H> for TinyMap<H, T> {
         self.vec.reserve(additional as usize);
     }
 
-    fn iter_mut(&mut self) -> Box<dyn Iterator<Item = (H, &mut Self::Output)> + '_> {
-        Box::new(self.vec.iter_mut().map(|(handle, v)| (*handle, v)))
+    type IterMut<'s> = IterMut<'s, H, T> where Self: 's;
+    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+        IterMut(self.vec.iter_mut())
     }
 }
 
@@ -143,6 +145,22 @@ impl<H: Handle, T: fmt::Debug> fmt::Debug for TinyMap<H, T> {
             .finish()
     }
 }
+
+
+gen_mapped_iter!(
+    Iter<'a, H, T>(std::slice::Iter<'a, (H, T)>);
+    mut_token: [],
+    extra_derives: [Clone],
+    mapping: |(k, v)| (*k, v),
+    double_ended: true,
+);
+gen_mapped_iter!(
+    IterMut<'a, H, T>(std::slice::IterMut<'a, (H, T)>);
+    mut_token: [mut],
+    extra_derives: [],
+    mapping: |(k, v)| (*k, v),
+    double_ended: true,
+);
 
 
 #[cfg(test)]

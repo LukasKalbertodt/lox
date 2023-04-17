@@ -8,7 +8,7 @@ use crate::{
     hsize,
     prelude::*,
 };
-use super::{PropMap, PropStore, PropStoreMut, Value};
+use super::{PropMap, PropStore, PropStoreMut, Value, util::gen_mapped_iter};
 
 
 /// A property map using a hashmap to store the properties.
@@ -78,8 +78,9 @@ impl<H: Handle + Hash, T> PropStore<H> for SparseMap<H, T> {
         self.0.len() as hsize
     }
 
-    fn iter(&self) -> Box<dyn Iterator<Item = (H, &Self::Output)> + '_> {
-        Box::new(self.0.iter().map(|(k, v)| (*k, v)))
+    type Iter<'s> = Iter<'s, H, T> where Self: 's;
+    fn iter(&self) -> Self::Iter<'_> {
+        Iter(self.0.iter())
     }
 }
 
@@ -119,11 +120,27 @@ impl<H: Handle + Hash, T> PropStoreMut<H> for SparseMap<H, T> {
         self.0.reserve(additional as usize);
     }
 
-    fn iter_mut(&mut self) -> Box<dyn Iterator<Item = (H, &mut Self::Output)> + '_> {
-        Box::new(self.0.iter_mut().map(|(k, v)| (*k, v)))
+    type IterMut<'s> = IterMut<'s, H, T> where Self: 's;
+    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+        IterMut(self.0.iter_mut())
     }
 }
 
+
+gen_mapped_iter!(
+    Iter<'a, H, T>(std::collections::hash_map::Iter<'a, H, T>);
+    mut_token: [],
+    extra_derives: [Clone],
+    mapping: |(k, v)| (*k, v),
+    double_ended: false,
+);
+gen_mapped_iter!(
+    IterMut<'a, H, T>(std::collections::hash_map::IterMut<'a, H, T>);
+    mut_token: [mut],
+    extra_derives: [],
+    mapping: |(k, v)| (*k, v),
+    double_ended: false,
+);
 
 
 #[cfg(test)]
