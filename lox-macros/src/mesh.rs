@@ -13,7 +13,6 @@ use crate::{
 };
 
 
-#[derive(Debug)]
 pub(crate) struct MeshInput {
     mesh_type: syn::Path,
     vertices: Vec<(Ident, Vec<syn::Expr>)>,
