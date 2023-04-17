@@ -11,7 +11,7 @@
 
 pub use leer::Empty;
 pub use crate::{
-    EdgeHandle, FaceHandle, Handle, VertexHandle,
+    Handle,
     core::{
         Mesh, MeshMut, TriMesh, PolyMesh, EdgeMesh,
         BasicAdj, FullAdj, EdgeAdj, SupportsMultiBlade,
@@ -19,6 +19,10 @@ pub use crate::{
     map::{PropMap, PropStore, PropStoreMut},
     util::{IteratorExt, ColorLike, Pos3Like, Vec3Like},
 };
+
+// This is just for internal convenience: types that are used all the time.
+pub(crate) use crate::{EdgeHandle, FaceHandle, VertexHandle};
+
 
 // #[cfg(feature = "io")]
 // pub use crate::{

@@ -3,7 +3,7 @@
 #![feature(proc_macro_hygiene)]
 
 use lox::{
-    mesh,
+    mesh, FaceHandle,
     prelude::*,
     core::SharedVertexMesh,
 };
