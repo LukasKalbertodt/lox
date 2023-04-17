@@ -8,8 +8,7 @@ use crate::{
     prelude::*,
     cast, hsize,
     map::{DenseMap, SparseMap, set::DenseSet},
-    math::PrimitiveFloat,
-    prop::Pos3Like,
+    util::{PrimitiveFloat, Pos3Like},
 };
 
 pub fn sqrt3<MeshT, MapT, ScalarT>(

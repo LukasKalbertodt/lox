@@ -1,9 +1,8 @@
 use lina::{Point3, Vec3};
 
-use crate::{
-    cast,
-    math::PrimitiveNum,
-};
+use crate::cast;
+use super::PrimitiveNum;
+
 
 /// Types that can be interpreted to represent some kind of 3D position.
 ///

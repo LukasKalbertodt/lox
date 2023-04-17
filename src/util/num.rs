@@ -64,6 +64,7 @@ pub trait PrimitiveCast<F: Fidelity>: CastFromPrimitive<F> + CastIntoPrimitive<F
 
 impl<T, F: Fidelity> PrimitiveCast<F> for T where T: CastFromPrimitive<F> + CastIntoPrimitive<F> {}
 
+/// Types that can be cast from all primitive types.
 pub trait CastFromPrimitive<F: Fidelity>:
     CastFrom<u8, Fidelity: cast::SufficientFor<F>>
     + CastFrom<i8, Fidelity: cast::SufficientFor<F>>
@@ -95,6 +96,7 @@ where
         + CastFrom<f64, Fidelity: cast::SufficientFor<F>>
 {}
 
+/// Types that can be cast into all primitive types.
 pub trait CastIntoPrimitive<F: Fidelity>:
     CastInto<u8, Fidelity: cast::SufficientFor<F>>
     + CastInto<i8, Fidelity: cast::SufficientFor<F>>

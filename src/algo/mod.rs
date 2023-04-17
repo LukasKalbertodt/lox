@@ -3,8 +3,7 @@ use crate::{
     VertexRef,
     prelude::*,
     map::{DenseMap, VertexPropMap, set::DenseSet},
-    math::PrimitiveFloat,
-    prop::Pos3Like,
+    util::{PrimitiveFloat, Pos3Like},
 };
 
 pub mod bounding;

@@ -12,13 +12,12 @@
 pub use leer::Empty;
 pub use crate::{
     EdgeHandle, FaceHandle, Handle, VertexHandle,
-    map::{PropMap, PropStore, PropStoreMut},
-    prop::{ColorLike, Pos3Like, Vec3Like},
     core::{
         Mesh, MeshMut, TriMesh, PolyMesh, EdgeMesh,
         BasicAdj, FullAdj, EdgeAdj, SupportsMultiBlade,
     },
-    util::IteratorExt,
+    map::{PropMap, PropStore, PropStoreMut},
+    util::{IteratorExt, ColorLike, Pos3Like, Vec3Like},
 };
 
 // #[cfg(feature = "io")]

@@ -5,7 +5,7 @@ use std::array;
 
 use crate::{
     prelude::*,
-    util::{TriList, list::TriListIntoIter},
+    util::{TriList, TriListIntoIter},
 };
 use super::{
     Config, DirectedEdgeMesh, Checked, HalfEdgeHandle, Twin,

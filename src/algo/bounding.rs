@@ -2,10 +2,7 @@ use std::fmt;
 
 use lina::Point3;
 
-use crate::{
-    math::PrimitiveFloat,
-    prop::Pos3Like,
-};
+use crate::util::{PrimitiveFloat, Pos3Like};
 
 
 /// A bounding sphere defined by a center and a radius.

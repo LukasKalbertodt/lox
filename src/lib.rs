@@ -31,8 +31,6 @@ pub mod core;
 // #[cfg(feature = "io")]
 // pub mod io;
 pub mod map;
-pub mod math;
-pub mod prop;
 pub mod prelude;
 // #[cfg(feature = "io")]
 // pub mod shape;
