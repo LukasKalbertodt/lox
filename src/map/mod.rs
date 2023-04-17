@@ -187,50 +187,6 @@ pub trait PropMap<H: Handle> {
             mapper: f,
         }
     }
-
-    // /// Creates a new prop map that applies the given function to each element
-    // /// of the original map. Similar to [`PropMap::map_value`].
-    // ///
-    // /// The closure given to this function has to borrow from the original
-    // /// property. If you want to return an owned value instead, use
-    // /// [`PropMap::map_value`]. Otherwise, this method works exactly like
-    // /// `map_value`.
-    // ///
-    // ///
-    // /// # Example
-    // ///
-    // /// ```
-    // /// use lox::{
-    // ///     FaceHandle,
-    // ///     prelude::*,
-    // ///     map::SparseMap,
-    // /// };
-    // ///
-    // /// // Just shortcuts for later
-    // /// let f0 = FaceHandle::from_usize(0);
-    // /// let f1 = FaceHandle::from_usize(1);
-    // ///
-    // /// // Create a sparse map and insert two values
-    // /// let mut orig = SparseMap::new();
-    // /// orig.insert(f0, ["a".to_string(), "b".to_string()]);
-    // /// orig.insert(f1, ["x".to_string(), "y".to_string()]);
-    // ///
-    // /// // Map the value by taking the first element.
-    // /// let mapped = orig.map_ref(|s| &s[0]);
-    // ///
-    // /// assert_eq!(mapped.get(f0).map(|v| v.into_inner().as_str()), Some("a"));
-    // /// assert_eq!(mapped.get(f1).map(|v| v.into_inner().as_str()), Some("x"));
-    // /// ```
-    // fn map_ref<F, TargetT>(&self, f: F) -> adaptors::RefMapper<'_, Self, F>
-    // where
-    //     Self: Sized + PropMap<H, Marker = boo::Borrowed>,
-    //     F: Fn(&Self::Target) -> &TargetT,
-    // {
-    //     adaptors::RefMapper {
-    //         inner: self,
-    //         mapper: f,
-    //     }
-    // }
 }
 
 

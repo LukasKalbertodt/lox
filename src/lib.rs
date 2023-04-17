@@ -22,13 +22,6 @@ extern crate self as lox;
 #[macro_use]
 mod test_utils;
 
-// #[cfg(feature = "io")]
-// pub mod fat;
-// #[cfg(feature = "io")]
-// pub mod io;
-// #[cfg(feature = "io")]
-// pub mod shape;
-
 pub mod algo;
 pub mod cast;
 pub mod core;
