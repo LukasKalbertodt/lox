@@ -4,19 +4,9 @@ version = "0.1.0"
 authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
 edition = "2021"
 
-[workspace]
-members = [
-    "loxi",
-    "benches/profiling",
-]
-
-[profile.release]
-debug = true
 
 [features]
-default = ["io"]
 large-handle = []
-io = []
 
 [dependencies]
 ahash = "0.7"
@@ -33,17 +23,3 @@ typebool = "0.1.0"
 color-backtrace = "0.5"
 criterion = { version = "0.3", features = ["real_blackbox"] }
 paste = "1"
-
-
-# ----- Benchmarks -----------------------------------------------------------
-[[bench]]
-name = "io_ply"
-harness = false
-
-[[bench]]
-name = "io_stl"
-harness = false
-
-[[bench]]
-name = "mesh"
-harness = false
