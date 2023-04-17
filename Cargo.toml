@@ -9,13 +9,13 @@ edition = "2021"
 large-handle = []
 
 [dependencies]
-ahash = "0.7"
+ahash = "0.8.3"
 leer = { version = "0.1.1", features = ["derive"] }
 lina = { version = "0.1.4", default-features = false }
 lox-macros = { path = "lox-macros" }
-num-traits = "0.2"
+num-traits = "0.2.15"
 optional = "0.5"
-smallvec = { version = "1.4.0", features = ["union"] }
+smallvec = { version = "1.10.0", features = ["union"] }
 stable-vec = "0.4"
 typebool = "0.1.0"
 
