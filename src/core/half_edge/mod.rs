@@ -174,7 +174,14 @@ impl fmt::Debug for HalfEdgeHandle {
 /// triangle meshes via the configuration.) Furthermore, it can answer all
 /// adjacency queries and exposes full edges.
 ///
-/// TODO: nice SVG image
+/// The half edge mesh is a half-edge based data structure, with most of the
+/// connectivity stored per half edge. Each face and vertex just store one
+/// arbitrary half edge handle. This diagram illustrates the fields stored per
+/// half edge. (Not shown in the diagram: each half edge also stores the handle
+/// of its face.)
+///
+#[doc = include_str!("diagram.svg")]
+///
 ///
 /// # References
 ///
