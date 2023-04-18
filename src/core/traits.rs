@@ -321,8 +321,8 @@ pub trait MeshMut: Mesh {
     /// ```
     fn add_vertex(&mut self) -> VertexHandle;
 
-    /// Adds a new triangular face (defined by the three vertices) to this mesh
-    /// and returns the handle representing that face.
+    /// Adds a new triangular face (defined by the three vertices in CCW order)
+    /// to this mesh and returns the handle representing that face.
     ///
     /// The function of this method has the same semantics as
     /// [`MeshMut::add_face`]. The only difference is that this is specialized

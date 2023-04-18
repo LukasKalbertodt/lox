@@ -1,6 +1,158 @@
-//! Everything related to meshes.
+//! A polygon mesh library with different data structures and traits to abstract
+//! over those.
 //!
-//! **TODO**: Everything.
+//! `lox` can be used to create, generate, process, and analyze polygon meshes.
+//! This is part of the field "geometry processing", relevant for developing
+//! real-time 3D applications, simulations, 3D-printing, and much more.
+//!
+//! **Main features**:
+//!
+//! - Multiple optimized and well tested mesh data structures, including *half
+//!   edge mesh* and *directed edge mesh*.
+//! - Ability to abstract over different data structures without overhead.
+//! - *BlAzInGlY fAsT*. Ok no actually, it's [pretty fast](#speed) and I have
+//!    benchmarks to prove it.
+//! - *Prop maps* as flexible solution for storing and managing additional mesh
+//!   properties (e.g. vertex positions, face colors, ...).
+//! - Built-in algorithms (only very few right now).
+//! - **Notably missing**: IO. [Explanation](#background-and-missing-features).
+//!
+//!
+//!
+//! # Quick start
+//!
+//! Important facts:
+//!
+//! - `lox` offers [multiple data structures][core#available-data-structures] to
+//!   store mesh connectivity information. It has [traits][core#mesh-traits] to
+//!   abstract over those. You can chose the one that best fits your needs.
+//!
+//! - Data associated with mesh elements (e.g. vertex positions, face
+//!   colors, ...) are called "**props**". Props are stored separately from the
+//!   connectivity information, in [**prop maps**][map]. Yes, even the vertex
+//!   positions.
+//!
+//! - To refer to mesh elements, use [`VertexHandle`], [`FaceHandle`] and
+//!   [`EdgeHandle`].
+//!
+//! - You can find some provided algorithms in [`algo`].
+//!
+//! - You likely want to `use lox::prelude::*;` to import all important traits.
+//!
+//!
+//! # Examples
+//!
+//! Basic creation and usage of some mesh methods:
+//!
+//! ```
+//! use lox::{
+//!     core::DirectedEdgeMesh,
+//!     prelude::*,
+//! };
+//!
+//! let mut mesh = <DirectedEdgeMesh>::empty();
+//!
+//! let v0 = mesh.add_vertex();
+//! let v1 = mesh.add_vertex();
+//! let v2 = mesh.add_vertex();
+//! let v3 = mesh.add_vertex();
+//!
+//! let f0 = mesh.add_triangle([v0, v1, v2]);
+//! let f1 = mesh.add_triangle([v0, v2, v3]);
+//!
+//! let v_center = mesh.split_face(f0);
+//!
+//! for neighbor in mesh.vertices_around_vertex(v_center) {
+//!     assert!(neighbor == v0 || neighbor == v1 || neighbor == v2);
+//! }
+//!
+//! assert_eq!(mesh.num_faces(), 4);
+//! ```
+//!
+//! Creation of a mesh with vertex positions, then subdividing it, finally
+//! printing the positions of all boundary vertices.
+//!
+//! ```
+//! use lox::{
+//!     core::{HalfEdgeMesh, half_edge::TriConfig},
+//!     algo,
+//!     prelude::*,
+//! };
+//!
+//! let (mut mesh, mut positions) = lox::mesh! {
+//!     type: HalfEdgeMesh<TriConfig>,
+//!     vertices: [
+//!         v0: [0.0, 0.0, 0.0],
+//!         v1: [0.0, 1.0, 0.0],
+//!         v2: [1.0, 0.0, 0.0],
+//!         v3: [1.0, 1.0, 0.5],
+//!     ],
+//!     faces: [
+//!         [v0, v2, v1],
+//!         [v3, v1, v2],
+//!     ],
+//! };
+//!
+//! algo::subdivision::sqrt3(&mut mesh, &mut positions, 2);
+//!
+//! for v in mesh.vertices().filter(|v| v.is_boundary()) {
+//!     println!("{:?}", positions[v.handle()]);
+//! }
+//! ```
+//!
+//!
+//!
+//! # Speed
+//!
+//! The library was specifically designed with performance in mind, trying to
+//! beat or at least meet the performance of existing C++ libraries like
+//! [OpenMesh]. This was evaluated constantly with benchmarks as part of my
+//! [master's thesis][thesis]. See chapter 5.1 in the rendered PDF for details.
+//!
+//! The benchmarks are in need of updating (see the next section) and the
+//! benchmark results are 4 years old. But I am pretty confident that not much
+//! has changed since then.
+//!
+//!
+//! [OpenMesh]: https://www.graphics.rwth-aachen.de/software/openmesh/
+//!
+//!
+//! # Background and missing features
+//!
+//! This library started as part of [my master's thesis][thesis] which I
+//! finished in summer 2019. Thesis title: "*Designing and Implementing a
+//! Polygon Mesh Library: Can Rust Improve the Status Quo in the Domain of
+//! Geometry Processing?*" The chapter "Background: Geometry processing" might
+//! be useful to read, if you are not very familiar with the field. It also
+//! explains the data structures implemented in `lox` in some detail.
+//!
+//! Anyway, the plan was to just polish the library and then release it.
+//! Naturally, that didn't happen. I started multiple attempts over the years
+//! to finish the work and get it out the door, but until 2023 I failed. To be
+//! fair, only with Rust's stabilization of GATs, was I able to create a
+//! somewhat nice API.
+//!
+//! In 2023 I looked at the crate again and made the decision to cut down its
+//! scope for the initial release, to finally get it released at all. So I
+//! threw out all IO-related code as it added a whole lot of complexity. That's
+//! why IO is completely missing from `lox` right now.
+//!
+//! Of course, I plan on adding all that functionality back. I already did lots
+//! of API design and implementation work. Well, it was working already. But
+//! polishing the API and making it maintainable is a different beast. So let's
+//! see what the future brings. If you have interest in this, feel free to
+//! reach out, I'm happy to hear from you!
+//!
+//!
+//! [thesis]: https://github.com/LukasKalbertodt/masters-thesis
+//!
+//!
+//! # Crate features
+//!
+//! - `large-handle`: makes the crate us 64 bit integers instead of 32 bit
+//!   integers for handles.
+//!
+
 
 #![deny(missing_debug_implementations)]
 #![deny(rustdoc::broken_intra_doc_links)]

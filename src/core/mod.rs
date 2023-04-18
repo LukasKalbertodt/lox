@@ -33,7 +33,7 @@
 //! different data structures.
 //!
 //!
-//! # Overview of available data structures
+//! # Available data structures
 //!
 //! The following table shows the data structures that are currently implemented
 //! in `lox`. Refer to their documentation to learn more about how these data

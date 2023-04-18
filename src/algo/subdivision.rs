@@ -13,6 +13,7 @@ use crate::{
     util::{PrimitiveFloat, Pos3Like},
 };
 
+
 /// The √3 subdivision algorithm.
 ///
 ///
