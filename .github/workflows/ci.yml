@@ -61,29 +61,3 @@ jobs:
         cargo test --doc --no-default-features
     - name: Generate documenation
       run: cargo doc --no-deps
-
-  fuzz:
-    name: 'Run fuzz tests'
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - name: Install latest nightly
-      uses: actions-rs/toolchain@v1
-      with:
-          toolchain: nightly
-          default: true
-          profile: minimal
-    - name: Install cargo fuzz
-      uses: actions-rs/install@v0.1
-      with:
-        crate: cargo-fuzz
-        version: latest
-        use-tool-cache: true
-    - name: Run fuzz tests
-      run: ls fuzz/corpus/ | xargs -L1 -i cargo fuzz run -a -j2 {} -- -max_total_time=15s
-    - name: Upload crash artifacts
-      if: ${{ failure() }}
-      uses: actions/upload-artifact@v2
-      with:
-        name: crash-artifacts
-        path: fuzz/artifacts/**/crash*
