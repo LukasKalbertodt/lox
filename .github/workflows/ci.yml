@@ -24,27 +24,10 @@ jobs:
     name: 'Build, test & document'
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Install latest nightly
-      uses: actions-rs/toolchain@v1
-      with:
-          toolchain: nightly
-          default: true
-          profile: minimal
-    - name: Prepare cache key
-      run: |
-        cargo generate-lockfile
-        cp Cargo.lock cache-fingerprint
-        echo $RUSTFLAGS >> cache-fingerprint
-        echo $(rustc -V) >> cache-fingerprint
-    - name: Restore cargo cache
-      uses: actions/cache@v2
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('cache-fingerprint') }}
+    - uses: actions/checkout@v3
+    - name: Restore cache
+      uses: Swatinem/rust-cache@v2
+
     - name: Build
       run: cargo build --all --lib --bins
     - name: Build Examples
