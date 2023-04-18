@@ -1,3 +1,5 @@
+//! Bounding volumes and how to calculate them.
+
 use std::fmt;
 
 use lina::Point3;

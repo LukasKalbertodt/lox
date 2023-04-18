@@ -1,3 +1,7 @@
+//! Various algorithms related to meshes.
+//!
+//! This module will grow over time.
+
 
 use crate::{
     VertexRef,
@@ -10,6 +14,11 @@ pub mod bounding;
 pub mod subdivision;
 
 
+/// Simple smoothing algorithm: replaces each vertex position with the centroid
+/// of its neighbor vertices' positions.
+///
+/// The given `vertex_positions` must have a position for every vertex in the
+/// mesh or else this function panics.
 #[inline(never)]
 pub fn smooth_simple<MeshT, MapT>(
     mesh: &MeshT,
@@ -41,6 +50,9 @@ where
         (v.handle(), new_pos)
     }).collect()
 }
+
+
+/// Returns `true` if the mesh is closed or `false` if it has holes.
 pub fn is_closed<MeshT>(mesh: &MeshT) -> bool
 where
     MeshT: FullAdj,
@@ -87,11 +99,13 @@ pub struct DijsktraVertexData<F> {
 }
 
 
-/// TODO
-///
-/// - think about having a parameter `target vertex` that allows the algo to
-///   break early when it's found
-/// - Provide distance as edge map -> but then we need EdgeAdj
+/// Runs the Dijkstra algorithm on the mesh to find the shortest paths from the
+/// `start_vertex` to all other vertices.
+// TODO
+//
+// - think about having a parameter `target vertex` that allows the algo to
+//   break early when it's found
+// - Provide distance as edge map -> but then we need EdgeAdj
 pub fn dijkstra<MeshT, MapT, ScalarT>(
     mesh: &MeshT,
     vertex_positions: &MapT,

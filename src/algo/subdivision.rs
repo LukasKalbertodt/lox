@@ -1,3 +1,5 @@
+//! Algorithms for subdividing a mesh.
+
 use std::{
     collections::HashMap,
 };
@@ -11,6 +13,15 @@ use crate::{
     util::{PrimitiveFloat, Pos3Like},
 };
 
+/// The √3 subdivision algorithm.
+///
+///
+/// # References
+///
+/// Kobbelt, Leif. "√ 3-subdivision." Proceedings of the 27th annual conference
+/// on Computer graphics and interactive techniques. 2000.
+///
+/// <https://www.graphics.rwth-aachen.de/media/papers/sqrt31.pdf>
 pub fn sqrt3<MeshT, MapT, ScalarT>(
     mesh: &mut MeshT,
     vertex_positions: &mut MapT,
@@ -27,14 +38,8 @@ where
     }
 }
 
-/// The sqrt(3) subdivision algorithm.
-///
-/// TODO: explain & link to paper
-///
-/// TODO: mention that `split_boundary = true` has the condition that all
-/// boundary faces must only have one boundary edge!
-///
-/// https://www.graphics.rwth-aachen.de/media/papers/sqrt31.pdf
+// `split_boundary = true` has the condition that all boundary faces must only
+// have one boundary edge!
 #[inline(never)]
 fn sqrt3_impl<MeshT, MapT, ScalarT>(
     mesh: &mut MeshT,
