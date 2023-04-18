@@ -12,7 +12,7 @@ large-handle = []
 ahash = "0.8.3"
 leer = { version = "0.1.1", features = ["derive"] }
 lina = { version = "0.1.4", default-features = false }
-lox-macros = { path = "lox-macros" }
+lox-macros = { version = "=0.0.1", path = "lox-macros" }
 num-traits = "0.2.15"
 optional = "0.5"
 smallvec = { version = "1.10.0", features = ["union"] }
