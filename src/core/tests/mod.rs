@@ -1229,13 +1229,13 @@ macro_rules! gen_mesh_tests {
             fn many_different_face_valences() {
                 //
                 //              (a) ---- (b) ---- (c) ---- (d)
-                //            ⟋  |        |        |        |
-                //          ⟋    |   V    |        |        |
-                //        ⟋   U  |        |        |        |
+                //            ⟋ |        |         |        |
+                //          ⟋   |   V    |         |        |
+                //        ⟋  U  |        |         |        |
                 //     (e) ---- (f) ---- (g)      (h)  X   (i)
-                //      |               ⟋     Y    |        |
-                //      |      W      ⟋            |        |
-                //      |           ⟋              |        |
+                //      |               ⟋    Y     |        |
+                //      |      W      ⟋            |        |
+                //      |           ⟋              |        |
                 //     (j) ---- (k) ---- (l) ---- (m) ---- (n)
                 //
                 // Plus a face Z connecting the whole boundary.
@@ -1315,13 +1315,13 @@ macro_rules! gen_mesh_tests {
             fn split_quad_face() {
                 //
                 //            (a) ---- (b)                   (a) ---- (b)
-                //          ⟋  |        |                  ⟋  | ⟍   ⟋ |
-                //        ⟋    |   Y    |                ⟋    |   (m)   |
-                //      ⟋   X  |        |              ⟋   X  | ⟋   ⟍ |
+                //          ⟋ |        |                  ⟋ | ⟍   ⟋ |
+                //        ⟋   |   Y    |                ⟋   |  (m)  |
+                //      ⟋  X  |        |              ⟋  X  | ⟋   ⟍ |
                 //   (c) ---- (d) ---- (e)    =>    (c) ---- (d) ---- (e)
-                //      ⟍             ⟋                ⟍             ⟋ 
-                //        ⟍    Z    ⟋                    ⟍    Z    ⟋ 
-                //          ⟍     ⟋                        ⟍     ⟋ 
+                //      ⟍            ⟋                ⟍            ⟋
+                //        ⟍   Z    ⟋                    ⟍   Z    ⟋
+                //          ⟍    ⟋                        ⟍    ⟋
                 //            (f)                            (f)
                 //
                 let mut m = <$name>::empty();
@@ -1382,13 +1382,13 @@ macro_rules! gen_mesh_tests {
             fn remove_quad_face() {
                 //
                 //            (a) ---- (b)                   (a)      (b)
-                //          ⟋  |        |                  ⟋  |
-                //        ⟋    |   Y    |                ⟋    |
-                //      ⟋   X  |        |              ⟋   X  |
+                //          ⟋ |        |                  ⟋  |
+                //        ⟋   |   Y    |                ⟋    |
+                //      ⟋  X  |        |              ⟋  X   |
                 //   (c) ---- (d) ---- (e)    =>    (c) ---- (d) ---- (e)
-                //      ⟍             ⟋                ⟍             ⟋ 
-                //        ⟍    Z    ⟋                    ⟍    Z    ⟋ 
-                //          ⟍     ⟋                        ⟍     ⟋ 
+                //      ⟍            ⟋                ⟍            ⟋
+                //        ⟍   Z    ⟋                    ⟍   Z    ⟋
+                //          ⟍    ⟋                        ⟍    ⟋
                 //            (f)                            (f)
                 //
                 // We repeat the test three times with only one difference: the

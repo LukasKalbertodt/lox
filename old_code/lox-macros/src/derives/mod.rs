@@ -22,4 +22,3 @@ use crate::util::struct_fields;
 // /// Specifies whether casting colors (in "rounding" mode) is allowed when a
 // /// casting mode is not explicitly specified.
 // const DEFAULT_COLOR_CAST_ALLOWED: bool = true;
-

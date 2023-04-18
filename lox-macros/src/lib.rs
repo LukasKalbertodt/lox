@@ -114,4 +114,3 @@ pub fn mesh(input: TokenStream) -> TokenStream {
         Err(e) => e.to_compile_error().into(),
     }
 }
-

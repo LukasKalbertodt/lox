@@ -372,7 +372,8 @@ impl<H: Handle> AnyColorMap<H> {
     {
         macro_rules! insert {
             ($map:ident, $n:expr) => {{
-                let value = *<dyn Any>::downcast_ref(&ColorLike::convert::<[_; $n]>(&prop)).unwrap();
+                let value = *<dyn Any>::downcast_ref(&ColorLike::convert::<[_; $n]>(&prop))
+                    .unwrap();
                 $map.insert(handle, value);
             }}
         }
