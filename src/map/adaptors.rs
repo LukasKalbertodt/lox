@@ -1,3 +1,5 @@
+//! Helper types to implement [`PropMap::map`] and other adaptor functions.
+
 use crate::Handle;
 use super::{PropMap, Value};
 

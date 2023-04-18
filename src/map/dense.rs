@@ -20,6 +20,9 @@ use super::{PropMap, PropStore, PropStoreMut, Value, util::gen_mapped_iter};
 /// A property map that uses a simple contiguous vector to store the
 /// properties.
 ///
+/// This is well suited for situations where (almost) every handle from one mesh
+/// has a value associated with it.
+///
 ///
 /// # Memory requirements and use cases
 ///
@@ -71,10 +74,6 @@ use super::{PropMap, PropStore, PropStoreMut, Value, util::gen_mapped_iter};
 /// map.insert(f5, "lena");
 /// assert_eq!(map.get_ref(f5), Some(&"lena"));
 /// ```
-///
-/// TODO: more examples:
-/// - generating some property for all vertices of a mesh
-/// - iterator stuff
 #[derive(Clone)]
 pub struct DenseMap<H: Handle, T> {
     vec: StableVec<T>,

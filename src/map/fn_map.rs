@@ -4,13 +4,8 @@ use super::{PropMap, Value};
 
 /// A simple wrapper for property maps defined by functions (usually closures).
 ///
-/// This wrapper only exists because of some limitations of Rust in regards to
-/// overlapping impls. In principle it is possible to `impl PropMap for F`
-/// where `F: Fn(Handle) -> Target`. But this would be a a general impl that
-/// could (in theory) apply to every type. This makes it impossible to add
-/// other general impls such as `impl PropMap for &M where M: PropMap`. Since
-/// the impl for references to property maps is important, property maps
-/// defined by functions have to use this wrapper type.
+/// This wrapper only exists because we can't implement `PropMap` directly for
+/// any `F` where `F: Fn(Handle) -> Target` due to coherence rules.
 ///
 /// # Example
 ///

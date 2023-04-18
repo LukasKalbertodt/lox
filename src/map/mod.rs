@@ -1,9 +1,56 @@
-//! ...
+//! Map data structures: associating a property (some data) with a vertex, face,
+//! or edge.
+//!
+//! This crate is built around storing all your mesh properties
+//! (position, normals, colors, ...) separately. And in particular, separate
+//! from the connectivity information (the "core mesh"). This is more flexible
+//! and, maybe counter-intuitively, can be faster in many situations. So how to
+//! store those properties? Prop maps and prop stores!
+//!
+//!
+//! # Traits
+//!
+//! This module defines three traits, which are connected via super-trait
+//! bounds:
+//!
+//! ```ignore
+//! trait PropMap<H> { ... }
+//! trait PropStore<H>: PropMap<H> { ... }
+//! trait PropStoreMut<H>: PropStore<H> { ... }
+//! ```
+//!
+//! [`PropMap`] is the most abstract trait, only requiring the basic
+//! `fn(self, Handle) -> Option<Property>` function. It can be implemented by data structures
+//! storing properties, but also by closures generating the property on the
+//! fly. [`PropStore`] and [`PropStoreMut`] is only for data structures actually
+//! storing the properties and they offer a lot more methods, e.g. for
+//! iterating or mutating the data structure.
+//!
+//!
+//! # Implementations
+//!
+//! There are currently two implementations of `PropStore`, allowing you to
+//! store properties:
+//!
+//! - [`SparseMap`]: A `HashMap` under the hood. Performs well in almost all
+//!   situations, regardless property density.
+//! - [`DenseMap`]: Well suited for cases where have a property for (almost) all
+//!   mesh handles of a specific kind (e.g. faces). Faster than a `SparseMap`
+//!   in these cases. Pretty bad in all other cases. Uses the handle's index
+//!   to index into a `Vec`.
+//!
+//! In addition to the types above, the following types also (but only)
+//! implement `PropMap`.
+//!
+//! - [`ConstMap`]: Returns the same prop value for all handles.
+//! - [`EmptyMap`]: Returns `None` for all handles.
+//! - [`FnMap`]: Uses a closure to calculate the prop for a handle.
+//!
+//!
+//!
+//!
 
-
-use std::{
-    ops, marker::PhantomData, fmt, borrow::Borrow,
-};
+use std::{ops, marker::PhantomData, fmt, borrow::Borrow};
 
 use crate::{
     hsize,
@@ -49,28 +96,41 @@ pub use self::{
 /// for several reasons, there are two associated types: [`Self::Target`] and
 /// [`Self::Ret`].
 ///
-/// # Completeness
+/// Using the returned value from `get` is thus a bit weird. You can always read
+/// it through its `Deref` impl. And in most cases, you have bound it by
+/// something like `Pos3Like` anyway, which allows you to just `Copy` it.
 ///
-/// In many contexts, a `PropMap` is required to return `Some(_)` values for
-/// a specific set of handles. For example:
 ///
-/// ```ignore
-/// # // TODO: use proper mesh traits here and possibly make this compile!
-/// fn print_face_props<'s>(mesh: ..., map: impl PropMap<'s, FaceHandle>) {
-///     ...
+/// # Examples
+///
+/// Using `PropMap` in a function:
+///
+/// ```
+/// use lox::{VertexHandle, prelude::*};
+///
+/// fn highest_vertex<M, P>(mesh: &M, vertex_positions: &P) -> Option<P::Target>
+/// where
+///     M: Mesh,
+///     P: PropMap<VertexHandle>,
+///     P::Target: Pos3Like,
+/// {
+///     let mut out: Option<P::Target> = None;
+///     for vh in mesh.vertex_handles() {
+///         if let Some(pos) = vertex_positions.get(vh) {
+///             // Is the new vertex higher up?
+///             if out.map_or(true, |highest| highest.z() < pos.z()) {
+///                 // With `*` we copy the value out of the `Value` wrapper.
+///                 out = Some(*pos);
+///             }
+///         }
+///     }
+///
+///     out
 /// }
 /// ```
 ///
-/// This function probably requires that `map` contains `Some(_)` data for all
-/// face handles of `mesh`. This is stated as: "`map` needs to be complete
-/// regarding `mesh`".
-///
-///
-/// # TODO
-///
-/// - Example how to use `PropMap`s
-/// - Example how to implement `PropMap`
-/// - Trait alias
+/// For examples on implementing this, see the provided implementations in this
+/// crate.
 pub trait PropMap<H: Handle> {
     /// The owned prop type that this map maps to.
     ///
@@ -98,20 +158,12 @@ pub trait PropMap<H: Handle> {
     }
 
     /// Creates a new prop map that applies the given function to each element
-    /// of the original map. Very similar to `Iterator::map`.
+    /// of the original map. Very similar to [`Iterator::map`].
     ///
-    /// This method only works when the given closure returns a new property by
-    /// value. If you want to instead borrow from the old property, use
-    /// TODO.
-    ///
-    /// This adaptor doesn't change for which handles a value is present. So
-    /// `contains_handle` always returns the same result as on the original
-    /// map.
     ///
     /// # Example
     ///
-    /// This example shows a [`SparseMap`] on which `map` is called. The
-    /// element's borrowed state and type is changed (from `&str` to `usize`).
+    /// This example shows a [`SparseMap`] on which `map` is called.
     ///
     /// ```
     /// use lox::{
@@ -130,51 +182,31 @@ pub trait PropMap<H: Handle> {
     /// orig.insert(f0, "Anna");
     /// orig.insert(f1, "Peter");
     ///
-    /// // Here we create a new map by applying the function that simply
-    /// // returns the length of the string.
-    /// let mapped = orig.map_value(|s| s.len().into());
-    ///
+    /// // Here we create a new map by applying the function that returns the
+    /// // length of the string.
+    /// let name_lens = orig.map(|s| s.len());
     ///
     /// assert_eq!(orig.get(f0).map(|v| *v), Some("Anna"));
-    /// assert_eq!(mapped.get(f0).map(|v| *v), Some(4));
+    /// assert_eq!(name_lens.get(f0).map(|v| *v), Some(4));
     ///
     /// assert_eq!(orig.get(f1).map(|v| *v), Some("Peter"));
-    /// assert_eq!(mapped.get(f1).map(|v| *v), Some(5));
+    /// assert_eq!(name_lens.get(f1).map(|v| *v), Some(5));
     ///
     /// assert_eq!(orig.get(f2), None);
-    /// assert_eq!(mapped.get(f2), None);
-    /// ```
+    /// assert_eq!(name_lens.get(f2), None);
     ///
-    /// In the above example, the mapping function received a borrowed property
-    /// and returns a new property by value. But this method also works with
-    /// maps that return the original property by value.
     ///
-    /// The closure always receives a `Wrap<...>`. As this type implements
-    /// `Deref`, most operations just work. However, if you need access to the
-    /// owned value, you need to use `into_inner()`. This is shown here:
+    /// // But we can also reborrow the value's contents.
+    /// let shorter_names = orig.map(|s| &s[1..]);
     ///
-    /// ```
-    /// use lox::{
-    ///     FaceHandle,
-    ///     prelude::*,
-    ///     map::FnMap,
-    /// };
+    /// assert_eq!(orig.get(f0).map(|v| *v), Some("Anna"));
+    /// assert_eq!(shorter_names.get(f0).map(|v| *v), Some("nna"));
     ///
-    /// // The `FnMap` returns its properties by value
-    /// let orig = FnMap(|_| Some(vec![1, 2, 3]));
+    /// assert_eq!(orig.get(f1).map(|v| *v), Some("Peter"));
+    /// assert_eq!(shorter_names.get(f1).map(|v| *v), Some("eter"));
     ///
-    /// // If you just need to access the property by immutable reference, you
-    /// // can simply do that thanks to deref coercions.
-    /// let mapped = orig.map_value(|v| v.len());
-    /// assert_eq!(mapped.get(FaceHandle::from_usize(0)).map(|x| *x), Some(3usize));
-    ///
-    /// // However, sometimes you really need the owned value. In that case,
-    /// // you need to call `into_inner` on the `Wrap` that was passed in.
-    /// let mapped = orig.map_value(|v| v.into_inner().into_boxed_slice());
-    /// assert_eq!(
-    ///     mapped.get(FaceHandle::from_usize(0)).as_ref().map(|x| &**x),
-    ///     Some(&vec![1, 2, 3].into_boxed_slice()),
-    /// );
+    /// assert_eq!(orig.get(f2), None);
+    /// assert_eq!(shorter_names.get(f2), None);
     /// ```
     fn map<F, TargetT>(&self, f: F) -> adaptors::Map<'_, Self, F>
     where
@@ -186,33 +218,20 @@ pub trait PropMap<H: Handle> {
             mapper: f,
         }
     }
+
+    // TODO: filter
 }
 
 
-/// A type that stores data associated with handles.
+/// Types that store data associated with handles.
 ///
-/// This type is similar to `PropMap`, but has more restrictions/features.
-/// `PropMap::get` can return owned or borrowed values, whereas
-/// `PropStore::get_ref` has to return a borrowed value. It also has
-/// `ops::Index` as super trait, which requires the same. Furthermore, a
-/// `PropStore` needs to be able to iterate over all of its data.
+/// This trait adds various functionality to the barebone [`PropMap`] interface.
+/// This includes an `ops::Index` impl and methods for iteration.
 ///
-///
-/// # Type level relationship between `PropStore` and `PropMap`
-///
-/// `PropStore` is a subtype of `PropMap`, as in: every `PropStore` is also a
-/// `PropMap`. It would be really nice to implement `PropMap` for all types
-/// that implement `PropStore` (at least provide a default implementation). But
-/// this is currently problematic due to (a) coherence and (b) specialization
-/// being unstable. TODO: try this in the future again.
-///
-///
-/// # TODO
-///
-/// - Example how to use `PropStore`s
-/// - Example how to implement `PropStore`
-/// - When to use `PropMap` and when to use `PropStore`
-/// - Trait alias
+/// Use `PropMap` for trait bounds if it is sufficient for you, as it allows
+/// your function to be called with more types. This is similar to how you
+/// should use `FnOnce` in bounds if it works for you, instead of `FnMut` or
+/// `Fn`.
 pub trait PropStore<H: Handle>:
     PropMap<H> + ops::Index<H, Output = <Self as PropMap<H>>::Target>
 {
@@ -223,13 +242,11 @@ pub trait PropStore<H: Handle>:
     /// Returns the number of properties stored in this map.
     fn num_props(&self) -> hsize;
 
-    /// Type returned by `iter`.
+    /// Type returned by [`iter`][Self::iter].
     type Iter<'s>: Iterator<Item = (H, &'s Self::Output)> where Self: 's;
 
     /// Returns an iterator over immutable references to the values and their
     /// associated handles. The order of this iterator is not specified.
-    ///
-    /// TODO: improve with GATs
     fn iter(&self) -> Self::Iter<'_>;
 
     /// Returns an iterator over all handles that have a value associated with
@@ -244,13 +261,16 @@ pub trait PropStore<H: Handle>:
         Values(self.iter())
     }
 
+    /// Returns `true` if there are no properties stored inside `self`
+    /// (i.e. `get_ref` will return `None` for all handles).
     fn is_empty(&self) -> bool {
         self.num_props() == 0
     }
 }
 
-// TODO: maybe combine this with `PropStore`?
-/// ...
+/// Types that store data (props) associated with handles and allow mutation.
+///
+/// This adds mutation-related functionality to [`PropStore`].
 pub trait PropStoreMut<H: Handle>: Empty + PropStore<H> + ops::IndexMut<H> {
     /// Returns a mutable reference to the property associated with `handle` or
     /// `None` if no such property exists.
@@ -269,19 +289,18 @@ pub trait PropStoreMut<H: Handle>: Empty + PropStore<H> + ops::IndexMut<H> {
     where
         Self::Output: Sized;
 
-    /// Removes all properties so that all `contains_handle()` returns `false`
-    /// for all handles.
+    /// Removes all properties ([`is_empty`][PropStore::is_empty] will then
+    /// return `true`).
     fn clear(&mut self);
 
     /// Reserves memory for at least `additional` new properties.
     fn reserve(&mut self, additional: hsize);
 
+    /// The type returned by [`iter_mut`][Self::iter_mut].
     type IterMut<'s>: Iterator<Item = (H, &'s mut Self::Output)> where Self: 's;
 
     /// Returns an iterator over mutable references to the values and their
     /// associated handles. The order of this iterator is not specified.
-    ///
-    /// TODO: improve with GATs
     fn iter_mut(&mut self) -> Self::IterMut<'_>;
 
     /// Returns an iterator over mutable references to the values. The order of
@@ -290,6 +309,8 @@ pub trait PropStoreMut<H: Handle>: Empty + PropStore<H> + ops::IndexMut<H> {
         ValuesMut(self.iter_mut())
     }
 
+    /// Returns an empty prop store with pre-allocated memory for `cap` many
+    /// properties.
     fn with_capacity(cap: hsize) -> Self
     where
         Self: Sized,
@@ -305,7 +326,9 @@ pub trait PropStoreMut<H: Handle>: Empty + PropStore<H> + ops::IndexMut<H> {
 // ===== Iterators
 // ===========================================================================
 
-#[allow(missing_debug_implementations)] // TODO
+/// Iterator over handles of a [`PropStore`]. Returned by
+/// [`PropStore::handles`].
+#[derive(Debug)]
 pub struct Handles<I>(I);
 
 impl<'map, H, T: 'map, I: Iterator<Item = (H, &'map T)>> Iterator for Handles<I> {
@@ -315,7 +338,9 @@ impl<'map, H, T: 'map, I: Iterator<Item = (H, &'map T)>> Iterator for Handles<I>
     }
 }
 
-#[allow(missing_debug_implementations)] // TODO
+/// Iterator over immutable references to props of a [`PropStore`]. Returned by
+/// [`PropStore::values`].
+#[derive(Debug)]
 pub struct Values<I>(I);
 
 impl<'map, H, T: 'map, I: Iterator<Item = (H, &'map T)>> Iterator for Values<I> {
@@ -325,7 +350,9 @@ impl<'map, H, T: 'map, I: Iterator<Item = (H, &'map T)>> Iterator for Values<I> 
     }
 }
 
-#[allow(missing_debug_implementations)] // TODO
+/// Iterator over mutable references to props of a [`PropStoreMut`]. Returned by
+/// [`PropStoreMut::values_mut`].
+#[derive(Debug)]
 pub struct ValuesMut<I>(I);
 
 impl<'map, H, T: 'map, I: Iterator<Item = (H, &'map mut T)>> Iterator for ValuesMut<I> {
@@ -341,6 +368,8 @@ impl<'map, H, T: 'map, I: Iterator<Item = (H, &'map mut T)>> Iterator for Values
 // ===========================================================================
 
 /// Wrapper for the value returned by [`PropMap::get`].
+///
+/// For why this is necessary, see the documentation of [`PropMap`].
 pub struct Value<R, T>(R, PhantomData<T>);
 
 impl<R: Borrow<T>, T> From<R> for Value<R, T> {
@@ -350,6 +379,7 @@ impl<R: Borrow<T>, T> From<R> for Value<R, T> {
 }
 
 impl<R: Borrow<T>, T> Value<R, T> {
+    /// Returns the inner value.
     pub fn into_inner(self) -> R {
         self.0
     }
@@ -376,3 +406,9 @@ impl<R: Borrow<T>, T: PartialEq> PartialEq for Value<R, T> {
 }
 
 impl<R: Borrow<T>, T: Eq> Eq for Value<R, T> {}
+
+impl<R: Borrow<T>, T: PartialEq> PartialEq<T> for Value<R, T> {
+    fn eq(&self, other: &T) -> bool {
+        self.0.borrow().eq(other)
+    }
+}

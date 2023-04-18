@@ -1,8 +1,7 @@
 //! Using maps as sets (i.e. without values, but only handles).
 //!
 //! The main type in this module is [`Set`] which is a wrapper around some map
-//! type. It offers a slightly nicer API than using map types directly. This
-//! module also contains a bunch of type aliases which you should use.
+//! type. It offers a slightly nicer API than using map types directly.
 
 use std::{
     marker::PhantomData,

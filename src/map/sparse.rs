@@ -14,27 +14,16 @@ use super::{PropMap, PropStore, PropStoreMut, Value, util::gen_mapped_iter};
 /// A property map using a hashmap to store the properties.
 ///
 /// This kind of map is very useful when not every handle from one mesh has a
-/// value associated with it. The lookup is a bit slower than for `DenseMap`,
-/// but the memory usage depends only on the number of inserted values and
-/// *not* on the highest handle ID! As a simple rule that's correct in most
-/// cases: if you want to associated a value with less than half of all
+/// value associated with it. The lookup is a bit slower than for
+/// [`DenseMap`], but the memory usage depends only on the number of inserted
+/// values and *not* on the highest handle ID! As a simple rule that's correct
+/// in most cases: if you want to associated a value with less than half of all
 /// handles, `SparseMap` is a good choice.
 ///
-/// This is just a wrapper around `std::collections::HashMap`. We cannot
-/// implement the traits for `std::collections::HashMap` directly, because it
-/// doesn't implement `Index<K>`. Instead of implements `Index<&Q>` where `Q`
-/// is something that allows to borrow `K` from it. But our `PropStore`
-/// requires `Index<H>`, so we have to use this wrapper type.
+/// This is just a wrapper around `std::collections::HashMap` using the `ahash`
+/// hashing function.
 ///
-/// This implementation currently uses `ahash` as the hash function. This is
-/// the default hash function of `hashbrown` as it's fairly fast and resistant
-/// to collision attacks. However, `FxHash` is usually faster on integer keys
-/// as it involves only one multiplication. This can lead to some problems,
-/// though, as lower bits of the hash are never influenced by higher bits of
-/// the key. When the lower bit pattern of all/many keys is the same, this can
-/// lead to many collisions and several problems in the hashmap. We might want
-/// to switch to `FxHash` in the future if we are sure that it's very unlikely
-/// to cause any trouble in ou situation.
+/// [`DenseMap`]: super::DenseMap
 #[derive(Clone, Debug)]
 pub struct SparseMap<H: Handle + Hash, T>(HashMap<H, T, ahash::RandomState>);
 
