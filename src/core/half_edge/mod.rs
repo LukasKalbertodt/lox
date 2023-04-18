@@ -174,6 +174,8 @@ impl fmt::Debug for HalfEdgeHandle {
 /// triangle meshes via the configuration.) Furthermore, it can answer all
 /// adjacency queries and exposes full edges.
 ///
+/// TODO: nice SVG image
+///
 /// # References
 ///
 /// Introduced in: Mäntylä, Martti. An introduction to solid modeling. Computer

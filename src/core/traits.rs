@@ -12,10 +12,16 @@ use super::{
 };
 
 
-/// Some kind of polygon mesh.
+/// Base trait representing some kind of polygon mesh.
 ///
-/// TODO: add info:
-/// - rather use `TriMesh` or `PolyMesh` as bound
+/// This can be implemented by data structures which have explicit faces and
+/// vertices and which can iterate over all faces and vertices. Having explicit
+/// faces/vertices means that the data structure is able to consistently assign
+/// handles to those elements so that one can refer to them.
+///
+/// This trait is not all too useful in itself. You usually also need
+/// [`MeshMut`] or one of the adjacency traits ([`BasicAdj`], [`FullAdj`],
+/// [`EdgeAdj`]) to do anything meaningful with a mesh.
 pub trait Mesh: Empty + fmt::Debug {
     /// The kind of faces this mesh type can store. Either [`TriFaces`]
     /// or [`PolyFaces`].
@@ -344,12 +350,9 @@ pub trait MeshMut: Mesh {
     /// - ... if `vertices.len() < 3`: faces must have at least three vertices!
     /// - ... if any given vertex handle is invalid, i.e. does not refer to a
     ///   vertex in this mesh.
-    /// - ... TODO
     ///
-    ///
-    /// TODO: what if face already there?
-    /// TODO: panics if vertex handles not unique
-    /// TODO: return result for certain problems, like non orientability or so?
+    // TODO: what if face already there?
+    // TODO: return result for certain problems, like non orientability or so?
     fn add_face(&mut self, vertices: &[VertexHandle]) -> FaceHandle
     where
         Self: PolyMesh;
@@ -357,19 +360,20 @@ pub trait MeshMut: Mesh {
     /// Removes the given isolated `vertex` from the mesh. **You have to make
     /// sure that the given vertex is indeed isolated!**
     ///
-    /// All implementations which can will check if `vertex` is isolated and
-    /// panic if not. However, not all implementations are able to check this
-    /// quickly so they will not perform this test. In these cases, calling
-    /// this method with a non-isolated vertex will lead to unspecified
-    /// behavior of the mesh, mostly resulting in panics in other methods
-    /// later. While it will not lead to memory unsafety (as this method is not
-    /// `unsafe`), it can still lead to hard to debug bugs.
+    /// Implementations that are able to check whether `vertex` is indeed
+    /// isolated, will do so and will panic if it is not. However, not all
+    /// implementations are able to so they will not perform this test. In
+    /// these cases, calling this method with a non-isolated vertex will lead
+    /// to unspecified behavior of the mesh, mostly resulting in panics in
+    /// other methods later. While it will not lead to memory unsafety (as this
+    /// method is not `unsafe`), it can still lead to hard to debug bugs.
     fn remove_isolated_vertex(&mut self, vertex: VertexHandle);
 
+    /// Removes the given face and all of its boundary edges. Will not remove
+    /// any vertices.
     fn remove_face(&mut self, face: FaceHandle);
 
-    /// Removes all vertices of this mesh. This can be more efficient than
-    /// calling `remove_vertex` (TODO: link) for each vertex individually.
+    /// Removes all vertices of this mesh.
     ///
     /// The caller of this method has to make sure that all vertices of this
     /// mesh are unconnected. In other words, there must not be any edges or
@@ -378,7 +382,6 @@ pub trait MeshMut: Mesh {
     /// ## Example
     ///
     /// ```
-    /// # //TODO: make it run
     /// use lox::core::MeshMut;
     ///
     /// fn add_two_vertices(mesh: &mut impl MeshMut) {
@@ -394,7 +397,6 @@ pub trait MeshMut: Mesh {
     /// If the mesh contains faces, this method will panic:
     ///
     /// ```
-    /// # //TODO: make it run
     /// use lox::core::{TriMesh, MeshMut};
     ///
     /// fn add_two_vertices(mesh: &mut (impl TriMesh + MeshMut)) {
@@ -410,7 +412,8 @@ pub trait MeshMut: Mesh {
     fn remove_all_vertices(&mut self);
 
     /// Removes all faces of this mesh. This can be more efficient than calling
-    /// `remove_face` (TODO: link) for each face individually.
+    /// [`remove_face`][Self::remove_face] for each face individually. Also
+    /// removed all edges.
     fn remove_all_faces(&mut self);
 
     /// Reserves memory for `count` additional vertices.
@@ -431,14 +434,10 @@ pub trait MeshMut: Mesh {
     /// inserting a center vertex. This new vertex is returned. This operation
     /// is sometimes called "1-to-n split".
     ///
-    /// TODO: nice SVG image (maybe inline?)
+    /// TODO: nice SVG image
     ///
     /// After calling this function, the face `f` might be invalid and you
     /// cannot assume it now refers to one of the new faces.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `f` is not a valid face.
     // TODO: default impl this with `remove_face`
     fn split_face(&mut self, f: FaceHandle) -> VertexHandle;
 
@@ -462,16 +461,12 @@ pub trait MeshMut: Mesh {
     where
         Self: EdgeMesh + TriMesh;
 
-    /// TODO
+    /// Splits the given edge and its neighboring faces into two, each.
     ///
-    /// - edge handle stays valid and is one of the resulting center edges.
-    ///   TODO: or make this unspecified? I mean: the user does not gain
-    ///   anything from the knowledge that the old handle stays valid, right?
-    ///   It's still unspecified on which side it is.
-    /// - maybe rename to `split_edge`. There is no other operation that this
-    ///   could be confused with. Only problem: with `split_edge` some people
-    ///   could think that faces are untouched (only makes sense in a poly
-    ///   mesh).
+    /// TODO: nice SVG image
+    ///
+    /// It is unspecified whether the given edge handle ist still valid after
+    /// this operation. Discard it and just use the returned handles.
     fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> SplitEdgeWithFacesResult
     where
         Self: EdgeMesh + TriMesh;
@@ -483,7 +478,7 @@ pub trait MeshMut: Mesh {
 /// [`Mesh`] or [`MeshMut`].
 pub trait EdgeMesh: Mesh {}
 
-/// A triangular mesh: all faces are triangles.
+/// A triangular mesh: all faces are triangles.t
 ///
 /// A triangular mesh is more restrictive than a poly mesh when adding or
 /// modifying faces (faces always have to be triangles), but can be easier to
@@ -569,13 +564,12 @@ pub trait BasicAdj: Mesh {
 /// - Face to face
 /// - Vertex to vertex
 /// - Vertex to face
-/// - Is a vertex/face on the boundary?
 pub trait FullAdj: BasicAdj {
     /// Returns the faces around the given triangular face in front-face CCW
     /// order.
     ///
-    /// TODO: explain that there can be duplicates in neighbor faces. We are
-    /// basically iterating over edges and returning their other face.
+    /// Note that not all returned faces are necessarily unique. A mesh could
+    /// connect two triangles back to back.
     fn faces_around_triangle(&self, face: FaceHandle) -> TriList<FaceHandle>
     where
         Self: TriMesh;
@@ -588,10 +582,11 @@ pub trait FullAdj: BasicAdj {
     /// [`faces_around_triangle`][FullAdj::faces_around_triangle] instead as
     /// it's usually faster.
     ///
-    /// TODO: explain that there can be duplicates in neighbor faces. We are
-    /// basically iterating over edges and returning their other face.
+    /// Note that not all returned faces are necessarily unique. A mesh could
+    /// connect two triangles back to back.
     fn faces_around_face(&self, face: FaceHandle) -> Self::FacesAroundFaceIter<'_>;
 
+    /// Iterator for [`Self::faces_around_vertex`].
     type FacesAroundVertexIter<'s>: Iterator<Item = FaceHandle> where Self: 's;
 
     /// Returns a list of all faces adjacent to the given vertex.
@@ -599,6 +594,7 @@ pub trait FullAdj: BasicAdj {
     /// The faces are listed in front-face CW (clockwise) order.
     fn faces_around_vertex(&self, vertex: VertexHandle) -> Self::FacesAroundVertexIter<'_>;
 
+    /// Iterator for [`Self::vertices_around_vertex`].
     type VerticesAroundVertexIter<'s>: Iterator<Item = VertexHandle> where Self: 's;
 
     /// Returns a list of all faces adjacent to the given vertex.
@@ -657,27 +653,39 @@ pub trait FullAdj: BasicAdj {
 /// - Vertex to Edge
 /// - Face to Edge
 pub trait EdgeAdj: FullAdj + EdgeMesh {
-    // Most not change! Always same order for one given edge.
+    /// Returns the (up to) two endpoints of a given edge.
+    ///
+    /// The order of the vertices must stay the same for a given edge.
     fn endpoints_of_edge(&self, edge: EdgeHandle) -> [VertexHandle; 2];
-    fn faces_of_edge(&self, edge: EdgeHandle) -> DiList<FaceHandle>;
-    // TODO
 
+    /// Returns the (up to) two faces of the given edge.
+    fn faces_of_edge(&self, edge: EdgeHandle) -> DiList<FaceHandle>;
+
+    /// Iterator for [`Self::edges_around_vertex`].
     type EdgesAroundVertexIter<'s>: Iterator<Item = EdgeHandle> where Self: 's;
+
+    /// Returns all edges around the given vertex.
     fn edges_around_vertex(&self, vertex: VertexHandle) -> Self::EdgesAroundVertexIter<'_>;
 
+    /// Iterator for [`Self::edges_around_vertex`].
     type EdgesAroundFaceIter<'s>: Iterator<Item = EdgeHandle> where Self: 's;
+
+    /// Returns all edges around/of the given face.
     fn edges_around_face(&self, face: FaceHandle) -> Self::EdgesAroundFaceIter<'_>;
 
+    /// Returns all three edges around/of the given triangular face.
     fn edges_around_triangle(&self, face: FaceHandle) -> [EdgeHandle; 3]
     where
         Self: TriMesh;
 
+    /// Returns true iff the edge is a boundary edge, i.e. if it has fewer than
+    /// 2 adjacent faces.
     fn is_boundary_edge(&self, edge: EdgeHandle) -> bool {
         self.faces_of_edge(edge).len() != 2
     }
 
-    // TODO: remove `_vertices` from the name? For faces, there can be multiple
-    // shared edges.
+    /// Returns the edge connecting the two given vertices, or `None` if the two
+    /// vertices are not connected.
     fn edge_between_vertices(&self, a: VertexHandle, b: VertexHandle) -> Option<EdgeHandle> {
         self.edges_around_vertex(a)
             .find(|&e| self.endpoints_of_edge(e).contains(&b))

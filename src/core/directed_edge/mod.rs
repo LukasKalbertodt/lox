@@ -2,14 +2,9 @@
 
 // # Some notes for developers about this implementation
 //
-// - The twin half edges are stored implicitly: twins are always stored next to
-//   one another in the underlying vector and thus always have handle indices
-//   only one apart. Furthermore, since we start with the handle index 0, the
-//   indices of two twins are always 2k and 2k + 1 where k is an integer.
-// - We map edge handles to half edge handles by multiplying by two. Half edge
-//   to edge is integer division by two. This works out very nicely: the edge
-//   handle space is contiguous and the conversion operations are a simple
-//   shift.
+// - To iterate around the mesh boundary, the `twin` field of a boundary half
+//   edge has a negative value. Its absolute value is the index of the next
+//   boundary half edge.
 
 use std::{
     fmt,
@@ -38,8 +33,7 @@ mod tests;
 
 
 
-const NON_MANIFOLD_EDGE_ERR: &str =
-    "new face would add a non-manifold edge";
+const NON_MANIFOLD_EDGE_ERR: &str = "new face would add a non-manifold edge";
 
 
 
@@ -131,12 +125,7 @@ impl fmt::Debug for HalfEdgeHandle {
 /// memory location of the directed edge: all three directed edges of a face
 /// are stored contiguously in memory.
 ///
-/// The literature mentions that it's not trivial to handle the boundary of a
-/// mesh with this data structure. However, there doesn't seem to be a standard
-/// way how to actually implement boundary operations in this data structure.
-/// As such, this implementation uses one solution that works for now, but this
-/// might get changed in the future.
-///
+/// TODO: nice SVG image
 ///
 /// # References
 ///

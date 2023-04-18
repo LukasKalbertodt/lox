@@ -1,14 +1,11 @@
-//! Polygon mesh **d**ata **s**tructures.
+//! Polygon mesh data structures for storing connectivity information
+//! (the "core" of a mesh).
 //!
 //! This module contains different data structures for the representation of
-//! triangle or polygon meshes. The data structures implement the mesh traits
-//! of this libary. Note that these data structures only represent the *core
-//! mesh*, i.e. which mesh elements exist and how they are connected. Mesh
-//! properties, including vertex positions, are not stored in these core
-//! meshes. In order to store adjacency information, you have to use [property
-//! maps][crate::map]. There are also a few so called *fat meshes* defined in
-//! the `fat` module (TODO) which store a core mesh plus additional
-//! properties.
+//! triangle or polygon meshes, as well as traits for abstracting over them.
+//! Note that these data structures are *only* concerned with connectivity
+//! information and cannot store additional properties, like face normals or
+//! even vertex positions. Use [prop maps][crate::map] for that purpose.
 //!
 //!
 //! # Introduction
@@ -38,16 +35,16 @@
 //!
 //! # Overview of available data structures
 //!
-//! The following table shows the data structures that are currently
-//! implemented in `lox`. Also refer to the guide (TODO) to learn more about
-//! how these data structures work internally.
+//! The following table shows the data structures that are currently implemented
+//! in `lox`. Refer to their documentation to learn more about how these data
+//! structures work internall.
 //!
 //!
-//! | Name | Memory | Face kind | `EdgeMesh` | `BasicAdj` | `FullAdj` | `EdgeAdj` |
-//! | ---- | ------ | --------- | ---------- | ---------- | --------- | --------- |
-//! | [`SharedVertexMesh`] | 24 | Triangles | ✘ | ✔ | ✘ | ✘ |
-//! | [`DirectedEdgeMesh`] | 52 – 100 | Triangles | ✘ | ✔ | ✔ | ✘ |
-//! | [`HalfEdgeMesh`]     | 84 – 108 | *configurable* | ✔ | ✔ | ✔ | ✔ |
+//! | Name         | Memory | Face kind | [`BasicAdj`] | [`FullAdj`] | [`EdgeAdj`] | [`EdgeMesh`] |
+//! | ------------ | ------ | --------- | ------------ | ----------- | ----------- | ------------ |
+//! | [`SharedVertexMesh`] | 24     | Triangles        | ✅ | ❌     | ❌          | ❌          |
+//! | [`DirectedEdgeMesh`] | 52 – 100 | Triangles      | ✅ | ✅     | ❌          | ❌          |
+//! | [`HalfEdgeMesh`]     | 84 – 108 | *configurable* | ✅ | ✅     | ✅          | ✅          |
 //!
 //!
 //! *Note about the "memory" column*: this value is given in bytes and is
@@ -79,6 +76,34 @@
 //! that particular data structure. In order to create your own configuration,
 //! create a new enum type without any variants (e.g. `enum MyConfig {}`) and
 //! then implement `Config` for it.
+//!
+//!
+//! # Mesh Traits
+//!
+//! There are various traits that describe different capabilities of mesh data
+//! structures. The most important ones are the three basic ones [`Mesh`],
+//! [`MeshMut`] and [`EdgeMesh`], plus the three adjacency-related ones
+//! [`BasicAdj`], [`FullAdj`] and [`EdgeAdj`]. These six traits are connected
+//! via super trait bounds like so:
+//!
+//! ```text
+//!   ┌──────── EdgeMesh ◄─────────────────────┐
+//!   │                                        │
+//!   ▼                                        │
+//! Mesh  ◄──── BasicAdj ◄──── FullAdj ◄──── EdgeAdj
+//!   ▲
+//!   │
+//!   └──────── MeshMut
+//! ```
+//!
+//! Further, there are:
+//!
+//! - [`PolyMesh`] and [`TriMesh`] are trait aliases/shorthands for `Mesh` with
+//!   a fixed [`FaceKind`][Mesh::FaceKind].
+//! - [`Orientable`] and [`NonOrientable`] are trait aliases/shorthands for
+//!   `Mesh` with a fixed [`Orientable`][Mesh::Orientable] value.
+//! - [`SupportsMultiBlade`] is a marker trait for data structures that support
+//!   multi fan-blade vertices.
 //!
 
 use crate::{

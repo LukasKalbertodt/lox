@@ -23,6 +23,8 @@ use super::{TriFaces, SplitEdgeWithFacesResult};
 /// This data structure is fairly limited as it can only answer one kind of
 /// adjacency query: F → V (`BasicAdj`). This is sufficient for most kinds of
 /// rendering and to read and write meshes from/to files.
+///
+/// TODO: nice SVG image
 #[derive(Clone, Empty)]
 pub struct SharedVertexMesh {
     vertices: DenseMap<VertexHandle, ()>,
