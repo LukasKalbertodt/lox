@@ -2,15 +2,14 @@ use crate::Handle;
 use super::{PropMap, Value};
 
 
-/// Helper type for [`PropMap::map_value`]. See that method for more
-/// information.
+/// Helper type for [`PropMap::map`]. See that method for more information.
 #[derive(Debug)]
-pub struct Mapper<'m, M, F> {
+pub struct Map<'m, M, F> {
     pub(super) inner: &'m M,
     pub(super) mapper: F,
 }
 
-impl<'m, H, M, F, TargetT> PropMap<H> for Mapper<'m, M, F>
+impl<'m, H, M, F, TargetT> PropMap<H> for Map<'m, M, F>
 where
     H: Handle,
     M: PropMap<H>,

@@ -176,12 +176,12 @@ pub trait PropMap<H: Handle> {
     ///     Some(&vec![1, 2, 3].into_boxed_slice()),
     /// );
     /// ```
-    fn map_value<F, TargetT>(&self, f: F) -> adaptors::Mapper<'_, Self, F>
+    fn map<F, TargetT>(&self, f: F) -> adaptors::Map<'_, Self, F>
     where
         Self: Sized,
         F: Fn(Value<Self::Ret<'_>, Self::Target>) -> TargetT,
     {
-        adaptors::Mapper {
+        adaptors::Map {
             inner: self,
             mapper: f,
         }
