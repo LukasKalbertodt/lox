@@ -21,14 +21,12 @@ mod fn_map;
 pub mod set;
 mod sparse;
 mod special_maps;
-mod tiny;
 mod util;
 
 pub use self::{
     fn_map::FnMap,
     sparse::SparseMap,
     special_maps::{ConstMap, EmptyMap},
-    tiny::TinyMap,
     dense::DenseMap,
 };
 

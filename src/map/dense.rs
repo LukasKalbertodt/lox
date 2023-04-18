@@ -45,11 +45,9 @@ use super::{PropMap, PropStore, PropStoreMut, Value, util::gen_mapped_iter};
 /// However, **if you have a handle source with sequential IDs and you want to
 /// associated data with (almost) all of those handles, this map is the best
 /// choice.** If you only want to associated data with some of those handles,
-/// you should probably use [`SparseMap`][SparseMap] or [`TinyMap`][TinyMap]
-/// instead.
+/// you should probably use [`SparseMap`][SparseMap] instead.
 ///
-/// [SparseMap]: crate::map::SparseMap
-/// [TinyMap]: crate::map::TinyMap
+/// [SparseMap]: super::SparseMap
 ///
 /// # Example
 ///

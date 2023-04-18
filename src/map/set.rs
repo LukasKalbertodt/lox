@@ -13,7 +13,7 @@ use crate::{
     prelude::*,
 };
 use super::{
-    DenseMap, Handles, PropMap, PropStore, PropStoreMut, SparseMap, TinyMap
+    DenseMap, Handles, PropMap, PropStore, PropStoreMut, SparseMap,
 };
 
 /// A handle set that uses a bit vector to store handles.
@@ -25,11 +25,6 @@ pub type DenseSet<H> = Set<H, DenseMap<H, ()>>;
 ///
 /// See [`SparseMap`] for more information on memory requirements and speed.
 pub type SparseSet<H> = Set<H, SparseMap<H, ()>>;
-
-/// A handle set optimized to hold very few handles.
-///
-/// See [`TinyMap`] for more information on memory requirements and speed.
-pub type TinySet<H> = Set<H, TinyMap<H, ()>>;
 
 
 /// A *set* of handles (basically a map with `()` values).
