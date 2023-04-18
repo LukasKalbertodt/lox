@@ -11,12 +11,14 @@ env:
 
 jobs:
   style:
-    name: 'Check basic style'
+    name: Check basic style
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Check basic style
-      run: ./.github/check-basic-style.sh
+    - uses: actions/checkout@v3
+    - uses: LukasKalbertodt/check-basic-style@v0.1
+      with:
+        files: |
+          **/*.{toml,rs}
 
   check:
     name: 'Build, test & document'
