@@ -149,7 +149,6 @@ pub(crate) mod sealed {
 ///
 /// [1]: https://math.stackexchange.com/q/425968/340615
 #[allow(non_camel_case_types)]
-#[cfg(not(feature = "large-handle"))]
 pub type hsize = HsizeImpl;
 
 #[cfg(not(feature = "large-handle"))]
