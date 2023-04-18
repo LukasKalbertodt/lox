@@ -113,7 +113,7 @@ impl<'a, MeshT: 'a + FullAdj> VertexRef<'a, MeshT> {
     /// //     | X \ |
     /// //     |    \|
     /// //    (B)---(C)
-    /// let mut mesh = HalfEdgeMesh::empty();
+    /// let mut mesh = <HalfEdgeMesh>::empty();
     /// let va = mesh.add_vertex();
     /// let vb = mesh.add_vertex();
     /// let vc = mesh.add_vertex();
@@ -121,8 +121,7 @@ impl<'a, MeshT: 'a + FullAdj> VertexRef<'a, MeshT> {
     /// let fx = mesh.add_triangle([va, vc, vb]);
     /// let fy = mesh.add_triangle([va, vd, vc]);
     ///
-    /// // TODO: this type annotation shouldn't be necessary
-    /// let v: VertexRef<'_, HalfEdgeMesh> = VertexRef::new(&mesh, va);
+    /// let v = VertexRef::new(&mesh, va);
     /// let face_handles = v.adjacent_faces()
     ///     .map(|f| f.handle())
     ///     .collect::<Vec<_>>();
