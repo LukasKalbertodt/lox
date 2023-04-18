@@ -4,6 +4,18 @@ version = "0.1.0"
 authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
 edition = "2021"
 
+description = """
+Fast polygon mesh library with different data structures and traits to abstract over those.
+"""
+documentation = "https://docs.rs/lox/"
+repository = "https://github.com/LukasKalbertodt/lox/"
+readme = "README.md"
+license = "MIT/Apache-2.0"
+
+keywords = ["mesh", "polygon", "half-edge-mesh", "geometry"]
+categories = ["graphics", "data-structures", "science"]
+exclude = [".github", "old_code", "stuff"]
+
 
 [features]
 large-handle = []

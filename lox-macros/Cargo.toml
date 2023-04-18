@@ -4,6 +4,14 @@ version = "0.0.1"
 authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
 edition = "2021"
 
+description = """
+Helper crate for `lox`. Please see the docs of `lox` for more information. Do
+not use this crate directly, API stability is not guaranteed!
+"""
+repository = "https://github.com/LukasKalbertodt/lox/"
+license = "MIT/Apache-2.0"
+
+
 [lib]
 proc-macro = true
 
