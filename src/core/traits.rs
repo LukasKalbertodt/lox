@@ -413,7 +413,7 @@ pub trait MeshMut: Mesh {
 
     /// Removes all faces of this mesh. This can be more efficient than calling
     /// [`remove_face`][Self::remove_face] for each face individually. Also
-    /// removed all edges.
+    /// removes all edges.
     fn remove_all_faces(&mut self);
 
     /// Reserves memory for `count` additional vertices.
@@ -434,7 +434,7 @@ pub trait MeshMut: Mesh {
     /// inserting a center vertex. This new vertex is returned. This operation
     /// is sometimes called "1-to-n split".
     ///
-    /// TODO: nice SVG image
+    #[doc = include_str!("img/split-face.svg")]
     ///
     /// After calling this function, the face `f` might be invalid and you
     /// cannot assume it now refers to one of the new faces.
@@ -444,7 +444,7 @@ pub trait MeshMut: Mesh {
     /// Performs the "edge flip" operation on `e`. Requires `e` to be an
     /// interior edge (i.e. being adjacent to two faces).
     ///
-    /// TODO: nice SVG image
+    #[doc = include_str!("img/flip-edge.svg")]
     ///
     /// The direction of the "rotation" is not specified, meaning that you
     /// cannot assume which face is on what side. After this function was
@@ -463,7 +463,7 @@ pub trait MeshMut: Mesh {
 
     /// Splits the given edge and its neighboring faces into two, each.
     ///
-    /// TODO: nice SVG image
+    #[doc = include_str!("img/split-edge-with-face.svg")]
     ///
     /// It is unspecified whether the given edge handle ist still valid after
     /// this operation. Discard it and just use the returned handles.
