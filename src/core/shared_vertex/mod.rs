@@ -15,16 +15,16 @@ use super::{TriFaces, SplitEdgeWithFacesResult};
 /// One of the simplest and the most used data structure for representing
 /// triangles meshes.
 ///
+/// This data structure is fairly limited as it can only answer one kind of
+/// adjacency query: F → V (`BasicAdj`). This is sufficient for most kinds of
+/// rendering and to read and write meshes from/to files.
+///
 /// The only thing this data structure stores are three vertex handles per
 /// face. This is very similar to to a "triangle list" index buffer of real
 /// time graphic pipelines (like OpenGL). As core meshes do not store
 /// properties, no data is stored per vertex.
 ///
-/// This data structure is fairly limited as it can only answer one kind of
-/// adjacency query: F → V (`BasicAdj`). This is sufficient for most kinds of
-/// rendering and to read and write meshes from/to files.
-///
-/// TODO: nice SVG image
+#[doc = include_str!("diagram.svg")]
 #[derive(Clone, Empty)]
 pub struct SharedVertexMesh {
     vertices: DenseMap<VertexHandle, ()>,

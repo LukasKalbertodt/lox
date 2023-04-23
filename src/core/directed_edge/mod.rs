@@ -125,7 +125,10 @@ impl fmt::Debug for HalfEdgeHandle {
 /// memory location of the directed edge: all three directed edges of a face
 /// are stored contiguously in memory.
 ///
-/// TODO: nice SVG image
+/// Each vertex stores one outgoing half-edge. Nothing is stored per face: the
+/// face -> half edge association is given implicitly by memory layout.
+///
+#[doc = include_str!("diagram.svg")]
 ///
 /// # References
 ///
