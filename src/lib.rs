@@ -100,6 +100,31 @@
 //! }
 //! ```
 //!
+//! Working with a non-triangular mesh:
+//!
+//! ```
+//! use lox::{
+//!     core::{HalfEdgeMesh, half_edge::PolyConfig},
+//!     prelude::*,
+//! };
+//!
+//! let mesh = lox::mesh! {
+//!     type: HalfEdgeMesh<PolyConfig>,
+//!     vertices: [v0, v1, v2, v3, v4, v5, v6],
+//!     faces: [
+//!         [v0, v3, v2, v1],
+//!         [v0, v5, v3, v3],
+//!         [v0, v1, v6, v5],
+//!         [v1, v2, v3, v4, v5, v6],
+//!     ],
+//! };
+//!
+//! for face in mesh.faces() {
+//!     for vertex in face.adjacent_vertices() {
+//!         println!("{:?} is a vertex of {:?}", vertex.handle(), face.handle());
+//!     }
+//! }
+//! ```
 //!
 //!
 //! # Speed
