@@ -822,12 +822,28 @@ impl<C: Config> MeshMut for DirectedEdgeMesh<C> {
         assert_ne!(a, c, "vertices of new face are not unique");
 
         let vertices = [self.check_vertex(a), self.check_vertex(b), self.check_vertex(c)];
+
+        if cfg!(debug_assertions) {
+            let check = |from, to| {
+                if let Some(he) = self.he_between(from, to) {
+                    panic!(
+                        "new triangle {:?} conflicts with existing triangle {:?} and \
+                            would create non-manifold edge {from:?} -> {to:?}",
+                        [a, b, c],
+                        self.vertices_around_triangle(he.face()),
+                    );
+                }
+            };
+            check(vertices[0], vertices[1]);
+            check(vertices[1], vertices[2]);
+            check(vertices[2], vertices[0]);
+        }
+
         let outer_hes = [
             self.he_between(vertices[1], vertices[0]),
             self.he_between(vertices[2], vertices[1]),
             self.he_between(vertices[0], vertices[2]),
         ];
-        // dbg!(outer_hes);
 
         // Add three new half edges.
         //
