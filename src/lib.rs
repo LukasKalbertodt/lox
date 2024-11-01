@@ -380,7 +380,6 @@ pub trait Handle: 'static + Copy + fmt::Debug + Eq + Ord {
         #[cfg(any(
             all(target_pointer_width = "32", feature = "large-handle"),
             target_pointer_width = "16",
-            target_pointer_width = "8",
         ))]
         debug_assert!(self.idx() <= usize::max_value() as hsize);
 
