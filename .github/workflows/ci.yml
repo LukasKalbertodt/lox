@@ -14,7 +14,7 @@ jobs:
     name: Check basic style
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: LukasKalbertodt/check-basic-style@v0.1
       with:
         files: |
@@ -24,7 +24,7 @@ jobs:
     name: 'Build, test & document'
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Restore cache
       uses: Swatinem/rust-cache@v2
 
