@@ -68,7 +68,7 @@ pub trait Serializer {
     /// Encode a slice of values into the serializer. If you have multiple
     /// values of the same type, use this function to improve performance. The
     /// slice is a mutable slice because the method implementation might want
-    /// to mutate it without creating a copy (e.g. changing endianess).
+    /// to mutate it without creating a copy (e.g. changing endianness).
     fn add_slice<P: PlyScalar>(&mut self, s: &mut [P]) -> Result<(), Error> {
         for x in s {
             self.add(*x)?;
@@ -346,7 +346,7 @@ impl fmt::Debug for ScalarTypeParseError {
 /// same for all elements of one element group.
 #[derive(Clone)]
 pub struct RawElement {
-    /// The packed data of all properties in native endianess.
+    /// The packed data of all properties in native endianness.
     pub data: RawData,
 
     /// Some meta information about each property in this element.
@@ -600,10 +600,10 @@ impl fmt::Debug for PropIndex {
     }
 }
 
-/// Raw data of one element in native endianess. Can be indexed by `RawOffset`.
+/// Raw data of one element in native endianness. Can be indexed by `RawOffset`.
 ///
-/// For PLY files stored in native endianess, this is an exact chunk from
-/// the file. For ASCII files and files in non-native endianess, the
+/// For PLY files stored in native endianness, this is an exact chunk from
+/// the file. For ASCII files and files in non-native endianness, the
 /// properties are first converted to this format.
 #[derive(Debug, Clone, From)]
 pub struct RawData(Vec<u8>);
@@ -745,7 +745,7 @@ impl<T> ops::DerefMut for PropVec<T> {
 /// This is a fairly space inefficient representation of properties and it's
 /// pretty slow. This should only be used for debugging and testing.
 ///
-/// The sizes of the smallvecs are choosen so that the inline variant won't
+/// The sizes of the smallvecs are chosen so that the inline variant won't
 /// inflict a size overhead (on x64). This still means that the most common
 /// form of list, the three-tuple `vertex_indices`, will fit inline.
 #[derive(Clone, PartialEq)]

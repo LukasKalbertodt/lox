@@ -38,7 +38,7 @@ use super::{PropMap, PropStore, PropStoreMut, Value, util::gen_mapped_iter};
 /// - **Bad**: if you don't pay attention, you could waste a lot of memory with
 ///   this map and subsequently lose the speed advantage.
 ///
-/// Most sources of handles (like all mesh data structures in this libary) will
+/// Most sources of handles (like all mesh data structures in this library) will
 /// produce handles with sequentially increasing IDs. So if you add three
 /// vertices to a mesh, the handles of those vertices will have the IDs 0, 1
 /// and 2. If you have a source of handles that works differently (e.g. by

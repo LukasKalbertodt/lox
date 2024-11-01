@@ -17,7 +17,7 @@ pub enum EncodingRequest {
     /// Specific encoding: native endian binary
     BinaryNative,
 
-    /// Broad request: some binary encoding, native endianess is preferred
+    /// Broad request: some binary encoding, native endianness is preferred
     Binary,
 }
 
@@ -41,7 +41,7 @@ impl FromStr for EncodingRequest {
             "ble" => Ok(EncodingRequest::Specific(FileEncoding::BinaryLittleEndian)),
             "ascii" => Ok(EncodingRequest::Specific(FileEncoding::Ascii)),
             other => Err(format!(
-                "'{}' is not a valid file encoding (possible values: 'binary' (endianess not \
+                "'{}' is not a valid file encoding (possible values: 'binary' (endianness not \
                     specified, but prefer native), 'bne' (binary native endian), \
                     'bbe' (binary big endian), 'ble' (binary little endian) and 'ascii')",
                 other,

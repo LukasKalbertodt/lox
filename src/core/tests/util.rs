@@ -593,7 +593,7 @@ impl MeshCheck {
         }
     }
 
-    /// Checks properties of `FulLAdj` trait.
+    /// Checks properties of `FullAdj` trait.
     pub(crate) fn check_full_adj<M: FullAdj>(&self, mesh: &M) {
         // ===== FACES ======
         for f in self.faces.elements() {
@@ -634,7 +634,7 @@ impl MeshCheck {
         }
     }
 
-    /// Checks properties of `FulLAdj` trait for triangle meshes.
+    /// Checks properties of `FullAdj` trait for triangle meshes.
     pub(crate) fn check_full_adj_tri<M: FullAdj + TriMesh>(&self, mesh: &M) {
         for f in self.faces.elements() {
             f.adjacent_faces.check(

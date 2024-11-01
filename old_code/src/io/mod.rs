@@ -514,8 +514,8 @@ impl FileFormat {
     /// already specify the types on this method. But we do get a significant
     /// speed advantage. See [`DynStreamSink`] for more information.
     ///
-    /// The encoding is choosen depending on what the format supports. Native
-    /// binary encoding is preferred, followed by swapped-endianess binary,
+    /// The encoding is chosen depending on what the format supports. Native
+    /// binary encoding is preferred, followed by swapped-endianness binary,
     /// followed by ASCII encoding. If you need to specify the encoding, take a
     /// look at [`writer_with_encoding`][FileFormat::writer_with_encoding].
     pub fn writer<'a, SrcT, W>(&self, w: W) -> Box<dyn DynStreamSink<SrcT> + 'a>
@@ -616,7 +616,7 @@ pub enum FileEncoding {
 }
 
 impl FileEncoding {
-    /// Returns the binary encoding with native endianess (e.g.
+    /// Returns the binary encoding with native endianness (e.g.
     /// `BinaryLittleEndian` on x86).
     pub fn binary_native() -> Self {
         #[cfg(target_endian = "big")]
@@ -778,7 +778,7 @@ pub enum ErrorKind {
     ///
     /// If you encounter this error, here is what you can do: make sure your
     /// input file is well-formed. If you are sure that your file is fine and
-    /// other programs can succesfully parse that file, please consider
+    /// other programs can successfully parse that file, please consider
     /// reporting this as a parser bug.
     Parse(ParseError),
 
@@ -789,18 +789,18 @@ pub enum ErrorKind {
     /// this `InvalidInput` rather represents logical errors in the file (like
     /// faces not defining their vertices or wrong order of elements).
     /// Furthermore, parse errors can usually point to the exact part of the
-    /// file where the error occured. These general input errors are more
+    /// file where the error occurred. These general input errors are more
     /// abstract and often don't just belong to one specific span.
     ///
     /// If you encounter this error, here is what you can do: make sure your
     /// input file is well-formed. If you are sure that your file is fine and
-    /// other programs can succesfully parse that file, please consider
+    /// other programs can successfully parse that file, please consider
     /// reporting this as a parser bug.
     InvalidInput(String),
 
     /// The sink is somehow unable to store the incoming data.
     ///
-    /// This might have a variety of differet causes. For example, some file
+    /// This might have a variety of different causes. For example, some file
     /// formats only support 32 bit indices for elements, meaning that
     /// attempting to store a mesh with more than 2<sup>32</sup> elements with
     /// that format would fail with this error.
@@ -1064,7 +1064,7 @@ pub trait Primitive: PrimitiveNum + Sealed {
     const TY: PrimitiveType;
 
     /// Returns the channel type represented at runtime by
-    /// [`PrimitiveColorChannelType`] for `Primitive` types thare are also a
+    /// [`PrimitiveColorChannelType`] for `Primitive` types that are also a
     /// [`PrimitiveColorChannel`].
     fn channel_type() -> PrimitiveColorChannelType
     where
@@ -1207,7 +1207,7 @@ pub trait StreamSource {
 /// not object-safe (i.e. cannot be made into a trait-object). This is OK for
 /// most uses, but sometimes a dynamically dispatched source is necessary.
 /// That's what this trait is for. It moves the generic `SinkT` parameter from
-/// the method to the trait to make it possible ot have a
+/// the method to the trait to make it possible to have a
 /// `dyn DynStreamSink<MySource>`.
 ///
 /// For more information, see [`DynStreamSink`] which works exactly like this
@@ -1496,7 +1496,7 @@ pub trait StreamSink {
 /// object-safe (i.e. cannot be made into a trait-object). This is OK for most
 /// uses, but sometimes a dynamically dispatched sink is necessary. That's what
 /// this trait is for. It moves the generic `SrcT` parameter from the method to
-/// the trait to make it possible ot have a `dyn DynStreamSink<MySource>`.
+/// the trait to make it possible to have a `dyn DynStreamSink<MySource>`.
 ///
 /// Having the source type as a trait parameter does restrict the potential
 /// usages of this trait. In other words: you either have to know the type of
@@ -1564,7 +1564,7 @@ where
 /// The handles passed to all main property methods must be valid handles
 /// obtained from the mesh returned by `core_mesh()`.
 ///
-/// All property methods have a default implemention which returns `None` in
+/// All property methods have a default implementation which returns `None` in
 /// `*_type` and panics in `*`.
 ///
 ///

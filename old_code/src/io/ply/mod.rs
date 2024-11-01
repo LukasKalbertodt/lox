@@ -9,7 +9,7 @@
 //! positions are stored in three properties called `x`, `y` and `z`.
 //!
 //! PLY files can be encoded as ASCII or as binary with either big or small
-//! endianess. While the ASCII encoding is space-inefficient (as usual), the
+//! endianness. While the ASCII encoding is space-inefficient (as usual), the
 //! binary formats are very close to be memory-optimal. The only very minor
 //! waste is that the number of vertices per face is always stored -- which is
 //! not necessary in the triangle-only case. But this only wastes one byte per
@@ -67,7 +67,7 @@ pub use self::write::{Config, Writer};
 
 // ----------------------------------------------------------------------------
 
-/// File name extentions used for this file format: `.ply`.
+/// File name extensions used for this file format: `.ply`.
 pub(super) const FILE_EXTENSIONS: &[&str] = &["ply"];
 
 /// Check if the given data from the start of the file is a valid PLY file
@@ -98,7 +98,7 @@ pub enum Encoding {
 }
 
 impl Encoding {
-    /// Returns the binary encoding with native endianess (little endian on
+    /// Returns the binary encoding with native endianness (little endian on
     /// x86).
     pub fn binary_native() -> Self {
         if cfg!(target_endian = "big") {

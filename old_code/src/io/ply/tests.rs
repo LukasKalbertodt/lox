@@ -40,7 +40,7 @@ fn test_is_file_start() {
 /// This abstract macro takes the name of another macro and invokes it three
 /// times, with the identifiers `ascii`, `ble` and `bbe` as first argument.
 ///
-/// It also accepts arbitarily any other args that are forwarded to the
+/// It also accepts arbitrarily any other args that are forwarded to the
 /// `generator` macro.
 macro_rules! gen_for_encodings {
     ($generator:ident $(, $args:ident)*) => {

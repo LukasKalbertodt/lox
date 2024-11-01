@@ -603,7 +603,7 @@ impl<C: Config> HalfEdgeMesh<C> {
         // ===================================================================
         // This fixes the next handles of the outer three edges plus additional
         // edges not adjacent to this face, as necessary. We handle each corner
-        // seperately.
+        // separately.
         //
         // So for each corner, we have this situation (the corner vertex `v`,
         // the new face `F`, the two outer edges `incoming` and `outgoing` and
@@ -639,7 +639,7 @@ impl<C: Config> HalfEdgeMesh<C> {
         //          | ╱       |       ╲ |
         //          o         o---------o
         //
-        // The order of fan blades is ambigious. When inserting a new fan
+        // The order of fan blades is ambiguous. When inserting a new fan
         // blade, we do not know where in the cycle to insert it. So we have to
         // accept a bit of chaos while multiple blades still exist. But often,
         // blades are reconnected (this is the `(true, true)` case below) in
@@ -1333,7 +1333,7 @@ impl<C: Config> MeshMut for HalfEdgeMesh<C> {
         // this implementation, instructions cannot simply be reordered, as the
         // order is important.
         //
-        // We handle each corner seperately. That means that we look at two
+        // We handle each corner separately. That means that we look at two
         // edges (four half edges) in each iteration. Of course, additional
         // edges can be involved.
         //

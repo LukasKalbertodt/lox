@@ -57,7 +57,7 @@ pub struct ConvertArgs {
     pub target_format: Option<FileFormat>,
 
     /// Specify the target file encoding. Valid values: 'binary' (native
-    /// endianess), 'bbe' (binary big endian), 'ble' (binary little endian) and
+    /// endianness), 'bbe' (binary big endian), 'ble' (binary little endian) and
     /// 'ascii'.
     #[structopt(
         short = "-e",
@@ -147,7 +147,7 @@ pub struct InfoArgs {
     // TODO:
     // - different output types (short, json, ...)
     // - output template?
-    // - include/exclude specific informations
+    // - include/exclude specific information
 }
 
 fn parse_file_format(src: &str) -> Result<FileFormat, String> {

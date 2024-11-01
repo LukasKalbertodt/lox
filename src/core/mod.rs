@@ -37,7 +37,7 @@
 //!
 //! The following table shows the data structures that are currently implemented
 //! in `lox`. Refer to their documentation to learn more about how these data
-//! structures work internall.
+//! structures work internally.
 //!
 //!
 //! | Name         | Memory | Face kind | [`BasicAdj`] | [`FullAdj`] | [`EdgeAdj`] | [`EdgeMesh`] |

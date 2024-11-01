@@ -178,7 +178,7 @@ pub trait MemSourceExt {
     /// given vertex colors instead of the original.
     ///
     /// This also works if the original source does not offer vertex colors.
-    /// TODO: make possible to specifiy cast rigor
+    /// TODO: make possible to specify cast rigor
     fn with_vertex_colors<'a, M>(
         &'a self,
         vertex_colors: &'a M,
@@ -216,7 +216,7 @@ pub trait MemSourceExt {
     /// given face colors instead of the original.
     ///
     /// This also works if the original source does not offer face colors.
-    /// TODO: make possible to specifiy cast rigor
+    /// TODO: make possible to specify cast rigor
     fn with_face_colors<'a, M>(
         &'a self,
         face_colors: &'a M,

@@ -66,7 +66,7 @@ pub use self::write::{Config, Writer};
 
 // ----------------------------------------------------------------------------
 
-/// File name extentions used for this file format: `.stl`.
+/// File name extensions used for this file format: `.stl`.
 pub(super) const FILE_EXTENSIONS: &[&str] = &["stl"];
 
 /// Check if the given data from the start of the file is a valid STL file
