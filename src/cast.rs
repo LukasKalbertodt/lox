@@ -23,7 +23,7 @@
 //! a number to fit in a smaller range (e.g. `500u16` to `u8`). "Rounding"
 //! means that the input number is inside the range of the destination type,
 //! but can not be exactly represented; a reasonable close number of the
-//! destiniation type is choosen (e.g. float to int).
+//! destiniation type is chosen (e.g. float to int).
 //!
 //! Two binary choices lead to four different fidelities plus one extra one to
 //! disallow any type change:

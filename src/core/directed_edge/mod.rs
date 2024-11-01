@@ -121,7 +121,7 @@ impl fmt::Debug for HalfEdgeHandle {
 /// This data structure stores information in directed edges which are stored
 /// per face (each face has exactly three). Each directed edge stores its twin
 /// directed edge and its target vertex. The `next` and `prev` handles to
-/// circulate around a face are typically not stored but given implictly by the
+/// circulate around a face are typically not stored but given implicitly by the
 /// memory location of the directed edge: all three directed edges of a face
 /// are stored contiguously in memory.
 ///
@@ -159,7 +159,7 @@ pub(crate) struct Vertex {
 ///
 /// The original paper suggest to store -1 to indicate a boundary edge and -2
 /// to indicate a non-manifold edge. Since this library does not support
-/// non-manifold edges anyway, we don't need the -2 sentinal value. The
+/// non-manifold edges anyway, we don't need the -2 sentinel value. The
 /// original paper also does not describe a way to iterate along the boundary
 /// of a mesh. We can improve this by using this field to store the next
 /// boundary edge (kind of).

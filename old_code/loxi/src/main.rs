@@ -17,7 +17,7 @@ use crate::{
 /// useful code is in `run()`.
 fn main() {
     if let Err(e) = run() {
-        error!("An error occured: {}", e);
+        error!("An error occurred: {}", e);
 
         for cause in e.iter_causes() {
             error!("  ... caused by: {}", cause);

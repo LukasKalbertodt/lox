@@ -44,7 +44,7 @@ use crate::{
 };
 
 
-/// A regular Tetrahedron: pyramide with triangle-base and pointy top, all
+/// A regular Tetrahedron: pyramid with triangle-base and pointy top, all
 /// sides are equilateral triangles.
 #[derive(Debug, Clone, Copy)]
 pub struct Tetrahedron {

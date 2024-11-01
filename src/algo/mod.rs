@@ -36,7 +36,7 @@ where
 
     mesh.vertices().map(|v| {
         // If the vertex is a boundary vertex, its position doesn't change. If
-        // not, we use the centroid of all neighbors' position as new positon.
+        // not, we use the centroid of all neighbors' position as new position.
         let new_pos = if v.is_boundary() {
             pos_of(v)
         } else {
@@ -66,7 +66,7 @@ where
     // and no fucked-up edges), the two are equivalent, because:
     // - if (b) => each face has as many edges as vertices. On each edge of the
     //   face, there can only be one other face. Since there are as many
-    //   adjacent faces as adjacent vertices/eges, each edge has two adjacent
+    //   adjacent faces as adjacent vertices/edges, each edge has two adjacent
     //   faces.
     // - if (a) => if all edges of a face have two adjacent faces, the face has
     //   as many adjacent faces as edges. Which is also the same number as the

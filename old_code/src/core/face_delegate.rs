@@ -194,7 +194,7 @@ impl FaceDelegateMesh {
         // So what do we have to do?
         //
         // For one, we need to change the `next_face` of the face prior
-        // to us in the clockwise cycle. There are two possibilties:
+        // to us in the clockwise cycle. There are two possibilities:
         // either the new face is inserted at the end (CW speaking) of
         // an already existing fan-blade, meaning that the last face of
         // a fan-blade is adjacent to the new face. Or this is not the
