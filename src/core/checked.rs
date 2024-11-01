@@ -50,10 +50,10 @@ impl<H: Handle> Checked<H> {
 
 impl<H: Handle> optional::Noned for Checked<H> {
     fn is_none(&self) -> bool {
-        self.0.idx() == hsize::max_value()
+        self.0.idx() == hsize::MAX
     }
     fn get_none() -> Self {
-        Self(H::new(hsize::max_value()))
+        Self(H::new(hsize::MAX))
     }
 }
 impl<H: Handle> optional::OptEq for Checked<H> {

@@ -390,24 +390,24 @@ macro_rules! impl_cast {
     // three different cases: pos, neg and both. Which just say at what ends
     // the clamping might occur.
     (@imp $src:ident -> $dst:ident : Clamping.pos; $v:ident) => {
-        if $v > $dst::max_value() as $src {
-            $dst::max_value()
+        if $v > $dst::MAX as $src {
+            $dst::MAX
         } else {
             $v as $dst
         }
     };
     (@imp $src:ident -> $dst:ident : Clamping.neg; $v:ident) => {
-        if $v < $dst::min_value() as $src {
-            $dst::min_value()
+        if $v < $dst::MIN as $src {
+            $dst::MIN
         } else {
             $v as $dst
         }
     };
     (@imp $src:ident -> $dst:ident : Clamping.both; $v:ident) => {
-        if $v > $dst::max_value() as $src {
-            $dst::max_value()
-        } else if $v < $dst::min_value() as $src {
-            $dst::min_value()
+        if $v > $dst::MAX as $src {
+            $dst::MAX
+        } else if $v < $dst::MIN as $src {
+            $dst::MIN
         } else {
             $v as $dst
         }
