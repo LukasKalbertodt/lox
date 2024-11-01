@@ -176,12 +176,12 @@ impl<T: PrimitiveNum> Vec3Like for [T; 3] {
 /// Types that can be used as a color channel.
 ///
 /// Implemented for `u8`, `u16`, `u32`, `f32` and `f64`. For integer types, the
-/// whole range is used (0 to `T::max_value()`) while for floats, the values
+/// whole range is used (0 to `T::MAX`) while for floats, the values
 /// are always between 0 and 1.
 pub trait PrimitiveColorChannel: PrimitiveNum {
     /// The value representing maximum intensity.
     ///
-    /// `T::max_value()` for integer, `1.0` for floats. The minimum intensity
+    /// `T::MAX` for integer, `1.0` for floats. The minimum intensity
     /// is always 0.
     const MAX_INTENSITY: Self;
 
@@ -189,7 +189,7 @@ pub trait PrimitiveColorChannel: PrimitiveNum {
     /// values.
     ///
     /// This is not a simple `as` cast or even `cast::lossy`. For example,
-    /// `255u8` becomes `1.0f32` or `u16::max_value()`. These casts are not
+    /// `255u8` becomes `1.0f32` or `u16::MAX`. These casts are not
     /// lossless, but might round the value a bit (like casting rigor
     /// `AllowRounding`).
     fn color_cast_from<SrcT: PrimitiveColorChannel>(src: SrcT) -> Self {
@@ -204,13 +204,13 @@ pub trait PrimitiveColorChannel: PrimitiveNum {
 }
 
 impl PrimitiveColorChannel for u8 {
-    const MAX_INTENSITY: Self = u8::max_value();
+    const MAX_INTENSITY: Self = u8::MAX;
 }
 impl PrimitiveColorChannel for u16 {
-    const MAX_INTENSITY: Self = u16::max_value();
+    const MAX_INTENSITY: Self = u16::MAX;
 }
 impl PrimitiveColorChannel for u32 {
-    const MAX_INTENSITY: Self = u32::max_value();
+    const MAX_INTENSITY: Self = u32::MAX;
 }
 impl PrimitiveColorChannel for f32 {
     const MAX_INTENSITY: Self = 1.0;
@@ -368,55 +368,55 @@ mod tests {
     #[test]
     fn color_cast() {
         assert_eq!(u8::color_cast_from(0u8), 0);
-        assert_eq!(u8::color_cast_from(u8::max_value()), 255);
+        assert_eq!(u8::color_cast_from(u8::MAX), 255);
         assert_eq!(u8::color_cast_from(0u16), 0);
-        assert_eq!(u8::color_cast_from(u16::max_value()), 255);
+        assert_eq!(u8::color_cast_from(u16::MAX), 255);
         assert_eq!(u8::color_cast_from(0u32), 0);
-        assert_eq!(u8::color_cast_from(u32::max_value()), 255);
+        assert_eq!(u8::color_cast_from(u32::MAX), 255);
         assert_eq!(u8::color_cast_from(0.0f32), 0);
         assert_eq!(u8::color_cast_from(1.0f32), 255);
         assert_eq!(u8::color_cast_from(0.0f64), 0);
         assert_eq!(u8::color_cast_from(1.0f64), 255);
 
         assert_eq!(u16::color_cast_from(0u8), 0);
-        assert_eq!(u16::color_cast_from(u8::max_value()), u16::max_value());
+        assert_eq!(u16::color_cast_from(u8::MAX), u16::max_value());
         assert_eq!(u16::color_cast_from(0u16), 0);
-        assert_eq!(u16::color_cast_from(u16::max_value()), u16::max_value());
+        assert_eq!(u16::color_cast_from(u16::MAX), u16::max_value());
         assert_eq!(u16::color_cast_from(0u32), 0);
-        assert_eq!(u16::color_cast_from(u32::max_value()), u16::max_value());
+        assert_eq!(u16::color_cast_from(u32::MAX), u16::max_value());
         assert_eq!(u16::color_cast_from(0.0f32), 0);
-        assert_eq!(u16::color_cast_from(1.0f32), u16::max_value());
+        assert_eq!(u16::color_cast_from(1.0f32), u16::MAX);
         assert_eq!(u16::color_cast_from(0.0f64), 0);
-        assert_eq!(u16::color_cast_from(1.0f64), u16::max_value());
+        assert_eq!(u16::color_cast_from(1.0f64), u16::MAX);
 
         assert_eq!(u32::color_cast_from(0u8), 0);
-        assert_eq!(u32::color_cast_from(u8::max_value()), u32::max_value());
+        assert_eq!(u32::color_cast_from(u8::MAX), u32::max_value());
         assert_eq!(u32::color_cast_from(0u16), 0);
-        assert_eq!(u32::color_cast_from(u16::max_value()), u32::max_value());
+        assert_eq!(u32::color_cast_from(u16::MAX), u32::max_value());
         assert_eq!(u32::color_cast_from(0u32), 0);
-        assert_eq!(u32::color_cast_from(u32::max_value()), u32::max_value());
+        assert_eq!(u32::color_cast_from(u32::MAX), u32::max_value());
         assert_eq!(u32::color_cast_from(0.0f32), 0);
-        assert_eq!(u32::color_cast_from(1.0f32), u32::max_value());
+        assert_eq!(u32::color_cast_from(1.0f32), u32::MAX);
         assert_eq!(u32::color_cast_from(0.0f64), 0);
-        assert_eq!(u32::color_cast_from(1.0f64), u32::max_value());
+        assert_eq!(u32::color_cast_from(1.0f64), u32::MAX);
 
         assert_eq!(f32::color_cast_from(0u8), 0.0);
-        assert_eq!(f32::color_cast_from(u8::max_value()), 1.0);
+        assert_eq!(f32::color_cast_from(u8::MAX), 1.0);
         assert_eq!(f32::color_cast_from(0u16), 0.0);
-        assert_eq!(f32::color_cast_from(u16::max_value()), 1.0);
+        assert_eq!(f32::color_cast_from(u16::MAX), 1.0);
         assert_eq!(f32::color_cast_from(0u32), 0.0);
-        assert_eq!(f32::color_cast_from(u32::max_value()), 1.0);
+        assert_eq!(f32::color_cast_from(u32::MAX), 1.0);
         assert_eq!(f32::color_cast_from(0.0f32), 0.0);
         assert_eq!(f32::color_cast_from(1.0f32), 1.0);
         assert_eq!(f32::color_cast_from(0.0f64), 0.0);
         assert_eq!(f32::color_cast_from(1.0f64), 1.0);
 
         assert_eq!(f64::color_cast_from(0u8), 0.0);
-        assert_eq!(f64::color_cast_from(u8::max_value()), 1.0);
+        assert_eq!(f64::color_cast_from(u8::MAX), 1.0);
         assert_eq!(f64::color_cast_from(0u16), 0.0);
-        assert_eq!(f64::color_cast_from(u16::max_value()), 1.0);
+        assert_eq!(f64::color_cast_from(u16::MAX), 1.0);
         assert_eq!(f64::color_cast_from(0u32), 0.0);
-        assert_eq!(f64::color_cast_from(u32::max_value()), 1.0);
+        assert_eq!(f64::color_cast_from(u32::MAX), 1.0);
         assert_eq!(f64::color_cast_from(0.0f32), 0.0);
         assert_eq!(f64::color_cast_from(1.0f32), 1.0);
         assert_eq!(f64::color_cast_from(0.0f64), 0.0);

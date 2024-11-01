@@ -347,7 +347,7 @@ type HsizeImpl = u64;
 /// strong typing.
 pub trait Handle: 'static + Copy + fmt::Debug + Eq + Ord {
     /// Create a handle from the given index. The index must not be
-    /// `hsize::max_value()` as this value is reserved!
+    /// `hsize::MAX` as this value is reserved!
     fn new(idx: hsize) -> Self;
 
     /// Return the index of the current handle.
@@ -362,7 +362,7 @@ pub trait Handle: 'static + Copy + fmt::Debug + Eq + Ord {
     fn from_usize(raw: usize) -> Self {
         // If `usize` is bigger than `hsize`, we assert that the value is fine.
         #[cfg(all(target_pointer_width = "64", not(feature = "large-handle")))]
-        debug_assert!(raw <= hsize::max_value() as usize);
+        debug_assert!(raw <= hsize::MAX as usize);
 
         Self::new(raw as hsize)
     }
@@ -382,7 +382,7 @@ pub trait Handle: 'static + Copy + fmt::Debug + Eq + Ord {
             target_pointer_width = "16",
             target_pointer_width = "8",
         ))]
-        debug_assert!(self.idx() <= usize::max_value() as hsize);
+        debug_assert!(self.idx() <= usize::MAX as hsize);
 
         self.idx() as usize
     }
