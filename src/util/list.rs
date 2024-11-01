@@ -243,13 +243,11 @@ impl<'a, T> Iterator for DiListIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match self.0.split_first() {
-                None => return None,
-                Some((head, tail)) => {
-                    self.0 = tail;
-                    return head.as_ref();
-                }
+        match self.0.split_first() {
+            None => return None,
+            Some((head, tail)) => {
+                self.0 = tail;
+                return head.as_ref();
             }
         }
     }
