@@ -465,7 +465,7 @@ pub trait MeshMut: Mesh {
     ///
     #[doc = include_str!("img/split-edge-with-face.svg")]
     ///
-    /// It is unspecified whether the given edge handle ist still valid after
+    /// It is unspecified whether the given edge handle is still valid after
     /// this operation. Discard it and just use the returned handles.
     fn split_edge_with_faces(&mut self, edge: EdgeHandle) -> SplitEdgeWithFacesResult
     where

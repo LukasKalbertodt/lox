@@ -114,8 +114,8 @@ pub fn run(global_args: &GlobalArgs, args: &ConvertArgs) -> Result<(), Error> {
         println!();
     }
 
-    // Check target compatability
-    check_compatability(&mesh, target_format);
+    // Check target compatibility
+    check_compatibility(&mesh, target_format);
 
     // Write file
     let before_write = Instant::now();
@@ -164,7 +164,7 @@ fn write_file(
 ) -> Result<(), Error> {
     info!("Target format: {} ({} encoding)", format, encoding);
 
-    // We can `unwrap()` here becaue we know the encoding is compatible with
+    // We can `unwrap()` here because we know the encoding is compatible with
     // the format.
     let file = BufWriter::new(File::create(&args.target)?);
     let writer = format.writer_with_encoding(encoding, file).unwrap();
@@ -176,7 +176,7 @@ fn write_file(
     Ok(())
 }
 
-fn check_compatability(
+fn check_compatibility(
     mesh: &AnyMesh,
     format: FileFormat,
 ) {

@@ -277,7 +277,7 @@ pub trait PropStoreMut<H: Handle>: Empty + PropStore<H> + ops::IndexMut<H> {
     fn get_mut(&mut self, handle: H) -> Option<&mut Self::Output>;
 
     /// Inserts the given property associated with `handle`. If there was
-    /// already a property associated with `handle`, this property is returnd.
+    /// already a property associated with `handle`, this property is returned.
     fn insert(&mut self, handle: H, prop: Self::Output) -> Option<Self::Output>
     where
         Self::Output: Sized;

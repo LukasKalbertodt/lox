@@ -1959,7 +1959,7 @@ macro_rules! gen_mesh_tests {
                     });
                 }
 
-                // Try to insert the remaning faces (just make sure it doesn't
+                // Try to insert the remaining faces (just make sure it doesn't
                 // panic).
                 m.clone().add_triangle([vb, ve, va]);
                 m.clone().add_triangle([vb, vg, va]);
@@ -2103,7 +2103,7 @@ macro_rules! gen_mesh_tests {
                 });
 
 
-                // Add the two missing faces of the four sided pyramide.
+                // Add the two missing faces of the four sided pyramid.
                 //
                 //             (a)
                 //            /   \
@@ -2335,7 +2335,7 @@ macro_rules! gen_mesh_tests {
         //         \ | /   | /          \ | /   | /
         //          (c)---(e)            (g)---(i)
         //
-        // The (a) vertex exists only once. Although... that doesn't necessarly
+        // The (a) vertex exists only once. Although... that doesn't necessarily
         // break things right? It cannot be closed without breaking stuff, but
         // it's fine as a manifold open mesh?
         //

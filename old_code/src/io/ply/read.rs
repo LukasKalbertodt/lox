@@ -226,7 +226,7 @@ impl<R: io::Read> Reader<R> {
                 () if buf.is_next(b"property ")? => {
                     let line_start = buf.offset();
 
-                    // Get last element or error if there wasn't a preceeding
+                    // Get last element or error if there wasn't a preceding
                     // `element` line.
                     let elem = elements.last_mut().ok_or_else(|| {
                         buf.spanned_data(b"property".len())
@@ -665,7 +665,7 @@ impl IdxLayout for SeparateIdx {
 }
 
 /// Something that can provide indices for a specific property. These indices
-/// denote the position of the invididual values of the property inside the raw
+/// denote the position of the individual values of the property inside the raw
 /// element data.
 trait IdxProvider<Prop: PropKind> {
     fn idx(&self) -> &<Prop::Layout as PropLayout>::Idx;
@@ -688,7 +688,7 @@ impl_idx_provider!(FaceReadState, NormalProp<T>, normal_idx);
 impl_idx_provider!(FaceReadState, RgbaColorProp, color_idx);
 impl_idx_provider!(EdgeReadState, RgbaColorProp, color_idx);
 
-// Manual impls for RGB as we want to resuse the 4 element RGBA index.
+// Manual impls for RGB as we want to reuse the 4 element RGBA index.
 impl IdxProvider<RgbColorProp> for VertexReadState {
     fn idx(&self) -> &<<RgbColorProp as PropKind>::Layout as PropLayout>::Idx {
         (&self.color_idx[..3]).try_into().unwrap()
@@ -821,7 +821,7 @@ where
 }
 
 fn bug_read_prop<Sink, State>(_: &mut Sink, _: &RawElement, _: &State) {
-    panic!("bug in PLY `RawTransferSink`: property reader of non-existant property called");
+    panic!("bug in PLY `RawTransferSink`: property reader of non-existent property called");
 }
 
 type VertexPropHandler<S> = fn(&mut S, &RawElement, &VertexReadState);
@@ -1509,7 +1509,7 @@ fn read_raw_element_group_binary<R: io::Read>(
 
 
         if byte_swap {
-            // ----- Swapped endianess -----
+            // ----- Swapped endianness -----
             for _ in 0..element_def.count {
                 swap_table.truncate(first_list_prop);
                 let prop_infos = &mut (*elem.prop_infos)[first_list_prop..];
@@ -1531,7 +1531,7 @@ fn read_raw_element_group_binary<R: io::Read>(
                 sink.element(&elem)?;
             }
         } else {
-            // ----- Native endianess -----
+            // ----- Native endianness -----
             for _ in 0..element_def.count {
                 let prop_infos = &mut (*elem.prop_infos)[first_list_prop..];
                 elem.data.clear();

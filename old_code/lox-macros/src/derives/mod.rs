@@ -16,7 +16,7 @@ use crate::util::struct_fields;
 
 
 // /// Specifies the default casting mode when the casting mode is not explicitly
-// /// specifid.
+// /// specified.
 // const DEFAULT_CAST_MODE: input::CastMode = input::CastMode::Lossy;
 
 // /// Specifies whether casting colors (in "rounding" mode) is allowed when a
