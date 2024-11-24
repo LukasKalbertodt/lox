@@ -288,7 +288,7 @@ pub(crate) mod sealed {
 ///
 /// Of course, we would like to avoid annoying bugs due to errors like "use
 /// after free". The crate `slotmap` has really great ideas regarding this.
-/// `lox will try out some ideas to avoid some common mistakes in the future.
+/// `lox` will try out some ideas to avoid some common mistakes in the future.
 ///
 /// # The size of `hsize`
 ///

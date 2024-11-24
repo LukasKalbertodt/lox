@@ -530,7 +530,7 @@ impl<C: Config> DirectedEdgeMesh<C> {
 /// Unfortunately, LLVM is not smart enough to correctly optimize that code.
 /// That's why this is hand-micro-optimized. The divisibility-check is
 /// well-known and described for example here:
-/// http://clomont.com/efficient-divisibility-testing/
+/// <http://clomont.com/efficient-divisibility-testing/>
 #[inline(always)]
 fn is_divisible_by_3(idx: hsize) -> bool {
     // We have to do different things depending on the handle size. The
