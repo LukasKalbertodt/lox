@@ -354,10 +354,10 @@ impl<C: Config> Copy for HalfEdge<C> {}
 impl<C: Config> Clone for HalfEdge<C> {
     fn clone(&self) -> Self {
         Self {
-            twin: self.twin.clone(),
-            target: self.target.clone(),
-            next: self.next.clone(),
-            prev: self.prev.clone(),
+            twin: self.twin,
+            target: self.target,
+            next: self.next,
+            prev: self.prev,
         }
     }
 }
