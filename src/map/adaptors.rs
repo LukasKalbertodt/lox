@@ -23,6 +23,6 @@ where
 
     fn get(&self, handle: H) -> Option<Value<Self::Ret<'_>, Self::Target>> {
         self.inner.get(handle)
-            .map(|v| (&self.mapper)(v).into())
+            .map(|v| (self.mapper)(v).into())
     }
 }
