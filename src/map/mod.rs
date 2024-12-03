@@ -401,7 +401,7 @@ impl<R: Borrow<T>, T: fmt::Debug> fmt::Debug for Value<R, T> {
 
 impl<R: Borrow<T>, T: PartialEq> PartialEq for Value<R, T> {
     fn eq(&self, other: &Self) -> bool {
-        self.0.borrow().eq(&other.0.borrow())
+        self.0.borrow().eq(other.0.borrow())
     }
 }
 
